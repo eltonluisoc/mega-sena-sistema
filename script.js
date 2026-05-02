@@ -126,48 +126,70 @@ function atualizarStats() {
     document.getElementById('totalCartoes').innerHTML = `📊 ${total} cartões | 🎯 ${concursos} concursos | ✅ ${resultadosCount} resultados`;
 }
 
-// ============ BUSCAR ONLINE ============
+// ============ BUSCAR RESULTADO ONLINE ============
 async function buscarResultadoOnline() {
     const concurso = document.getElementById('concursoSelect').value;
-    if (!concurso) { alert('Selecione um concurso!'); return; }
     
-    const btn = document.getElementById('btnBuscar');
-    btn.disabled = true;
-    btn.textContent = '⏳ BUSCANDO...';
-    document.getElementById('statusBusca').innerHTML = `<div class="status-info">🔍 Buscando concurso ${concurso}...</div>`;
+    if (!concurso) {
+        alert('⚠️ Selecione um concurso primeiro!');
+        return;
+    }
+    
+    const btnBuscar = document.getElementById('btnBuscar');
+    btnBuscar.disabled = true;
+    btnBuscar.textContent = '⏳ BUSCANDO...';
+    
+    document.getElementById('statusBusca').innerHTML = `<div class="status-info">🔍 Buscando resultado do concurso ${concurso}...</div>`;
     
     let numeros = null;
+    let apiUsada = '';
     
+    // API 1: Brasil API (com hífen)
     try {
         const url = `https://brasilapi.com.br/api/loterias/mega-sena/${concurso}`;
+        console.log('🌐 Tentando Brasil API:', url);
         const response = await fetch(url);
         if (response.ok) {
             const dados = await response.json();
-            if (dados.dezenas) numeros = dados.dezenas.map(n => parseInt(n));
+            if (dados.dezenas && dados.dezenas.length >= 6) {
+                numeros = dados.dezenas.map(n => parseInt(n));
+                apiUsada = 'Brasil API';
+                console.log('✅ Brasil API funcionou!');
+            }
         }
-    } catch(e) { console.log('API 1 falhou'); }
+    } catch (error) {
+        console.log('❌ Brasil API falhou:', error);
+    }
     
+    // API 2: Loteria API (sem hífen - megasena junto)
     if (!numeros) {
         try {
-            const url = `https://loteriascaixa-api.herokuapp.com/api/mega-sena/${concurso}`;
+            const url = `https://loteriascaixa-api.herokuapp.com/api/megasena/${concurso}`;
+            console.log('🌐 Tentando Loteria API:', url);
             const response = await fetch(url);
             if (response.ok) {
                 const dados = await response.json();
-                if (dados.dezenas) numeros = dados.dezenas.map(n => parseInt(n));
+                if (dados.dezenas && dados.dezenas.length >= 6) {
+                    numeros = dados.dezenas.map(n => parseInt(n));
+                    apiUsada = 'Loteria API';
+                    console.log('✅ Loteria API funcionou!');
+                }
             }
-        } catch(e) { console.log('API 2 falhou'); }
+        } catch (error) {
+            console.log('❌ Loteria API falhou:', error);
+        }
     }
     
-    if (numeros) {
-        numeros.sort((a,b) => a-b);
+    if (numeros && numeros.length >= 6) {
+        numeros.sort((a, b) => a - b);
         document.getElementById('numerosSorteados').value = numeros.join(' ');
-        document.getElementById('statusBusca').innerHTML = `<div class="status-success">✅ Resultado: ${numeros.join(' - ')}</div>`;
+        document.getElementById('statusBusca').innerHTML = `<div class="status-success">✅ Resultado encontrado! (${apiUsada})<br>Números: ${numeros.join(' - ')}</div>`;
     } else {
-        document.getElementById('statusBusca').innerHTML = `<div class="status-error">❌ Resultado não encontrado</div>`;
+        document.getElementById('statusBusca').innerHTML = `<div class="status-error">❌ Concurso ${concurso} não encontrado ou ainda não foi sorteado.<br>Digite os números manualmente quando sair o resultado.</div>`;
     }
     
-    btn.disabled = false;
-    btn.textContent = '🌐 BUSCAR ONLINE';
+    btnBuscar.disabled = false;
+    btnBuscar.textContent = '🌐 BUSCAR ONLINE';
 }
 
 // ============ CONFERIR ============

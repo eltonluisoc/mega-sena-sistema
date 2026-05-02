@@ -285,7 +285,7 @@ async function buscarResultadoOnlineAdmin() {
     
     // Tentar Brasil API
     try {
-        const url = `https://brasilapi.com.br/api/loterias/mega-sena/${concurso}`;
+        const url = `https://loteriascaixa-api.herokuapp.com/api/megasena/${concurso}`;
         const response = await fetch(url);
         if (response.ok) {
             const dados = await response.json();
