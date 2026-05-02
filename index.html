@@ -3,69 +3,115 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mega-Sena - Conferência</title>
+    <title>Mega-Sena - Conferência de Resultados</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            padding: 20px;
         }
-        
+
+        .top-bar {
+            background: #1e293b;
+            color: white;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .version {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-left: 10px;
+        }
+
+        .stats {
+            font-size: 12px;
+            background: rgba(255,255,255,0.1);
+            padding: 5px 15px;
+            border-radius: 20px;
+        }
+
         .container {
             max-width: 1200px;
-            margin: 0 auto;
+            margin: 30px auto;
+            padding: 0 20px;
         }
-        
+
         .card {
             background: white;
             border-radius: 15px;
-            padding: 25px;
-            margin-bottom: 20px;
+            overflow: hidden;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        }
-        
-        h1 {
-            color: #1e293b;
-            margin-bottom: 10px;
-        }
-        
-        .subtitle {
-            color: #64748b;
             margin-bottom: 20px;
         }
-        
+
+        .card-header {
+            padding: 15px 20px;
+            font-weight: bold;
+            font-size: 18px;
+            color: white;
+        }
+
+        .bg-purple { background: #8b5cf6; }
+        .bg-blue { background: #3b82f6; }
+        .bg-green { background: #10b981; }
+
+        .card-body {
+            padding: 20px;
+        }
+
         .form-group {
             margin-bottom: 15px;
         }
-        
+
         label {
             display: block;
             margin-bottom: 5px;
             font-weight: bold;
             color: #333;
         }
-        
+
         select, input {
             width: 100%;
             padding: 12px;
             border: 2px solid #e2e8f0;
             border-radius: 8px;
             font-size: 14px;
-            transition: all 0.3s;
         }
-        
+
         select:focus, input:focus {
             outline: none;
             border-color: #667eea;
         }
-        
+
+        .numeros-container {
+            display: flex;
+            gap: 10px;
+        }
+
+        .numeros-container input {
+            flex: 1;
+        }
+
+        .numeros-container button {
+            width: auto;
+        }
+
         button {
             background: #3b82f6;
             color: white;
@@ -76,367 +122,199 @@
             font-weight: bold;
             cursor: pointer;
             transition: all 0.3s;
-            width: 100%;
         }
-        
+
         button:hover {
             background: #2563eb;
             transform: translateY(-2px);
         }
-        
+
         .btn-success {
             background: #10b981;
         }
-        
+
         .btn-success:hover {
             background: #059669;
         }
-        
-        .numeros-container {
-            display: flex;
-            gap: 10px;
+
+        .btn-large {
+            width: 100%;
+            padding: 15px;
         }
-        
-        .numeros-container input {
-            flex: 1;
-        }
-        
-        .numeros-container button {
-            width: auto;
-        }
-        
+
         .status {
             margin-top: 10px;
             padding: 10px;
             border-radius: 8px;
             text-align: center;
         }
-        
-        .status-success {
-            background: #d1fae5;
-            color: #065f46;
+
+        .status-success { background: #d1fae5; color: #065f46; }
+        .status-error { background: #fee2e2; color: #991b1b; }
+        .status-info { background: #dbeafe; color: #1e40af; }
+
+        .cartoes-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
         }
-        
-        .status-error {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-        
-        .status-info {
-            background: #dbeafe;
-            color: #1e40af;
-        }
-        
-        .resultado-card {
+
+        .cartao-card {
             background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 12px;
+            min-width: 200px;
+        }
+
+        .cartao-titulo {
+            font-weight: bold;
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 8px;
+        }
+
+        .cartao-numeros {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+
+        .numero {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            background: #e2e8f0;
+        }
+
+        .numero-sorteado {
+            background: #10b981;
+            color: white;
+        }
+
+        .resultado-card {
             border: 1px solid #e2e8f0;
             border-radius: 10px;
             padding: 15px;
             margin-bottom: 15px;
         }
-        
+
         .resultado-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
             margin-bottom: 10px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #e2e8f0;
         }
-        
-        .resultado-bolao {
-            font-weight: bold;
-            font-size: 16px;
-            color: #1e293b;
-        }
-        
+
         .acertos {
-            font-weight: bold;
             padding: 4px 12px;
             border-radius: 20px;
             font-size: 12px;
+            font-weight: bold;
         }
-        
+
         .acertos-6 { background: #f59e0b; color: white; }
         .acertos-5 { background: #eab308; color: white; }
         .acertos-4 { background: #a855f7; color: white; }
         .acertos-0 { background: #cbd5e1; color: #475569; }
-        
-        .numeros {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 10px;
-        }
-        
-        .numero {
-            display: inline-block;
-            padding: 8px 12px;
-            border-radius: 8px;
-            font-family: monospace;
-            font-weight: bold;
-            font-size: 14px;
-        }
-        
-        .numero-sorteado {
-            background: #10b981;
-            color: white;
-        }
-        
-        .numero-normal {
-            background: #e2e8f0;
-            color: #333;
-        }
-        
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #64748b;
-        }
-        
-        .empty {
+
+        .empty-state {
             text-align: center;
             padding: 40px;
             color: #94a3b8;
         }
-        
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #3b82f6;
+        }
+
         .footer {
             text-align: center;
             padding: 20px;
             color: #94a3b8;
+            font-size: 12px;
+        }
+
+        @media (max-width: 768px) {
+            .top-bar { flex-direction: column; text-align: center; }
+            .numeros-container { flex-direction: column; }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="card">
-            <h1>🎲 MEGA-SENA - CONFERÊNCIA ONLINE</h1>
-            <div class="subtitle">Selecione o concurso e confira os resultados</div>
-            
-            <div class="form-group">
-                <label>📌 CONCURSO:</label>
-                <select id="concursoSelect">
-                    <option value="">Carregando concursos...</option>
-                </select>
-            </div>
-            
-            <div class="form-group">
-                <label>🎲 NÚMEROS SORTEADOS:</label>
-                <div class="numeros-container">
-                    <input type="text" id="numerosSorteados" placeholder="Ex: 12 15 23 34 45 56">
-                    <button id="btnBuscar" class="btn-success">🌐 BUSCAR ONLINE</button>
-                </div>
-            </div>
-            
-            <div id="statusBusca" class="status"></div>
-            
-            <button id="btnConferir">🎲 CONFERIR RESULTADOS</button>
+    <div class="top-bar">
+        <div class="logo">
+            🎲 MEGA-SENA
+            <span class="version">v1.0</span>
         </div>
-        <!-- NOVO CARD - MOSTRAR CARTÕES DO CONCURSO -->
-        <div class="card">
-            <div class="card-header" style="background: #3b82f6; color: white; padding: 12px; font-weight: bold;">
-            📋 CARTÕES DO CONCURSO
+        <div class="stats" id="totalCartoes">
+            📊 Carregando...
         </div>
-        <div class="card-body" id="cartoesConcurso">
-            <div class="empty-state">Selecione um concurso para ver os cartões</div>
-        </div>
-    </div>
-        <div id="resultadosArea">
-            <div class="empty">🔍 Selecione um concurso e clique em "Conferir"</div>
-        </div>
-        
-        <div class="footer">
-            <div>© 2026 Mega-Sena - Versão 1.0</div>
-            <div style="font-size: 11px; margin-top: 5px;">Desenvolvido por Elton Luis - Todos os direitos reservados</div>
+        <div style="font-size: 11px; color: #94a3b8;">
+            Desenvolvido por Elton Luis © 2026
         </div>
     </div>
 
-    <!-- Versão sem Firebase para teste -->
-    <script>
-        // SIMULAÇÃO DE BANCO DE DADOS (para teste)
-        console.log('🚀 Sistema iniciado - Modo de Teste');
-        
-        // Dados de exemplo
-        let concursosSimulados = [
-            { numero: '2700', totalCartoes: 3 },
-            { numero: '2699', totalCartoes: 2 }
-        ];
-        
-        let cartoesSimulados = [
-            { id: 1, concurso: '2700', bolao: 'Família', numeros: [12, 15, 23, 34, 45, 56] },
-            { id: 2, concurso: '2700', bolao: 'Família', numeros: [5, 10, 15, 20, 25, 30] },
-            { id: 3, concurso: '2700', bolao: 'Amigos', numeros: [8, 16, 24, 32, 40, 48] },
-            { id: 4, concurso: '2699', bolao: 'Trabalho', numeros: [3, 6, 9, 12, 15, 18] },
-            { id: 5, concurso: '2699', bolao: 'Trabalho', numeros: [7, 14, 21, 28, 35, 42] }
-        ];
-        
-        // Carregar concursos no select
-        function carregarConcursos() {
-            const select = document.getElementById('concursoSelect');
-            select.innerHTML = '<option value="">Selecione um concurso</option>';
-            
-            concursosSimulados.forEach(concurso => {
-                const option = document.createElement('option');
-                option.value = concurso.numero;
-                option.textContent = `Concurso ${concurso.numero} (${concurso.totalCartoes} cartões)`;
-                select.appendChild(option);
-            });
-            
-            console.log('✅ Concursos carregados:', concursosSimulados.length);
-        }
-        
-        // Buscar resultado online (simulado)
-        function buscarOnline() {
-            const concurso = document.getElementById('concursoSelect').value;
-            if (!concurso) {
-                mostrarStatus('⚠️ Selecione um concurso primeiro!', 'error');
-                return;
-            }
-            
-            mostrarStatus(`🔍 Buscando resultado do concurso ${concurso}...`, 'info');
-            
-            // Simular busca (2 segundos)
-            setTimeout(() => {
-                // Números simulados (em produção, viria da API)
-                const numerosSimulados = [12, 15, 23, 34, 45, 56];
-                document.getElementById('numerosSorteados').value = numerosSimulados.join(' ');
-                mostrarStatus(`✅ Resultado encontrado! Números: ${numerosSimulados.join(' - ')}`, 'success');
-            }, 2000);
-        }
-        
-        // Mostrar status
-        function mostrarStatus(mensagem, tipo) {
-            const statusDiv = document.getElementById('statusBusca');
-            statusDiv.textContent = mensagem;
-            statusDiv.className = `status status-${tipo}`;
-            
-            setTimeout(() => {
-                if (statusDiv.textContent === mensagem) {
-                    statusDiv.textContent = '';
-                    statusDiv.className = 'status';
-                }
-            }, 5000);
-        }
-        
-        // Conferir resultados
-        function conferir() {
-            const concurso = document.getElementById('concursoSelect').value;
-            const numerosText = document.getElementById('numerosSorteados').value;
-            
-            if (!concurso) {
-                alert('⚠️ Selecione um concurso!');
-                return;
-            }
-            
-            if (!numerosText.trim()) {
-                alert('⚠️ Digite os números sorteados ou clique em "Buscar Online"!');
-                return;
-            }
-            
-            // Extrair números
-            const sorteados = numerosText.match(/\d+/g).map(Number);
-            
-            if (sorteados.length < 6) {
-                alert('⚠️ Digite pelo menos 6 números!');
-                return;
-            }
-            
-            // Mostrar loading
-            const resultadosArea = document.getElementById('resultadosArea');
-            resultadosArea.innerHTML = '<div class="loading">🔍 PROCESSANDO... Aguarde</div>';
-            
-            // Filtrar cartões do concurso
-            const cartoesConcurso = cartoesSimulados.filter(c => c.concurso === concurso);
-            
-            if (cartoesConcurso.length === 0) {
-                resultadosArea.innerHTML = '<div class="empty">📭 Nenhum cartão cadastrado para este concurso</div>';
-                return;
-            }
-            
-            // Calcular acertos
-            const resultados = cartoesConcurso.map(cartao => {
-                const acertos = cartao.numeros.filter(n => sorteados.includes(n)).length;
-                return { ...cartao, acertos };
-            });
-            
-            // Ordenar por mais acertos
-            resultados.sort((a, b) => b.acertos - a.acertos);
-            
-            // Estatísticas
-            const totalSenas = resultados.filter(r => r.acertos >= 6).length;
-            const totalQuinas = resultados.filter(r => r.acertos === 5).length;
-            const totalQuadras = resultados.filter(r => r.acertos === 4).length;
-            
-            // Montar HTML
-            let html = `
-                <div class="card">
-                    <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px;">
-                        <div style="text-align: center;">
-                            <div style="font-size: 28px; font-weight: bold; color: #f59e0b;">${totalSenas}</div>
-                            <div>SENA(S)</div>
-                        </div>
-                        <div style="text-align: center;">
-                            <div style="font-size: 28px; font-weight: bold; color: #eab308;">${totalQuinas}</div>
-                            <div>QUINA(S)</div>
-                        </div>
-                        <div style="text-align: center;">
-                            <div style="font-size: 28px; font-weight: bold; color: #a855f7;">${totalQuadras}</div>
-                            <div>QUADRA(S)</div>
-                        </div>
-                        <div style="text-align: center;">
-                            <div style="font-size: 28px; font-weight: bold;">${resultados.length}</div>
-                            <div>CARTÕES</div>
-                        </div>
-                    </div>
-                    <div style="text-align: center; color: #10b981; font-weight: bold;">
-                        🎲 Números Sorteados: ${sorteados.join(' - ')}
+    <div class="container">
+        <!-- Card de Conferência -->
+        <div class="card">
+            <div class="card-header bg-purple">
+                🔍 CONFERIR RESULTADOS
+            </div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label>📌 CONCURSO:</label>
+                    <select id="concursoSelect">
+                        <option value="">Carregando concursos...</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>🎲 NÚMEROS SORTEADOS:</label>
+                    <div class="numeros-container">
+                        <input type="text" id="numerosSorteados" placeholder="Ex: 12 15 23 34 45 56">
+                        <button id="btnBuscar" class="btn-success">🌐 BUSCAR ONLINE</button>
                     </div>
                 </div>
-            `;
-            
-            // Agrupar por bolão
-            const porBolao = {};
-            resultados.forEach(r => {
-                const bolao = r.bolao;
-                if (!porBolao[bolao]) porBolao[bolao] = [];
-                porBolao[bolao].push(r);
-            });
-            
-            // Exibir resultados por bolão
-            for (const [bolao, bolaoResultados] of Object.entries(porBolao)) {
-                html += `
-                    <div class="card">
-                        <h3>🎯 ${bolao}</h3>
-                        ${bolaoResultados.map(cartao => `
-                            <div class="resultado-card">
-                                <div class="resultado-header">
-                                    <span class="resultado-bolao">Cartão #${cartao.id}</span>
-                                    <span class="acertos acertos-${Math.min(cartao.acertos, 6)}">
-                                        ${cartao.acertos} ACERTO${cartao.acertos !== 1 ? 'S' : ''}
-                                    </span>
-                                </div>
-                                <div class="numeros">
-                                    ${cartao.numeros.map(n => `
-                                        <span class="numero ${sorteados.includes(n) ? 'numero-sorteado' : 'numero-normal'}">
-                                            ${n.toString().padStart(2, '0')}
-                                        </span>
-                                    `).join('')}
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
-            }
-            
-            resultadosArea.innerHTML = html;
-        }
-        
-        // Eventos
-        document.addEventListener('DOMContentLoaded', () => {
-            carregarConcursos();
-            document.getElementById('btnBuscar').addEventListener('click', buscarOnline);
-            document.getElementById('btnConferir').addEventListener('click', conferir);
-        });
-    </script>
+
+                <div id="statusBusca" class="status"></div>
+
+                <button id="btnConferir" class="btn-large">🎲 CONFERIR RESULTADOS</button>
+            </div>
+        </div>
+
+        <!-- Card: Cartões do Concurso -->
+        <div class="card">
+            <div class="card-header bg-blue">
+                📋 CARTÕES DO CONCURSO
+            </div>
+            <div class="card-body" id="cartoesConcurso">
+                <div class="empty-state">Selecione um concurso para ver os cartões</div>
+            </div>
+        </div>
+
+        <!-- Card: Resultados da Conferência -->
+        <div class="card">
+            <div class="card-header bg-green">
+                📊 RESULTADOS DA CONFERÊNCIA
+            </div>
+            <div class="card-body" id="resultadosArea">
+                <div class="empty-state">🔍 Selecione um concurso e clique em "Conferir"</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <div>© 2026 Mega-Sena Sistema Profissional - Versão 1.0</div>
+        <div style="font-size: 11px; margin-top: 5px;">Desenvolvido por Elton Luis - Todos os direitos reservados</div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
