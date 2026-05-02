@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Cadastro de Cartões Mega-Sena</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+        <!-- Barra superior -->
+    <div class="top-bar">
+        <div class="logo">
+            🎲 MEGA-SENA
+            <span class="version">Administração</span>
+        </div>
+        <div class="stats">
+            <div class="stat" id="totalCartoes">📊 0 cartões</div>
+            <button id="btnSair" class="btn-logout">🔒 SAIR</button>
+        </div>
+    </div>
+
+    <!-- Container principal -->
+    <div class="container">
+        <div class="admin-layout">
+            <!-- Painel de cadastro -->
+            <div class="cadastro-panel">
+                <div class="card">
+                    <div class="card-header bg-blue">
+                        📝 CADASTRAR CARTÕES
+                    </div>
+                    <div class="card-body">
+                        <!-- Informações do concurso -->
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>📌 Concurso:</label>
+                                <input type="number" id="concurso" class="form-control" placeholder="Ex: 2700">
+                            </div>
+                            <div class="form-group">
+                                <label>👥 Bolão:</label>
+                                <input type="text" id="bolao" class="form-control" placeholder="Ex: Família, Amigos, Opcional">
+                            </div>
+                        </div>
+
+                        <!-- Área de números -->
+                        <div class="form-group">
+                            <label>🔢 Números dos Cartões (um por linha):</label>
+                            <textarea id="numerosCartoes" rows="8" class="form-control" placeholder="Ex:&#10;01 02 03 04 05 06 07 08 09 10&#10;11 12 13 14 15 16 17 18 19 20&#10;21 22 23 24 25 26 27 28 29 30"></textarea>
+                        </div>
+
+                        <!-- Dica -->
+                        <div class="dica">
+                            💡 Dica: Cole do Excel! Cada linha = um cartão. Mínimo 6 números por cartão.
+                        </div>
+
+                        <!-- Botões -->
+                        <div class="form-buttons">
+                            <button id="btnAdicionar" class="btn btn-green">➕ ADICIONAR CARTÕES</button>
+                            <button id="btnLimpar" class="btn btn-gray">🗑️ LIMPAR</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Resultados oficiais -->
+                <div class="card">
+                    <div class="card-header bg-purple">
+                        🔍 RESULTADOS OFICIAIS
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label>Concurso:</label>
+                            <select id="concursoResultado" class="form-control">
+                                <option value="">Selecione um concurso</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Números Sorteados:</label>
+                            <div class="numeros-container">
+                                <input type="text" id="numerosSorteadosInput" class="form-control" placeholder="Ex: 01 12 23 34 45 56">
+                                <button id="btnSalvarResultado" class="btn btn-success">💾 SALVAR</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lista de cartões -->
+            <div class="lista-panel">
+                <div class="card">
+                    <div class="card-header bg-orange">
+                        📋 CARTÕES CADASTRADOS
+                    </div>
+                    <div class="card-body">
+                        <div class="filtros">
+                            <select id="filtroConcurso" class="form-control-sm">
+                                <option value="todos">Todos os concursos</option>
+                            </select>
+                            <button id="btnRecarregar" class="btn-sm btn-blue">🔄 RECARREGAR</button>
+                        </div>
+                        <div id="cartoesLista" class="cartoes-grid">
+                            <div class="empty-state">Nenhum cartão cadastrado ainda</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de autenticação -->
+    <div id="authModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                🔐 ACESSO ADMINISTRATIVO
+            </div>
+            <div class="modal-body">
+                <input type="password" id="senhaAdmin" class="form-control" placeholder="Digite a senha de acesso">
+                <button id="btnAutenticar" class="btn btn-primary btn-large" style="margin-top: 15px;">🔓 ENTRAR</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rodapé -->
+    <div class="footer">
+        © 2024 Mega-Sena Sistema Profissional - Acesso Restrito ao Administrador
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="admin.js"></script>
+</body>
+</html>
