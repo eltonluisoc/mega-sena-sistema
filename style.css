@@ -10,85 +10,99 @@ body {
     min-height: 100vh;
 }
 
-/* Barra superior */
+/* ============ BARRA SUPERIOR ============ */
 .top-bar {
     background: #1e293b;
     color: white;
-    padding: 15px 30px;
+    padding: 15px 20px;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
 
 .logo {
-    font-size: 24px;
+    font-size: 22px;
     font-weight: bold;
 }
 
 .version {
-    font-size: 12px;
+    font-size: 11px;
     color: #94a3b8;
-    margin-left: 10px;
+    margin-left: 8px;
 }
 
 .stats {
-    display: flex;
-    gap: 20px;
-}
-
-.stat {
     background: rgba(255,255,255,0.1);
-    padding: 5px 15px;
+    padding: 5px 12px;
     border-radius: 20px;
-    font-size: 14px;
+    font-size: 12px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
 }
 
 .btn-logout {
     background: #ef4444;
     color: white;
     border: none;
-    padding: 5px 15px;
+    padding: 5px 12px;
     border-radius: 5px;
     cursor: pointer;
     font-weight: bold;
+    font-size: 12px;
 }
 
-/* Container principal */
+/* ============ CONTAINER PRINCIPAL ============ */
 .container {
     max-width: 1400px;
-    margin: 30px auto;
-    padding: 0 20px;
+    margin: 20px auto;
+    padding: 0 15px;
 }
 
-/* Cards */
+/* ============ LAYOUT ADMIN ============ */
+.admin-layout {
+    display: grid;
+    grid-template-columns: 1fr 1.5fr;
+    gap: 20px;
+}
+
+.cadastro-panel, .lista-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* ============ CARDS ============ */
 .card {
     background: white;
-    border-radius: 10px;
+    border-radius: 12px;
     overflow: hidden;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    margin-bottom: 20px;
 }
 
 .card-header {
-    padding: 15px 20px;
+    padding: 12px 15px;
     font-weight: bold;
-    font-size: 18px;
+    font-size: 16px;
     color: white;
 }
 
+.card-body {
+    padding: 15px;
+}
+
+/* Cores dos cabeçalhos */
 .bg-purple { background: #8b5cf6; }
 .bg-blue { background: #3b82f6; }
 .bg-green { background: #10b981; }
 .bg-orange { background: #f59e0b; }
 
-.card-body {
-    padding: 20px;
-}
-
-/* Formulários */
+/* ============ FORMULÁRIOS ============ */
 .form-group {
-    margin-bottom: 15px;
+    margin-bottom: 12px;
 }
 
 .form-row {
@@ -103,16 +117,15 @@ label {
     margin-bottom: 5px;
     font-weight: bold;
     color: #333;
-    font-size: 14px;
+    font-size: 13px;
 }
 
 .form-control {
     width: 100%;
     padding: 10px;
     border: 1px solid #ddd;
-    border-radius: 5px;
+    border-radius: 8px;
     font-size: 14px;
-    font-family: monospace;
 }
 
 .form-control:focus {
@@ -123,115 +136,74 @@ label {
 textarea.form-control {
     font-family: 'Courier New', monospace;
     resize: vertical;
+    font-size: 13px;
 }
 
-/* Botões */
+/* ============ BOTÕES ============ */
 .btn {
-    padding: 10px 20px;
+    padding: 10px 16px;
     border: none;
-    border-radius: 5px;
+    border-radius: 8px;
     cursor: pointer;
     font-weight: bold;
     transition: all 0.3s;
+    font-size: 13px;
 }
 
 .btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
 }
 
-.btn-primary {
-    background: #3b82f6;
-    color: white;
-}
-
-.btn-success {
-    background: #10b981;
-    color: white;
-}
-
-.btn-green {
-    background: #059669;
-    color: white;
-}
-
-.btn-gray {
-    background: #64748b;
-    color: white;
-}
+.btn-primary { background: #3b82f6; color: white; }
+.btn-success { background: #10b981; color: white; }
+.btn-green { background: #059669; color: white; }
+.btn-gray { background: #64748b; color: white; }
+.btn-purple { background: #8b5cf6; color: white; }
+.btn-red { background: #ef4444; color: white; }
 
 .btn-large {
     width: 100%;
-    padding: 15px;
-    font-size: 16px;
+    padding: 12px;
+    font-size: 15px;
 }
 
-/* Layout administrativo */
-.admin-layout {
-    display: grid;
-    grid-template-columns: 1fr 1.5fr;
-    gap: 20px;
-}
-
-.cadastro-panel, .lista-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
-
-/* Conferência */
-.conference-panel {
-    max-width: 1000px;
-    margin: 0 auto;
-}
-
-.numeros-container {
+.form-buttons {
     display: flex;
     gap: 10px;
+    margin-top: 15px;
+    flex-wrap: wrap;
 }
 
-.numeros-container .form-control {
-    flex: 1;
-}
-
-/* Dica */
-.dica {
-    background: #fef3c7;
-    color: #92400e;
-    padding: 10px;
-    border-radius: 5px;
-    font-size: 12px;
-    margin: 15px 0;
-}
-
-/* Filtros */
+/* ============ FILTROS ============ */
 .filtros {
     display: flex;
     gap: 10px;
-    margin-bottom: 20px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+    align-items: center;
 }
 
 .form-control-sm {
-    padding: 8px;
+    padding: 8px 10px;
     border: 1px solid #ddd;
-    border-radius: 5px;
+    border-radius: 6px;
     flex: 1;
+    min-width: 120px;
 }
 
 .btn-sm {
-    padding: 8px 15px;
+    padding: 8px 12px;
     font-size: 12px;
-}
-
-.btn-blue {
-    background: #3b82f6;
-    color: white;
-    border: none;
-    border-radius: 5px;
+    border-radius: 6px;
     cursor: pointer;
+    border: none;
+    font-weight: bold;
 }
 
-/* Grid de cartões */
+.btn-blue { background: #3b82f6; color: white; }
+
+/* ============ LISTA DE CARTÕES ============ */
 .cartoes-grid {
     max-height: 500px;
     overflow-y: auto;
@@ -241,34 +213,55 @@ textarea.form-control {
     background: #f8fafc;
     border: 1px solid #e2e8f0;
     border-radius: 8px;
-    padding: 12px;
+    padding: 10px;
     margin-bottom: 10px;
-    transition: all 0.3s;
 }
 
-.cartao-item:hover {
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+/* ============ DICA ============ */
+.dica {
+    background: #fef3c7;
+    color: #92400e;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    margin: 12px 0;
 }
 
-.cartao-header {
+/* ============ RESULTADOS ============ */
+.resultado-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+}
+
+.resultado-header {
     display: flex;
     justify-content: space-between;
     margin-bottom: 10px;
-    padding-bottom: 5px;
-    border-bottom: 1px solid #e2e8f0;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
-.cartao-id {
+.resultado-bolao {
     font-weight: bold;
-    color: #3b82f6;
+    color: #1e293b;
 }
 
-.cartao-concurso {
-    color: #64748b;
-    font-size: 12px;
+.acertos {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: bold;
 }
 
-.cartao-numeros {
+.acertos-6 { background: #f59e0b; color: white; }
+.acertos-5 { background: #eab308; color: white; }
+.acertos-4 { background: #a855f7; color: white; }
+.acertos-0 { background: #cbd5e1; color: #475569; }
+
+.numeros {
     display: flex;
     flex-wrap: wrap;
     gap: 5px;
@@ -283,98 +276,44 @@ textarea.form-control {
     font-weight: bold;
 }
 
-/* Resultados */
-.resultado-card {
-    background: #f8fafc;
-    border: 2px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 15px;
-    margin-bottom: 15px;
-}
-
-.resultado-header {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 10px;
-    padding-bottom: 10px;
-    border-bottom: 2px solid #e2e8f0;
-}
-
-.resultado-bolao {
-    font-weight: bold;
-    font-size: 16px;
-    color: #1e293b;
-}
-
-.resultado-acertos {
-    font-weight: bold;
-    padding: 3px 10px;
-    border-radius: 20px;
-    font-size: 12px;
-}
-
-.acertos-6 { background: #f59e0b; color: white; }
-.acertos-5 { background: #eab308; color: white; }
-.acertos-4 { background: #a855f7; color: white; }
-.acertos-0 { background: #cbd5e1; color: #475569; }
-
-.resultado-numeros {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
-    margin-top: 10px;
-}
-
 .numero-sorteado {
     background: #10b981;
     color: white;
-    padding: 5px 10px;
-    border-radius: 5px;
-    font-family: monospace;
-    font-weight: bold;
 }
 
 .numero-normal {
     background: #e2e8f0;
-    color: #475569;
-    padding: 5px 10px;
-    border-radius: 5px;
-    font-family: monospace;
+    color: #333;
 }
 
-/* Status */
-.status-text {
-    margin: 10px 0;
-    padding: 8px;
-    border-radius: 5px;
-    font-size: 12px;
+/* ============ STATUS ============ */
+.status {
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 8px;
     text-align: center;
+    font-size: 13px;
 }
 
-.status-sucesso {
-    background: #d1fae5;
-    color: #065f46;
-}
+.status-success { background: #d1fae5; color: #065f46; }
+.status-error { background: #fee2e2; color: #991b1b; }
+.status-info { background: #dbeafe; color: #1e40af; }
 
-.status-erro {
-    background: #fee2e2;
-    color: #991b1b;
-}
-
-.status-info {
-    background: #dbeafe;
-    color: #1e40af;
-}
-
-/* Empty state */
+/* ============ EMPTY STATE ============ */
 .empty-state {
     text-align: center;
-    padding: 40px;
+    padding: 40px 20px;
     color: #94a3b8;
     font-size: 14px;
 }
 
-/* Modal */
+.loading {
+    text-align: center;
+    padding: 40px;
+    color: #3b82f6;
+}
+
+/* ============ MODAL ============ */
 .modal {
     display: none;
     position: fixed;
@@ -394,9 +333,9 @@ textarea.form-control {
 
 .modal-content {
     background: white;
-    border-radius: 10px;
-    width: 400px;
-    max-width: 90%;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 350px;
     overflow: hidden;
 }
 
@@ -406,23 +345,36 @@ textarea.form-control {
     padding: 15px;
     font-weight: bold;
     text-align: center;
+    font-size: 16px;
 }
 
 .modal-body {
     padding: 20px;
 }
 
-/* Rodapé */
+/* ============ NÚMEROS CONTAINER ============ */
+.numeros-container {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.numeros-container .form-control {
+    flex: 1;
+    min-width: 150px;
+}
+
+/* ============ RODAPÉ ============ */
 .footer {
     background: #1e293b;
     color: #94a3b8;
     text-align: center;
     padding: 15px;
-    font-size: 12px;
+    font-size: 11px;
     margin-top: 30px;
 }
 
-/* Responsivo */
+/* ============ RESPONSIVO - CELULAR ============ */
 @media (max-width: 900px) {
     .admin-layout {
         grid-template-columns: 1fr;
@@ -430,9 +382,104 @@ textarea.form-control {
     
     .form-row {
         grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    
+    .top-bar {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .stats {
+        justify-content: center;
+    }
+    
+    .filtros {
+        flex-wrap: wrap;
+    }
+    
+    .filtros button {
+        font-size: 11px;
+        padding: 6px 10px;
+    }
+    
+    .btn-sm {
+        font-size: 11px;
+        padding: 6px 10px;
+    }
+    
+    .card-header {
+        font-size: 14px;
+        padding: 10px 12px;
+    }
+    
+    .card-body {
+        padding: 12px;
+    }
+    
+    .form-buttons {
+        flex-direction: column;
+    }
+    
+    .form-buttons .btn {
+        width: 100%;
     }
     
     .numeros-container {
         flex-direction: column;
+    }
+    
+    .numeros-container button {
+        width: 100%;
+    }
+    
+    .container {
+        padding: 0 10px;
+        margin: 10px auto;
+    }
+}
+
+/* ============ CELULAR PEQUENO ============ */
+@media (max-width: 480px) {
+    .logo {
+        font-size: 18px;
+    }
+    
+    .version {
+        font-size: 9px;
+    }
+    
+    .stats {
+        font-size: 10px;
+        gap: 8px;
+    }
+    
+    .btn-logout {
+        font-size: 10px;
+        padding: 4px 10px;
+    }
+    
+    .card-header {
+        font-size: 13px;
+    }
+    
+    .btn {
+        font-size: 12px;
+        padding: 8px 12px;
+    }
+    
+    .form-control {
+        font-size: 13px;
+        padding: 8px;
+    }
+    
+    .filtros .btn-sm {
+        font-size: 10px;
+        padding: 5px 8px;
+    }
+    
+    .form-control-sm {
+        font-size: 12px;
+        padding: 6px 8px;
     }
 }
