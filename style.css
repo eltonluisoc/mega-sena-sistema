@@ -594,3 +594,29 @@ textarea.form-control {
         height: 22px !important;
     }
 }
+/* ============ GARANTIR NÚMEROS NA HORIZONTAL NO CELULAR ============ */
+@media (max-width: 768px) {
+    .cartao-numeros {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: wrap !important;
+        gap: 5px !important;
+        justify-content: flex-start !important;
+    }
+    
+    .cartao-numeros span {
+        display: inline-block !important;
+        font-size: 11px !important;
+        padding: 4px 8px !important;
+        white-space: nowrap !important;
+    }
+    
+    .cartao-item > div {
+        flex-direction: row !important;
+        align-items: flex-start !important;
+    }
+    
+    .btn-editar {
+        white-space: nowrap !important;
+    }
+}
