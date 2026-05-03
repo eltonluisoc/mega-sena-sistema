@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin - Cadastro de Cartões Mega-Sena</title>
+    <title>Admin - Cadastro de Cartões Bolões Aleatórios</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <!-- Barra superior -->
     <div class="top-bar">
         <div class="logo">
-            🎲 MEGA-SENA
+            🎲 BOLÕES ALEATÓRIOS
             <span class="version">Administração</span>
         </div>
         <div class="stats">
@@ -84,13 +84,14 @@
                     </div>
                     <div class="card-body">
                         <div class="filtros" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center;">
-                        <select id="filtroConcurso" style="flex: 1; min-width: 120px; padding: 8px; border-radius: 6px; border: 1px solid #ddd;">
-                            <option value="todos">Todos os concursos</option>
-                        </select>
-                        <button id="btnRecarregar" style="background: #3b82f6; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">🔄 RECARREGAR</button>
-                        <button id="btnImportarExcel" style="background: #8b5cf6; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">📊 IMPORTAR EXCEL</button>
-                        <button id="btnExcluirSelecionados" style="background: #ef4444; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">🗑️ EXCLUIR</button>
-                    </div>
+                            <select id="filtroConcurso" style="flex: 1; min-width: 120px; padding: 8px; border-radius: 6px; border: 1px solid #ddd;">
+                                <option value="todos">Todos os concursos</option>
+                            </select>
+                            <button id="btnRecarregar" style="background: #3b82f6; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">🔄 RECARREGAR</button>
+                            <button id="btnImportarExcel" style="background: #8b5cf6; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">📥 IMPORTAR EXCEL</button>
+                            <button id="btnExportarExcel" style="background: #10b981; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">📊 EXPORTAR EXCEL</button>
+                            <button id="btnExcluirSelecionados" style="background: #ef4444; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">🗑️ EXCLUIR</button>
+                        </div>
                         <div id="cartoesLista" class="cartoes-grid">
                             <div class="empty-state">Nenhum cartão cadastrado ainda</div>
                         </div>
@@ -115,7 +116,7 @@
 
     <!-- Rodapé -->
     <div class="footer">
-        <div>© 2026 Mega-Sena Sistema Profissional - Versão 1.0</div>
+        <div>© 2026 Bolões Aleatórios - Versão 1.0</div>
         <div style="font-size: 11px; margin-top: 5px;">Desenvolvido por Elton Luis - Todos os direitos reservados</div>
     </div>
 
@@ -125,6 +126,5 @@
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
     <script src="firebase-config.js"></script>
     <script src="admin.js"></script>
-    
 </body>
 </html>
