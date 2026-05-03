@@ -99,19 +99,6 @@
             border-color: #667eea;
         }
 
-        .numeros-container {
-            display: flex;
-            gap: 10px;
-        }
-
-        .numeros-container input {
-            flex: 1;
-        }
-
-        .numeros-container button {
-            width: auto;
-        }
-
         button {
             background: #3b82f6;
             color: white;
@@ -122,19 +109,12 @@
             font-weight: bold;
             cursor: pointer;
             transition: all 0.3s;
+            width: 100%;
         }
 
         button:hover {
             background: #2563eb;
             transform: translateY(-2px);
-        }
-
-        .btn-success {
-            background: #10b981;
-        }
-
-        .btn-success:hover {
-            background: #059669;
         }
 
         .btn-large {
@@ -240,7 +220,6 @@
 
         @media (max-width: 768px) {
             .top-bar { flex-direction: column; text-align: center; }
-            .numeros-container { flex-direction: column; }
         }
     </style>
 </head>
@@ -274,10 +253,7 @@
 
                 <div class="form-group">
                     <label>🎲 NÚMEROS SORTEADOS:</label>
-                    <div class="numeros-container">
-                        <input type="text" id="numerosSorteados" placeholder="Ex: 12 15 23 34 45 56">
-                        <button id="btnBuscar" class="btn-success">🌐 BUSCAR ONLINE</button>
-                    </div>
+                    <input type="text" id="numerosSorteados" placeholder="Ex: 12 15 23 34 45 56 (ou deixe em branco para buscar online)">
                 </div>
 
                 <div id="statusBusca" class="status"></div>
@@ -302,7 +278,7 @@
                 📊 RESULTADOS DA CONFERÊNCIA
             </div>
             <div class="card-body" id="resultadosArea">
-                <div class="empty-state">🔍 Selecione um concurso e clique em "Conferir"</div>
+                <div class="empty-state">🔍 Selecione um concurso e clique em "Conferir Resultados"</div>
             </div>
         </div>
     </div>
