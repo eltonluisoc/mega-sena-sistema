@@ -43,7 +43,7 @@ async function carregarDadosDoFirebase() {
     }
 }
 
-// ============ EXIBIR CARTÕES (VERSÃO CORRIGIDA) ============
+// ============ EXIBIR CARTÕES ============
 function exibirCartoes() {
     const filtro = document.getElementById('filtroConcurso').value;
     let filtrados = filtro === 'todos' ? cartoes : cartoes.filter(c => c.concurso == filtro);
@@ -65,7 +65,10 @@ function exibirCartoes() {
                     <div style="flex: 1; min-width: 150px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
                             <strong>Cartão #${cartao.id.slice(-6)}</strong>
-                            <button class="btn-editar" data-id="${cartao.id}" style="background:#3b82f6; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px;">✏️ Editar</button>
+                            <div style="display: flex; gap: 6px;">
+                                <button class="btn-editar" data-id="${cartao.id}" style="background:#3b82f6; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px;">✏️ Editar</button>
+                                <button class="btn-duplicar" data-id="${cartao.id}" style="background:#8b5cf6; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px;">📋 Duplicar</button>
+                            </div>
                         </div>
                         <div style="font-size: 12px; color: #666; margin: 5px 0;">
                             Concurso ${cartao.concurso} | Bolão: ${cartao.bolao || 'Sem Bolão'}
@@ -80,12 +83,14 @@ function exibirCartoes() {
     }
     container.innerHTML = html;
     
-    // Botões Editar
     document.querySelectorAll('.btn-editar').forEach(btn => {
         btn.onclick = function() { editarCartao(this.getAttribute('data-id')); };
     });
     
-    // Atualizar contador excluir
+    document.querySelectorAll('.btn-duplicar').forEach(btn => {
+        btn.onclick = function() { duplicarCartao(this.getAttribute('data-id')); };
+    });
+    
     function atualizarContador() {
         const qtd = document.querySelectorAll('.checkbox-cartao:checked').length;
         const btnExcluir = document.getElementById('btnExcluirSelecionados');
@@ -115,6 +120,31 @@ async function editarCartao(id) {
     carregarDadosDoFirebase();
 }
 
+// ============ DUPLICAR ============
+async function duplicarCartao(id) {
+    const doc = await db.collection('cartoes').doc(id).get();
+    const cartaoOriginal = doc.data();
+    
+    const novoConcurso = prompt('📋 Duplicar Cartão\n\nConcurso original: ' + cartaoOriginal.concurso + '\n\nNovo Concurso:', cartaoOriginal.concurso);
+    if (!novoConcurso) return;
+    
+    const novoBolao = prompt('Bolão original: ' + (cartaoOriginal.bolao || 'Sem Bolão') + '\n\nNovo Bolão:', cartaoOriginal.bolao || 'Sem Bolão');
+    if (!novoBolao) return;
+    
+    if (!confirm(`Confirmar duplicação?\n\n📌 Concurso: ${novoConcurso}\n👥 Bolão: ${novoBolao}\n🔢 Números: ${cartaoOriginal.numeros.join(', ')}`)) return;
+    
+    await db.collection('cartoes').add({
+        concurso: novoConcurso,
+        bolao: novoBolao,
+        numeros: cartaoOriginal.numeros,
+        dataCadastro: new Date().toISOString(),
+        totalNumeros: cartaoOriginal.numeros.length
+    });
+    
+    alert('✅ Cartão duplicado com sucesso!');
+    carregarDadosDoFirebase();
+}
+
 // ============ EXCLUIR ============
 async function excluirSelecionados() {
     const selecionados = document.querySelectorAll('.checkbox-cartao:checked');
@@ -128,7 +158,58 @@ async function excluirSelecionados() {
     carregarDadosDoFirebase();
 }
 
-// ============ IMPORTAR ============
+// ============ EXPORTAR EXCEL ============
+async function exportarCartoes() {
+    if (cartoes.length === 0) {
+        alert('⚠️ Nenhum cartão para exportar!');
+        return;
+    }
+    
+    const concursos = [...new Set(cartoes.map(c => c.concurso))];
+    let concursoFiltro = 'todos';
+    
+    if (concursos.length > 1) {
+        const resposta = confirm('Exportar todos os concursos?\n"OK" = Todos\n"Cancelar" = Escolher concurso');
+        if (!resposta) {
+            const concursoEscolhido = prompt('Digite o número do concurso para exportar:\nDisponíveis: ' + concursos.join(', '));
+            if (concursoEscolhido && concursos.includes(concursoEscolhido)) {
+                concursoFiltro = concursoEscolhido;
+            }
+        }
+    }
+    
+    let cartoesExportar = cartoes;
+    if (concursoFiltro !== 'todos') {
+        cartoesExportar = cartoes.filter(c => c.concurso == concursoFiltro);
+    }
+    
+    const dados = [];
+    dados.push(['ID', 'Concurso', 'Bolão', 'Números', 'Quantidade', 'Data Cadastro']);
+    
+    for (const cartao of cartoesExportar) {
+        dados.push([
+            cartao.id.slice(-6),
+            cartao.concurso,
+            cartao.bolao || 'Sem Bolão',
+            cartao.numeros.join(' - '),
+            cartao.numeros.length,
+            new Date(cartao.dataCadastro).toLocaleDateString('pt-BR')
+        ]);
+    }
+    
+    const ws = XLSX.utils.aoa_to_sheet(dados);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Cartoes Mega-Sena');
+    
+    ws['!cols'] = [{wch:10}, {wch:12}, {wch:20}, {wch:40}, {wch:12}, {wch:15}];
+    
+    const nomeArquivo = `mega_sena_cartoes_${concursoFiltro === 'todos' ? 'todos' : concursoFiltro}_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.xlsx`;
+    
+    XLSX.writeFile(wb, nomeArquivo);
+    alert(`✅ ${cartoesExportar.length} cartões exportados com sucesso!\nArquivo: ${nomeArquivo}`);
+}
+
+// ============ IMPORTAR EXCEL ============
 function importarExcel() {
     const input = document.createElement('input');
     input.type = 'file';
@@ -195,7 +276,7 @@ function importarExcel() {
     input.click();
 }
 
-// ============ BUSCAR RESULTADO ONLINE (API MEGA-SENA) ============
+// ============ BUSCAR RESULTADO ONLINE ============
 async function buscarResultadoOnlineAdmin() {
     const concurso = document.getElementById('concursoResultado').value;
     
@@ -219,36 +300,30 @@ async function buscarResultadoOnlineAdmin() {
     let numeros = null;
     let apiUsada = null;
     
-    // API 1: Brasil API (Mega-Sena)
     try {
-        const url = `https://brasilapi.com.br/api/loterias/mega-sena/${concurso}`;
+        const url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/megasena/${concurso}`;
         const response = await fetch(url);
         if (response.ok) {
             const dados = await response.json();
-            if (dados.dezenas && dados.dezenas.length >= 6) {
-                numeros = dados.dezenas.map(n => parseInt(n));
-                apiUsada = 'Brasil API';
+            if (dados.listaDezenas && dados.listaDezenas.length >= 6) {
+                numeros = dados.listaDezenas.map(n => parseInt(n));
+                apiUsada = 'API Oficial Caixa';
             }
         }
-    } catch (error) {
-        console.log('Brasil API falhou:', error);
-    }
+    } catch (error) {}
     
-    // API 2: Loteria API (fallback)
     if (!numeros) {
         try {
-            const url = `https://loteriascaixa-api.herokuapp.com/api/mega-sena/${concurso}`;
+            const url = `https://brasilapi.com.br/api/loterias/mega-sena/${concurso}`;
             const response = await fetch(url);
             if (response.ok) {
                 const dados = await response.json();
                 if (dados.dezenas && dados.dezenas.length >= 6) {
                     numeros = dados.dezenas.map(n => parseInt(n));
-                    apiUsada = 'Loteria API';
+                    apiUsada = 'Brasil API';
                 }
             }
-        } catch (error) {
-            console.log('Loteria API falhou:', error);
-        }
+        } catch (error) {}
     }
     
     if (numeros && numeros.length >= 6) {
@@ -269,9 +344,9 @@ async function buscarResultadoOnlineAdmin() {
         }
     } else {
         if (statusDiv) {
-            statusDiv.innerHTML = `<div class="status-error">❌ Resultado do concurso ${concurso} não encontrado online.</div>`;
+            statusDiv.innerHTML = `<div class="status-error">❌ Resultado do concurso ${concurso} não encontrado online.<br>Verifique se o concurso já foi sorteado.</div>`;
         }
-        alert(`❌ Resultado do concurso ${concurso} não encontrado online.`);
+        alert(`❌ Resultado do concurso ${concurso} não encontrado online.\n\nVerifique se o concurso já foi sorteado.`);
     }
     
     if (btnBuscar) {
@@ -281,29 +356,7 @@ async function buscarResultadoOnlineAdmin() {
     
     setTimeout(() => {
         if (statusDiv) statusDiv.innerHTML = '';
-    }, 5000);
-}
-
-// ============ ADICIONAR BOTÃO DE BUSCA NO ADMIN ============
-function adicionarBotaoBuscaAdmin() {
-    if (document.getElementById('btnBuscarResultadoAdmin')) return;
-    
-    const container = document.querySelector('#concursoResultado').parentElement;
-    if (container) {
-        const btnBuscar = document.createElement('button');
-        btnBuscar.id = 'btnBuscarResultadoAdmin';
-        btnBuscar.textContent = '🌐 BUSCAR RESULTADO';
-        btnBuscar.className = 'btn btn-purple';
-        btnBuscar.style.marginTop = '10px';
-        btnBuscar.style.width = '100%';
-        btnBuscar.onclick = buscarResultadoOnlineAdmin;
-        container.appendChild(btnBuscar);
-        
-        const statusDiv = document.createElement('div');
-        statusDiv.id = 'statusBuscaAdmin';
-        statusDiv.style.marginTop = '10px';
-        container.appendChild(statusDiv);
-    }
+    }, 8000);
 }
 
 // ============ ADICIONAR CARTÕES ============
@@ -374,6 +427,27 @@ function recarregarLista() {
     carregarDadosDoFirebase();
 }
 
+function adicionarBotaoBuscaAdmin() {
+    if (document.getElementById('btnBuscarResultadoAdmin')) return;
+    
+    const container = document.getElementById('concursoResultado');
+    if (container && container.parentElement) {
+        const btnBuscar = document.createElement('button');
+        btnBuscar.id = 'btnBuscarResultadoAdmin';
+        btnBuscar.textContent = '🌐 BUSCAR RESULTADO';
+        btnBuscar.className = 'btn btn-purple';
+        btnBuscar.style.marginTop = '10px';
+        btnBuscar.style.width = '100%';
+        btnBuscar.onclick = buscarResultadoOnlineAdmin;
+        container.parentElement.appendChild(btnBuscar);
+        
+        const statusDiv = document.createElement('div');
+        statusDiv.id = 'statusBuscaAdmin';
+        statusDiv.style.marginTop = '10px';
+        container.parentElement.appendChild(statusDiv);
+    }
+}
+
 // ============ INICIALIZAR ============
 document.addEventListener('DOMContentLoaded', function() {
     verificarAutenticacao();
@@ -386,10 +460,19 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('btnRecarregar').onclick = recarregarLista;
     document.getElementById('btnExcluirSelecionados').onclick = excluirSelecionados;
     document.getElementById('btnImportarExcel').onclick = importarExcel;
-    document.getElementById('filtroConcurso').onchange = exibirCartoes;
-    document.getElementById('senhaAdmin').onkeypress = function(e) {
-        if (e.key === 'Enter') autenticar();
-    };
+    
+    const btnExportar = document.getElementById('btnExportarExcel');
+    if (btnExportar) btnExportar.onclick = exportarCartoes;
+    
+    const filtroConcurso = document.getElementById('filtroConcurso');
+    if (filtroConcurso) filtroConcurso.onchange = exibirCartoes;
+    
+    const senhaAdmin = document.getElementById('senhaAdmin');
+    if (senhaAdmin) {
+        senhaAdmin.onkeypress = function(e) {
+            if (e.key === 'Enter') autenticar();
+        };
+    }
     
     adicionarBotaoBuscaAdmin();
 });
