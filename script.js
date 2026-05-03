@@ -1,6 +1,4 @@
-// ============ VARIÁVEIS GLOBAIS ============
-let cartoesMega = [];
-let cartoesLotofacil = [];
+let cartoes = [];
 let resultadosMega = {};
 let resultadosLotofacil = {};
 let loteriaAtual = 'mega';
@@ -49,7 +47,6 @@ function mostrarPopupInstalar() {
         mensagem = '💻 No computador, você pode:\n\n1. Acessar o site normalmente\n2. Ou usar o PWA no celular escaneando o QR Code\n\nNo celular, os passos são:\n• iPhone: Compartilhar → Adicionar à Tela de Início\n• Android: ⋮ → Instalar aplicativo';
     }
     
-    // Criar modal se não existir
     let modal = document.getElementById('modalInstalar');
     if (modal) {
         modal.remove();
@@ -127,39 +124,30 @@ function setLoteria(loteria) {
 // ============ CARREGAR DADOS ============
 async function carregarDados() {
     try {
-        const snapshotMega = await db.collection('cartoes_mega').get();
-        cartoesMega = [];
-        snapshotMega.forEach(doc => {
+        // Carregar TODOS os cartões
+        const snapshot = await db.collection('cartoes').get();
+        cartoes = [];
+        snapshot.forEach(doc => {
             const data = doc.data();
-            cartoesMega.push({
+            cartoes.push({
                 id: doc.id,
                 concurso: data.concurso,
                 bolao: data.bolao || 'Sem Bolão',
                 numeros: data.numeros,
-                totalNumeros: data.totalNumeros
+                totalNumeros: data.totalNumeros,
+                tipo: data.tipo || 'mega' // compatibilidade com documentos antigos
             });
         });
         
-        const resMega = await db.collection('resultados_mega').get();
+        // Carregar resultados Mega-Sena
+        const resMega = await db.collection('resultados').where('tipo', '==', 'mega').get();
         resultadosMega = {};
         resMega.forEach(doc => {
             resultadosMega[doc.id] = doc.data().numeros;
         });
         
-        const snapshotLoto = await db.collection('cartoes_lotofacil').get();
-        cartoesLotofacil = [];
-        snapshotLoto.forEach(doc => {
-            const data = doc.data();
-            cartoesLotofacil.push({
-                id: doc.id,
-                concurso: data.concurso,
-                bolao: data.bolao || 'Sem Bolão',
-                numeros: data.numeros,
-                totalNumeros: data.totalNumeros
-            });
-        });
-        
-        const resLoto = await db.collection('resultados_lotofacil').get();
+        // Carregar resultados Lotofácil
+        const resLoto = await db.collection('resultados').where('tipo', '==', 'lotofacil').get();
         resultadosLotofacil = {};
         resLoto.forEach(doc => {
             resultadosLotofacil[doc.id] = doc.data().numeros;
@@ -174,28 +162,32 @@ async function carregarDados() {
         atualizarStats();
         selecionarUltimoConcurso();
         showToast(`📊 Dados carregados`, 'info');
+        console.log(`📊 Total de cartões: ${cartoes.length}`);
+        console.log(`📊 Cartões Mega: ${cartoes.filter(c => c.tipo === 'mega').length}`);
+        console.log(`📊 Cartões Lotofácil: ${cartoes.filter(c => c.tipo === 'lotofacil').length}`);
     } catch (error) {
+        console.error('Erro:', error);
         showToast('❌ Erro ao carregar dados', 'error');
     }
 }
 
 function atualizarStats() {
-    const total = loteriaAtual === 'mega' ? cartoesMega.length : cartoesLotofacil.length;
-    const concursos = [...new Set((loteriaAtual === 'mega' ? cartoesMega : cartoesLotofacil).map(c => c.concurso))];
+    const cartoesFiltrados = cartoes.filter(c => c.tipo === loteriaAtual);
+    const concursos = [...new Set(cartoesFiltrados.map(c => c.concurso))];
     const resultadosCount = Object.keys(loteriaAtual === 'mega' ? resultadosMega : resultadosLotofacil).length;
-    document.getElementById('totalCartoes').innerHTML = `📊 ${total} cartões | 🎯 ${concursos.length} concursos | ✅ ${resultadosCount} resultados`;
+    document.getElementById('totalCartoes').innerHTML = `📊 ${cartoesFiltrados.length} cartões | 🎯 ${concursos.length} concursos | ✅ ${resultadosCount} resultados`;
 }
 
 function atualizarSelectConcursos() {
-    const dados = loteriaAtual === 'mega' ? cartoesMega : cartoesLotofacil;
-    const concursos = [...new Set(dados.map(c => c.concurso))];
+    const cartoesFiltrados = cartoes.filter(c => c.tipo === loteriaAtual);
+    const concursos = [...new Set(cartoesFiltrados.map(c => c.concurso))];
     concursos.sort((a, b) => b - a);
     
     const select = document.getElementById('concursoSelect');
     select.innerHTML = '<option value="">Selecione um concurso</option>';
     
     concursos.forEach(concurso => {
-        const total = dados.filter(c => c.concurso == concurso).length;
+        const total = cartoesFiltrados.filter(c => c.concurso == concurso).length;
         const option = document.createElement('option');
         option.value = concurso;
         option.textContent = `Concurso ${concurso} (${total} cartões)`;
@@ -220,18 +212,18 @@ function mostrarCartoesDoConcurso() {
         return;
     }
     
-    const dados = loteriaAtual === 'mega' ? cartoesMega : cartoesLotofacil;
-    const resultados = loteriaAtual === 'mega' ? resultadosMega : resultadosLotofacil;
-    const cartoesConcurso = dados.filter(c => c.concurso == concurso);
+    const cartoesFiltrados = cartoes.filter(c => c.tipo === loteriaAtual && c.concurso == concurso);
     
-    if (cartoesConcurso.length === 0) {
-        container.innerHTML = `<div class="empty-state">Nenhum cartão para o concurso ${concurso}</div>`;
+    if (cartoesFiltrados.length === 0) {
+        container.innerHTML = `<div class="empty-state">Nenhum cartão para o concurso ${concurso} na ${loteriaAtual === 'mega' ? 'MEGA-SENA' : 'LOTOFÁCIL'}</div>`;
         return;
     }
     
+    const resultados = loteriaAtual === 'mega' ? resultadosMega : resultadosLotofacil;
     const resultadoSalvo = resultados[concurso] || [];
     const porBolao = {};
-    cartoesConcurso.forEach(c => {
+    
+    cartoesFiltrados.forEach(c => {
         const bolao = c.bolao || 'Sem Bolão';
         if (!porBolao[bolao]) porBolao[bolao] = [];
         porBolao[bolao].push(c);
@@ -391,10 +383,10 @@ async function conferirResultados() {
     resultadosArea.innerHTML = '<div class="loading">🔍 Processando...</div>';
     
     const resultados = loteriaAtual === 'mega' ? resultadosMega : resultadosLotofacil;
-    const cartoesConcurso = (loteriaAtual === 'mega' ? cartoesMega : cartoesLotofacil).filter(c => c.concurso == concurso);
+    const cartoesConcurso = cartoes.filter(c => c.tipo === loteriaAtual && c.concurso == concurso);
     
     if (cartoesConcurso.length === 0) {
-        resultadosArea.innerHTML = `<div class="empty-state">Nenhum cartão para o concurso ${concurso}</div>`;
+        resultadosArea.innerHTML = `<div class="empty-state">Nenhum cartão para o concurso ${concurso} na ${loteriaAtual === 'mega' ? 'MEGA-SENA' : 'LOTOFÁCIL'}</div>`;
         return;
     }
     
@@ -453,7 +445,7 @@ async function conferirResultados() {
     if (loteriaAtual === 'mega') {
         html += `
             <div><span style="font-size: 24px; font-weight: bold; color: #f59e0b;">${premios.sena}</span><br>SENA</div>
-            <div><span style="font-size: 24px; font-weight: bold; color: #eab308;">${premios.quina}</span><br>QUINA</div>
+            <div><span style="font-size: 24px; font-weight; bold; color: #eab308;">${premios.quina}</span><br>QUINA</div>
             <div><span style="font-size: 24px; font-weight: bold; color: #a855f7;">${premios.quadra}</span><br>QUADRA</div>
             <div><span style="font-size: 24px; font-weight: bold; color: #3b82f6;">${premios.terno}</span><br>TERNO</div>
             <div><span style="font-size: 24px; font-weight: bold; color: #64748b;">${premios.duque}</span><br>DUQUE</div>
@@ -526,7 +518,7 @@ async function conferirResultados() {
 // ============ VERIFICAR NOVOS RESULTADOS ============
 async function verificarNovosResultados() {
     try {
-        const resMega = await db.collection('resultados_mega').get();
+        const resMega = await db.collection('resultados').where('tipo', '==', 'mega').get();
         const novosMega = {};
         resMega.forEach(doc => { novosMega[doc.id] = doc.data().numeros; });
         
@@ -550,7 +542,7 @@ async function verificarNovosResultados() {
         
         ultimoEstadoMega = novosMega;
         
-        const resLoto = await db.collection('resultados_lotofacil').get();
+        const resLoto = await db.collection('resultados').where('tipo', '==', 'lotofacil').get();
         const novosLoto = {};
         resLoto.forEach(doc => { novosLoto[doc.id] = doc.data().numeros; });
         
@@ -573,6 +565,9 @@ async function verificarNovosResultados() {
         }
         
         ultimoEstadoLotofacil = novosLoto;
+        
+        // Atualizar stats periodicamente
+        atualizarStats();
         
     } catch (error) {
         console.error('Erro ao verificar resultados:', error);
