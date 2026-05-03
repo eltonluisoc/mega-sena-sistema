@@ -24,8 +24,36 @@
         <div class="admin-layout">
             <!-- Painel de cadastro -->
             <div class="cadastro-panel">
+                <!-- DASHBOARD RESUMO -->
                 <div class="card">
                     <div class="card-header bg-blue">
+                        📊 DASHBOARD RESUMO
+                    </div>
+                    <div class="card-body">
+                        <div style="display: flex; flex-wrap: wrap; gap: 20px; justify-content: space-around;">
+                            <div style="text-align: center; background: #f0fdf4; padding: 15px; border-radius: 10px; min-width: 120px;">
+                                <div style="font-size: 32px; font-weight: bold; color: #059669;" id="dashboardTotalCartoes">0</div>
+                                <div style="color: #666;">Total Cartões</div>
+                            </div>
+                            <div style="text-align: center; background: #dbeafe; padding: 15px; border-radius: 10px; min-width: 120px;">
+                                <div style="font-size: 32px; font-weight: bold; color: #3b82f6;" id="dashboardTotalConcursos">0</div>
+                                <div style="color: #666;">Concursos</div>
+                            </div>
+                            <div style="text-align: center; background: #fef3c7; padding: 15px; border-radius: 10px; min-width: 120px;">
+                                <div style="font-size: 32px; font-weight: bold; color: #f59e0b;" id="dashboardTotalBoloes">0</div>
+                                <div style="color: #666;">Bolões</div>
+                            </div>
+                            <div style="text-align: center; background: #f3e8ff; padding: 15px; border-radius: 10px; min-width: 120px;">
+                                <div style="font-size: 32px; font-weight: bold; color: #a855f7;" id="dashboardResultados">0</div>
+                                <div style="color: #666;">Resultados</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cadastro -->
+                <div class="card">
+                    <div class="card-header bg-green">
                         📝 CADASTRAR CARTÕES
                     </div>
                     <div class="card-body">
@@ -86,6 +114,12 @@
                         <div class="filtros" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center;">
                             <select id="filtroConcurso" style="flex: 1; min-width: 120px; padding: 8px; border-radius: 6px; border: 1px solid #ddd;">
                                 <option value="todos">Todos os concursos</option>
+                            </select>
+                            <select id="ordenarPor" style="flex: 1; min-width: 120px; padding: 8px; border-radius: 6px; border: 1px solid #ddd;">
+                                <option value="concurso_desc">📌 Concurso (mais novo)</option>
+                                <option value="concurso_asc">📌 Concurso (mais antigo)</option>
+                                <option value="bolao">👥 Bolão (A-Z)</option>
+                                <option value="data">📅 Data (mais recente)</option>
                             </select>
                             <button id="btnRecarregar" style="background: #3b82f6; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">🔄 RECARREGAR</button>
                             <button id="btnImportarExcel" style="background: #8b5cf6; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">📥 IMPORTAR EXCEL</button>

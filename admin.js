@@ -35,18 +35,60 @@ async function carregarDadosDoFirebase() {
         snapshot.forEach(doc => {
             cartoes.push({ id: doc.id, ...doc.data() });
         });
+        
+        // Ordenar conforme seleção
+        ordenarCartoes();
         exibirCartoes();
         carregarConcursos();
+        atualizarDashboard();
+        
         document.getElementById('totalCartoes').innerHTML = cartoes.length + ' cartões';
     } catch (error) {
         alert('Erro ao carregar: ' + error.message);
     }
 }
 
+// ============ ATUALIZAR DASHBOARD ============
+function atualizarDashboard() {
+    const totalCartoes = cartoes.length;
+    const concursos = [...new Set(cartoes.map(c => c.concurso))];
+    const totalConcursos = concursos.length;
+    const boloes = [...new Set(cartoes.map(c => c.bolao || 'Sem Bolão'))];
+    const totalBoloes = boloes.length;
+    const resultadosCount = Object.keys(resultados || {}).length;
+    
+    document.getElementById('dashboardTotalCartoes').innerHTML = totalCartoes;
+    document.getElementById('dashboardTotalConcursos').innerHTML = totalConcursos;
+    document.getElementById('dashboardTotalBoloes').innerHTML = totalBoloes;
+    document.getElementById('dashboardResultados').innerHTML = resultadosCount;
+}
+
+// ============ ORDENAR CARTÕES ============
+function ordenarCartoes() {
+    const ordenarPor = document.getElementById('ordenarPor').value;
+    
+    switch(ordenarPor) {
+        case 'concurso_desc':
+            cartoes.sort((a, b) => b.concurso - a.concurso);
+            break;
+        case 'concurso_asc':
+            cartoes.sort((a, b) => a.concurso - b.concurso);
+            break;
+        case 'bolao':
+            cartoes.sort((a, b) => (a.bolao || 'Sem Bolão').localeCompare(b.bolao || 'Sem Bolão'));
+            break;
+        case 'data':
+            cartoes.sort((a, b) => new Date(b.dataCadastro) - new Date(a.dataCadastro));
+            break;
+        default:
+            cartoes.sort((a, b) => b.concurso - a.concurso);
+    }
+}
+
 // ============ EXIBIR CARTÕES ============
 function exibirCartoes() {
     const filtro = document.getElementById('filtroConcurso').value;
-    let filtrados = filtro === 'todos' ? cartoes : cartoes.filter(c => c.concurso == filtro);
+    let filtrados = filtro === 'todos' ? [...cartoes] : cartoes.filter(c => c.concurso == filtro);
     
     const container = document.getElementById('cartoesLista');
     if (filtrados.length === 0) {
@@ -56,6 +98,8 @@ function exibirCartoes() {
     
     let html = '';
     for (const cartao of filtrados) {
+        const dataFormatada = cartao.dataCadastro ? new Date(cartao.dataCadastro).toLocaleDateString('pt-BR') : 'Data não disponível';
+        
         html += `
             <div class="cartao-item" style="border:1px solid #ddd; border-radius:8px; padding:12px; margin-bottom:10px; background:#f8fafc;">
                 <div style="display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
@@ -71,7 +115,7 @@ function exibirCartoes() {
                             </div>
                         </div>
                         <div style="font-size: 12px; color: #666; margin: 5px 0;">
-                            Concurso ${cartao.concurso} | Bolão: ${cartao.bolao || 'Sem Bolão'}
+                            Concurso ${cartao.concurso} | Bolão: ${cartao.bolao || 'Sem Bolão'} | 📅 ${dataFormatada}
                         </div>
                         <div class="cartao-numeros" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
                             ${cartao.numeros.map(n => `<span style="background:#e2e8f0; padding:5px 10px; border-radius:6px; font-family:monospace; font-size:13px; font-weight:bold;">${n.toString().padStart(2,'0')}</span>`).join('')}
@@ -115,7 +159,7 @@ async function editarCartao(id) {
     if (numeros.length < 6) { alert('Mínimo 6 números'); return; }
     numeros.sort((a,b) => a-b);
     
-    await db.collection('cartoes').doc(id).update({ numeros: numeros, totalNumeros: numeros.length });
+    await db.collection('cartoes').doc(id).update({ numeros: numeros, totalNumeros: numeros.length, dataAtualizacao: new Date().toISOString() });
     alert('Cartão atualizado!');
     carregarDadosDoFirebase();
 }
@@ -193,17 +237,17 @@ async function exportarCartoes() {
             cartao.bolao || 'Sem Bolão',
             cartao.numeros.join(' - '),
             cartao.numeros.length,
-            new Date(cartao.dataCadastro).toLocaleDateString('pt-BR')
+            cartao.dataCadastro ? new Date(cartao.dataCadastro).toLocaleDateString('pt-BR') : ''
         ]);
     }
     
     const ws = XLSX.utils.aoa_to_sheet(dados);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Cartoes Mega-Sena');
+    XLSX.utils.book_append_sheet(wb, ws, 'Cartoes Boloes Aleatorios');
     
     ws['!cols'] = [{wch:10}, {wch:12}, {wch:20}, {wch:40}, {wch:12}, {wch:15}];
     
-    const nomeArquivo = `mega_sena_cartoes_${concursoFiltro === 'todos' ? 'todos' : concursoFiltro}_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.xlsx`;
+    const nomeArquivo = `boloes_aleatorios_${concursoFiltro === 'todos' ? 'todos' : concursoFiltro}_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.xlsx`;
     
     XLSX.writeFile(wb, nomeArquivo);
     alert(`✅ ${cartoesExportar.length} cartões exportados com sucesso!\nArquivo: ${nomeArquivo}`);
@@ -341,6 +385,7 @@ async function buscarResultadoOnlineAdmin() {
                 dataAtualizacao: new Date().toISOString()
             });
             alert('✅ Resultado salvo com sucesso!');
+            atualizarDashboard();
         }
     } else {
         if (statusDiv) {
@@ -417,6 +462,7 @@ async function salvarResultado() {
         dataAtualizacao: new Date().toISOString()
     });
     alert('Resultado salvo!');
+    atualizarDashboard();
 }
 
 function limparFormulario() {
@@ -465,7 +511,10 @@ document.addEventListener('DOMContentLoaded', function() {
     if (btnExportar) btnExportar.onclick = exportarCartoes;
     
     const filtroConcurso = document.getElementById('filtroConcurso');
-    if (filtroConcurso) filtroConcurso.onchange = exibirCartoes;
+    if (filtroConcurso) filtroConcurso.onchange = carregarDadosDoFirebase;
+    
+    const ordenarPor = document.getElementById('ordenarPor');
+    if (ordenarPor) ordenarPor.onchange = carregarDadosDoFirebase;
     
     const senhaAdmin = document.getElementById('senhaAdmin');
     if (senhaAdmin) {
