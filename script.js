@@ -121,7 +121,6 @@ async function carregarDados() {
     showToast('📡 Carregando dados...', 'info');
     
     try {
-        // Verificar conexão com Firebase
         if (!db) {
             throw new Error('Firebase não inicializado');
         }
@@ -147,14 +146,12 @@ async function carregarDados() {
         console.log(`📊 Cartões Mega: ${cartoes.filter(c => c.tipo === 'mega').length}`);
         console.log(`📊 Cartões Lotofácil: ${cartoes.filter(c => c.tipo === 'lotofacil').length}`);
         
-        // Carregar resultados Mega
         const resMega = await db.collection('resultados').where('tipo', '==', 'mega').get();
         resultadosMega = {};
         resMega.forEach(doc => {
             resultadosMega[doc.id] = doc.data().numeros;
         });
         
-        // Carregar resultados Lotofácil
         const resLoto = await db.collection('resultados').where('tipo', '==', 'lotofacil').get();
         resultadosLotofacil = {};
         resLoto.forEach(doc => {
@@ -175,7 +172,6 @@ async function carregarDados() {
         console.error('❌ Erro ao carregar dados:', error);
         showToast(`❌ Erro: ${error.message}`, 'error');
         
-        // Exibir mensagem amigável no lugar dos cartões
         const container = document.getElementById('cartoesConcurso');
         if (container) {
             container.innerHTML = '<div class="empty-state">❌ Erro ao conectar com o banco de dados.<br>Verifique sua conexão com a internet.</div>';
@@ -437,7 +433,7 @@ async function conferirResultados() {
             <div><span style="font-size: 24px; font-weight: bold;">${resultadosCalc.length}</span><br>CARTÕES</div>`;
     } else {
         html += `<div><span style="font-size: 24px; font-weight: bold; color: #f59e0b;">${premios.pontos15}</span><br>15 PTS</div>
-            <div><span style="font-size: 24px; font-weight: bold; color: #eab308;">${premios.pontos14}</span><br>14 PTS</div>
+            <div><span style="font-size: 24px; font-weight; bold; color: #eab308;">${premios.pontos14}</span><br>14 PTS</div>
             <div><span style="font-size: 24px; font-weight: bold; color: #a855f7;">${premios.pontos13}</span><br>13 PTS</div>
             <div><span style="font-size: 24px; font-weight: bold; color: #3b82f6;">${premios.pontos12}</span><br>12 PTS</div>
             <div><span style="font-size: 24px; font-weight: bold; color: #64748b;">${premios.pontos11}</span><br>11 PTS</div>
@@ -506,7 +502,6 @@ async function verificarNovosResultados() {
             }
         }
         ultimoEstadoLotofacil = novosLoto;
-        
         atualizarStats();
     } catch (error) {
         console.error('Erro ao verificar resultados:', error);
@@ -526,18 +521,13 @@ function iniciarMonitoramentoResultados() {
     intervaloNotificacao = setInterval(() => verificarNovosResultados(), 30000);
 }
 
-// Adicionar estilo de animação
 const style = document.createElement('style');
 style.textContent = `@keyframes pulse { 0% { transform: scale(1); background: #3b82f6; } 50% { transform: scale(1.05); background: #f59e0b; } 100% { transform: scale(1); background: #3b82f6; } }`;
 document.head.appendChild(style);
 
-// Aguardar DOM carregar
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('📄 DOM carregado, inicializando sistema...');
-    
-    // Aguardar um pouco para o Firebase conectar
     await new Promise(resolve => setTimeout(resolve, 500));
-    
     await carregarDados();
     iniciarAutoAtualizacao();
     iniciarMonitoramentoResultados();
