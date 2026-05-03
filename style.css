@@ -217,6 +217,27 @@ textarea.form-control {
     margin-bottom: 10px;
 }
 
+/* ============ CHECKBOX E BOTÃO EDITAR ============ */
+.checkbox-cartao {
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.btn-editar {
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.3s;
+}
+
+.btn-editar:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+}
+
 /* ============ DICA ============ */
 .dica {
     background: #fef3c7;
@@ -374,7 +395,7 @@ textarea.form-control {
     margin-top: 30px;
 }
 
-/* ============ RESPONSIVO - CELULAR ============ */
+/* ============ RESPONSIVO - TABLET (900px) ============ */
 @media (max-width: 900px) {
     .admin-layout {
         grid-template-columns: 1fr;
@@ -439,7 +460,7 @@ textarea.form-control {
     }
 }
 
-/* ============ CELULAR PEQUENO ============ */
+/* ============ RESPONSIVO - CELULAR PEQUENO (480px) ============ */
 @media (max-width: 480px) {
     .logo {
         font-size: 18px;
@@ -481,5 +502,71 @@ textarea.form-control {
     .form-control-sm {
         font-size: 12px;
         padding: 6px 8px;
+    }
+}
+
+/* ============ CORREÇÕES PARA CARTÕES NA LISTA (CELULAR) ============ */
+@media (max-width: 768px) {
+    /* Container do cartão na lista - empilha verticalmente */
+    .cartao-item > div {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+    }
+    
+    /* Checkbox maior para toque no celular */
+    .checkbox-cartao {
+        width: 26px !important;
+        height: 26px !important;
+        transform: scale(1);
+        margin-bottom: 10px;
+    }
+    
+    /* Botão editar ocupa toda largura no celular */
+    .btn-editar {
+        width: 100% !important;
+        margin-top: 12px;
+        padding: 10px !important;
+        font-size: 14px !important;
+        text-align: center;
+    }
+    
+    /* Números do cartão no celular */
+    .cartao-numeros {
+        justify-content: center;
+    }
+    
+    .cartao-numeros span {
+        font-size: 13px !important;
+        padding: 6px 10px !important;
+    }
+    
+    /* Botões da barra de filtros no celular */
+    .filtros {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .filtros select,
+    .filtros button {
+        width: 100%;
+        margin: 3px 0;
+    }
+}
+
+/* ============ TELA MUITO PEQUENA (menos de 360px) ============ */
+@media (max-width: 360px) {
+    .cartao-numeros span {
+        font-size: 11px !important;
+        padding: 4px 6px !important;
+    }
+    
+    .btn-editar {
+        font-size: 12px !important;
+        padding: 8px !important;
+    }
+    
+    .checkbox-cartao {
+        width: 22px !important;
+        height: 22px !important;
     }
 }

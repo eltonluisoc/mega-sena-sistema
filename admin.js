@@ -1,5 +1,5 @@
-// Configuração inicial
 const SENHA_ADMIN = '172163';
+let cartoes = [];
 
 // ============ AUTENTICAÇÃO ============
 function verificarAutenticacao() {
@@ -18,7 +18,7 @@ function autenticar() {
         localStorage.setItem('admin_autenticado', 'true');
         verificarAutenticacao();
     } else {
-        alert('❌ Senha incorreta!');
+        alert('Senha incorreta!');
     }
 }
 
@@ -27,231 +27,196 @@ function sair() {
     verificarAutenticacao();
 }
 
-// ============ FIREBASE - CARREGAR DADOS ============
+// ============ FIREBASE ============
 async function carregarDadosDoFirebase() {
-    console.log('🔄 Carregando dados do Firebase...');
-    
     try {
-        // Carregar cartões
-        const cartoesSnapshot = await db.collection('cartoes').get();
-        const cartoes = [];
-        cartoesSnapshot.forEach(doc => {
-            cartoes.push({
-                id: doc.id,
-                ...doc.data()
-            });
+        const snapshot = await db.collection('cartoes').get();
+        cartoes = [];
+        snapshot.forEach(doc => {
+            cartoes.push({ id: doc.id, ...doc.data() });
         });
-        
-        // Salvar temporariamente
-        localStorage.setItem('cartoes_temp', JSON.stringify(cartoes));
-        
-        console.log(`✅ ${cartoes.length} cartões carregados do Firebase`);
-        exibirCartoes(cartoes);
-        carregarConcursos(cartoes);
-        atualizarStats(cartoes);
-        
+        exibirCartoes();
+        carregarConcursos();
+        document.getElementById('totalCartoes').innerHTML = cartoes.length + ' cartões';
     } catch (error) {
-        console.error('❌ Erro ao carregar do Firebase:', error);
-        alert('Erro ao conectar com o Firebase. Verifique sua internet.');
-    }
-}
-
-// ============ FIREBASE - SALVAR CARTÃO ============
-async function salvarCartaoNoFirebase(cartao) {
-    try {
-        const docRef = await db.collection('cartoes').add({
-            concurso: cartao.concurso,
-            bolao: cartao.bolao,
-            numeros: cartao.numeros,
-            dataCadastro: new Date().toISOString(),
-            totalNumeros: cartao.numeros.length
-        });
-        console.log('✅ Cartão salvo no Firebase:', docRef.id);
-        return true;
-    } catch (error) {
-        console.error('❌ Erro ao salvar no Firebase:', error);
-        throw error;
+        alert('Erro ao carregar: ' + error.message);
     }
 }
 
 // ============ EXIBIR CARTÕES ============
-function exibirCartoes(cartoes) {
+function exibirCartoes() {
     const filtro = document.getElementById('filtroConcurso').value;
+    let filtrados = filtro === 'todos' ? cartoes : cartoes.filter(c => c.concurso == filtro);
+    
     const container = document.getElementById('cartoesLista');
-    
-    let cartoesFiltrados = cartoes;
-    if (filtro !== 'todos') {
-        cartoesFiltrados = cartoes.filter(c => c.concurso == filtro);
-    }
-    
-    if (!cartoesFiltrados || cartoesFiltrados.length === 0) {
-        container.innerHTML = '<div class="empty-state">📭 Nenhum cartão cadastrado ainda</div>';
+    if (filtrados.length === 0) {
+        container.innerHTML = '<div class="empty-state">Nenhum cartão cadastrado</div>';
         return;
     }
     
-    container.innerHTML = cartoesFiltrados.map(cartao => `
-        <div class="cartao-item">
-            <div class="cartao-header">
-                <div class="cartao-id">Cartão #${cartao.id.slice(-6)}</div>
-                <div class="cartao-concurso">Concurso ${cartao.concurso} | Bolão: ${cartao.bolao || 'Sem Bolão'}</div>
+    let html = '';
+    for (const cartao of filtrados) {
+        html += `
+            <div style="border:1px solid #ddd; border-radius:8px; padding:10px; margin-bottom:10px; background:#f8fafc;">
+                <div style="display:flex; align-items:center; gap:15px;">
+                    <input type="checkbox" class="checkbox-cartao" data-id="${cartao.id}" style="width:20px; height:20px;">
+                    <div style="flex:1">
+                        <div><strong>Cartão #${cartao.id.slice(-6)}</strong></div>
+                        <div style="font-size:12px; color:#666;">Concurso ${cartao.concurso} | Bolão: ${cartao.bolao || 'Sem Bolão'}</div>
+                        <div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:5px;">
+                            ${cartao.numeros.map(n => `<span style="background:#e2e8f0; padding:4px 8px; border-radius:5px;">${n.toString().padStart(2,'0')}</span>`).join('')}
+                        </div>
+                    </div>
+                    <button class="btn-editar" data-id="${cartao.id}" style="background:#3b82f6; color:white; border:none; padding:5px 12px; border-radius:5px; cursor:pointer;">Editar</button>
+                </div>
             </div>
-            <div class="cartao-numeros">
-                ${cartao.numeros.map(num => `<span class="numero">${num.toString().padStart(2, '0')}</span>`).join('')}
-            </div>
-        </div>
-    `).join('');
-}
-
-// ============ CARREGAR CONCURSOS ============
-function carregarConcursos(cartoes) {
-    const concursos = [...new Set(cartoes.map(c => c.concurso))];
-    concursos.sort((a,b) => b - a);
-    
-    const selectResultado = document.getElementById('concursoResultado');
-    const filtroConcurso = document.getElementById('filtroConcurso');
-    
-    if (selectResultado) {
-        selectResultado.innerHTML = '<option value="">Selecione um concurso</option>';
+        `;
     }
+    container.innerHTML = html;
     
-    if (filtroConcurso) {
-        filtroConcurso.innerHTML = '<option value="todos">Todos os concursos</option>';
-    }
+    // Botões Editar
+    document.querySelectorAll('.btn-editar').forEach(btn => {
+        btn.onclick = function() { editarCartao(this.getAttribute('data-id')); };
+    });
     
-    concursos.forEach(concurso => {
-        const total = cartoes.filter(c => c.concurso == concurso).length;
-        if (selectResultado) {
-            selectResultado.innerHTML += `<option value="${concurso}">Concurso ${concurso} (${total} cartões)</option>`;
-        }
-        if (filtroConcurso) {
-            filtroConcurso.innerHTML += `<option value="${concurso}">Concurso ${concurso}</option>`;
-        }
+    // Atualizar contador excluir
+    document.querySelectorAll('.checkbox-cartao').forEach(cb => {
+        cb.onchange = function() {
+            const qtd = document.querySelectorAll('.checkbox-cartao:checked').length;
+            const btnExcluir = document.getElementById('btnExcluirSelecionados');
+            if (btnExcluir) btnExcluir.innerHTML = qtd > 0 ? `🗑️ EXCLUIR ${qtd}` : '🗑️ EXCLUIR SELECIONADOS';
+        };
     });
 }
 
-// ============ ADICIONAR CARTÕES ============
+// ============ EDITAR ============
+async function editarCartao(id) {
+    const doc = await db.collection('cartoes').doc(id).get();
+    const cartao = doc.data();
+    
+    const novos = prompt('Editar números (separados por espaço):\nAtuais: ' + cartao.numeros.join(', '), cartao.numeros.join(' '));
+    if (!novos) return;
+    
+    const numeros = novos.match(/\d+/g).map(Number);
+    if (numeros.length < 6) { alert('Mínimo 6 números'); return; }
+    numeros.sort((a,b) => a-b);
+    
+    await db.collection('cartoes').doc(id).update({ numeros: numeros, totalNumeros: numeros.length });
+    alert('Cartão atualizado!');
+    carregarDadosDoFirebase();
+}
+
+// ============ EXCLUIR ============
+async function excluirSelecionados() {
+    const selecionados = document.querySelectorAll('.checkbox-cartao:checked');
+    if (selecionados.length === 0) { alert('Selecione um cartão'); return; }
+    if (!confirm('Excluir ' + selecionados.length + ' cartão(ões)?')) return;
+    
+    for (const cb of selecionados) {
+        await db.collection('cartoes').doc(cb.getAttribute('data-id')).delete();
+    }
+    alert('Excluído(s)!');
+    carregarDadosDoFirebase();
+}
+
+// ============ IMPORTAR ============
+function importarExcel() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.txt,.csv';
+    input.onchange = async function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const concurso = prompt('Concurso:', '2700');
+        if (!concurso) return;
+        const bolao = prompt('Bolão:', 'Importado');
+        if (!bolao) return;
+        
+        const reader = new FileReader();
+        reader.onload = async function(event) {
+            const linhas = event.target.result.split(/\r?\n/);
+            let adicionados = 0;
+            for (const linha of linhas) {
+                if (!linha.trim()) continue;
+                const numeros = linha.match(/\d+/g).map(Number);
+                if (numeros.length < 6) continue;
+                numeros.sort((a,b) => a-b);
+                await db.collection('cartoes').add({
+                    concurso: concurso,
+                    bolao: bolao,
+                    numeros: numeros,
+                    dataCadastro: new Date().toISOString(),
+                    totalNumeros: numeros.length
+                });
+                adicionados++;
+            }
+            alert(adicionados + ' cartões importados!');
+            carregarDadosDoFirebase();
+        };
+        reader.readAsText(file);
+    };
+    input.click();
+}
+
+// ============ ADICIONAR ============
 async function adicionarCartoes() {
     const concurso = document.getElementById('concurso').value;
     const bolao = document.getElementById('bolao').value || 'Sem Bolão';
-    const textoNumeros = document.getElementById('numerosCartoes').value;
+    const texto = document.getElementById('numerosCartoes').value;
+    if (!concurso || !texto) { alert('Preencha os campos'); return; }
     
-    if (!concurso) {
-        alert('⚠️ Informe o número do concurso!');
-        return;
-    }
-    
-    if (!textoNumeros.trim()) {
-        alert('⚠️ Informe os números dos cartões!');
-        return;
-    }
-    
-    const linhas = textoNumeros.split('\n');
+    const linhas = texto.split('\n');
     let adicionados = 0;
-    let erros = 0;
-    
-    // Carregar cartões atuais para verificar duplicatas
-    const cartoesSnapshot = await db.collection('cartoes').get();
-    const cartoesExistentes = [];
-    cartoesSnapshot.forEach(doc => {
-        cartoesExistentes.push(doc.data());
-    });
-    
     for (const linha of linhas) {
         if (!linha.trim()) continue;
-        
         const numeros = linha.match(/\d+/g).map(Number);
-        
-        if (numeros.length < 6 || numeros.length > 15) {
-            erros++;
-            continue;
-        }
-        
-        const numerosInvalidos = numeros.filter(n => n < 1 || n > 60);
-        if (numerosInvalidos.length > 0) {
-            erros++;
-            continue;
-        }
-        
+        if (numeros.length < 6) continue;
         numeros.sort((a,b) => a-b);
-        
-        // Verificar duplicata
-        const existe = cartoesExistentes.some(c => 
-            c.concurso == concurso && 
-            c.bolao == bolao && 
-            JSON.stringify(c.numeros) === JSON.stringify(numeros)
-        );
-        
-        if (existe) {
-            continue;
-        }
-        
-        try {
-            await salvarCartaoNoFirebase({
-                concurso: concurso,
-                bolao: bolao,
-                numeros: numeros
-            });
-            adicionados++;
-        } catch (error) {
-            erros++;
-        }
+        await db.collection('cartoes').add({
+            concurso: concurso,
+            bolao: bolao,
+            numeros: numeros,
+            dataCadastro: new Date().toISOString(),
+            totalNumeros: numeros.length
+        });
+        adicionados++;
     }
+    alert(adicionados + ' cartões adicionados!');
+    document.getElementById('numerosCartoes').value = '';
+    carregarDadosDoFirebase();
+}
+
+// ============ OUTRAS FUNÇÕES ============
+function carregarConcursos() {
+    const concursos = [...new Set(cartoes.map(c => c.concurso))];
+    concursos.sort((a,b) => b - a);
+    const select = document.getElementById('concursoResultado');
+    const filtro = document.getElementById('filtroConcurso');
     
-    if (adicionados > 0) {
-        await carregarDadosDoFirebase();
-        document.getElementById('numerosCartoes').value = '';
-        alert(`✅ ${adicionados} cartões salvos no Firebase!`);
-    } else if (erros > 0) {
-        alert(`❌ ${erros} erros. Verifique os números (mínimo 6, máximo 15, entre 1-60)`);
-    } else {
-        alert('⚠️ Nenhum novo cartão adicionado (todos já existem)');
+    if (select) {
+        select.innerHTML = '<option value="">Selecione</option>';
+        concursos.forEach(c => select.innerHTML += `<option value="${c}">Concurso ${c}</option>`);
+    }
+    if (filtro) {
+        filtro.innerHTML = '<option value="todos">Todos</option>';
+        concursos.forEach(c => filtro.innerHTML += `<option value="${c}">Concurso ${c}</option>`);
     }
 }
 
-// ============ SALVAR RESULTADO ============
 async function salvarResultado() {
     const concurso = document.getElementById('concursoResultado').value;
-    const numerosText = document.getElementById('numerosSorteadosInput').value;
-    
-    if (!concurso) {
-        alert('⚠️ Selecione um concurso!');
-        return;
-    }
-    
-    if (!numerosText.trim()) {
-        alert('⚠️ Digite os números sorteados!');
-        return;
-    }
-    
-    const numeros = numerosText.match(/\d+/g).map(Number);
-    
-    if (numeros.length < 6) {
-        alert('⚠️ Digite pelo menos 6 números!');
-        return;
-    }
-    
+    const texto = document.getElementById('numerosSorteadosInput').value;
+    if (!concurso || !texto) { alert('Preencha os campos'); return; }
+    const numeros = texto.match(/\d+/g).map(Number);
+    if (numeros.length < 6) { alert('Mínimo 6 números'); return; }
     numeros.sort((a,b) => a-b);
-    
-    try {
-        await db.collection('resultados').doc(concurso).set({
-            concurso: concurso,
-            numeros: numeros,
-            dataAtualizacao: new Date().toISOString()
-        });
-        alert(`✅ Resultado do concurso ${concurso} salvo no Firebase!\nNúmeros: ${numeros.join(' - ')}`);
-    } catch (error) {
-        console.error('Erro:', error);
-        alert('❌ Erro ao salvar resultado. Tente novamente.');
-    }
-}
-
-// ============ FUNÇÕES AUXILIARES ============
-function atualizarStats(cartoes) {
-    const total = cartoes.length;
-    const statsDiv = document.getElementById('totalCartoes');
-    if (statsDiv) {
-        statsDiv.textContent = `📊 ${total} cartões (Firebase)`;
-    }
+    await db.collection('resultados').doc(concurso).set({
+        concurso: concurso,
+        numeros: numeros,
+        dataAtualizacao: new Date().toISOString()
+    });
+    alert('Resultado salvo!');
 }
 
 function limparFormulario() {
@@ -262,105 +227,20 @@ function recarregarLista() {
     carregarDadosDoFirebase();
 }
 
-// ============ BUSCAR RESULTADO ONLINE ============
-async function buscarResultadoOnlineAdmin() {
-    const concurso = document.getElementById('concursoResultado').value;
-    
-    if (!concurso) {
-        alert('⚠️ Selecione um concurso primeiro!');
-        return;
-    }
-    
-    const btnBuscar = document.getElementById('btnBuscarResultado');
-    const btnSalvar = document.getElementById('btnSalvarResultado');
-    
-    if (btnBuscar) {
-        btnBuscar.disabled = true;
-        btnBuscar.textContent = '⏳ BUSCANDO...';
-    }
-    
-    alert(`🔍 Buscando resultado do concurso ${concurso}...`);
-    
-    let numeros = null;
-    
-    // Tentar Brasil API
-    try {
-        const url = `https://loteriascaixa-api.herokuapp.com/api/megasena/${concurso}`;
-        const response = await fetch(url);
-        if (response.ok) {
-            const dados = await response.json();
-            if (dados.dezenas && dados.dezenas.length >= 6) {
-                numeros = dados.dezenas.map(n => parseInt(n));
-            }
-        }
-    } catch (error) {
-        console.log('Brasil API falhou');
-    }
-    
-    // Tentar Loteria API
-    if (!numeros) {
-        try {
-            const url = `https://loteriascaixa-api.herokuapp.com/api/mega-sena/${concurso}`;
-            const response = await fetch(url);
-            if (response.ok) {
-                const dados = await response.json();
-                if (dados.dezenas && dados.dezenas.length >= 6) {
-                    numeros = dados.dezenas.map(n => parseInt(n));
-                }
-            }
-        } catch (error) {
-            console.log('Loteria API falhou');
-        }
-    }
-    
-    if (numeros && numeros.length >= 6) {
-        numeros.sort((a,b) => a-b);
-        document.getElementById('numerosSorteadosInput').value = numeros.join(' ');
-        alert(`✅ Resultado encontrado!\nNúmeros: ${numeros.join(' - ')}`);
-    } else {
-        alert(`❌ Resultado do concurso ${concurso} não encontrado online.`);
-    }
-    
-    if (btnBuscar) {
-        btnBuscar.disabled = false;
-        btnBuscar.textContent = '🌐 BUSCAR ONLINE';
-    }
-}
-
-// Adicionar botão de busca se não existir
-function adicionarBotaoBusca() {
-    if (document.getElementById('btnBuscarResultado')) return;
-    
-    const container = document.querySelector('.numeros-container');
-    if (container) {
-        const btnBuscar = document.createElement('button');
-        btnBuscar.id = 'btnBuscarResultado';
-        btnBuscar.textContent = '🌐 BUSCAR ONLINE';
-        btnBuscar.className = 'btn btn-success';
-        btnBuscar.style.marginLeft = '10px';
-        btnBuscar.onclick = buscarResultadoOnlineAdmin;
-        container.appendChild(btnBuscar);
-    }
-}
-
-// ============ EVENTOS ============
-document.addEventListener('DOMContentLoaded', () => {
+// ============ INICIALIZAR ============
+document.addEventListener('DOMContentLoaded', function() {
     verificarAutenticacao();
-    adicionarBotaoBusca();
     
-    document.getElementById('btnAutenticar')?.addEventListener('click', autenticar);
-    document.getElementById('btnSair')?.addEventListener('click', sair);
-    document.getElementById('btnAdicionar')?.addEventListener('click', adicionarCartoes);
-    document.getElementById('btnLimpar')?.addEventListener('click', limparFormulario);
-    document.getElementById('btnSalvarResultado')?.addEventListener('click', salvarResultado);
-    document.getElementById('btnRecarregar')?.addEventListener('click', recarregarLista);
-    document.getElementById('filtroConcurso')?.addEventListener('change', () => {
-        const cartoes = JSON.parse(localStorage.getItem('cartoes_temp') || '[]');
-        exibirCartoes(cartoes);
-    });
-    document.getElementById('senhaAdmin')?.addEventListener('keypress', (e) => {
+    document.getElementById('btnAutenticar').onclick = autenticar;
+    document.getElementById('btnSair').onclick = sair;
+    document.getElementById('btnAdicionar').onclick = adicionarCartoes;
+    document.getElementById('btnLimpar').onclick = limparFormulario;
+    document.getElementById('btnSalvarResultado').onclick = salvarResultado;
+    document.getElementById('btnRecarregar').onclick = recarregarLista;
+    document.getElementById('btnExcluirSelecionados').onclick = excluirSelecionados;
+    document.getElementById('btnImportarExcel').onclick = importarExcel;
+    document.getElementById('filtroConcurso').onchange = exibirCartoes;
+    document.getElementById('senhaAdmin').onkeypress = function(e) {
         if (e.key === 'Enter') autenticar();
-    });
+    };
 });
-
-console.log('✅ admin.js (Firebase) carregado com sucesso!');
