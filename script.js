@@ -3,7 +3,7 @@ let cartoesMega = [];
 let cartoesLotofacil = [];
 let resultadosMega = {};
 let resultadosLotofacil = {};
-let loteriaAtual = 'mega'; // 'mega' ou 'lotofacil'
+let loteriaAtual = 'mega';
 let ultimoResultadoConcurso = null;
 let ultimoResultadoDados = null;
 let ultimoEstadoMega = {};
@@ -33,11 +33,74 @@ function showToast(message, type = 'info') {
     }, 3000);
 }
 
+// ============ POP-UP PARA INSTALAR APP ============
+function mostrarPopupInstalar() {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isAndroid = /Android/.test(navigator.userAgent);
+    
+    let titulo = '📱 SALVAR COMO APP NO CELULAR';
+    let mensagem = '';
+    
+    if (isIOS) {
+        mensagem = '📲 No iPhone/iPad:\n\n1. Toque no botão "Compartilhar" 📤\n2. Role a tela para baixo\n3. Toque em "Adicionar à Tela de Início"\n4. Confirme o nome e toque em "Adicionar"\n\nO app aparecerá na tela inicial como um aplicativo normal!';
+    } else if (isAndroid) {
+        mensagem = '📲 No Android (Chrome):\n\n1. Toque nos 3 pontinhos ⋮\n2. Toque em "Instalar aplicativo"\n3. Confirme a instalação\n\nO app aparecerá na tela inicial!';
+    } else {
+        mensagem = '💻 No computador, você pode:\n\n1. Acessar o site normalmente\n2. Ou usar o PWA no celular escaneando o QR Code\n\nNo celular, os passos são:\n• iPhone: Compartilhar → Adicionar à Tela de Início\n• Android: ⋮ → Instalar aplicativo';
+    }
+    
+    // Criar modal se não existir
+    let modal = document.getElementById('modalInstalar');
+    if (modal) {
+        modal.remove();
+    }
+    
+    modal = document.createElement('div');
+    modal.id = 'modalInstalar';
+    modal.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.8); z-index: 10000;
+        display: flex; justify-content: center; align-items: center;
+    `;
+    
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+        background: white; border-radius: 20px; max-width: 350px;
+        width: 90%; padding: 25px; text-align: center;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        position: relative;
+    `;
+    
+    modalContent.innerHTML = `
+        <div style="font-size: 24px; margin-bottom: 10px;">📱</div>
+        <div style="font-size: 20px; font-weight: bold; margin-bottom: 15px;">${titulo}</div>
+        <div style="white-space: pre-line; text-align: left; font-size: 14px; line-height: 1.6; margin: 15px 0;">${mensagem}</div>
+        <button id="fecharModalInstalar" style="background: #3b82f6; color: white; border: none; padding: 12px 20px; border-radius: 30px; font-size: 14px; cursor: pointer; width: 100%; font-weight: bold;">Fechar</button>
+    `;
+    
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+    
+    document.getElementById('fecharModalInstalar').onclick = () => {
+        modal.remove();
+    };
+    
+    modal.onclick = (e) => {
+        if (e.target === modal) modal.remove();
+    };
+}
+
+function adicionarBotaoInstalar() {
+    const btnInstalar = document.getElementById('btnInstalarApp');
+    if (btnInstalar) {
+        btnInstalar.onclick = mostrarPopupInstalar;
+    }
+}
+
 // ============ TROCAR LOTERIA ============
 function setLoteria(loteria) {
     loteriaAtual = loteria;
     
-    // Atualizar botões
     document.getElementById('btnMegaSena').classList.remove('active');
     document.getElementById('btnLotofacil').classList.remove('active');
     if (loteria === 'mega') {
@@ -64,7 +127,6 @@ function setLoteria(loteria) {
 // ============ CARREGAR DADOS ============
 async function carregarDados() {
     try {
-        // Carregar Mega-Sena
         const snapshotMega = await db.collection('cartoes_mega').get();
         cartoesMega = [];
         snapshotMega.forEach(doc => {
@@ -84,7 +146,6 @@ async function carregarDados() {
             resultadosMega[doc.id] = doc.data().numeros;
         });
         
-        // Carregar Lotofácil
         const snapshotLoto = await db.collection('cartoes_lotofacil').get();
         cartoesLotofacil = [];
         snapshotLoto.forEach(doc => {
@@ -385,7 +446,6 @@ async function conferirResultados() {
     ultimoResultadoConcurso = concurso;
     ultimoResultadoDados = { numeros: numerosSorteados, dataSorteio, premios };
     
-    // Montar HTML dos resultados
     let html = `<div style="background: #f0fdf4; border-radius: 10px; padding: 20px; margin-bottom: 20px; text-align: center;">
         <h3>🏆 RESULTADO DO CONCURSO ${concurso} - ${loteriaAtual === 'mega' ? 'MEGA-SENA' : 'LOTOFÁCIL'}</h3>
         <div style="display: flex; justify-content: center; gap: 15px; margin: 15px 0; flex-wrap: wrap;">`;
@@ -463,81 +523,98 @@ async function conferirResultados() {
     showToast(`🏆 Conferência concluída!`, 'success');
 }
 
+// ============ VERIFICAR NOVOS RESULTADOS ============
+async function verificarNovosResultados() {
+    try {
+        const resMega = await db.collection('resultados_mega').get();
+        const novosMega = {};
+        resMega.forEach(doc => { novosMega[doc.id] = doc.data().numeros; });
+        
+        const keysAntigosMega = Object.keys(ultimoEstadoMega);
+        const keysNovosMega = Object.keys(novosMega);
+        const novosMegaEncontrados = keysNovosMega.filter(k => !keysAntigosMega.includes(k));
+        
+        if (novosMegaEncontrados.length > 0 && loteriaAtual === 'mega') {
+            const concursoAtual = document.getElementById('concursoSelect').value;
+            if (novosMegaEncontrados.includes(concursoAtual)) {
+                showToast(`📢 NOVO RESULTADO! Concurso ${concursoAtual} acabou de ser atualizado!`, 'success');
+                const btnConferir = document.getElementById('btnConferir');
+                if (btnConferir) {
+                    btnConferir.style.animation = 'pulse 0.5s ease-in-out 3';
+                    setTimeout(() => { btnConferir.style.animation = ''; }, 1500);
+                }
+            } else {
+                showToast(`📢 NOVOS RESULTADOS da MEGA-SENA! Concurso(s) ${novosMegaEncontrados.join(', ')}`, 'info');
+            }
+        }
+        
+        ultimoEstadoMega = novosMega;
+        
+        const resLoto = await db.collection('resultados_lotofacil').get();
+        const novosLoto = {};
+        resLoto.forEach(doc => { novosLoto[doc.id] = doc.data().numeros; });
+        
+        const keysAntigosLoto = Object.keys(ultimoEstadoLotofacil);
+        const keysNovosLoto = Object.keys(novosLoto);
+        const novosLotoEncontrados = keysNovosLoto.filter(k => !keysAntigosLoto.includes(k));
+        
+        if (novosLotoEncontrados.length > 0 && loteriaAtual === 'lotofacil') {
+            const concursoAtual = document.getElementById('concursoSelect').value;
+            if (novosLotoEncontrados.includes(concursoAtual)) {
+                showToast(`📢 NOVO RESULTADO! Concurso ${concursoAtual} acabou de ser atualizado!`, 'success');
+                const btnConferir = document.getElementById('btnConferir');
+                if (btnConferir) {
+                    btnConferir.style.animation = 'pulse 0.5s ease-in-out 3';
+                    setTimeout(() => { btnConferir.style.animation = ''; }, 1500);
+                }
+            } else {
+                showToast(`📢 NOVOS RESULTADOS da LOTOFÁCIL! Concurso(s) ${novosLotoEncontrados.join(', ')}`, 'info');
+            }
+        }
+        
+        ultimoEstadoLotofacil = novosLoto;
+        
+    } catch (error) {
+        console.error('Erro ao verificar resultados:', error);
+    }
+}
+
 // ============ INICIALIZAÇÃO ============
 let intervalo;
+let intervaloNotificacao;
+
 function iniciarAutoAtualizacao() {
     if (intervalo) clearInterval(intervalo);
     intervalo = setInterval(() => carregarDados(), 60000);
 }
-// ============ POP-UP PARA INSTALAR APP ============
-function mostrarPopupInstalar() {
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    const isAndroid = /Android/.test(navigator.userAgent);
-    
-    let mensagem = '';
-    let titulo = '📱 SALVAR COMO APP NO CELULAR';
-    
-    if (isIOS) {
-        mensagem = `📲 No iPhone/iPad:\n\n1. Toque no botão "Compartilhar" 📤\n2. Role a tela para baixo\n3. Toque em "Adicionar à Tela de Início"\n4. Confirme o nome e toque em "Adicionar"\n\nO app aparecerá na tela inicial como um aplicativo normal!`;
-    } else if (isAndroid) {
-        mensagem = `📲 No Android (Chrome):\n\n1. Toque nos 3 pontinhos ⋮\n2. Toque em "Instalar aplicativo"\n3. Confirme a instalação\n\nO app aparecerá na tela inicial!`;
-    } else {
-        mensagem = `💻 No computador, você pode:\n\n1. Acessar o site normalmente\n2. Ou usar o PWA no celular escaneando o QR Code\n\nNo celular, os passos são:\n• iPhone: Compartilhar → Adicionar à Tela de Início\n• Android: ⋮ → Instalar aplicativo`;
-    }
-    
-    // Criar modal
-    let modal = document.getElementById('modalInstalar');
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'modalInstalar';
-        modal.style.cssText = `
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.7); z-index: 10000;
-            display: flex; justify-content: center; align-items: center;
-        `;
-        
-        const modalContent = document.createElement('div');
-        modalContent.style.cssText = `
-            background: white; border-radius: 20px; max-width: 350px;
-            width: 90%; padding: 25px; text-align: center;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
-        `;
-        
-        modalContent.innerHTML = `
-            <div style="font-size: 24px; margin-bottom: 10px;">📱</div>
-            <div style="font-size: 20px; font-weight: bold; margin-bottom: 15px;">${titulo}</div>
-            <div style="white-space: pre-line; text-align: left; font-size: 14px; line-height: 1.5; margin: 15px 0;">${mensagem}</div>
-            <button id="fecharModalInstalar" style="background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 30px; font-size: 14px; cursor: pointer; width: 100%;">Fechar</button>
-        `;
-        
-        modal.appendChild(modalContent);
-        document.body.appendChild(modal);
-        
-        document.getElementById('fecharModalInstalar').onclick = () => {
-            modal.remove();
-        };
-        
-        modal.onclick = (e) => {
-            if (e.target === modal) modal.remove();
-        };
-    }
+
+function iniciarMonitoramentoResultados() {
+    if (intervaloNotificacao) clearInterval(intervaloNotificacao);
+    intervaloNotificacao = setInterval(() => verificarNovosResultados(), 30000);
 }
 
-function adicionarBotaoInstalar() {
-    const btnInstalar = document.getElementById('btnInstalarApp');
-    if (btnInstalar) {
-        btnInstalar.onclick = mostrarPopupInstalar;
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes pulse {
+        0% { transform: scale(1); background: #3b82f6; }
+        50% { transform: scale(1.05); background: #f59e0b; }
+        100% { transform: scale(1); background: #3b82f6; }
     }
-}
+`;
+document.head.appendChild(style);
+
 document.addEventListener('DOMContentLoaded', async () => {
     await carregarDados();
     iniciarAutoAtualizacao();
+    iniciarMonitoramentoResultados();
     
     document.getElementById('btnMegaSena').addEventListener('click', () => setLoteria('mega'));
     document.getElementById('btnLotofacil').addEventListener('click', () => setLoteria('lotofacil'));
     document.getElementById('concursoSelect').addEventListener('change', mostrarCartoesDoConcurso);
     document.getElementById('btnConferir').addEventListener('click', conferirResultados);
     document.getElementById('btnConferir').addEventListener('touchstart', conferirResultados);
+    
+    adicionarBotaoInstalar();
     
     mostrarCartoesDoConcurso();
     showToast('🎲 Sistema Bolões Aleatórios carregado!', 'success');
