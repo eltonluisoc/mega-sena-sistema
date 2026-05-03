@@ -1,6 +1,32 @@
 const SENHA_ADMIN = '172163';
 let cartoes = [];
-let resultados = {};  // <-- LINHA ADICIONADA (estava faltando)
+let resultados = {};
+
+// ============ TOAST FUNCTION ============
+function showToast(message, type = 'info') {
+    let container = document.querySelector('.toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+    
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    
+    const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : type === 'warning' ? '⚠️' : 'ℹ️';
+    toast.innerHTML = `${icon} ${message}`;
+    
+    container.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.animation = 'fadeOut 0.3s ease-out';
+        setTimeout(() => {
+            toast.remove();
+            if (container.children.length === 0) container.remove();
+        }, 300);
+    }, 3000);
+}
 
 // ============ AUTENTICAÇÃO ============
 function verificarAutenticacao() {
@@ -17,35 +43,34 @@ function autenticar() {
     const senha = document.getElementById('senhaAdmin').value;
     if (senha === SENHA_ADMIN) {
         localStorage.setItem('admin_autenticado', 'true');
+        showToast('✅ Login realizado com sucesso!', 'success');
         verificarAutenticacao();
     } else {
-        alert('Senha incorreta!');
+        showToast('❌ Senha incorreta!', 'error');
     }
 }
 
 function sair() {
     localStorage.removeItem('admin_autenticado');
+    showToast('🔒 Você saiu do sistema', 'info');
     verificarAutenticacao();
 }
 
 // ============ FIREBASE ============
 async function carregarDadosDoFirebase() {
     try {
-        // Carregar cartões
         const snapshotCartoes = await db.collection('cartoes').get();
         cartoes = [];
         snapshotCartoes.forEach(doc => {
             cartoes.push({ id: doc.id, ...doc.data() });
         });
         
-        // Carregar resultados (para o dashboard)
         const snapshotResultados = await db.collection('resultados').get();
         resultados = {};
         snapshotResultados.forEach(doc => {
             resultados[doc.id] = doc.data();
         });
         
-        // Ordenar conforme seleção
         ordenarCartoes();
         exibirCartoes();
         carregarConcursos();
@@ -54,11 +79,10 @@ async function carregarDadosDoFirebase() {
         document.getElementById('totalCartoes').innerHTML = cartoes.length + ' cartões';
     } catch (error) {
         console.error('Erro:', error);
-        alert('Erro ao carregar: ' + error.message);
+        showToast('❌ Erro ao carregar dados: ' + error.message, 'error');
     }
 }
 
-// ============ ATUALIZAR DASHBOARD ============
 function atualizarDashboard() {
     const totalCartoes = cartoes.length;
     const concursos = [...new Set(cartoes.map(c => c.concurso))];
@@ -73,7 +97,6 @@ function atualizarDashboard() {
     document.getElementById('dashboardResultados').innerHTML = resultadosCount;
 }
 
-// ============ ORDENAR CARTÕES ============
 function ordenarCartoes() {
     const ordenarPor = document.getElementById('ordenarPor').value;
     
@@ -95,7 +118,6 @@ function ordenarCartoes() {
     }
 }
 
-// ============ EXIBIR CARTÕES ============
 function exibirCartoes() {
     const filtro = document.getElementById('filtroConcurso').value;
     let filtrados = filtro === 'todos' ? [...cartoes] : cartoes.filter(c => c.concurso == filtro);
@@ -157,7 +179,6 @@ function exibirCartoes() {
     atualizarContador();
 }
 
-// ============ EDITAR ============
 async function editarCartao(id) {
     const doc = await db.collection('cartoes').doc(id).get();
     const cartao = doc.data();
@@ -166,15 +187,14 @@ async function editarCartao(id) {
     if (!novos) return;
     
     const numeros = novos.match(/\d+/g).map(Number);
-    if (numeros.length < 6) { alert('Mínimo 6 números'); return; }
+    if (numeros.length < 6) { showToast('❌ Mínimo 6 números!', 'error'); return; }
     numeros.sort((a,b) => a-b);
     
     await db.collection('cartoes').doc(id).update({ numeros: numeros, totalNumeros: numeros.length, dataAtualizacao: new Date().toISOString() });
-    alert('Cartão atualizado!');
+    showToast('✅ Cartão atualizado com sucesso!', 'success');
     carregarDadosDoFirebase();
 }
 
-// ============ DUPLICAR ============
 async function duplicarCartao(id) {
     const doc = await db.collection('cartoes').doc(id).get();
     const cartaoOriginal = doc.data();
@@ -195,27 +215,25 @@ async function duplicarCartao(id) {
         totalNumeros: (cartaoOriginal.numeros || []).length
     });
     
-    alert('✅ Cartão duplicado com sucesso!');
+    showToast('✅ Cartão duplicado com sucesso!', 'success');
     carregarDadosDoFirebase();
 }
 
-// ============ EXCLUIR ============
 async function excluirSelecionados() {
     const selecionados = document.querySelectorAll('.checkbox-cartao:checked');
-    if (selecionados.length === 0) { alert('Selecione um cartão'); return; }
+    if (selecionados.length === 0) { showToast('⚠️ Selecione um cartão para excluir', 'warning'); return; }
     if (!confirm('Excluir ' + selecionados.length + ' cartão(ões)?')) return;
     
     for (const cb of selecionados) {
         await db.collection('cartoes').doc(cb.getAttribute('data-id')).delete();
     }
-    alert('Excluído(s)!');
+    showToast(`🗑️ ${selecionados.length} cartão(ões) excluído(s)!`, 'success');
     carregarDadosDoFirebase();
 }
 
-// ============ EXPORTAR EXCEL ============
 async function exportarCartoes() {
     if (cartoes.length === 0) {
-        alert('⚠️ Nenhum cartão para exportar!');
+        showToast('⚠️ Nenhum cartão para exportar!', 'warning');
         return;
     }
     
@@ -260,10 +278,9 @@ async function exportarCartoes() {
     const nomeArquivo = `boloes_aleatorios_${concursoFiltro === 'todos' ? 'todos' : concursoFiltro}_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.xlsx`;
     
     XLSX.writeFile(wb, nomeArquivo);
-    alert(`✅ ${cartoesExportar.length} cartões exportados com sucesso!\nArquivo: ${nomeArquivo}`);
+    showToast(`📊 ${cartoesExportar.length} cartões exportados!`, 'success');
 }
 
-// ============ IMPORTAR EXCEL ============
 function importarExcel() {
     const input = document.createElement('input');
     input.type = 'file';
@@ -317,7 +334,7 @@ function importarExcel() {
                 });
                 adicionados++;
             }
-            alert(`${adicionados} cartões importados!`);
+            showToast(`📥 ${adicionados} cartões importados!`, 'success');
             carregarDadosDoFirebase();
         };
         
@@ -330,12 +347,11 @@ function importarExcel() {
     input.click();
 }
 
-// ============ BUSCAR RESULTADO ONLINE ============
 async function buscarResultadoOnlineAdmin() {
     const concurso = document.getElementById('concursoResultado').value;
     
     if (!concurso) {
-        alert('⚠️ Selecione um concurso primeiro!');
+        showToast('⚠️ Selecione um concurso primeiro!', 'warning');
         return;
     }
     
@@ -394,8 +410,7 @@ async function buscarResultadoOnlineAdmin() {
                 numeros: numeros,
                 dataAtualizacao: new Date().toISOString()
             });
-            alert('✅ Resultado salvo com sucesso!');
-            // Recarregar resultados para o dashboard
+            showToast('✅ Resultado salvo com sucesso!', 'success');
             const snapshotResultados = await db.collection('resultados').get();
             resultados = {};
             snapshotResultados.forEach(doc => {
@@ -405,27 +420,22 @@ async function buscarResultadoOnlineAdmin() {
         }
     } else {
         if (statusDiv) {
-            statusDiv.innerHTML = `<div class="status-error">❌ Resultado do concurso ${concurso} não encontrado online.<br>Verifique se o concurso já foi sorteado.</div>`;
+            statusDiv.innerHTML = `<div class="status-error">❌ Resultado do concurso ${concurso} não encontrado online.</div>`;
         }
-        alert(`❌ Resultado do concurso ${concurso} não encontrado online.\n\nVerifique se o concurso já foi sorteado.`);
+        showToast('❌ Resultado não encontrado online', 'error');
     }
     
     if (btnBuscar) {
         btnBuscar.disabled = false;
         btnBuscar.textContent = '🌐 BUSCAR RESULTADO';
     }
-    
-    setTimeout(() => {
-        if (statusDiv) statusDiv.innerHTML = '';
-    }, 8000);
 }
 
-// ============ ADICIONAR CARTÕES ============
 async function adicionarCartoes() {
     const concurso = document.getElementById('concurso').value;
     const bolao = document.getElementById('bolao').value || 'Sem Bolão';
     const texto = document.getElementById('numerosCartoes').value;
-    if (!concurso || !texto) { alert('Preencha os campos'); return; }
+    if (!concurso || !texto) { showToast('⚠️ Preencha os campos', 'warning'); return; }
     
     const linhas = texto.split('\n');
     let adicionados = 0;
@@ -443,12 +453,11 @@ async function adicionarCartoes() {
         });
         adicionados++;
     }
-    alert(adicionados + ' cartões adicionados!');
+    showToast(`✅ ${adicionados} cartões adicionados!`, 'success');
     document.getElementById('numerosCartoes').value = '';
     carregarDadosDoFirebase();
 }
 
-// ============ OUTRAS FUNÇÕES ============
 function carregarConcursos() {
     const concursos = [...new Set(cartoes.map(c => c.concurso))];
     concursos.sort((a,b) => b - a);
@@ -468,17 +477,16 @@ function carregarConcursos() {
 async function salvarResultado() {
     const concurso = document.getElementById('concursoResultado').value;
     const texto = document.getElementById('numerosSorteadosInput').value;
-    if (!concurso || !texto) { alert('Preencha os campos'); return; }
+    if (!concurso || !texto) { showToast('⚠️ Preencha os campos', 'warning'); return; }
     const numeros = texto.match(/\d+/g).map(Number);
-    if (numeros.length < 6) { alert('Mínimo 6 números'); return; }
+    if (numeros.length < 6) { showToast('❌ Mínimo 6 números', 'error'); return; }
     numeros.sort((a,b) => a-b);
     await db.collection('resultados').doc(concurso).set({
         concurso: concurso,
         numeros: numeros,
         dataAtualizacao: new Date().toISOString()
     });
-    alert('Resultado salvo!');
-    // Recarregar resultados
+    showToast('✅ Resultado salvo!', 'success');
     const snapshotResultados = await db.collection('resultados').get();
     resultados = {};
     snapshotResultados.forEach(doc => {
@@ -489,10 +497,12 @@ async function salvarResultado() {
 
 function limparFormulario() {
     document.getElementById('numerosCartoes').value = '';
+    showToast('🧹 Formulário limpo', 'info');
 }
 
 function recarregarLista() {
     carregarDadosDoFirebase();
+    showToast('🔄 Dados recarregados', 'info');
 }
 
 function adicionarBotaoBuscaAdmin() {
@@ -516,7 +526,6 @@ function adicionarBotaoBuscaAdmin() {
     }
 }
 
-// ============ INICIALIZAR ============
 document.addEventListener('DOMContentLoaded', function() {
     verificarAutenticacao();
     

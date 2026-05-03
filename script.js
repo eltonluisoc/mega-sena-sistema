@@ -1,13 +1,36 @@
-// ============ VARIÁVEIS GLOBAIS ============
 let cartoes = [];
 let resultados = {};
 let ultimoResultadoConcurso = null;
 let ultimoResultadoDados = null;
 
-// ============ CARREGAR DADOS DO FIREBASE ============
-async function carregarDados() {
-    console.log('🔄 Carregando dados do Firebase...');
+// ============ TOAST FUNCTION ============
+function showToast(message, type = 'info') {
+    let container = document.querySelector('.toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
     
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    
+    const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : type === 'warning' ? '⚠️' : 'ℹ️';
+    toast.innerHTML = `${icon} ${message}`;
+    
+    container.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.animation = 'fadeOut 0.3s ease-out';
+        setTimeout(() => {
+            toast.remove();
+            if (container.children.length === 0) container.remove();
+        }, 300);
+    }, 3000);
+}
+
+// ============ CARREGAR DADOS ============
+async function carregarDados() {
     try {
         const cartoesSnapshot = await db.collection('cartoes').get();
         cartoes = [];
@@ -28,19 +51,15 @@ async function carregarDados() {
             resultados[doc.id] = doc.data().numeros;
         });
         
-        console.log(`✅ ${cartoes.length} cartões carregados`);
-        console.log(`✅ ${Object.keys(resultados).length} resultados carregados`);
-        
         atualizarSelectConcursos();
         atualizarStats();
         selecionarUltimoConcurso();
-        
+        showToast(`📊 ${cartoes.length} cartões carregados`, 'info');
     } catch (error) {
-        console.error('❌ Erro:', error);
+        showToast('❌ Erro ao carregar dados', 'error');
     }
 }
 
-// ============ ATUALIZAR SELECT ============
 function atualizarSelectConcursos() {
     const concursos = [...new Set(cartoes.map(c => c.concurso))];
     concursos.sort((a, b) => b - a);
@@ -57,17 +76,14 @@ function atualizarSelectConcursos() {
     });
 }
 
-// ============ SELECIONAR ÚLTIMO CONCURSO ============
 function selecionarUltimoConcurso() {
     const select = document.getElementById('concursoSelect');
     if (select.options.length > 1) {
         select.selectedIndex = 1;
         mostrarCartoesDoConcurso();
-        console.log(`📌 Último concurso: ${select.value}`);
     }
 }
 
-// ============ MOSTRAR CARTÕES ============
 function mostrarCartoesDoConcurso() {
     const concurso = document.getElementById('concursoSelect').value;
     const container = document.getElementById('cartoesConcurso');
@@ -85,7 +101,6 @@ function mostrarCartoesDoConcurso() {
     }
     
     const resultadoSalvo = resultados[concurso] || [];
-    
     const porBolao = {};
     cartoesConcurso.forEach(c => {
         const bolao = c.bolao || 'Sem Bolão';
@@ -96,7 +111,6 @@ function mostrarCartoesDoConcurso() {
     let html = '';
     for (const [bolao, lista] of Object.entries(porBolao)) {
         html += `<div style="margin-bottom: 20px;"><div style="background: #3b82f6; color: white; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px;">🎯 ${bolao}</div><div style="display: flex; flex-wrap: wrap; gap: 10px;">`;
-        
         lista.forEach(cartao => {
             html += `
                 <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; min-width: 200px;">
@@ -108,14 +122,11 @@ function mostrarCartoesDoConcurso() {
                 </div>
             `;
         });
-        
         html += `</div></div>`;
     }
-    
     container.innerHTML = html;
 }
 
-// ============ ESTATÍSTICAS ============
 function atualizarStats() {
     const total = cartoes.length;
     const concursos = [...new Set(cartoes.map(c => c.concurso))].length;
@@ -123,22 +134,16 @@ function atualizarStats() {
     document.getElementById('totalCartoes').innerHTML = `📊 ${total} cartões | 🎯 ${concursos} concursos | ✅ ${resultadosCount} resultados`;
 }
 
-// ============ EXTRAIR DATA ============
 function extrairDataSorteio(dados) {
     if (dados.dataApuracao) return dados.dataApuracao;
     if (dados.data_sorteio) return dados.data_sorteio;
     if (dados.data) return dados.data;
-    if (dados.dtApuracao) return dados.dtApuracao;
     return null;
 }
 
-// ============ BUSCAR RESULTADO ONLINE ============
 async function buscarResultadoOnlineInterno(concurso) {
-    console.log(`🌐 Buscando resultado para concurso ${concurso}...`);
-    
     let numeros = null;
     let dataSorteio = null;
-    let apiUsada = '';
     
     try {
         const url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/megasena/${concurso}`;
@@ -148,7 +153,6 @@ async function buscarResultadoOnlineInterno(concurso) {
             if (dados.listaDezenas && dados.listaDezenas.length >= 6) {
                 numeros = dados.listaDezenas.map(n => parseInt(n));
                 dataSorteio = extrairDataSorteio(dados);
-                apiUsada = 'API Oficial Caixa';
             }
         }
     } catch (error) {}
@@ -162,7 +166,6 @@ async function buscarResultadoOnlineInterno(concurso) {
                 if (dados.dezenas && dados.dezenas.length >= 6) {
                     numeros = dados.dezenas.map(n => parseInt(n));
                     dataSorteio = extrairDataSorteio(dados);
-                    apiUsada = 'Brasil API';
                 }
             }
         } catch (error) {}
@@ -170,16 +173,14 @@ async function buscarResultadoOnlineInterno(concurso) {
     
     if (numeros && numeros.length >= 6) {
         numeros.sort((a, b) => a - b);
-        return { numeros, dataSorteio, apiUsada };
+        return { numeros, dataSorteio };
     }
-    
     return null;
 }
 
-// ============ COMPARTILHAR WHATSAPP ============
 function compartilharWhatsApp() {
     if (!ultimoResultadoConcurso || !ultimoResultadoDados) {
-        alert('⚠️ Nenhum resultado para compartilhar. Clique em "Conferir" primeiro.');
+        showToast('⚠️ Nenhum resultado para compartilhar. Clique em "Conferir" primeiro.', 'warning');
         return;
     }
     
@@ -202,14 +203,14 @@ function compartilharWhatsApp() {
     const textoCodificado = encodeURIComponent(mensagem);
     const urlWhatsApp = `https://wa.me/?text=${textoCodificado}`;
     window.open(urlWhatsApp, '_blank');
+    showToast('📱 Abrindo WhatsApp...', 'info');
 }
 
-// ============ CONFERIR RESULTADOS ============
 async function conferirResultados() {
     const concurso = document.getElementById('concursoSelect').value;
     
     if (!concurso) {
-        alert('⚠️ Selecione um concurso!');
+        showToast('⚠️ Selecione um concurso!', 'warning');
         return;
     }
     
@@ -217,7 +218,6 @@ async function conferirResultados() {
     const statusDiv = document.getElementById('statusBusca');
     
     resultadosArea.innerHTML = '<div class="loading">🔍 Processando...</div>';
-    statusDiv.innerHTML = '<div class="status-info">🔍 Buscando resultado online...</div>';
     
     let numerosSorteados = null;
     let dataSorteio = null;
@@ -225,22 +225,18 @@ async function conferirResultados() {
     
     if (resultados[concurso]) {
         numerosSorteados = resultados[concurso];
-        statusDiv.innerHTML = `<div class="status-success">✅ Usando resultado salvo: ${numerosSorteados.join(' - ')}</div>`;
+        showToast('📋 Usando resultado salvo', 'info');
     } else {
+        showToast('🔍 Buscando resultado online...', 'info');
         const resultadoBusca = await buscarResultadoOnlineInterno(concurso);
         if (resultadoBusca) {
             numerosSorteados = resultadoBusca.numeros;
             dataSorteio = resultadoBusca.dataSorteio;
             document.getElementById('numerosSorteados').value = numerosSorteados.join(' ');
-            
-            let statusMsg = `✅ Resultado encontrado: ${numerosSorteados.join(' - ')}`;
-            if (dataSorteio) {
-                statusMsg += `<br>📅 Sorteio: ${new Date(dataSorteio).toLocaleDateString('pt-BR')}`;
-            }
-            statusDiv.innerHTML = `<div class="status-success">${statusMsg}</div>`;
+            showToast('✅ Resultado encontrado!', 'success');
         } else {
-            statusDiv.innerHTML = `<div class="status-error">⚠️ Resultado não encontrado online. Digite os números manualmente e clique em "Conferir" novamente.</div>`;
             resultadosArea.innerHTML = `<div class="empty-state">❌ Resultado do concurso ${concurso} não encontrado online.<br><br>Digite os números manualmente no campo acima e clique em "Conferir" novamente.</div>`;
+            showToast('❌ Resultado não encontrado online', 'error');
             return;
         }
     }
@@ -261,7 +257,6 @@ async function conferirResultados() {
     totalQuinas = resultadosCalc.filter(r => r.acertos === 5).length;
     totalQuadras = resultadosCalc.filter(r => r.acertos === 4).length;
     
-    // Salvar para compartilhamento
     ultimoResultadoConcurso = concurso;
     ultimoResultadoDados = {
         numeros: numerosSorteados,
@@ -318,40 +313,25 @@ async function conferirResultados() {
     mostrarCartoesDoConcurso();
     
     document.getElementById('btnWhatsApp')?.addEventListener('click', compartilharWhatsApp);
-    
-    setTimeout(() => {
-        if (statusDiv.innerHTML.includes('encontrado') || statusDiv.innerHTML.includes('Usando')) {
-            statusDiv.innerHTML = '';
-        }
-    }, 8000);
+    showToast(`🏆 Conferência concluída! ${totalSenas + totalQuinas + totalQuadras} prêmio(s)`, 'success');
 }
 
-// ============ AUTO-ATUALIZAÇÃO ============
 let intervalo;
 function iniciarAutoAtualizacao() {
     if (intervalo) clearInterval(intervalo);
     intervalo = setInterval(() => {
-        console.log('🔄 Auto-atualizando dados...');
         carregarDados();
     }, 60000);
 }
 
-// ============ INICIAR ============
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('📄 Página carregada - Bolões Aleatórios v1.0');
     await carregarDados();
     iniciarAutoAtualizacao();
     
-    const selectConcurso = document.getElementById('concursoSelect');
-    if (selectConcurso) {
-        selectConcurso.addEventListener('change', mostrarCartoesDoConcurso);
-    }
-    
-    const btnConferir = document.getElementById('btnConferir');
-    if (btnConferir) {
-        btnConferir.addEventListener('click', conferirResultados);
-        btnConferir.addEventListener('touchstart', conferirResultados);
-    }
+    document.getElementById('concursoSelect').addEventListener('change', mostrarCartoesDoConcurso);
+    document.getElementById('btnConferir').addEventListener('click', conferirResultados);
+    document.getElementById('btnConferir').addEventListener('touchstart', conferirResultados);
     
     mostrarCartoesDoConcurso();
+    showToast('🎲 Sistema Bolões Aleatórios carregado!', 'success');
 });
