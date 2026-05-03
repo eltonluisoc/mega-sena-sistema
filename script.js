@@ -2,6 +2,7 @@ let cartoes = [];
 let resultados = {};
 let ultimoResultadoConcurso = null;
 let ultimoResultadoDados = null;
+let ultimoEstadoResultados = {};
 
 // ============ TOAST FUNCTION ============
 function showToast(message, type = 'info') {
@@ -29,6 +30,55 @@ function showToast(message, type = 'info') {
     }, 3000);
 }
 
+// ============ VERIFICAR NOVOS RESULTADOS ============
+async function verificarNovosResultados() {
+    try {
+        const resultadosSnapshot = await db.collection('resultados').get();
+        const novosResultados = {};
+        resultadosSnapshot.forEach(doc => {
+            novosResultados[doc.id] = doc.data().numeros;
+        });
+        
+        const keysAntigos = Object.keys(ultimoEstadoResultados);
+        const keysNovos = Object.keys(novosResultados);
+        
+        const novosConcursos = keysNovos.filter(k => !keysAntigos.includes(k));
+        const resultadosModificados = keysNovos.filter(k => {
+            if (keysAntigos.includes(k)) {
+                const antigo = JSON.stringify(ultimoEstadoResultados[k]);
+                const novo = JSON.stringify(novosResultados[k]);
+                return antigo !== novo;
+            }
+            return false;
+        });
+        
+        if (novosConcursos.length > 0 || resultadosModificados.length > 0) {
+            const todosNovos = [...novosConcursos, ...resultadosModificados];
+            const concursoAtual = document.getElementById('concursoSelect').value;
+            const concursoAtualTemNovo = todosNovos.includes(concursoAtual);
+            
+            if (concursoAtualTemNovo) {
+                showToast(`📢 NOVO RESULTADO! Concurso ${concursoAtual} acabou de ser atualizado. Clique em "Conferir" para ver!`, 'success');
+                const btnConferir = document.getElementById('btnConferir');
+                if (btnConferir) {
+                    btnConferir.style.animation = 'pulse 0.5s ease-in-out 3';
+                    setTimeout(() => {
+                        btnConferir.style.animation = '';
+                    }, 1500);
+                }
+            } else if (todosNovos.length > 0) {
+                showToast(`📢 NOVOS RESULTADOS! Concurso(s) ${todosNovos.join(', ')} acabaram de ser atualizados.`, 'info');
+            }
+        }
+        
+        ultimoEstadoResultados = novosResultados;
+        resultados = novosResultados;
+        
+    } catch (error) {
+        console.error('Erro ao verificar resultados:', error);
+    }
+}
+
 // ============ CARREGAR DADOS ============
 async function carregarDados() {
     try {
@@ -46,10 +96,16 @@ async function carregarDados() {
         });
         
         const resultadosSnapshot = await db.collection('resultados').get();
-        resultados = {};
+        const novosResultados = {};
         resultadosSnapshot.forEach(doc => {
-            resultados[doc.id] = doc.data().numeros;
+            novosResultados[doc.id] = doc.data().numeros;
         });
+        
+        if (Object.keys(ultimoEstadoResultados).length === 0) {
+            ultimoEstadoResultados = JSON.parse(JSON.stringify(novosResultados));
+        }
+        
+        resultados = novosResultados;
         
         atualizarSelectConcursos();
         atualizarStats();
@@ -72,6 +128,16 @@ function atualizarSelectConcursos() {
         const option = document.createElement('option');
         option.value = concurso;
         option.textContent = `Concurso ${concurso} (${total} cartões)`;
+        
+        if (ultimoEstadoResultados[concurso] && resultados[concurso]) {
+            const mudou = JSON.stringify(ultimoEstadoResultados[concurso]) !== JSON.stringify(resultados[concurso]);
+            if (mudou) {
+                option.style.backgroundColor = '#d1fae5';
+                option.style.color = '#065f46';
+                option.textContent += ' 🔴 NOVO!';
+            }
+        }
+        
         select.appendChild(option);
     });
 }
@@ -178,6 +244,7 @@ async function buscarResultadoOnlineInterno(concurso) {
     return null;
 }
 
+// ============ COMPARTILHAR WHATSAPP (ATUALIZADO) ============
 function compartilharWhatsApp() {
     if (!ultimoResultadoConcurso || !ultimoResultadoDados) {
         showToast('⚠️ Nenhum resultado para compartilhar. Clique em "Conferir" primeiro.', 'warning');
@@ -189,16 +256,45 @@ function compartilharWhatsApp() {
     const totalSenas = ultimoResultadoDados.totalSenas || 0;
     const totalQuinas = ultimoResultadoDados.totalQuinas || 0;
     const totalQuadras = ultimoResultadoDados.totalQuadras || 0;
+    const totalTernos = ultimoResultadoDados.totalTernos || 0;
+    const totalDuques = ultimoResultadoDados.totalDuques || 0;
     
-    let mensagem = `🎲 *RESULTADO BOLÕES ALEATÓRIOS* 🎲\n\n`;
-    mensagem += `📌 *Concurso:* ${ultimoResultadoConcurso}\n`;
-    mensagem += `🎯 *Números Sorteados:* ${numeros.join(' - ')}\n`;
-    if (data) mensagem += `📅 *Data:* ${data}\n`;
-    mensagem += `\n🏆 *PREMIAÇÕES DO BOLÃO:*\n`;
-    mensagem += `• SENA(S): ${totalSenas}\n`;
-    mensagem += `• QUINA(S): ${totalQuinas}\n`;
-    mensagem += `• QUADRA(S): ${totalQuadras}\n`;
-    mensagem += `\n🔗 Confira no site: ${window.location.href}`;
+    let tituloSecao = '🏆 PREMIAÇÕES DO BOLÃO:';
+    let mensagemIncentivo = '';
+    
+    if (totalSenas > 0) {
+        mensagemIncentivo = '🎉🎉🎉 TEVE SENA! PARABÉNS! 🎉🎉🎉';
+        tituloSecao = '🏆 PREMIAÇÕES DO BOLÃO:';
+    } else if (totalQuinas > 0) {
+        mensagemIncentivo = '⭐ TEVE QUINA! Quase lá! ⭐';
+        tituloSecao = '🏆 PREMIAÇÕES DO BOLÃO:';
+    } else if (totalQuadras > 0) {
+        mensagemIncentivo = '🎉 Parabéns aos ganhadores! 🎉';
+        tituloSecao = '🏆 PREMIAÇÕES DO BOLÃO:';
+    } else if (totalTernos > 0 || totalDuques > 0) {
+        tituloSecao = '🏆 ACERTOS DO BOLÃO:';
+        mensagemIncentivo = '🔍 Quase! Terno e Duque mostram que estamos no caminho certo.\n💪 Vamos continuar. A sorte está mais perto!';
+    } else {
+        tituloSecao = '🏆 ACERTOS DO BOLÃO:';
+        mensagemIncentivo = '😕 O padrão do sorteio foi bastante atípico...\n💪 Vamos seguir.';
+    }
+    
+    let mensagem = `*RESULTADO BOLÕES ALEATÓRIOS*\n\n`;
+    mensagem += `📌 Concurso: ${ultimoResultadoConcurso}\n`;
+    mensagem += `🎯 Sorteados: ${numeros.join(' - ')}\n`;
+    if (data) mensagem += `📅 Data: ${data}\n`;
+    mensagem += `\n${tituloSecao}\n`;
+    mensagem += `• SENA: ${totalSenas}\n`;
+    mensagem += `• QUINA: ${totalQuinas}\n`;
+    mensagem += `• QUADRA: ${totalQuadras}\n`;
+    mensagem += `• TERNO: ${totalTernos}\n`;
+    mensagem += `• DUQUE: ${totalDuques}\n\n`;
+    
+    if (mensagemIncentivo) {
+        mensagem += `${mensagemIncentivo}\n\n`;
+    }
+    
+    mensagem += `🔗 Detalhes: ${window.location.href}`;
     
     const textoCodificado = encodeURIComponent(mensagem);
     const urlWhatsApp = `https://wa.me/?text=${textoCodificado}`;
@@ -206,6 +302,7 @@ function compartilharWhatsApp() {
     showToast('📱 Abrindo WhatsApp...', 'info');
 }
 
+// ============ CONFERIR RESULTADOS ============
 async function conferirResultados() {
     const concurso = document.getElementById('concursoSelect').value;
     
@@ -215,13 +312,11 @@ async function conferirResultados() {
     }
     
     const resultadosArea = document.getElementById('resultadosArea');
-    const statusDiv = document.getElementById('statusBusca');
-    
     resultadosArea.innerHTML = '<div class="loading">🔍 Processando...</div>';
     
     let numerosSorteados = null;
     let dataSorteio = null;
-    let totalSenas = 0, totalQuinas = 0, totalQuadras = 0;
+    let totalSenas = 0, totalQuinas = 0, totalQuadras = 0, totalTernos = 0, totalDuques = 0;
     
     if (resultados[concurso]) {
         numerosSorteados = resultados[concurso];
@@ -235,7 +330,7 @@ async function conferirResultados() {
             document.getElementById('numerosSorteados').value = numerosSorteados.join(' ');
             showToast('✅ Resultado encontrado!', 'success');
         } else {
-            resultadosArea.innerHTML = `<div class="empty-state">❌ Resultado do concurso ${concurso} não encontrado online.<br><br>Digite os números manualmente no campo acima e clique em "Conferir" novamente.</div>`;
+            resultadosArea.innerHTML = `<div class="empty-state">❌ Resultado do concurso ${concurso} não encontrado online.<br><br>Digite os números manualmente e clique em "Conferir" novamente.</div>`;
             showToast('❌ Resultado não encontrado online', 'error');
             return;
         }
@@ -256,6 +351,8 @@ async function conferirResultados() {
     totalSenas = resultadosCalc.filter(r => r.acertos >= 6).length;
     totalQuinas = resultadosCalc.filter(r => r.acertos === 5).length;
     totalQuadras = resultadosCalc.filter(r => r.acertos === 4).length;
+    totalTernos = resultadosCalc.filter(r => r.acertos === 3).length;
+    totalDuques = resultadosCalc.filter(r => r.acertos === 2).length;
     
     ultimoResultadoConcurso = concurso;
     ultimoResultadoDados = {
@@ -263,7 +360,9 @@ async function conferirResultados() {
         dataSorteio: dataSorteio,
         totalSenas: totalSenas,
         totalQuinas: totalQuinas,
-        totalQuadras: totalQuadras
+        totalQuadras: totalQuadras,
+        totalTernos: totalTernos,
+        totalDuques: totalDuques
     };
     
     let html = `
@@ -273,11 +372,13 @@ async function conferirResultados() {
                 <div><span style="font-size: 24px; font-weight: bold; color: #f59e0b;">${totalSenas}</span><br>SENA(S)</div>
                 <div><span style="font-size: 24px; font-weight: bold; color: #eab308;">${totalQuinas}</span><br>QUINA(S)</div>
                 <div><span style="font-size: 24px; font-weight: bold; color: #a855f7;">${totalQuadras}</span><br>QUADRA(S)</div>
+                <div><span style="font-size: 24px; font-weight: bold; color: #3b82f6;">${totalTernos}</span><br>TERNO(S)</div>
+                <div><span style="font-size: 24px; font-weight: bold; color: #64748b;">${totalDuques}</span><br>DUQUE(S)</div>
                 <div><span style="font-size: 24px; font-weight: bold;">${resultadosCalc.length}</span><br>CARTÕES</div>
             </div>
             <div style="background: #d1fae5; padding: 10px; border-radius: 8px;">
                 🎲 Sorteados: ${numerosSorteados.join(' - ')}
-                ${dataSorteio ? `<br>📅 Data do sorteio: ${new Date(dataSorteio).toLocaleDateString('pt-BR')}` : ''}
+                ${dataSorteio ? `<br>📅 Data: ${new Date(dataSorteio).toLocaleDateString('pt-BR')}` : ''}
             </div>
             <button id="btnWhatsApp" class="btn-whatsapp" style="margin-top: 15px;">📱 COMPARTILHAR NO WHATSAPP</button>
         </div>
@@ -293,7 +394,7 @@ async function conferirResultados() {
     for (const [bolao, lista] of Object.entries(porBolao)) {
         html += `<div style="background: white; border-radius: 10px; padding: 20px; margin-bottom: 20px; border: 1px solid #e2e8f0;"><h4 style="color: #3b82f6;">🎯 ${bolao}</h4>`;
         lista.forEach(c => {
-            const cor = c.acertos >= 6 ? '#f59e0b' : c.acertos >= 5 ? '#eab308' : c.acertos >= 4 ? '#a855f7' : '#cbd5e1';
+            const cor = c.acertos >= 6 ? '#f59e0b' : c.acertos >= 5 ? '#eab308' : c.acertos >= 4 ? '#a855f7' : c.acertos >= 3 ? '#3b82f6' : '#cbd5e1';
             html += `
                 <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 10px;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
@@ -313,10 +414,32 @@ async function conferirResultados() {
     mostrarCartoesDoConcurso();
     
     document.getElementById('btnWhatsApp')?.addEventListener('click', compartilharWhatsApp);
-    showToast(`🏆 Conferência concluída! ${totalSenas + totalQuinas + totalQuadras} prêmio(s)`, 'success');
+    
+    let mensagemPremio = '';
+    if (totalSenas > 0) mensagemPremio = '🎉🎉🎉 TEVE SENA! 🎉🎉🎉';
+    else if (totalQuinas > 0) mensagemPremio = '⭐ TEVE QUINA! ⭐';
+    else if (totalQuadras > 0) mensagemPremio = '🎉 Teve Quadra! 🎉';
+    else if (totalTernos > 0 || totalDuques > 0) mensagemPremio = '🔍 Terno e Duque! Estamos chegando perto!';
+    else mensagemPremio = '😕 Nenhum acerto desta vez.';
+    
+    showToast(`🏆 Conferência concluída! ${mensagemPremio}`, 'info');
 }
 
+// ============ ANIMAÇÃO ============
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes pulse {
+        0% { transform: scale(1); background: #3b82f6; }
+        50% { transform: scale(1.05); background: #f59e0b; }
+        100% { transform: scale(1); background: #3b82f6; }
+    }
+`;
+document.head.appendChild(style);
+
+// ============ AUTO-ATUALIZAÇÃO ============
 let intervalo;
+let intervaloNotificacao;
+
 function iniciarAutoAtualizacao() {
     if (intervalo) clearInterval(intervalo);
     intervalo = setInterval(() => {
@@ -324,9 +447,17 @@ function iniciarAutoAtualizacao() {
     }, 60000);
 }
 
+function iniciarMonitoramentoResultados() {
+    if (intervaloNotificacao) clearInterval(intervaloNotificacao);
+    intervaloNotificacao = setInterval(() => {
+        verificarNovosResultados();
+    }, 30000);
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     await carregarDados();
     iniciarAutoAtualizacao();
+    iniciarMonitoramentoResultados();
     
     document.getElementById('concursoSelect').addEventListener('change', mostrarCartoesDoConcurso);
     document.getElementById('btnConferir').addEventListener('click', conferirResultados);
