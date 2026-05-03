@@ -507,10 +507,11 @@ textarea.form-control {
 
 /* ============ CORREÇÕES PARA CARTÕES NA LISTA (CELULAR) ============ */
 @media (max-width: 768px) {
-    /* Container do cartão na lista - empilha verticalmente */
+    /* Container do cartão na lista - mantém linha para checkbox e conteúdo */
     .cartao-item > div {
-        flex-direction: column !important;
+        flex-direction: row !important;
         align-items: flex-start !important;
+        flex-wrap: wrap;
     }
     
     /* Checkbox maior para toque no celular */
@@ -518,26 +519,40 @@ textarea.form-control {
         width: 26px !important;
         height: 26px !important;
         transform: scale(1);
-        margin-bottom: 10px;
+        margin-top: 8px;
     }
     
-    /* Botão editar ocupa toda largura no celular */
+    /* Conteúdo do cartão ocupa o resto */
+    .cartao-item > div > div:nth-child(2) {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    /* Botão editar volta para o canto, mas menor */
     .btn-editar {
-        width: 100% !important;
-        margin-top: 12px;
-        padding: 10px !important;
-        font-size: 14px !important;
+        width: auto !important;
+        margin-top: 0;
+        padding: 6px 12px !important;
+        font-size: 12px !important;
         text-align: center;
+        white-space: nowrap;
     }
     
-    /* Números do cartão no celular */
+    /* Números do cartão - HORIZONTAL */
     .cartao-numeros {
-        justify-content: center;
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-top: 8px;
+        justify-content: flex-start;
     }
     
+    /* Cada número individual */
     .cartao-numeros span {
-        font-size: 13px !important;
-        padding: 6px 10px !important;
+        font-size: 10px !important;
+        padding: 3px 6px !important;
+        display: inline-block;
     }
     
     /* Botões da barra de filtros no celular */
@@ -550,6 +565,15 @@ textarea.form-control {
     .filtros button {
         width: 100%;
         margin: 3px 0;
+    }
+    
+    /* Títulos do cartão menores */
+    .cartao-item strong {
+        font-size: 13px;
+    }
+    
+    .cartao-item .concurso-info {
+        font-size: 10px;
     }
 }
 
