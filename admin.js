@@ -1,5 +1,6 @@
 const SENHA_ADMIN = '172163';
 let cartoes = [];
+let resultados = {};  // <-- LINHA ADICIONADA (estava faltando)
 
 // ============ AUTENTICAÇÃO ============
 function verificarAutenticacao() {
@@ -30,10 +31,18 @@ function sair() {
 // ============ FIREBASE ============
 async function carregarDadosDoFirebase() {
     try {
-        const snapshot = await db.collection('cartoes').get();
+        // Carregar cartões
+        const snapshotCartoes = await db.collection('cartoes').get();
         cartoes = [];
-        snapshot.forEach(doc => {
+        snapshotCartoes.forEach(doc => {
             cartoes.push({ id: doc.id, ...doc.data() });
+        });
+        
+        // Carregar resultados (para o dashboard)
+        const snapshotResultados = await db.collection('resultados').get();
+        resultados = {};
+        snapshotResultados.forEach(doc => {
+            resultados[doc.id] = doc.data();
         });
         
         // Ordenar conforme seleção
@@ -44,6 +53,7 @@ async function carregarDadosDoFirebase() {
         
         document.getElementById('totalCartoes').innerHTML = cartoes.length + ' cartões';
     } catch (error) {
+        console.error('Erro:', error);
         alert('Erro ao carregar: ' + error.message);
     }
 }
@@ -55,7 +65,7 @@ function atualizarDashboard() {
     const totalConcursos = concursos.length;
     const boloes = [...new Set(cartoes.map(c => c.bolao || 'Sem Bolão'))];
     const totalBoloes = boloes.length;
-    const resultadosCount = Object.keys(resultados || {}).length;
+    const resultadosCount = Object.keys(resultados).length;
     
     document.getElementById('dashboardTotalCartoes').innerHTML = totalCartoes;
     document.getElementById('dashboardTotalConcursos').innerHTML = totalConcursos;
@@ -69,19 +79,19 @@ function ordenarCartoes() {
     
     switch(ordenarPor) {
         case 'concurso_desc':
-            cartoes.sort((a, b) => b.concurso - a.concurso);
+            cartoes.sort((a, b) => (b.concurso || 0) - (a.concurso || 0));
             break;
         case 'concurso_asc':
-            cartoes.sort((a, b) => a.concurso - b.concurso);
+            cartoes.sort((a, b) => (a.concurso || 0) - (b.concurso || 0));
             break;
         case 'bolao':
             cartoes.sort((a, b) => (a.bolao || 'Sem Bolão').localeCompare(b.bolao || 'Sem Bolão'));
             break;
         case 'data':
-            cartoes.sort((a, b) => new Date(b.dataCadastro) - new Date(a.dataCadastro));
+            cartoes.sort((a, b) => new Date(b.dataCadastro || 0) - new Date(a.dataCadastro || 0));
             break;
         default:
-            cartoes.sort((a, b) => b.concurso - a.concurso);
+            cartoes.sort((a, b) => (b.concurso || 0) - (a.concurso || 0));
     }
 }
 
@@ -108,17 +118,17 @@ function exibirCartoes() {
                     </div>
                     <div style="flex: 1; min-width: 150px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-                            <strong>Cartão #${cartao.id.slice(-6)}</strong>
+                            <strong>Cartão #${cartao.id ? cartao.id.slice(-6) : '???'}</strong>
                             <div style="display: flex; gap: 6px;">
                                 <button class="btn-editar" data-id="${cartao.id}" style="background:#3b82f6; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px;">✏️ Editar</button>
                                 <button class="btn-duplicar" data-id="${cartao.id}" style="background:#8b5cf6; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px;">📋 Duplicar</button>
                             </div>
                         </div>
                         <div style="font-size: 12px; color: #666; margin: 5px 0;">
-                            Concurso ${cartao.concurso} | Bolão: ${cartao.bolao || 'Sem Bolão'} | 📅 ${dataFormatada}
+                            Concurso ${cartao.concurso || '?'} | Bolão: ${cartao.bolao || 'Sem Bolão'} | 📅 ${dataFormatada}
                         </div>
                         <div class="cartao-numeros" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
-                            ${cartao.numeros.map(n => `<span style="background:#e2e8f0; padding:5px 10px; border-radius:6px; font-family:monospace; font-size:13px; font-weight:bold;">${n.toString().padStart(2,'0')}</span>`).join('')}
+                            ${(cartao.numeros || []).map(n => `<span style="background:#e2e8f0; padding:5px 10px; border-radius:6px; font-family:monospace; font-size:13px; font-weight:bold;">${n.toString().padStart(2,'0')}</span>`).join('')}
                         </div>
                     </div>
                 </div>
@@ -152,7 +162,7 @@ async function editarCartao(id) {
     const doc = await db.collection('cartoes').doc(id).get();
     const cartao = doc.data();
     
-    const novos = prompt('Editar números (separados por espaço):\nAtuais: ' + cartao.numeros.join(', '), cartao.numeros.join(' '));
+    const novos = prompt('Editar números (separados por espaço):\nAtuais: ' + (cartao.numeros || []).join(', '), (cartao.numeros || []).join(' '));
     if (!novos) return;
     
     const numeros = novos.match(/\d+/g).map(Number);
@@ -169,20 +179,20 @@ async function duplicarCartao(id) {
     const doc = await db.collection('cartoes').doc(id).get();
     const cartaoOriginal = doc.data();
     
-    const novoConcurso = prompt('📋 Duplicar Cartão\n\nConcurso original: ' + cartaoOriginal.concurso + '\n\nNovo Concurso:', cartaoOriginal.concurso);
+    const novoConcurso = prompt('📋 Duplicar Cartão\n\nConcurso original: ' + (cartaoOriginal.concurso || '') + '\n\nNovo Concurso:', cartaoOriginal.concurso);
     if (!novoConcurso) return;
     
     const novoBolao = prompt('Bolão original: ' + (cartaoOriginal.bolao || 'Sem Bolão') + '\n\nNovo Bolão:', cartaoOriginal.bolao || 'Sem Bolão');
     if (!novoBolao) return;
     
-    if (!confirm(`Confirmar duplicação?\n\n📌 Concurso: ${novoConcurso}\n👥 Bolão: ${novoBolao}\n🔢 Números: ${cartaoOriginal.numeros.join(', ')}`)) return;
+    if (!confirm(`Confirmar duplicação?\n\n📌 Concurso: ${novoConcurso}\n👥 Bolão: ${novoBolao}\n🔢 Números: ${(cartaoOriginal.numeros || []).join(', ')}`)) return;
     
     await db.collection('cartoes').add({
         concurso: novoConcurso,
         bolao: novoBolao,
-        numeros: cartaoOriginal.numeros,
+        numeros: cartaoOriginal.numeros || [],
         dataCadastro: new Date().toISOString(),
-        totalNumeros: cartaoOriginal.numeros.length
+        totalNumeros: (cartaoOriginal.numeros || []).length
     });
     
     alert('✅ Cartão duplicado com sucesso!');
@@ -232,11 +242,11 @@ async function exportarCartoes() {
     
     for (const cartao of cartoesExportar) {
         dados.push([
-            cartao.id.slice(-6),
-            cartao.concurso,
+            cartao.id ? cartao.id.slice(-6) : '???',
+            cartao.concurso || '',
             cartao.bolao || 'Sem Bolão',
-            cartao.numeros.join(' - '),
-            cartao.numeros.length,
+            (cartao.numeros || []).join(' - '),
+            (cartao.numeros || []).length,
             cartao.dataCadastro ? new Date(cartao.dataCadastro).toLocaleDateString('pt-BR') : ''
         ]);
     }
@@ -385,6 +395,12 @@ async function buscarResultadoOnlineAdmin() {
                 dataAtualizacao: new Date().toISOString()
             });
             alert('✅ Resultado salvo com sucesso!');
+            // Recarregar resultados para o dashboard
+            const snapshotResultados = await db.collection('resultados').get();
+            resultados = {};
+            snapshotResultados.forEach(doc => {
+                resultados[doc.id] = doc.data();
+            });
             atualizarDashboard();
         }
     } else {
@@ -462,6 +478,12 @@ async function salvarResultado() {
         dataAtualizacao: new Date().toISOString()
     });
     alert('Resultado salvo!');
+    // Recarregar resultados
+    const snapshotResultados = await db.collection('resultados').get();
+    resultados = {};
+    snapshotResultados.forEach(doc => {
+        resultados[doc.id] = doc.data();
+    });
     atualizarDashboard();
 }
 
