@@ -6,12 +6,11 @@
     <title>Bolões Aleatórios - Conferência de Resultados</title>
     
     <!-- PWA Manifest -->
-    <link rel="manifest" href="/mega-sena-sistema/manifest.json">
+    <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Bolões Aleatórios">
-    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23667eea'/%3E%3Ctext x='50' y='70' font-size='60' text-anchor='middle' fill='white' font-family='Arial'%3E🎲%3C/text%3E%3C/svg%3E">
     
     <style>
         * {
@@ -53,6 +52,41 @@
             background: rgba(255,255,255,0.1);
             padding: 5px 15px;
             border-radius: 20px;
+        }
+
+        /* Seletor de loteria */
+        .loteria-selector {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 15px 0;
+        }
+        .loteria-btn {
+            background: #334155;
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 30px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: auto;
+            min-width: 120px;
+        }
+        .loteria-btn.active {
+            background: #8b5cf6;
+            box-shadow: 0 0 15px rgba(139,92,246,0.5);
+        }
+        .loteria-btn.mega.active {
+            background: #8b5cf6;
+        }
+        .loteria-btn.lotofacil.active {
+            background: #10b981;
+        }
+        .loteria-btn:hover {
+            transform: translateY(-2px);
+            filter: brightness(1.1);
         }
 
         .container {
@@ -173,9 +207,57 @@
             font-size: 12px;
         }
 
+        /* Toast */
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+        .toast {
+            background: #1e293b;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideUp 0.3s ease-out;
+            pointer-events: auto;
+            min-width: 200px;
+            max-width: 90vw;
+            justify-content: center;
+        }
+        .toast-success { background: #10b981; }
+        .toast-error { background: #ef4444; }
+        .toast-info { background: #3b82f6; }
+        .toast-warning { background: #f59e0b; }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; visibility: hidden; }
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); background: #3b82f6; }
+            50% { transform: scale(1.05); background: #f59e0b; }
+            100% { transform: scale(1); background: #3b82f6; }
+        }
+
         @media (max-width: 768px) {
             .top-bar { flex-direction: column; text-align: center; }
             button { min-height: 48px; font-size: 14px; }
+            .loteria-btn { padding: 8px 15px; font-size: 12px; min-width: 100px; }
         }
     </style>
 </head>
@@ -193,21 +275,27 @@
         </div>
     </div>
 
+    <!-- Seletor de Loteria -->
+    <div class="loteria-selector">
+        <button id="btnMegaSena" class="loteria-btn mega active">🎯 MEGA-SENA</button>
+        <button id="btnLotofacil" class="loteria-btn lotofacil">🌟 LOTOFÁCIL</button>
+    </div>
+
     <div class="container">
         <div class="card">
-            <div class="card-header bg-purple">
-                🔍 CONFERIR RESULTADOS
+            <div class="card-header bg-purple" id="cardHeaderConferencia">
+                🔍 CONFERIR RESULTADOS - MEGA-SENA
             </div>
             <div class="card-body">
                 <div class="form-group">
-                    <label>📌 CONCURSO:</label>
+                    <label id="labelConcurso">📌 CONCURSO:</label>
                     <select id="concursoSelect">
                         <option value="">Carregando concursos...</option>
                     </select>
                 </div>
 
                 <div class="form-group">
-                    <label>🎲 NÚMEROS SORTEADOS:</label>
+                    <label id="labelNumeros">🎲 NÚMEROS SORTEADOS (6 números):</label>
                     <input type="text" id="numerosSorteados" placeholder="Ex: 12 15 23 34 45 56 (ou deixe em branco para buscar online)">
                 </div>
 
@@ -218,8 +306,8 @@
         </div>
 
         <div class="card">
-            <div class="card-header bg-blue">
-                📋 CARTÕES DO CONCURSO
+            <div class="card-header bg-blue" id="cardHeaderCartoes">
+                📋 CARTÕES DO CONCURSO - MEGA-SENA
             </div>
             <div class="card-body" id="cartoesConcurso">
                 <div class="empty-state">Selecione um concurso para ver os cartões</div>
@@ -227,7 +315,7 @@
         </div>
 
         <div class="card">
-            <div class="card-header bg-green">
+            <div class="card-header bg-green" id="cardHeaderResultados">
                 📊 RESULTADOS DA CONFERÊNCIA
             </div>
             <div class="card-body" id="resultadosArea">
@@ -246,17 +334,12 @@
     <script src="firebase-config.js"></script>
     <script src="script.js"></script>
     
-    <!-- Service Worker PWA -->
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')
-                    .then(registration => {
-                        console.log('✅ Service Worker registrado com sucesso!');
-                    })
-                    .catch(error => {
-                        console.log('❌ Service Worker falhou:', error);
-                    });
+                    .then(registration => console.log('✅ Service Worker registrado'))
+                    .catch(error => console.log('❌ Service Worker falhou:', error));
             });
         }
     </script>

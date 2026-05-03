@@ -1,8 +1,12 @@
 const SENHA_ADMIN = '172163';
-let cartoes = [];
-let resultados = {};
+let cartoesMega = [];
+let cartoesLotofacil = [];
+let resultadosMega = {};
+let resultadosLotofacil = {};
+let loteriaAdmin = 'mega';
+let cartoesFiltrados = [];
 
-// ============ TOAST FUNCTION ============
+// ============ TOAST ============
 function showToast(message, type = 'info') {
     let container = document.querySelector('.toast-container');
     if (!container) {
@@ -10,460 +14,238 @@ function showToast(message, type = 'info') {
         container.className = 'toast-container';
         document.body.appendChild(container);
     }
-    
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
-    
     const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : type === 'warning' ? '⚠️' : 'ℹ️';
     toast.innerHTML = `${icon} ${message}`;
-    
     container.appendChild(toast);
-    
     setTimeout(() => {
         toast.style.animation = 'fadeOut 0.3s ease-out';
-        setTimeout(() => {
-            toast.remove();
-            if (container.children.length === 0) container.remove();
-        }, 300);
+        setTimeout(() => { toast.remove(); if (container.children.length === 0) container.remove(); }, 300);
     }, 3000);
 }
 
 // ============ AUTENTICAÇÃO ============
 function verificarAutenticacao() {
     const autenticado = localStorage.getItem('admin_autenticado');
-    if (!autenticado) {
-        document.getElementById('authModal').classList.add('show');
-    } else {
-        document.getElementById('authModal').classList.remove('show');
-        carregarDadosDoFirebase();
-    }
+    if (!autenticado) document.getElementById('authModal').classList.add('show');
+    else { document.getElementById('authModal').classList.remove('show'); carregarDadosAdmin(); }
 }
-
 function autenticar() {
     const senha = document.getElementById('senhaAdmin').value;
     if (senha === SENHA_ADMIN) {
         localStorage.setItem('admin_autenticado', 'true');
-        showToast('✅ Login realizado com sucesso!', 'success');
+        showToast('✅ Login realizado!', 'success');
         verificarAutenticacao();
+    } else showToast('❌ Senha incorreta!', 'error');
+}
+function sair() { localStorage.removeItem('admin_autenticado'); showToast('🔒 Saiu do sistema', 'info'); verificarAutenticacao(); }
+
+// ============ TROCAR LOTERIA NO ADMIN ============
+function setLoteriaAdmin(loteria) {
+    loteriaAdmin = loteria;
+    document.getElementById('adminBtnMega').classList.remove('active');
+    document.getElementById('adminBtnLotofacil').classList.remove('active');
+    if (loteria === 'mega') {
+        document.getElementById('adminBtnMega').classList.add('active');
+        document.getElementById('cadastroHeader').innerHTML = '📝 CADASTRAR CARTÕES - MEGA-SENA';
+        document.getElementById('resultadosHeader').innerHTML = '🔍 RESULTADOS OFICIAIS - MEGA-SENA';
+        document.getElementById('listaHeader').innerHTML = '📋 CARTÕES CADASTRADOS - MEGA-SENA';
+        document.getElementById('labelNumeros').innerHTML = '🔢 Números (um por linha - MEGA-SENA: 6 números):';
+        document.getElementById('dicaNumeros').innerHTML = '💡 MEGA-SENA: mínimo 6 números por linha.';
     } else {
-        showToast('❌ Senha incorreta!', 'error');
+        document.getElementById('adminBtnLotofacil').classList.add('active');
+        document.getElementById('cadastroHeader').innerHTML = '📝 CADASTRAR CARTÕES - LOTOFÁCIL';
+        document.getElementById('resultadosHeader').innerHTML = '🔍 RESULTADOS OFICIAIS - LOTOFÁCIL';
+        document.getElementById('listaHeader').innerHTML = '📋 CARTÕES CADASTRADOS - LOTOFÁCIL';
+        document.getElementById('labelNumeros').innerHTML = '🔢 Números (um por linha - LOTOFÁCIL: 15 números):';
+        document.getElementById('dicaNumeros').innerHTML = '💡 LOTOFÁCIL: mínimo 15 números por linha.';
     }
+    carregarDadosAdmin();
 }
 
-function sair() {
-    localStorage.removeItem('admin_autenticado');
-    showToast('🔒 Você saiu do sistema', 'info');
-    verificarAutenticacao();
-}
-
-// ============ FIREBASE ============
-async function carregarDadosDoFirebase() {
+// ============ CARREGAR DADOS ============
+async function carregarDadosAdmin() {
     try {
-        const snapshotCartoes = await db.collection('cartoes').get();
-        cartoes = [];
-        snapshotCartoes.forEach(doc => {
-            cartoes.push({ id: doc.id, ...doc.data() });
-        });
+        const snapshotMega = await db.collection('cartoes_mega').get();
+        cartoesMega = [];
+        snapshotMega.forEach(doc => cartoesMega.push({ id: doc.id, ...doc.data() }));
         
-        const snapshotResultados = await db.collection('resultados').get();
-        resultados = {};
-        snapshotResultados.forEach(doc => {
-            resultados[doc.id] = doc.data();
-        });
+        const resMega = await db.collection('resultados_mega').get();
+        resultadosMega = {};
+        resMega.forEach(doc => { resultadosMega[doc.id] = doc.data(); });
         
-        ordenarCartoes();
-        exibirCartoes();
-        carregarConcursos();
-        atualizarDashboard();
+        const snapshotLoto = await db.collection('cartoes_lotofacil').get();
+        cartoesLotofacil = [];
+        snapshotLoto.forEach(doc => cartoesLotofacil.push({ id: doc.id, ...doc.data() }));
         
-        document.getElementById('totalCartoes').innerHTML = cartoes.length + ' cartões';
-    } catch (error) {
-        console.error('Erro:', error);
-        showToast('❌ Erro ao carregar dados: ' + error.message, 'error');
-    }
+        const resLoto = await db.collection('resultados_lotofacil').get();
+        resultadosLotofacil = {};
+        resLoto.forEach(doc => { resultadosLotofacil[doc.id] = doc.data(); });
+        
+        exibirCartoesAdmin();
+        carregarConcursosAdmin();
+        atualizarDashboardAdmin();
+        document.getElementById('totalCartoes').innerHTML = (loteriaAdmin === 'mega' ? cartoesMega.length : cartoesLotofacil.length) + ' cartões';
+    } catch (error) { showToast('❌ Erro ao carregar: ' + error.message, 'error'); }
 }
 
-function atualizarDashboard() {
-    const totalCartoes = cartoes.length;
+// ============ DASHBOARD ============
+function atualizarDashboardAdmin() {
+    const cartoes = loteriaAdmin === 'mega' ? cartoesMega : cartoesLotofacil;
+    const resultados = loteriaAdmin === 'mega' ? resultadosMega : resultadosLotofacil;
     const concursos = [...new Set(cartoes.map(c => c.concurso))];
-    const totalConcursos = concursos.length;
     const boloes = [...new Set(cartoes.map(c => c.bolao || 'Sem Bolão'))];
-    const totalBoloes = boloes.length;
-    const resultadosCount = Object.keys(resultados).length;
-    
-    document.getElementById('dashboardTotalCartoes').innerHTML = totalCartoes;
-    document.getElementById('dashboardTotalConcursos').innerHTML = totalConcursos;
-    document.getElementById('dashboardTotalBoloes').innerHTML = totalBoloes;
-    document.getElementById('dashboardResultados').innerHTML = resultadosCount;
+    document.getElementById('dashboardTotalCartoes').innerHTML = cartoes.length;
+    document.getElementById('dashboardTotalConcursos').innerHTML = concursos.length;
+    document.getElementById('dashboardTotalBoloes').innerHTML = boloes.length;
+    document.getElementById('dashboardResultados').innerHTML = Object.keys(resultados).length;
 }
 
-function ordenarCartoes() {
+function ordenarCartoesAdmin() {
+    const cartoes = loteriaAdmin === 'mega' ? cartoesMega : cartoesLotofacil;
     const ordenarPor = document.getElementById('ordenarPor').value;
-    
     switch(ordenarPor) {
-        case 'concurso_desc':
-            cartoes.sort((a, b) => (b.concurso || 0) - (a.concurso || 0));
-            break;
-        case 'concurso_asc':
-            cartoes.sort((a, b) => (a.concurso || 0) - (b.concurso || 0));
-            break;
-        case 'bolao':
-            cartoes.sort((a, b) => (a.bolao || 'Sem Bolão').localeCompare(b.bolao || 'Sem Bolão'));
-            break;
-        case 'data':
-            cartoes.sort((a, b) => new Date(b.dataCadastro || 0) - new Date(a.dataCadastro || 0));
-            break;
-        default:
-            cartoes.sort((a, b) => (b.concurso || 0) - (a.concurso || 0));
+        case 'concurso_desc': cartoes.sort((a,b) => (b.concurso||0) - (a.concurso||0)); break;
+        case 'concurso_asc': cartoes.sort((a,b) => (a.concurso||0) - (b.concurso||0)); break;
+        case 'bolao': cartoes.sort((a,b) => (a.bolao||'Sem Bolão').localeCompare(b.bolao||'Sem Bolão')); break;
+        case 'data': cartoes.sort((a,b) => new Date(b.dataCadastro||0) - new Date(a.dataCadastro||0)); break;
+        default: cartoes.sort((a,b) => (b.concurso||0) - (a.concurso||0));
     }
 }
 
-function exibirCartoes() {
+function exibirCartoesAdmin() {
+    ordenarCartoesAdmin();
+    const cartoes = loteriaAdmin === 'mega' ? cartoesMega : cartoesLotofacil;
     const filtro = document.getElementById('filtroConcurso').value;
     let filtrados = filtro === 'todos' ? [...cartoes] : cartoes.filter(c => c.concurso == filtro);
+    cartoesFiltrados = filtrados;
     
     const container = document.getElementById('cartoesLista');
-    if (filtrados.length === 0) {
-        container.innerHTML = '<div class="empty-state">Nenhum cartão cadastrado</div>';
-        return;
-    }
+    if (filtrados.length === 0) { container.innerHTML = '<div class="empty-state">Nenhum cartão cadastrado</div>'; return; }
     
     let html = '';
     for (const cartao of filtrados) {
         const dataFormatada = cartao.dataCadastro ? new Date(cartao.dataCadastro).toLocaleDateString('pt-BR') : 'Data não disponível';
-        
-        html += `
-            <div class="cartao-item" style="border:1px solid #ddd; border-radius:8px; padding:12px; margin-bottom:10px; background:#f8fafc;">
-                <div style="display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
-                    <div style="flex-shrink: 0;">
-                        <input type="checkbox" class="checkbox-cartao" data-id="${cartao.id}" style="width: 22px; height: 22px; margin-top: 4px;">
-                    </div>
-                    <div style="flex: 1; min-width: 150px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-                            <strong>Cartão #${cartao.id ? cartao.id.slice(-6) : '???'}</strong>
-                            <div style="display: flex; gap: 6px;">
-                                <button class="btn-editar" data-id="${cartao.id}" style="background:#3b82f6; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px;">✏️ Editar</button>
-                                <button class="btn-duplicar" data-id="${cartao.id}" style="background:#8b5cf6; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px;">📋 Duplicar</button>
-                            </div>
-                        </div>
-                        <div style="font-size: 12px; color: #666; margin: 5px 0;">
-                            Concurso ${cartao.concurso || '?'} | Bolão: ${cartao.bolao || 'Sem Bolão'} | 📅 ${dataFormatada}
-                        </div>
-                        <div class="cartao-numeros" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
-                            ${(cartao.numeros || []).map(n => `<span style="background:#e2e8f0; padding:5px 10px; border-radius:6px; font-family:monospace; font-size:13px; font-weight:bold;">${n.toString().padStart(2,'0')}</span>`).join('')}
+        html += `<div class="cartao-item" style="border:1px solid #ddd; border-radius:8px; padding:12px; margin-bottom:10px; background:#f8fafc;">
+            <div style="display:flex; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+                <div><input type="checkbox" class="checkbox-cartao" data-id="${cartao.id}" style="width:22px; height:22px;"></div>
+                <div style="flex:1; min-width:150px;">
+                    <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+                        <strong>Cartão #${cartao.id.slice(-6)}</strong>
+                        <div style="display:flex; gap:6px;">
+                            <button class="btn-editar" data-id="${cartao.id}" style="background:#3b82f6; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer;">✏️ Editar</button>
+                            <button class="btn-duplicar" data-id="${cartao.id}" style="background:#8b5cf6; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer;">📋 Duplicar</button>
                         </div>
                     </div>
+                    <div style="font-size:12px; color:#666; margin:5px 0;">Concurso ${cartao.concurso} | Bolão: ${cartao.bolao||'Sem Bolão'} | 📅 ${dataFormatada}</div>
+                    <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">${cartao.numeros.map(n => `<span style="background:#e2e8f0; padding:5px 10px; border-radius:6px; font-family:monospace; font-size:12px;">${n.toString().padStart(2,'0')}</span>`).join('')}</div>
                 </div>
             </div>
-        `;
+        </div>`;
     }
     container.innerHTML = html;
     
-    document.querySelectorAll('.btn-editar').forEach(btn => {
-        btn.onclick = function() { editarCartao(this.getAttribute('data-id')); };
-    });
-    
-    document.querySelectorAll('.btn-duplicar').forEach(btn => {
-        btn.onclick = function() { duplicarCartao(this.getAttribute('data-id')); };
-    });
+    document.querySelectorAll('.btn-editar').forEach(btn => btn.onclick = () => editarCartao(btn.dataset.id));
+    document.querySelectorAll('.btn-duplicar').forEach(btn => btn.onclick = () => duplicarCartao(btn.dataset.id));
     
     function atualizarContador() {
         const qtd = document.querySelectorAll('.checkbox-cartao:checked').length;
         const btnExcluir = document.getElementById('btnExcluirSelecionados');
         if (btnExcluir) btnExcluir.innerHTML = qtd > 0 ? `🗑️ EXCLUIR (${qtd})` : '🗑️ EXCLUIR';
     }
-    
-    document.querySelectorAll('.checkbox-cartao').forEach(cb => {
-        cb.onchange = atualizarContador;
-    });
+    document.querySelectorAll('.checkbox-cartao').forEach(cb => cb.onchange = atualizarContador);
     atualizarContador();
 }
 
 async function editarCartao(id) {
-    const doc = await db.collection('cartoes').doc(id).get();
+    const collection = loteriaAdmin === 'mega' ? 'cartoes_mega' : 'cartoes_lotofacil';
+    const doc = await db.collection(collection).doc(id).get();
     const cartao = doc.data();
-    
-    const novos = prompt('Editar números (separados por espaço):\nAtuais: ' + (cartao.numeros || []).join(', '), (cartao.numeros || []).join(' '));
+    const maxNumeros = loteriaAdmin === 'mega' ? 6 : 15;
+    const novos = prompt(`Editar números (separados por espaço):\nAtuais: ${cartao.numeros.join(', ')}\n${loteriaAdmin === 'mega' ? 'MEGA-SENA: mínimo 6' : 'LOTOFÁCIL: mínimo 15'}`, cartao.numeros.join(' '));
     if (!novos) return;
-    
     const numeros = novos.match(/\d+/g).map(Number);
-    if (numeros.length < 6) { showToast('❌ Mínimo 6 números!', 'error'); return; }
+    if (numeros.length < maxNumeros) { showToast(`❌ Mínimo ${maxNumeros} números!`, 'error'); return; }
     numeros.sort((a,b) => a-b);
-    
-    await db.collection('cartoes').doc(id).update({ numeros: numeros, totalNumeros: numeros.length, dataAtualizacao: new Date().toISOString() });
-    showToast('✅ Cartão atualizado com sucesso!', 'success');
-    carregarDadosDoFirebase();
+    await db.collection(collection).doc(id).update({ numeros, totalNumeros: numeros.length, dataAtualizacao: new Date().toISOString() });
+    showToast('✅ Cartão atualizado!', 'success');
+    carregarDadosAdmin();
 }
 
 async function duplicarCartao(id) {
-    const doc = await db.collection('cartoes').doc(id).get();
-    const cartaoOriginal = doc.data();
-    
-    const novoConcurso = prompt('📋 Duplicar Cartão\n\nConcurso original: ' + (cartaoOriginal.concurso || '') + '\n\nNovo Concurso:', cartaoOriginal.concurso);
+    const collection = loteriaAdmin === 'mega' ? 'cartoes_mega' : 'cartoes_lotofacil';
+    const doc = await db.collection(collection).doc(id).get();
+    const original = doc.data();
+    const novoConcurso = prompt('Novo Concurso:', original.concurso);
     if (!novoConcurso) return;
-    
-    const novoBolao = prompt('Bolão original: ' + (cartaoOriginal.bolao || 'Sem Bolão') + '\n\nNovo Bolão:', cartaoOriginal.bolao || 'Sem Bolão');
+    const novoBolao = prompt('Novo Bolão:', original.bolao || 'Sem Bolão');
     if (!novoBolao) return;
-    
-    if (!confirm(`Confirmar duplicação?\n\n📌 Concurso: ${novoConcurso}\n👥 Bolão: ${novoBolao}\n🔢 Números: ${(cartaoOriginal.numeros || []).join(', ')}`)) return;
-    
-    await db.collection('cartoes').add({
-        concurso: novoConcurso,
-        bolao: novoBolao,
-        numeros: cartaoOriginal.numeros || [],
-        dataCadastro: new Date().toISOString(),
-        totalNumeros: (cartaoOriginal.numeros || []).length
-    });
-    
-    showToast('✅ Cartão duplicado com sucesso!', 'success');
-    carregarDadosDoFirebase();
+    if (!confirm(`Confirmar duplicação?\nConcurso: ${novoConcurso}\nBolão: ${novoBolao}\nNúmeros: ${original.numeros.join(', ')}`)) return;
+    await db.collection(collection).add({ concurso: novoConcurso, bolao: novoBolao, numeros: original.numeros, dataCadastro: new Date().toISOString(), totalNumeros: original.numeros.length });
+    showToast('✅ Cartão duplicado!', 'success');
+    carregarDadosAdmin();
 }
 
 async function excluirSelecionados() {
     const selecionados = document.querySelectorAll('.checkbox-cartao:checked');
-    if (selecionados.length === 0) { showToast('⚠️ Selecione um cartão para excluir', 'warning'); return; }
-    if (!confirm('Excluir ' + selecionados.length + ' cartão(ões)?')) return;
-    
-    for (const cb of selecionados) {
-        await db.collection('cartoes').doc(cb.getAttribute('data-id')).delete();
-    }
-    showToast(`🗑️ ${selecionados.length} cartão(ões) excluído(s)!`, 'success');
-    carregarDadosDoFirebase();
+    if (selecionados.length === 0) { showToast('⚠️ Selecione cartões', 'warning'); return; }
+    if (!confirm(`Excluir ${selecionados.length} cartão(ões)?`)) return;
+    const collection = loteriaAdmin === 'mega' ? 'cartoes_mega' : 'cartoes_lotofacil';
+    for (const cb of selecionados) await db.collection(collection).doc(cb.dataset.id).delete();
+    showToast(`🗑️ ${selecionados.length} excluído(s)!`, 'success');
+    carregarDadosAdmin();
 }
 
 async function exportarCartoes() {
-    if (cartoes.length === 0) {
-        showToast('⚠️ Nenhum cartão para exportar!', 'warning');
-        return;
-    }
-    
-    const concursos = [...new Set(cartoes.map(c => c.concurso))];
-    let concursoFiltro = 'todos';
-    
-    if (concursos.length > 1) {
-        const resposta = confirm('Exportar todos os concursos?\n"OK" = Todos\n"Cancelar" = Escolher concurso');
-        if (!resposta) {
-            const concursoEscolhido = prompt('Digite o número do concurso para exportar:\nDisponíveis: ' + concursos.join(', '));
-            if (concursoEscolhido && concursos.includes(concursoEscolhido)) {
-                concursoFiltro = concursoEscolhido;
-            }
-        }
-    }
-    
-    let cartoesExportar = cartoes;
-    if (concursoFiltro !== 'todos') {
-        cartoesExportar = cartoes.filter(c => c.concurso == concursoFiltro);
-    }
-    
-    const dados = [];
-    dados.push(['ID', 'Concurso', 'Bolão', 'Números', 'Quantidade', 'Data Cadastro']);
-    
-    for (const cartao of cartoesExportar) {
-        dados.push([
-            cartao.id ? cartao.id.slice(-6) : '???',
-            cartao.concurso || '',
-            cartao.bolao || 'Sem Bolão',
-            (cartao.numeros || []).join(' - '),
-            (cartao.numeros || []).length,
-            cartao.dataCadastro ? new Date(cartao.dataCadastro).toLocaleDateString('pt-BR') : ''
-        ]);
-    }
-    
+    const cartoes = loteriaAdmin === 'mega' ? cartoesMega : cartoesLotofacil;
+    if (cartoes.length === 0) { showToast('⚠️ Nenhum cartão', 'warning'); return; }
+    const dados = [['ID', 'Concurso', 'Bolão', 'Números', 'Quantidade', 'Data']];
+    for (const cartao of cartoes) dados.push([cartao.id.slice(-6), cartao.concurso, cartao.bolao||'Sem Bolão', cartao.numeros.join(' - '), cartao.numeros.length, cartao.dataCadastro ? new Date(cartao.dataCadastro).toLocaleDateString('pt-BR') : '']);
     const ws = XLSX.utils.aoa_to_sheet(dados);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Cartoes Boloes Aleatorios');
-    
-    ws['!cols'] = [{wch:10}, {wch:12}, {wch:20}, {wch:40}, {wch:12}, {wch:15}];
-    
-    const nomeArquivo = `boloes_aleatorios_${concursoFiltro === 'todos' ? 'todos' : concursoFiltro}_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.xlsx`;
-    
-    XLSX.writeFile(wb, nomeArquivo);
-    showToast(`📊 ${cartoesExportar.length} cartões exportados!`, 'success');
+    XLSX.utils.book_append_sheet(wb, ws, `Cartoes_${loteriaAdmin === 'mega' ? 'Mega' : 'Lotofacil'}`);
+    XLSX.writeFile(wb, `boloes_aleatorios_${loteriaAdmin}_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.xlsx`);
+    showToast(`📊 ${cartoes.length} cartões exportados!`, 'success');
 }
 
 function importarExcel() {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.xlsx,.xls,.csv,.txt';
+    input.accept = '.txt,.csv';
     input.onchange = async function(e) {
         const file = e.target.files[0];
         if (!file) return;
-        
-        const concurso = prompt('Concurso:', '2700');
-        if (!concurso) return;
-        const bolao = prompt('Bolão:', 'Importado');
-        if (!bolao) return;
-        
+        const concurso = prompt('Concurso:'); if (!concurso) return;
+        const bolao = prompt('Bolão:'); if (!bolao) return;
         const reader = new FileReader();
         reader.onload = async function(event) {
-            let numerosPorLinha = [];
-            
-            if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-                const data = new Uint8Array(event.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-                const primeiraPlanilha = workbook.Sheets[workbook.SheetNames[0]];
-                const dados = XLSX.utils.sheet_to_json(primeiraPlanilha, { header: 1 });
-                
-                for (const linha of dados) {
-                    if (!linha || linha.length === 0) continue;
-                    const numeros = linha.filter(v => v && typeof v === 'number').map(Number);
-                    if (numeros.length >= 6) {
-                        numerosPorLinha.push(numeros);
-                    }
-                }
-            } else {
-                const linhas = event.target.result.split(/\r?\n/);
-                for (const linha of linhas) {
-                    if (!linha.trim()) continue;
-                    const numeros = linha.match(/\d+/g).map(Number);
-                    if (numeros.length >= 6) {
-                        numerosPorLinha.push(numeros);
-                    }
-                }
-            }
-            
+            const linhas = event.target.result.split(/\r?\n/);
             let adicionados = 0;
-            for (const numeros of numerosPorLinha) {
+            const collection = loteriaAdmin === 'mega' ? 'cartoes_mega' : 'cartoes_lotofacil';
+            for (const linha of linhas) {
+                if (!linha.trim()) continue;
+                const numeros = linha.match(/\d+/g).map(Number);
+                const minNumeros = loteriaAdmin === 'mega' ? 6 : 15;
+                if (numeros.length < minNumeros) continue;
                 numeros.sort((a,b) => a-b);
-                await db.collection('cartoes').add({
-                    concurso: concurso,
-                    bolao: bolao,
-                    numeros: numeros,
-                    dataCadastro: new Date().toISOString(),
-                    totalNumeros: numeros.length
-                });
+                await db.collection(collection).add({ concurso, bolao, numeros, dataCadastro: new Date().toISOString(), totalNumeros: numeros.length });
                 adicionados++;
             }
             showToast(`📥 ${adicionados} cartões importados!`, 'success');
-            carregarDadosDoFirebase();
+            carregarDadosAdmin();
         };
-        
-        if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-            reader.readAsArrayBuffer(file);
-        } else {
-            reader.readAsText(file);
-        }
+        reader.readAsText(file);
     };
     input.click();
 }
 
-async function buscarResultadoOnlineAdmin() {
-    const concurso = document.getElementById('concursoResultado').value;
-    
-    if (!concurso) {
-        showToast('⚠️ Selecione um concurso primeiro!', 'warning');
-        return;
-    }
-    
-    const btnBuscar = document.getElementById('btnBuscarResultadoAdmin');
-    const statusDiv = document.getElementById('statusBuscaAdmin');
-    
-    if (btnBuscar) {
-        btnBuscar.disabled = true;
-        btnBuscar.textContent = '⏳ BUSCANDO...';
-    }
-    
-    if (statusDiv) {
-        statusDiv.innerHTML = `<div class="status-info">🔍 Buscando resultado do concurso ${concurso}...</div>`;
-    }
-    
-    let numeros = null;
-    let apiUsada = null;
-    
-    try {
-        const url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/megasena/${concurso}`;
-        const response = await fetch(url);
-        if (response.ok) {
-            const dados = await response.json();
-            if (dados.listaDezenas && dados.listaDezenas.length >= 6) {
-                numeros = dados.listaDezenas.map(n => parseInt(n));
-                apiUsada = 'API Oficial Caixa';
-            }
-        }
-    } catch (error) {}
-    
-    if (!numeros) {
-        try {
-            const url = `https://brasilapi.com.br/api/loterias/mega-sena/${concurso}`;
-            const response = await fetch(url);
-            if (response.ok) {
-                const dados = await response.json();
-                if (dados.dezenas && dados.dezenas.length >= 6) {
-                    numeros = dados.dezenas.map(n => parseInt(n));
-                    apiUsada = 'Brasil API';
-                }
-            }
-        } catch (error) {}
-    }
-    
-    if (numeros && numeros.length >= 6) {
-        numeros.sort((a,b) => a-b);
-        document.getElementById('numerosSorteadosInput').value = numeros.join(' ');
-        
-        if (statusDiv) {
-            statusDiv.innerHTML = `<div class="status-success">✅ Resultado encontrado! (${apiUsada})<br>Números: ${numeros.join(' - ')}</div>`;
-        }
-        
-        if (confirm(`Resultado do concurso ${concurso} encontrado!\nNúmeros: ${numeros.join(' - ')}\n\nDeseja salvar?`)) {
-            await db.collection('resultados').doc(concurso).set({
-                concurso: concurso,
-                numeros: numeros,
-                dataAtualizacao: new Date().toISOString()
-            });
-            showToast('✅ Resultado salvo com sucesso!', 'success');
-            const snapshotResultados = await db.collection('resultados').get();
-            resultados = {};
-            snapshotResultados.forEach(doc => {
-                resultados[doc.id] = doc.data();
-            });
-            atualizarDashboard();
-        }
-    } else {
-        if (statusDiv) {
-            statusDiv.innerHTML = `<div class="status-error">❌ Resultado do concurso ${concurso} não encontrado online.</div>`;
-        }
-        showToast('❌ Resultado não encontrado online', 'error');
-    }
-    
-    if (btnBuscar) {
-        btnBuscar.disabled = false;
-        btnBuscar.textContent = '🌐 BUSCAR RESULTADO';
-    }
-}
-
-async function adicionarCartoes() {
-    const concurso = document.getElementById('concurso').value;
-    const bolao = document.getElementById('bolao').value || 'Sem Bolão';
-    const texto = document.getElementById('numerosCartoes').value;
-    if (!concurso || !texto) { showToast('⚠️ Preencha os campos', 'warning'); return; }
-    
-    const linhas = texto.split('\n');
-    let adicionados = 0;
-    for (const linha of linhas) {
-        if (!linha.trim()) continue;
-        const numeros = linha.match(/\d+/g).map(Number);
-        if (numeros.length < 6) continue;
-        numeros.sort((a,b) => a-b);
-        await db.collection('cartoes').add({
-            concurso: concurso,
-            bolao: bolao,
-            numeros: numeros,
-            dataCadastro: new Date().toISOString(),
-            totalNumeros: numeros.length
-        });
-        adicionados++;
-    }
-    showToast(`✅ ${adicionados} cartões adicionados!`, 'success');
-    document.getElementById('numerosCartoes').value = '';
-    carregarDadosDoFirebase();
-}
-
-function carregarConcursos() {
+function carregarConcursosAdmin() {
+    const cartoes = loteriaAdmin === 'mega' ? cartoesMega : cartoesLotofacil;
     const concursos = [...new Set(cartoes.map(c => c.concurso))];
     concursos.sort((a,b) => b - a);
     const select = document.getElementById('concursoResultado');
     const filtro = document.getElementById('filtroConcurso');
-    
     if (select) {
         select.innerHTML = '<option value="">Selecione</option>';
         concursos.forEach(c => select.innerHTML += `<option value="${c}">Concurso ${c}</option>`);
@@ -479,80 +261,55 @@ async function salvarResultado() {
     const texto = document.getElementById('numerosSorteadosInput').value;
     if (!concurso || !texto) { showToast('⚠️ Preencha os campos', 'warning'); return; }
     const numeros = texto.match(/\d+/g).map(Number);
-    if (numeros.length < 6) { showToast('❌ Mínimo 6 números', 'error'); return; }
+    const totalNumeros = loteriaAdmin === 'mega' ? 6 : 15;
+    if (numeros.length < totalNumeros) { showToast(`❌ Mínimo ${totalNumeros} números`, 'error'); return; }
     numeros.sort((a,b) => a-b);
-    await db.collection('resultados').doc(concurso).set({
-        concurso: concurso,
-        numeros: numeros,
-        dataAtualizacao: new Date().toISOString()
-    });
+    const collection = loteriaAdmin === 'mega' ? 'resultados_mega' : 'resultados_lotofacil';
+    await db.collection(collection).doc(concurso).set({ concurso, numeros, dataAtualizacao: new Date().toISOString() });
     showToast('✅ Resultado salvo!', 'success');
-    const snapshotResultados = await db.collection('resultados').get();
-    resultados = {};
-    snapshotResultados.forEach(doc => {
-        resultados[doc.id] = doc.data();
-    });
-    atualizarDashboard();
+    carregarDadosAdmin();
 }
 
-function limparFormulario() {
-    document.getElementById('numerosCartoes').value = '';
-    showToast('🧹 Formulário limpo', 'info');
-}
-
-function recarregarLista() {
-    carregarDadosDoFirebase();
-    showToast('🔄 Dados recarregados', 'info');
-}
-
-function adicionarBotaoBuscaAdmin() {
-    if (document.getElementById('btnBuscarResultadoAdmin')) return;
-    
-    const container = document.getElementById('concursoResultado');
-    if (container && container.parentElement) {
-        const btnBuscar = document.createElement('button');
-        btnBuscar.id = 'btnBuscarResultadoAdmin';
-        btnBuscar.textContent = '🌐 BUSCAR RESULTADO';
-        btnBuscar.className = 'btn btn-purple';
-        btnBuscar.style.marginTop = '10px';
-        btnBuscar.style.width = '100%';
-        btnBuscar.onclick = buscarResultadoOnlineAdmin;
-        container.parentElement.appendChild(btnBuscar);
-        
-        const statusDiv = document.createElement('div');
-        statusDiv.id = 'statusBuscaAdmin';
-        statusDiv.style.marginTop = '10px';
-        container.parentElement.appendChild(statusDiv);
+async function adicionarCartoes() {
+    const concurso = document.getElementById('concurso').value;
+    const bolao = document.getElementById('bolao').value || 'Sem Bolão';
+    const texto = document.getElementById('numerosCartoes').value;
+    if (!concurso || !texto) { showToast('⚠️ Preencha os campos', 'warning'); return; }
+    const linhas = texto.split('\n');
+    let adicionados = 0;
+    const collection = loteriaAdmin === 'mega' ? 'cartoes_mega' : 'cartoes_lotofacil';
+    const minNumeros = loteriaAdmin === 'mega' ? 6 : 15;
+    for (const linha of linhas) {
+        if (!linha.trim()) continue;
+        const numeros = linha.match(/\d+/g).map(Number);
+        if (numeros.length < minNumeros) continue;
+        numeros.sort((a,b) => a-b);
+        await db.collection(collection).add({ concurso, bolao, numeros, dataCadastro: new Date().toISOString(), totalNumeros: numeros.length });
+        adicionados++;
     }
+    showToast(`✅ ${adicionados} cartões adicionados!`, 'success');
+    document.getElementById('numerosCartoes').value = '';
+    carregarDadosAdmin();
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+function limparFormulario() { document.getElementById('numerosCartoes').value = ''; showToast('🧹 Formulário limpo', 'info'); }
+function recarregarLista() { carregarDadosAdmin(); showToast('🔄 Dados recarregados', 'info'); }
+
+document.addEventListener('DOMContentLoaded', () => {
     verificarAutenticacao();
-    
     document.getElementById('btnAutenticar').onclick = autenticar;
     document.getElementById('btnSair').onclick = sair;
+    document.getElementById('adminBtnMega').onclick = () => setLoteriaAdmin('mega');
+    document.getElementById('adminBtnLotofacil').onclick = () => setLoteriaAdmin('lotofacil');
     document.getElementById('btnAdicionar').onclick = adicionarCartoes;
     document.getElementById('btnLimpar').onclick = limparFormulario;
     document.getElementById('btnSalvarResultado').onclick = salvarResultado;
     document.getElementById('btnRecarregar').onclick = recarregarLista;
     document.getElementById('btnExcluirSelecionados').onclick = excluirSelecionados;
     document.getElementById('btnImportarExcel').onclick = importarExcel;
-    
     const btnExportar = document.getElementById('btnExportarExcel');
     if (btnExportar) btnExportar.onclick = exportarCartoes;
-    
-    const filtroConcurso = document.getElementById('filtroConcurso');
-    if (filtroConcurso) filtroConcurso.onchange = carregarDadosDoFirebase;
-    
-    const ordenarPor = document.getElementById('ordenarPor');
-    if (ordenarPor) ordenarPor.onchange = carregarDadosDoFirebase;
-    
-    const senhaAdmin = document.getElementById('senhaAdmin');
-    if (senhaAdmin) {
-        senhaAdmin.onkeypress = function(e) {
-            if (e.key === 'Enter') autenticar();
-        };
-    }
-    
-    adicionarBotaoBuscaAdmin();
+    document.getElementById('filtroConcurso').onchange = exibirCartoesAdmin;
+    document.getElementById('ordenarPor').onchange = exibirCartoesAdmin;
+    document.getElementById('senhaAdmin').onkeypress = (e) => { if (e.key === 'Enter') autenticar(); };
 });
