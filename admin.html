@@ -2,9 +2,43 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>Admin - Cadastro de Cartões Bolões Aleatórios</title>
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Bolões Admin">
+    
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* Estilos adicionais específicos do admin */
+        .dashboard-cards {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: space-around;
+        }
+        .dashboard-card {
+            text-align: center;
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 12px;
+            min-width: 100px;
+            flex: 1;
+        }
+        .dashboard-number {
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .dashboard-label {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 5px;
+        }
+    </style>
 </head>
 <body>
     <!-- Barra superior -->
@@ -30,22 +64,22 @@
                         📊 DASHBOARD RESUMO
                     </div>
                     <div class="card-body">
-                        <div style="display: flex; flex-wrap: wrap; gap: 20px; justify-content: space-around;">
-                            <div style="text-align: center; background: #f0fdf4; padding: 15px; border-radius: 10px; min-width: 120px;">
-                                <div style="font-size: 32px; font-weight: bold; color: #059669;" id="dashboardTotalCartoes">0</div>
-                                <div style="color: #666;">Total Cartões</div>
+                        <div class="dashboard-cards">
+                            <div class="dashboard-card" style="background: #f0fdf4;">
+                                <div class="dashboard-number" style="color: #059669;" id="dashboardTotalCartoes">0</div>
+                                <div class="dashboard-label">Total Cartões</div>
                             </div>
-                            <div style="text-align: center; background: #dbeafe; padding: 15px; border-radius: 10px; min-width: 120px;">
-                                <div style="font-size: 32px; font-weight: bold; color: #3b82f6;" id="dashboardTotalConcursos">0</div>
-                                <div style="color: #666;">Concursos</div>
+                            <div class="dashboard-card" style="background: #dbeafe;">
+                                <div class="dashboard-number" style="color: #3b82f6;" id="dashboardTotalConcursos">0</div>
+                                <div class="dashboard-label">Concursos</div>
                             </div>
-                            <div style="text-align: center; background: #fef3c7; padding: 15px; border-radius: 10px; min-width: 120px;">
-                                <div style="font-size: 32px; font-weight: bold; color: #f59e0b;" id="dashboardTotalBoloes">0</div>
-                                <div style="color: #666;">Bolões</div>
+                            <div class="dashboard-card" style="background: #fef3c7;">
+                                <div class="dashboard-number" style="color: #f59e0b;" id="dashboardTotalBoloes">0</div>
+                                <div class="dashboard-label">Bolões</div>
                             </div>
-                            <div style="text-align: center; background: #f3e8ff; padding: 15px; border-radius: 10px; min-width: 120px;">
-                                <div style="font-size: 32px; font-weight: bold; color: #a855f7;" id="dashboardResultados">0</div>
-                                <div style="color: #666;">Resultados</div>
+                            <div class="dashboard-card" style="background: #f3e8ff;">
+                                <div class="dashboard-number" style="color: #a855f7;" id="dashboardResultados">0</div>
+                                <div class="dashboard-label">Resultados</div>
                             </div>
                         </div>
                     </div>
@@ -160,5 +194,20 @@
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
     <script src="firebase-config.js"></script>
     <script src="admin.js"></script>
+    
+    <!-- Service Worker PWA -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        console.log('✅ Service Worker registrado com sucesso!');
+                    })
+                    .catch(error => {
+                        console.log('❌ Service Worker falhou:', error);
+                    });
+            });
+        }
+    </script>
 </body>
 </html>

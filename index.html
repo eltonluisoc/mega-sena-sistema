@@ -4,6 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>Bolões Aleatórios - Conferência de Resultados</title>
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Bolões Aleatórios">
+    
     <style>
         * {
             margin: 0;
@@ -185,7 +193,6 @@
     </div>
 
     <div class="container">
-        <!-- Card de Conferência -->
         <div class="card">
             <div class="card-header bg-purple">
                 🔍 CONFERIR RESULTADOS
@@ -209,7 +216,6 @@
             </div>
         </div>
 
-        <!-- Card: Cartões do Concurso -->
         <div class="card">
             <div class="card-header bg-blue">
                 📋 CARTÕES DO CONCURSO
@@ -219,7 +225,6 @@
             </div>
         </div>
 
-        <!-- Card: Resultados da Conferência -->
         <div class="card">
             <div class="card-header bg-green">
                 📊 RESULTADOS DA CONFERÊNCIA
@@ -239,5 +244,20 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <script src="firebase-config.js"></script>
     <script src="script.js"></script>
+    
+    <!-- Service Worker PWA -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        console.log('✅ Service Worker registrado com sucesso!');
+                    })
+                    .catch(error => {
+                        console.log('❌ Service Worker falhou:', error);
+                    });
+            });
+        }
+    </script>
 </body>
 </html>
