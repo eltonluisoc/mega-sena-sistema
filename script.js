@@ -261,60 +261,63 @@ function compartilharWhatsApp() {
     const numeros = ultimoResultadoDados.numeros;
     const data = ultimoResultadoDados.dataSorteio ? new Date(ultimoResultadoDados.dataSorteio).toLocaleDateString('pt-BR') : '';
     const premios = ultimoResultadoDados.premios;
+    const linhaSep = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
     
-    let tituloSecao = '🏆 PREMIAÇÕES DO BOLÃO:';
-    let mensagemIncentivo = '';
+    let msg = `*RESULTADO: BOLÕES ALEATÓRIOS* 🎲\n`;
+    msg += `${linhaSep}\n`;
+    msg += `📌 Concurso: ${ultimoResultadoConcurso}\n`;
+    msg += `🗓️ Dezenas Sorteadas:\n`;
+    msg += `${numeros.join(' — ')}\n`;
+    msg += `${linhaSep}\n`;
     
     if (loteriaAtual === 'mega') {
         const { sena, quina, quadra, terno, duque } = premios;
-        if (sena > 0) mensagemIncentivo = '🎉🎉🎉 TEVE SENA! PARABÉNS! 🎉🎉🎉';
-        else if (quina > 0) mensagemIncentivo = '⭐ TEVE QUINA! Quase lá! ⭐';
-        else if (quadra > 0) mensagemIncentivo = '🎉 Parabéns aos ganhadores! 🎉';
-        else if (terno > 0 || duque > 0) {
-            tituloSecao = '🏆 ACERTOS DO BOLÃO:';
-            mensagemIncentivo = '🔍 Quase! Terno e Duque mostram que estamos no caminho certo.\n💪 Vamos continuar. A sorte está mais perto!';
+        msg += `🏆 DESEMPENHO DO GRUPO:\n`;
+        msg += `✨ Sena: ${sena}\n`;
+        msg += `✨ Quina: ${quina}\n`;
+        msg += `✨ Quadra: ${quadra}\n`;
+        msg += `✅ Terno: ${terno}\n`;
+        msg += `✅ Duque: ${duque}\n`;
+        
+        if (terno > 0 || duque > 0) {
+            msg += `⚠️ O terno mostra que estamos chegando perto. Seguimos firmes para o próximo.\n`;
+        } else if (quadra > 0) {
+            msg += `⚠️ Quadra! Estamos no caminho certo!\n`;
+        } else if (quina > 0) {
+            msg += `⭐ Quina! Quase lá! Continuamos!\n`;
+        } else if (sena > 0) {
+            msg += `🎉🎉🎉 SENA! PARABÉNS! 🎉🎉🎉\n`;
         } else {
-            tituloSecao = '🏆 ACERTOS DO BOLÃO:';
-            mensagemIncentivo = '😕 O padrão do sorteio foi bastante atípico...\n💪 Vamos seguir.';
+            msg += `😕 O padrão do sorteio foi bastante atípico... Vamos seguir.\n`;
         }
-        
-        let msg = `*RESULTADO BOLÕES ALEATÓRIOS - MEGA-SENA*\n\n`;
-        msg += `📌 Concurso: ${ultimoResultadoConcurso}\n`;
-        msg += `🎯 Sorteados: ${numeros.join(' - ')}\n`;
-        if (data) msg += `📅 Data: ${data}\n`;
-        msg += `\n${tituloSecao}\n`;
-        msg += `• SENA: ${sena}\n• QUINA: ${quina}\n• QUADRA: ${quadra}\n• TERNO: ${terno}\n• DUQUE: ${duque}\n\n`;
-        if (mensagemIncentivo) msg += `${mensagemIncentivo}\n\n`;
-        msg += `🔗 Detalhes: ${window.location.href}`;
-        
-        const textoCodificado = encodeURIComponent(msg);
-        window.open(`https://wa.me/?text=${textoCodificado}`, '_blank');
     } else {
         const { pontos15, pontos14, pontos13, pontos12, pontos11 } = premios;
-        if (pontos15 > 0) mensagemIncentivo = '🎉🎉🎉 TEVE 15 PONTOS! PARABÉNS! 🎉🎉🎉';
-        else if (pontos14 > 0) mensagemIncentivo = '⭐ TEVE 14 PONTOS! Quase perfeito! ⭐';
-        else if (pontos13 > 0) mensagemIncentivo = '🎉 Parabéns pelos 13 pontos! 🎉';
-        else if (pontos12 > 0 || pontos11 > 0) {
-            tituloSecao = '🏆 ACERTOS DO BOLÃO:';
-            mensagemIncentivo = '🔍 Quase! Continue participando, a sorte está perto!';
+        msg += `🏆 DESEMPENHO DO GRUPO:\n`;
+        msg += `✨ 15 Pontos: ${pontos15}\n`;
+        msg += `✨ 14 Pontos: ${pontos14}\n`;
+        msg += `✨ 13 Pontos: ${pontos13}\n`;
+        msg += `✅ 12 Pontos: ${pontos12}\n`;
+        msg += `✅ 11 Pontos: ${pontos11}\n`;
+        
+        if (pontos12 > 0 || pontos11 > 0) {
+            msg += `⚠️ Estamos chegando perto! Seguimos firmes para o próximo.\n`;
+        } else if (pontos13 > 0) {
+            msg += `⚠️ 13 pontos! Quase lá!\n`;
+        } else if (pontos14 > 0) {
+            msg += `⭐ 14 pontos! Muito perto!\n`;
+        } else if (pontos15 > 0) {
+            msg += `🎉🎉🎉 15 PONTOS! PARABÉNS! 🎉🎉🎉\n`;
         } else {
-            tituloSecao = '🏆 ACERTOS DO BOLÃO:';
-            mensagemIncentivo = '😕 O padrão do sorteio foi bastante atípico...\n💪 Vamos seguir.';
+            msg += `😕 O padrão do sorteio foi bastante atípico... Vamos seguir.\n`;
         }
-        
-        let msg = `*RESULTADO BOLÕES ALEATÓRIOS - LOTOFÁCIL*\n\n`;
-        msg += `📌 Concurso: ${ultimoResultadoConcurso}\n`;
-        msg += `🎯 Sorteados: ${numeros.join(' - ')}\n`;
-        if (data) msg += `📅 Data: ${data}\n`;
-        msg += `\n${tituloSecao}\n`;
-        msg += `• 15 PONTOS: ${pontos15}\n• 14 PONTOS: ${pontos14}\n• 13 PONTOS: ${pontos13}\n• 12 PONTOS: ${pontos12}\n• 11 PONTOS: ${pontos11}\n\n`;
-        if (mensagemIncentivo) msg += `${mensagemIncentivo}\n\n`;
-        msg += `🔗 Detalhes: ${window.location.href}`;
-        
-        const textoCodificado = encodeURIComponent(msg);
-        window.open(`https://wa.me/?text=${textoCodificado}`, '_blank');
     }
     
+    msg += `${linhaSep}\n`;
+    msg += `🔗 Confira o detalhamento completo:\n`;
+    msg += `${window.location.href}`;
+    
+    const textoCodificado = encodeURIComponent(msg);
+    window.open(`https://wa.me/?text=${textoCodificado}`, '_blank');
     showToast('📱 Abrindo WhatsApp...', 'info');
 }
 
@@ -466,7 +469,66 @@ function iniciarAutoAtualizacao() {
     if (intervalo) clearInterval(intervalo);
     intervalo = setInterval(() => carregarDados(), 60000);
 }
+// ============ POP-UP PARA INSTALAR APP ============
+function mostrarPopupInstalar() {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isAndroid = /Android/.test(navigator.userAgent);
+    
+    let mensagem = '';
+    let titulo = '📱 SALVAR COMO APP NO CELULAR';
+    
+    if (isIOS) {
+        mensagem = `📲 No iPhone/iPad:\n\n1. Toque no botão "Compartilhar" 📤\n2. Role a tela para baixo\n3. Toque em "Adicionar à Tela de Início"\n4. Confirme o nome e toque em "Adicionar"\n\nO app aparecerá na tela inicial como um aplicativo normal!`;
+    } else if (isAndroid) {
+        mensagem = `📲 No Android (Chrome):\n\n1. Toque nos 3 pontinhos ⋮\n2. Toque em "Instalar aplicativo"\n3. Confirme a instalação\n\nO app aparecerá na tela inicial!`;
+    } else {
+        mensagem = `💻 No computador, você pode:\n\n1. Acessar o site normalmente\n2. Ou usar o PWA no celular escaneando o QR Code\n\nNo celular, os passos são:\n• iPhone: Compartilhar → Adicionar à Tela de Início\n• Android: ⋮ → Instalar aplicativo`;
+    }
+    
+    // Criar modal
+    let modal = document.getElementById('modalInstalar');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'modalInstalar';
+        modal.style.cssText = `
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7); z-index: 10000;
+            display: flex; justify-content: center; align-items: center;
+        `;
+        
+        const modalContent = document.createElement('div');
+        modalContent.style.cssText = `
+            background: white; border-radius: 20px; max-width: 350px;
+            width: 90%; padding: 25px; text-align: center;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        `;
+        
+        modalContent.innerHTML = `
+            <div style="font-size: 24px; margin-bottom: 10px;">📱</div>
+            <div style="font-size: 20px; font-weight: bold; margin-bottom: 15px;">${titulo}</div>
+            <div style="white-space: pre-line; text-align: left; font-size: 14px; line-height: 1.5; margin: 15px 0;">${mensagem}</div>
+            <button id="fecharModalInstalar" style="background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 30px; font-size: 14px; cursor: pointer; width: 100%;">Fechar</button>
+        `;
+        
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
+        
+        document.getElementById('fecharModalInstalar').onclick = () => {
+            modal.remove();
+        };
+        
+        modal.onclick = (e) => {
+            if (e.target === modal) modal.remove();
+        };
+    }
+}
 
+function adicionarBotaoInstalar() {
+    const btnInstalar = document.getElementById('btnInstalarApp');
+    if (btnInstalar) {
+        btnInstalar.onclick = mostrarPopupInstalar;
+    }
+}
 document.addEventListener('DOMContentLoaded', async () => {
     await carregarDados();
     iniciarAutoAtualizacao();
