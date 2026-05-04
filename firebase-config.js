@@ -11,6 +11,7 @@ const firebaseConfig = {
 // Inicializar Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+const analytics = firebase.analytics();
 
 console.log('🔥 Firebase conectado com sucesso!');
 console.log('✅ Projeto: mega-sena-sistema');
