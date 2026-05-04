@@ -91,8 +91,7 @@ function setLoteria(loteria) {
     }
     
     atualizarSelectConcursos();
-    const sel = document.getElementById('concursoSelect');
-    if (sel && sel.value) mostrarCartoesDoConcurso();
+    // Não precisa chamar mostrarCartoesDoConcurso() separadamente, pois a função atualizarSelectConcursos já chama!
     showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA-SENA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
 }
 
@@ -172,13 +171,31 @@ function atualizarSelectConcursos() {
         opt.textContent = `Concurso ${con} (${total} cartões)`;
         select.appendChild(opt);
     });
+    
+    // === NOVO: Selecionar o concurso mais recente automaticamente ===
+    if (concursos.length > 0) {
+        const ultimoConcurso = concursos[0]; // já está ordenado decrescente
+        select.value = ultimoConcurso;
+        console.log(`📌 Concurso mais recente selecionado: ${ultimoConcurso}`);
+    }
 }
 
 function selecionarUltimoConcurso() {
     const select = document.getElementById('concursoSelect');
-    if (select && select.options.length > 1) {
-        select.selectedIndex = 1;
+    if (!select) return;
+    
+    // Ordenar os concursos por número (decrescente - maior primeiro)
+    const options = Array.from(select.options);
+    const concursos = options.filter(opt => opt.value !== '').map(opt => parseInt(opt.value));
+    concursos.sort((a, b) => b - a);
+    
+    if (concursos.length > 0) {
+        const ultimoConcurso = concursos[0].toString();
+        select.value = ultimoConcurso;
         mostrarCartoesDoConcurso();
+        console.log(`📌 Concurso mais recente selecionado: ${ultimoConcurso}`);
+    } else {
+        console.log('📌 Nenhum concurso disponível');
     }
 }
 
