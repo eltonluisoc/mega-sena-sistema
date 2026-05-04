@@ -271,6 +271,22 @@ async function conferirResultados() {
         area.innerHTML = `<div class="empty-state">Nenhum cartão para o concurso ${concurso}</div>`;
         return;
     }
+
+     // ============ ANALYTICS - Registrar conferência ============
+    if (typeof firebase !== 'undefined' && firebase.analytics) {
+        try {
+            firebase.analytics().logEvent('conferir_resultados', {
+                loteria: loteriaAtual,
+                concurso: concurso,
+                quantidade_cartoes: cartoesConc.length
+            });
+            console.log('📊 Evento registrado no Analytics');
+        } catch(e) {
+            console.log('Analytics não disponível:', e);
+        }
+    }
+    // ========================================================
+    
     let numeros = null, dataSorteio = null;
     if (resultados[concurso]) {
         numeros = resultados[concurso];
