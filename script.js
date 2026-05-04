@@ -224,13 +224,13 @@ function compartilharWhatsApp() {
         return;
     }
     const { numeros, dataSorteio, premios } = ultimoResultadoDados;
-    const linha = '_______________________________________';
+    const linha = '==========================================';
     let msg = `*RESULTADO: BOLÕES ALEATÓRIOS* 🎲\n${linha}\n📌 Concurso: ${ultimoResultadoConcurso}\n🗓️ Dezenas Sorteadas:\n${numeros.join(' — ')}\n${linha}\n🏆 DESEMPENHO DO GRUPO:\n`;
     
     if (loteriaAtual === 'mega') {
         msg += `✨ Sena: ${premios.sena}\n✨ Quina: ${premios.quina}\n✨ Quadra: ${premios.quadra}\n✅ Terno: ${premios.terno}\n✅ Duque: ${premios.duque}\n`;
         if (premios.terno > 0 || premios.duque > 0) {
-            msg += `⚠️ O terno mostra que estamos chegando perto. Seguimos firmes!\n`;
+            msg += `⚠️ Acertamos um terno. Estamos chegando perto. Seguimos firmes!\n`;
         } else if (premios.quadra > 0) {
             msg += `⚠️ Quadra! Estamos no caminho certo!\n`;
         } else if (premios.quina > 0) {
