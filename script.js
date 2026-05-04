@@ -224,28 +224,41 @@ function compartilharWhatsApp() {
         return;
     }
     const { numeros, dataSorteio, premios } = ultimoResultadoDados;
-    const linha = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+    const linha = '----------------------------------------';
     let msg = `*RESULTADO: BOLÕES ALEATÓRIOS* 🎲\n${linha}\n📌 Concurso: ${ultimoResultadoConcurso}\n🗓️ Dezenas Sorteadas:\n${numeros.join(' — ')}\n${linha}\n🏆 DESEMPENHO DO GRUPO:\n`;
+    
     if (loteriaAtual === 'mega') {
         msg += `✨ Sena: ${premios.sena}\n✨ Quina: ${premios.quina}\n✨ Quadra: ${premios.quadra}\n✅ Terno: ${premios.terno}\n✅ Duque: ${premios.duque}\n`;
-        if (premios.terno > 0 || premios.duque > 0) msg += `⚠️ O terno mostra que estamos chegando perto. Seguimos firmes!\n`;
-        else if (premios.quadra > 0) msg += `⚠️ Quadra! Estamos no caminho certo!\n`;
-        else if (premios.quina > 0) msg += `⭐ Quina! Quase lá!\n`;
-        else if (premios.sena > 0) msg += `🎉🎉🎉 SENA! PARABÉNS! 🎉🎉🎉\n`;
-        else msg += `😕 O padrão foi atípico... Vamos seguir.\n`;
+        if (premios.terno > 0 || premios.duque > 0) {
+            msg += `⚠️ O terno mostra que estamos chegando perto. Seguimos firmes!\n`;
+        } else if (premios.quadra > 0) {
+            msg += `⚠️ Quadra! Estamos no caminho certo!\n`;
+        } else if (premios.quina > 0) {
+            msg += `⭐ Quina! Quase lá!\n`;
+        } else if (premios.sena > 0) {
+            msg += `🎉🎉🎉 SENA! PARABÉNS! 🎉🎉🎉\n`;
+        } else {
+            msg += `💪 Vamos tentar novamente no próximo concurso acumulado.\n`;
+        }
     } else {
         msg += `✨ 15 Pontos: ${premios.pontos15}\n✨ 14 Pontos: ${premios.pontos14}\n✨ 13 Pontos: ${premios.pontos13}\n✅ 12 Pontos: ${premios.pontos12}\n✅ 11 Pontos: ${premios.pontos11}\n`;
-        if (premios.pontos12 > 0 || premios.pontos11 > 0) msg += `⚠️ Estamos chegando perto!\n`;
-        else if (premios.pontos13 > 0) msg += `⚠️ 13 pontos! Quase lá!\n`;
-        else if (premios.pontos14 > 0) msg += `⭐ 14 pontos! Muito perto!\n`;
-        else if (premios.pontos15 > 0) msg += `🎉🎉🎉 15 PONTOS! PARABÉNS! 🎉🎉🎉\n`;
-        else msg += `😕 O padrão foi atípico... Vamos seguir.\n`;
+        if (premios.pontos12 > 0 || premios.pontos11 > 0) {
+            msg += `⚠️ Estamos chegando perto!\n`;
+        } else if (premios.pontos13 > 0) {
+            msg += `⚠️ 13 pontos! Quase lá!\n`;
+        } else if (premios.pontos14 > 0) {
+            msg += `⭐ 14 pontos! Muito perto!\n`;
+        } else if (premios.pontos15 > 0) {
+            msg += `🎉🎉🎉 15 PONTOS! PARABÉNS! 🎉🎉🎉\n`;
+        } else {
+            msg += `💪 Vamos tentar novamente no próximo concurso acumulado.\n`;
+        }
     }
+    
     msg += `${linha}\n🔗 Confira: ${window.location.href}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
     showToast('📱 Abrindo WhatsApp...', 'info');
 }
-
 async function conferirResultados() {
     const concurso = document.getElementById('concursoSelect').value;
     if (!concurso) { showToast('⚠️ Selecione um concurso', 'warning'); return; }
