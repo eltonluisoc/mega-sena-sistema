@@ -8,42 +8,93 @@
     <meta name="theme-color" content="#667eea">
     <link rel="stylesheet" href="style.css">
     <style>
-        /* Botões de loteria - Garantir visibilidade no celular */
+    .loteria-selector-admin {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 15px;
+        flex-wrap: wrap;
+    }
+    .loteria-btn-admin {
+        flex: 1;
+        min-width: 140px;
+        padding: 12px 15px;
+        border: none;
+        border-radius: 8px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s;
+        font-size: 14px;
+    }
+    .loteria-btn-admin.mega { background: #8b5cf6; color: white; }
+    .loteria-btn-admin.lotofacil { background: #334155; color: white; }
+    .loteria-btn-admin.active { box-shadow: 0 0 10px currentColor; filter: brightness(1.1); transform: scale(1.02); }
+    .loteria-btn-admin.mega.active { background: #7c3aed; }
+    .loteria-btn-admin.lotofacil.active { background: #10b981; }
+    
+    /* Responsivo para celular - igual ao index */
+    @media (max-width: 768px) {
+        .container {
+            padding: 0 10px;
+        }
+        .admin-layout {
+            grid-template-columns: 1fr;
+            gap: 15px;
+        }
         .loteria-selector-admin {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
-            flex-wrap: wrap;
+            flex-direction: column;
         }
         .loteria-btn-admin {
-            flex: 1;
-            min-width: 140px;
-            padding: 12px 15px;
-            border: none;
-            border-radius: 8px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s;
+            min-width: 100%;
+            padding: 14px;
+            font-size: 16px;
+        }
+        .form-row {
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+        .filtros {
+            flex-wrap: wrap;
+        }
+        .filtros select,
+        .filtros button {
+            font-size: 12px;
+            padding: 8px 10px;
+        }
+        .form-buttons {
+            flex-direction: column;
+        }
+        .form-buttons button {
+            width: 100%;
+        }
+        .numeros-container {
+            flex-direction: column;
+        }
+        .numeros-container button {
+            width: 100%;
+        }
+        .dashboard-cards {
+            flex-direction: column;
+            align-items: center;
+        }
+        .dashboard-card {
+            width: 100%;
+        }
+    }
+    
+    @media (max-width: 480px) {
+        .top-bar {
+            flex-direction: column;
+            text-align: center;
+        }
+        .card-header {
             font-size: 14px;
         }
-        .loteria-btn-admin.mega { background: #8b5cf6; color: white; }
-        .loteria-btn-admin.lotofacil { background: #334155; color: white; }
-        .loteria-btn-admin.active { box-shadow: 0 0 10px currentColor; filter: brightness(1.1); transform: scale(1.02); }
-        .loteria-btn-admin.mega.active { background: #7c3aed; }
-        .loteria-btn-admin.lotofacil.active { background: #10b981; }
-        
-        /* Responsivo para celular */
-        @media (max-width: 768px) {
-            .loteria-selector-admin {
-                flex-direction: column;
-            }
-            .loteria-btn-admin {
-                min-width: 100%;
-                padding: 14px;
-                font-size: 16px;
-            }
+        .btn {
+            font-size: 12px;
+            padding: 8px 12px;
         }
-    </style>
+    }
+</style>
 </head>
 <body>
     <div class="top-bar">

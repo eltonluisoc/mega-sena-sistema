@@ -224,7 +224,7 @@ function compartilharWhatsApp() {
         return;
     }
     const { numeros, dataSorteio, premios } = ultimoResultadoDados;
-    const linha = '----------------------------------------';
+    const linha = '_______________________________________';
     let msg = `*RESULTADO: BOLÕES ALEATÓRIOS* 🎲\n${linha}\n📌 Concurso: ${ultimoResultadoConcurso}\n🗓️ Dezenas Sorteadas:\n${numeros.join(' — ')}\n${linha}\n🏆 DESEMPENHO DO GRUPO:\n`;
     
     if (loteriaAtual === 'mega') {
@@ -236,7 +236,7 @@ function compartilharWhatsApp() {
         } else if (premios.quina > 0) {
             msg += `⭐ Quina! Quase lá!\n`;
         } else if (premios.sena > 0) {
-            msg += `🎉🎉🎉 SENA! PARABÉNS! 🎉🎉🎉\n`;
+            msg += `🎉🎉🎉 SENA! SHOW, SHOW, SHOW, GANHAMOS! 🎉🎉🎉\n`;
         } else {
             msg += `💪 Vamos tentar novamente no próximo concurso acumulado.\n`;
         }
@@ -249,7 +249,7 @@ function compartilharWhatsApp() {
         } else if (premios.pontos14 > 0) {
             msg += `⭐ 14 pontos! Muito perto!\n`;
         } else if (premios.pontos15 > 0) {
-            msg += `🎉🎉🎉 15 PONTOS! PARABÉNS! 🎉🎉🎉\n`;
+            msg += `🎉🎉🎉 15 PONTOS! GANHAMOS!!! 🎉🎉🎉\n`;
         } else {
             msg += `💪 Vamos tentar novamente no próximo concurso acumulado.\n`;
         }
