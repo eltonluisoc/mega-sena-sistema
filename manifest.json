@@ -9,7 +9,7 @@
   "orientation": "portrait",
   "icons": [
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' rx='40' fill='%23667eea'/%3E%3Ccircle cx='100' cy='75' r='30' fill='none' stroke='white' stroke-width='4'/%3E%3Ctext x='100' y='88' font-size='30' text-anchor='middle' fill='white' font-family='Arial, sans-serif'%3E🎲%3C/text%3E%3Ctext x='100' y='135' font-size='20' font-weight='bold' text-anchor='middle' fill='white' font-family='Arial, sans-serif'%3EBolões%3C/text%3E%3Ctext x='100' y='160' font-size='20' font-weight='bold' text-anchor='middle' fill='white' font-family='Arial, sans-serif'%3EAleatórios%3C/text%3E%3Ctext x='100' y='185' font-size='12' text-anchor='middle' fill='rgba(255,255,255,0.7)' font-family='Arial, sans-serif'%3EBy Elton%3C/text%3E%3C/svg%3E",
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' rx='40' fill='%23667eea'/%3E%3Ccircle cx='100' cy='72' r='32' fill='none' stroke='white' stroke-width='4'/%3E%3Ctext x='100' y='86' font-size='34' text-anchor='middle' fill='white' font-family='Arial, sans-serif'%3E🎲%3C/text%3E%3Ctext x='100' y='132' font-size='22' font-weight='bold' text-anchor='middle' fill='white' font-family='Arial, sans-serif'%3EBolões%3C/text%3E%3Ctext x='100' y='158' font-size='22' font-weight='bold' text-anchor='middle' fill='white' font-family='Arial, sans-serif'%3EAleatórios%3C/text%3E%3Ctext x='100' y='184' font-size='13' text-anchor='middle' fill='rgba(255,255,255,0.7)' font-family='Arial, sans-serif'%3EBy Elton%3C/text%3E%3C/svg%3E",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
