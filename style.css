@@ -687,3 +687,21 @@ textarea.form-control {
         visibility: hidden;
     }
 }
+/* Cores para a Quina */
+.loteria-btn.quina {
+    background: #b91c1c;
+}
+.loteria-btn.quina.active {
+    background: #ef4444;
+    box-shadow: 0 0 15px rgba(239,68,68,0.5);
+}
+.loteria-btn-admin.quina {
+    background: #ef4444;
+    color: white;
+}
+.loteria-btn-admin.quina.active {
+    background: #dc2626;
+}
+.card-header.bg-red {
+    background: #ef4444;
+}

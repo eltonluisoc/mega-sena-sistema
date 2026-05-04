@@ -13,323 +13,106 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Bolões Aleatórios">
     
-    <!-- Ícone para iPhone / iPad / Android -->
+    <!-- Ícone para iPhone -->
     <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' rx='40' fill='%23667eea'/%3E%3Ccircle cx='100' cy='72' r='32' fill='none' stroke='white' stroke-width='4'/%3E%3Ctext x='100' y='86' font-size='34' text-anchor='middle' fill='white' font-family='Arial, sans-serif'%3E🎲%3C/text%3E%3Ctext x='100' y='132' font-size='23' font-weight='bold' text-anchor='middle' fill='white' font-family='Arial, sans-serif'%3EBolões%3C/text%3E%3Ctext x='100' y='158' font-size='23' font-weight='bold' text-anchor='middle' fill='white' font-family='Arial, sans-serif'%3EAleatórios%3C/text%3E%3Ctext x='100' y='184' font-size='14' text-anchor='middle' fill='rgba(255,255,255,0.7)' font-family='Arial, sans-serif'%3EBy Elton%3C/text%3E%3C/svg%3E">
+    
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-        }
-
-        .top-bar {
-            background: #1e293b;
-            color: white;
-            padding: 15px 30px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-
-        .logo {
-            font-size: 24px;
-            font-weight: bold;
-        }
-
-        .version {
-            font-size: 12px;
-            color: #94a3b8;
-            margin-left: 10px;
-        }
-
-        .stats {
-            font-size: 12px;
-            background: rgba(255,255,255,0.1);
-            padding: 5px 15px;
-            border-radius: 20px;
-        }
-
-        /* Seletor de loteria */
-        .loteria-selector {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin: 15px 0;
-        }
-        .loteria-btn {
-            background: #334155;
-            color: white;
-            border: none;
-            padding: 10px 25px;
-            border-radius: 30px;
-            font-size: 14px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s;
-            width: auto;
-            min-width: 120px;
-        }
-        .loteria-btn.active {
-            background: #8b5cf6;
-            box-shadow: 0 0 15px rgba(139,92,246,0.5);
-        }
-        .loteria-btn.mega.active {
-            background: #8b5cf6;
-        }
-        .loteria-btn.lotofacil.active {
-            background: #10b981;
-        }
-        .loteria-btn:hover {
-            transform: translateY(-2px);
-            filter: brightness(1.1);
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 30px auto;
-            padding: 0 20px;
-        }
-
-        .card {
-            background: white;
-            border-radius: 15px;
-            overflow: hidden;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            margin-bottom: 20px;
-        }
-
-        .card-header {
-            padding: 15px 20px;
-            font-weight: bold;
-            font-size: 18px;
-            color: white;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        .top-bar { background: #1e293b; color: white; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .logo { font-size: 24px; font-weight: bold; }
+        .version { font-size: 12px; color: #94a3b8; margin-left: 10px; }
+        .stats { font-size: 12px; background: rgba(255,255,255,0.1); padding: 5px 15px; border-radius: 20px; }
+        
+        .loteria-selector { display: flex; justify-content: center; gap: 15px; margin: 15px 0; flex-wrap: wrap; }
+        .loteria-btn { background: #334155; color: white; border: none; padding: 10px 20px; border-radius: 30px; font-size: 14px; font-weight: bold; cursor: pointer; transition: all 0.3s; width: auto; min-width: 110px; }
+        .loteria-btn.active { box-shadow: 0 0 15px rgba(139,92,246,0.5); }
+        .loteria-btn.mega.active { background: #8b5cf6; }
+        .loteria-btn.lotofacil.active { background: #10b981; }
+        .loteria-btn.quina.active { background: #ef4444; }
+        .loteria-btn.quina { background: #b91c1c; }
+        .loteria-btn:hover { transform: translateY(-2px); filter: brightness(1.1); }
+        
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.2); margin-bottom: 20px; }
+        .card-header { padding: 15px 20px; font-weight: bold; font-size: 18px; color: white; }
         .bg-purple { background: #8b5cf6; }
         .bg-blue { background: #3b82f6; }
         .bg-green { background: #10b981; }
+        .bg-red { background: #ef4444; }
         .bg-whatsapp { background: #25D366; }
-
-        .card-body {
-            padding: 20px;
-        }
-
-        .form-group {
-            margin-bottom: 15px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-            color: #333;
-        }
-
-        select, input {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #e2e8f0;
-            border-radius: 8px;
-            font-size: 14px;
-        }
-
-        select:focus, input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        button {
-            background: #3b82f6;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s;
-            width: 100%;
-            touch-action: manipulation;
-            min-height: 44px;
-        }
-
-        button:hover {
-            background: #2563eb;
-            transform: translateY(-2px);
-        }
-
-        .btn-large {
-            width: 100%;
-            padding: 15px;
-        }
-
-        .btn-whatsapp {
-            background: #25D366;
-            margin-top: 10px;
-        }
-
-        .btn-whatsapp:hover {
-            background: #128C7E;
-        }
-
-        .status {
-            margin-top: 10px;
-            padding: 10px;
-            border-radius: 8px;
-            text-align: center;
-        }
-
+        .card-body { padding: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #333; }
+        select, input { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; }
+        button { background: #3b82f6; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: all 0.3s; width: 100%; touch-action: manipulation; min-height: 44px; }
+        button:hover { background: #2563eb; transform: translateY(-2px); }
+        .btn-large { width: 100%; padding: 15px; }
+        .btn-whatsapp { background: #25D366; margin-top: 10px; }
+        .btn-whatsapp:hover { background: #128C7E; }
+        .status { margin-top: 10px; padding: 10px; border-radius: 8px; text-align: center; }
         .status-success { background: #d1fae5; color: #065f46; }
         .status-error { background: #fee2e2; color: #991b1b; }
         .status-info { background: #dbeafe; color: #1e40af; }
-
-        .empty-state {
-            text-align: center;
-            padding: 40px;
-            color: #94a3b8;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #3b82f6;
-        }
-
-        .footer {
-            text-align: center;
-            padding: 20px;
-            color: #94a3b8;
-            font-size: 12px;
-        }
-
-        /* Toast */
-        .toast-container {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 9999;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            pointer-events: none;
-        }
-        .toast {
-            background: #1e293b;
-            color: white;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 500;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            animation: slideUp 0.3s ease-out;
-            pointer-events: auto;
-            min-width: 200px;
-            max-width: 90vw;
-            justify-content: center;
-        }
+        .empty-state { text-align: center; padding: 40px; color: #94a3b8; }
+        .loading { text-align: center; padding: 40px; color: #3b82f6; }
+        .footer { text-align: center; padding: 20px; color: #94a3b8; font-size: 12px; }
+        
+        .toast-container { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+        .toast { background: #1e293b; color: white; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 10px; animation: slideUp 0.3s ease-out; pointer-events: auto; min-width: 200px; max-width: 90vw; justify-content: center; }
         .toast-success { background: #10b981; }
         .toast-error { background: #ef4444; }
         .toast-info { background: #3b82f6; }
         .toast-warning { background: #f59e0b; }
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fadeOut {
-            from { opacity: 1; }
-            to { opacity: 0; visibility: hidden; }
-        }
-        @keyframes pulse {
-            0% { transform: scale(1); background: #3b82f6; }
-            50% { transform: scale(1.05); background: #f59e0b; }
-            100% { transform: scale(1); background: #3b82f6; }
-        }
-
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; visibility: hidden; } }
+        @keyframes pulse { 0% { transform: scale(1); background: #3b82f6; } 50% { transform: scale(1.05); background: #f59e0b; } 100% { transform: scale(1); background: #3b82f6; } }
+        
         @media (max-width: 768px) {
             .top-bar { flex-direction: column; text-align: center; }
             button { min-height: 48px; font-size: 14px; }
-            .loteria-btn { padding: 8px 15px; font-size: 12px; min-width: 100px; }
+            .loteria-btn { padding: 8px 12px; font-size: 12px; min-width: 100px; }
         }
     </style>
 </head>
 <body>
     <div class="top-bar">
-        <div class="logo">
-            🎲 BOLÕES ALEATÓRIOS
-            <span class="version">v2.0</span>
-        </div>
-        <div class="stats" id="totalCartoes">
-            📊 Carregando...
-        </div>
-        <div style="font-size: 11px; color: #94a3b8;">
-            Desenvolvido por Elton Luis © 2026
-        </div>
+        <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">v2.0</span></div>
+        <div class="stats" id="totalCartoes">📊 Carregando...</div>
+        <div style="font-size: 11px;">Desenvolvido por Elton Luis © 2026</div>
     </div>
 
-    <!-- Seletor de Loteria -->
     <div class="loteria-selector">
         <button id="btnMegaSena" class="loteria-btn mega active">🎯 MEGA-SENA</button>
         <button id="btnLotofacil" class="loteria-btn lotofacil">🌟 LOTOFÁCIL</button>
+        <button id="btnQuina" class="loteria-btn quina">🎯 QUINA</button>
     </div>
 
     <div class="container">
         <div class="card">
-            <div class="card-header bg-purple" id="cardHeaderConferencia">
-                🔍 CONFERIR RESULTADOS - MEGA-SENA
-            </div>
+            <div class="card-header bg-purple" id="cardHeaderConferencia">🔍 CONFERIR RESULTADOS - MEGA-SENA</div>
             <div class="card-body">
-                <div class="form-group">
-                    <label id="labelConcurso">📌 CONCURSO:</label>
-                    <select id="concursoSelect">
-                        <option value="">Carregando concursos...</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label id="labelNumeros">🎲 NÚMEROS SORTEADOS (6 números):</label>
-                    <input type="text" id="numerosSorteados" placeholder="Ex: 12 15 23 34 45 56 (ou deixe em branco para buscar online)">
-                </div>
-
+                <div class="form-group"><label>📌 CONCURSO:</label><select id="concursoSelect"><option value="">Carregando concursos...</option></select></div>
+                <div class="form-group"><label id="labelNumeros">🎲 NÚMEROS SORTEADOS (6 números):</label><input type="text" id="numerosSorteados" placeholder="Ex: 12 15 23 34 45 56"></div>
                 <div id="statusBusca" class="status"></div>
-
                 <button id="btnConferir" class="btn-large">🎲 CONFERIR RESULTADOS</button>
             </div>
         </div>
 
         <div class="card">
-            <div class="card-header bg-blue" id="cardHeaderCartoes">
-                📋 CARTÕES DO CONCURSO - MEGA-SENA
-            </div>
-            <div class="card-body" id="cartoesConcurso">
-                <div class="empty-state">Selecione um concurso para ver os cartões</div>
-            </div>
+            <div class="card-header bg-blue" id="cardHeaderCartoes">📋 CARTÕES DO CONCURSO - MEGA-SENA</div>
+            <div class="card-body" id="cartoesConcurso"><div class="empty-state">Selecione um concurso para ver os cartões</div></div>
         </div>
 
         <div class="card">
-            <div class="card-header bg-green" id="cardHeaderResultados">
-                📊 RESULTADOS DA CONFERÊNCIA
-            </div>
-            <div class="card-body" id="resultadosArea">
-                <div class="empty-state">🔍 Selecione um concurso e clique em "Conferir Resultados"</div>
-            </div>
+            <div class="card-header bg-green" id="cardHeaderResultados">📊 RESULTADOS DA CONFERÊNCIA</div>
+            <div class="card-body" id="resultadosArea"><div class="empty-state">🔍 Selecione um concurso e clique em "Conferir Resultados"</div></div>
         </div>
     </div>
 
     <div class="footer">
         <div>© 2026 Bolões Aleatórios - Versão 2.0</div>
-        <div style="font-size: 11px; margin-top: 5px;">Desenvolvido por Elton Luis - Todos os direitos reservados</div>
+        <div style="font-size: 11px;">Desenvolvido por Elton Luis - Todos os direitos reservados</div>
         <button id="btnInstalarApp" style="background: #334155; color: white; border: none; padding: 8px 20px; border-radius: 30px; font-size: 12px; margin-top: 10px; width: auto; cursor: pointer;">📱 SALVAR COMO APP</button>
     </div>
 

@@ -8,93 +8,30 @@
     <meta name="theme-color" content="#667eea">
     <link rel="stylesheet" href="style.css">
     <style>
-    .loteria-selector-admin {
-        display: flex;
-        gap: 10px;
-        margin-bottom: 15px;
-        flex-wrap: wrap;
-    }
-    .loteria-btn-admin {
-        flex: 1;
-        min-width: 140px;
-        padding: 12px 15px;
-        border: none;
-        border-radius: 8px;
-        font-weight: bold;
-        cursor: pointer;
-        transition: all 0.3s;
-        font-size: 14px;
-    }
-    .loteria-btn-admin.mega { background: #8b5cf6; color: white; }
-    .loteria-btn-admin.lotofacil { background: #334155; color: white; }
-    .loteria-btn-admin.active { box-shadow: 0 0 10px currentColor; filter: brightness(1.1); transform: scale(1.02); }
-    .loteria-btn-admin.mega.active { background: #7c3aed; }
-    .loteria-btn-admin.lotofacil.active { background: #10b981; }
-    
-    /* Responsivo para celular - igual ao index */
-    @media (max-width: 768px) {
-        .container {
-            padding: 0 10px;
+        .loteria-selector-admin { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
+        .loteria-btn-admin { flex: 1; min-width: 100px; padding: 12px 10px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: all 0.3s; font-size: 13px; }
+        .loteria-btn-admin.mega { background: #8b5cf6; color: white; }
+        .loteria-btn-admin.lotofacil { background: #10b981; color: white; }
+        .loteria-btn-admin.quina { background: #ef4444; color: white; }
+        .loteria-btn-admin.active { box-shadow: 0 0 10px currentColor; filter: brightness(1.1); transform: scale(1.02); }
+        
+        @media (max-width: 768px) {
+            .container { padding: 0 10px; }
+            .admin-layout { grid-template-columns: 1fr; gap: 15px; }
+            .loteria-selector-admin { flex-direction: column; }
+            .loteria-btn-admin { min-width: 100%; padding: 14px; font-size: 16px; }
+            .form-row { grid-template-columns: 1fr; gap: 10px; }
+            .filtros { flex-wrap: wrap; }
+            .form-buttons { flex-direction: column; }
+            .form-buttons button { width: 100%; }
+            .numeros-container { flex-direction: column; }
+            .numeros-container button { width: 100%; }
         }
-        .admin-layout {
-            grid-template-columns: 1fr;
-            gap: 15px;
+        @media (max-width: 480px) {
+            .top-bar { flex-direction: column; text-align: center; }
+            .card-header { font-size: 14px; }
         }
-        .loteria-selector-admin {
-            flex-direction: column;
-        }
-        .loteria-btn-admin {
-            min-width: 100%;
-            padding: 14px;
-            font-size: 16px;
-        }
-        .form-row {
-            grid-template-columns: 1fr;
-            gap: 10px;
-        }
-        .filtros {
-            flex-wrap: wrap;
-        }
-        .filtros select,
-        .filtros button {
-            font-size: 12px;
-            padding: 8px 10px;
-        }
-        .form-buttons {
-            flex-direction: column;
-        }
-        .form-buttons button {
-            width: 100%;
-        }
-        .numeros-container {
-            flex-direction: column;
-        }
-        .numeros-container button {
-            width: 100%;
-        }
-        .dashboard-cards {
-            flex-direction: column;
-            align-items: center;
-        }
-        .dashboard-card {
-            width: 100%;
-        }
-    }
-    
-    @media (max-width: 480px) {
-        .top-bar {
-            flex-direction: column;
-            text-align: center;
-        }
-        .card-header {
-            font-size: 14px;
-        }
-        .btn {
-            font-size: 12px;
-            padding: 8px 12px;
-        }
-    }
-</style>
+    </style>
 </head>
 <body>
     <div class="top-bar">
@@ -105,18 +42,19 @@
     <div class="container">
         <div class="admin-layout">
             <div class="cadastro-panel">
-                <!-- Seletor de Loteria no Admin -->
+                <!-- Seletor de Loteria -->
                 <div class="card">
                     <div class="card-header bg-blue">🎲 SELECIONAR LOTERIA</div>
                     <div class="card-body">
                         <div class="loteria-selector-admin">
                             <button id="adminBtnMega" class="loteria-btn-admin mega active">🎯 MEGA-SENA</button>
                             <button id="adminBtnLotofacil" class="loteria-btn-admin lotofacil">🌟 LOTOFÁCIL</button>
+                            <button id="adminBtnQuina" class="loteria-btn-admin quina">🎯 QUINA</button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Dashboard Resumo -->
+                <!-- Dashboard -->
                 <div class="card">
                     <div class="card-header bg-blue">📊 DASHBOARD RESUMO</div>
                     <div class="card-body">
@@ -141,7 +79,7 @@
                             <label id="labelNumeros">🔢 Números (um por linha - MEGA-SENA: 6 números):</label>
                             <textarea id="numerosCartoes" rows="8" class="form-control" placeholder="Ex:&#10;12 15 23 34 45 56&#10;05 10 15 20 25 30"></textarea>
                         </div>
-                        <div class="dica" id="dicaNumeros">💡 MEGA-SENA: mínimo 6 números por linha. LOTOFÁCIL: mínimo 15 números.</div>
+                        <div class="dica" id="dicaNumeros">💡 MEGA-SENA: mínimo 6 números. LOTOFÁCIL: mínimo 15. QUINA: mínimo 5 números (máx 15).</div>
                         <div class="form-buttons"><button id="btnAdicionar" class="btn btn-green">➕ ADICIONAR CARTÕES</button><button id="btnLimpar" class="btn btn-gray">🗑️ LIMPAR</button></div>
                     </div>
                 </div>
@@ -181,7 +119,7 @@
 
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-analytics-compat.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
     <script src="firebase-config.js"></script>
     <script src="admin.js"></script>
