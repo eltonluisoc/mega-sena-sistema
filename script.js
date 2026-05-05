@@ -136,8 +136,8 @@ async function carregarBolaoAtivo() {
         
         if (card) card.style.display = 'block';
         
-        const totalQuitados = participantes.filter(p => p.situacao === 'quitado').length;
-        const totalAndamento = participantes.filter(p => p.situacao === 'andamento' || p.situacao === 'pendente').length;
+        const totalQuitados = participantes.filter(p => p.situacao === 'quitado' || p.situacao === 'pago').length;
+        const totalAndamento = participantes.filter(p => p.situacao === 'pendente' || p.situacao === 'andamento').length;
         const valorTotal = participantes.reduce((sum, p) => sum + (p.valorPago || 0), 0);
         
         // Estado de expansão (começa recolhido)
@@ -155,7 +155,7 @@ async function carregarBolaoAtivo() {
                     <div style="font-size: 12px; margin-top: 8px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
                         <span style="color: #10b981;">✅ Quitados: ${totalQuitados}</span>
                         <span style="color: #f59e0b;">🔄 Em andamento: ${totalAndamento}</span>
-                        <span style="color: #3b82f6;">💰 Total: R$ ${valorTotal},00</span>
+                        
                     </div>
                 </div>
             `;
