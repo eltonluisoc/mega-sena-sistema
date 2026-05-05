@@ -101,44 +101,44 @@
     </div>
 
     <div class="container">
-        <!-- Card: Timer do próximo sorteio -->
-        <div class="card">
-            <div class="card-header" style="background: #f59e0b;">⏱️ PRÓXIMO SORTEIO</div>
-            <div class="card-body">
-                <div id="timerDisplay" style="text-align: center; font-size: 18px; font-weight: bold;">Calculando...</div>
-                <div style="text-align: center; font-size: 12px; color: #666; margin-top: 8px;" id="proximoDia">MEGA-SENA</div>
-            </div>
+    <!-- Card: Conferência -->
+    <div class="card">
+        <div class="card-header bg-purple" id="cardHeaderConferencia">🔍 CONFERIR RESULTADOS - MEGA-SENA</div>
+        <div class="card-body">
+            <div class="form-group"><label>📌 CONCURSO:</label><select id="concursoSelect"><option value="">Carregando concursos...</option></select></div>
+            <div id="statusBusca" class="status"></div>
+            <button id="btnConferir">🎲 CONFERIR RESULTADOS</button>
         </div>
+    </div>
 
-        <!-- Card: Bolão Ativo (enviado pelo Desktop) -->
-        <div class="card" id="cardBolaoAtivo" style="display: none;">
-            <div class="card-header" style="background: #f59e0b;">👥 BOLÃO ATIVO</div>
-            <div class="card-body" id="bolaoContainer">
-                <div class="empty-state">Carregando...</div>
-            </div>
-        </div>
+    <!-- Card: Cartões do Concurso -->
+    <div class="card">
+        <div class="card-header bg-blue" id="cardHeaderCartoes">📋 CARTÕES DO CONCURSO - MEGA-SENA</div>
+        <div class="card-body" id="cartoesConcurso"><div class="empty-state">Selecione um concurso para ver os cartões</div></div>
+    </div>
 
-        <!-- Card: Conferência -->
-        <div class="card">
-            <div class="card-header bg-purple" id="cardHeaderConferencia">🔍 CONFERIR RESULTADOS - MEGA-SENA</div>
-            <div class="card-body">
-                <div class="form-group"><label>📌 CONCURSO:</label><select id="concursoSelect"><option value="">Carregando concursos...</option></select></div>
-                <div id="statusBusca" class="status"></div>
-                <button id="btnConferir">🎲 CONFERIR RESULTADOS</button>
-            </div>
-        </div>
+    <!-- Card: Resultados da Conferência -->
+    <div class="card">
+        <div class="card-header bg-green" id="cardHeaderResultados">📊 RESULTADOS DA CONFERÊNCIA</div>
+        <div class="card-body" id="resultadosArea"><div class="empty-state">🔍 Selecione um concurso e clique em "Conferir Resultados"</div></div>
+    </div>
 
-        <!-- Card: Cartões do Concurso -->
-        <div class="card">
-            <div class="card-header bg-blue" id="cardHeaderCartoes">📋 CARTÕES DO CONCURSO - MEGA-SENA</div>
-            <div class="card-body" id="cartoesConcurso"><div class="empty-state">Selecione um concurso para ver os cartões</div></div>
+    <!-- Card: Próximo Sorteio -->
+    <div class="card" id="cardTimer">
+        <div class="card-header" style="background: #f59e0b;">⏱️ PRÓXIMO SORTEIO</div>
+        <div class="card-body">
+            <div id="timerDisplay" style="text-align: center; font-size: 18px; font-weight: bold;">Calculando...</div>
+            <div style="text-align: center; font-size: 12px; color: #666; margin-top: 8px;" id="proximoDia">MEGA-SENA</div>
         </div>
+    </div>
 
-        <!-- Card: Resultados da Conferência -->
-        <div class="card">
-            <div class="card-header bg-green" id="cardHeaderResultados">📊 RESULTADOS DA CONFERÊNCIA</div>
-            <div class="card-body" id="resultadosArea"><div class="empty-state">🔍 Selecione um concurso e clique em "Conferir Resultados"</div></div>
+    <!-- Card: Bolões Especiais -->
+    <div class="card" id="cardBolaoAtivo" style="display: none;">
+        <div class="card-header" style="background: #f59e0b;">⭐ BOLÕES ESPECIAIS</div>
+        <div class="card-body" id="bolaoContainer">
+            <div class="empty-state">Carregando...</div>
         </div>
+    </div>
     </div>
 
     <div class="footer">
