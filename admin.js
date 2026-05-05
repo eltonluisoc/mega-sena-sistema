@@ -384,6 +384,13 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('filtroConcurso').onchange = exibirCartoesAdmin;
     document.getElementById('ordenarPor').onchange = exibirCartoesAdmin;
     document.getElementById('senhaAdmin').onkeypress = (e) => { if (e.key === 'Enter') autenticar(); };
+    
+    // ============ NOVAS LINHAS PARA GERENCIAR BOLÕES ============
+    carregarBoloesParaGerenciar();
+    const btnSalvarSelecao = document.getElementById('btnSalvarSelecao');
+    if (btnSalvarSelecao) {
+        btnSalvarSelecao.addEventListener('click', salvarSelecaoBoloes);
+    }
 });
 async function carregarBoloesParaGerenciar() {
     const container = document.getElementById('listaBoloes');
@@ -397,33 +404,54 @@ async function carregarBoloesParaGerenciar() {
         });
         
         if (boloes.length === 0) {
-            container.innerHTML = '<div class="empty-state">Nenhum bolão encontrado</div>';
+            container.innerHTML = '<div class="empty-state">Nenhum bolão encontrado. Envie pelo desktop.</div>';
             return;
         }
         
         // Carregar seleção atual
-        const configDoc = await db.collection('config_boloes').doc('ativos').get();
-        const selecionados = configDoc.exists ? configDoc.data().ids || [] : [];
+        let selecionados = [];
+        try {
+            const configDoc = await db.collection('config_boloes').doc('ativos').get();
+            if (configDoc.exists) {
+                selecionados = configDoc.data().ids || [];
+            }
+        } catch (e) {
+            console.log('Erro ao carregar seleção:', e);
+        }
         
         let html = '';
         boloes.forEach(bolao => {
             const checked = selecionados.includes(bolao.id) ? 'checked' : '';
             html += `
-                <div style="padding: 8px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 10px;">
+                <div style="padding: 10px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 10px;">
                     <input type="checkbox" class="checkbox-bolao" data-id="${bolao.id}" ${checked} style="width: 20px; height: 20px;">
                     <div>
                         <strong>${bolao.titulo || 'Sem título'}</strong>
-                        <div style="font-size: 12px; color: #666;">${bolao.participantes?.length || 0} participantes | ${bolao.loteria || '?'}</div>
+                        <div style="font-size: 12px; color: #666;">${bolao.participantes?.length || 0} participantes | ${bolao.loteria || '?'} | ID: ${bolao.id.slice(-8)}</div>
                     </div>
                 </div>
             `;
         });
         
         container.innerHTML = html;
+        console.log(`✅ ${boloes.length} bolões carregados`);
         
     } catch (error) {
-        console.error('Erro:', error);
-        container.innerHTML = '<div class="empty-state">Erro ao carregar bolões</div>';
+        console.error('Erro ao carregar bolões:', error);
+        container.innerHTML = '<div class="empty-state">Erro ao carregar bolões. Verifique o console (F12).</div>';
+    }
+}
+
+async function salvarSelecaoBoloes() {
+    const checkboxes = document.querySelectorAll('.checkbox-bolao:checked');
+    const idsSelecionados = Array.from(checkboxes).map(cb => cb.dataset.id);
+    
+    try {
+        await db.collection('config_boloes').doc('ativos').set({ ids: idsSelecionados });
+        showToast(`✅ ${idsSelecionados.length} bolão(ões) selecionado(s)`, 'success');
+    } catch (error) {
+        console.error('Erro ao salvar:', error);
+        showToast('❌ Erro ao salvar seleção', 'error');
     }
 }
 
