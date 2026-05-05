@@ -299,9 +299,11 @@ async function carregarDados() {
 function atualizarStats() {
     const filtrados = cartoes.filter(c => c.tipo === loteriaAtual);
     const concursos = [...new Set(filtrados.map(c => c.concurso))];
-    const resCount = Object.keys(loteriaAtual === 'mega' ? resultadosMega : loteriaAtual === 'lotofacil' ? resultadosLotofacil : resultadosQuina).length;
-    const div = document.getElementById('totalCartoes');
-    if (div) div.innerHTML = `📊 ${filtrados.length} cartões | 🎯 ${concursos.length} concursos | ✅ ${resCount} resultados`;
+    const statsConcursos = document.getElementById('statsConcursos');
+    const statsCartoes = document.getElementById('statsCartoes');
+    
+    if (statsConcursos) statsConcursos.innerHTML = `🎯 ${concursos.length} concursos`;
+    if (statsCartoes) statsCartoes.innerHTML = `📊 ${filtrados.length} cartões`;
 }
 
 function atualizarSelectConcursos() {
