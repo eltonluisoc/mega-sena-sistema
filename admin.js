@@ -385,3 +385,56 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('ordenarPor').onchange = exibirCartoesAdmin;
     document.getElementById('senhaAdmin').onkeypress = (e) => { if (e.key === 'Enter') autenticar(); };
 });
+async function carregarBoloesParaGerenciar() {
+    const container = document.getElementById('listaBoloes');
+    if (!container) return;
+    
+    try {
+        const snapshot = await db.collection('participantes').get();
+        const boloes = [];
+        snapshot.forEach(doc => {
+            boloes.push({ id: doc.id, ...doc.data() });
+        });
+        
+        if (boloes.length === 0) {
+            container.innerHTML = '<div class="empty-state">Nenhum bolão encontrado</div>';
+            return;
+        }
+        
+        // Carregar seleção atual
+        const configDoc = await db.collection('config_boloes').doc('ativos').get();
+        const selecionados = configDoc.exists ? configDoc.data().ids || [] : [];
+        
+        let html = '';
+        boloes.forEach(bolao => {
+            const checked = selecionados.includes(bolao.id) ? 'checked' : '';
+            html += `
+                <div style="padding: 8px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" class="checkbox-bolao" data-id="${bolao.id}" ${checked} style="width: 20px; height: 20px;">
+                    <div>
+                        <strong>${bolao.titulo || 'Sem título'}</strong>
+                        <div style="font-size: 12px; color: #666;">${bolao.participantes?.length || 0} participantes | ${bolao.loteria || '?'}</div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        container.innerHTML = html;
+        
+    } catch (error) {
+        console.error('Erro:', error);
+        container.innerHTML = '<div class="empty-state">Erro ao carregar bolões</div>';
+    }
+}
+
+async function salvarSelecaoBoloes() {
+    const checkboxes = document.querySelectorAll('.checkbox-bolao:checked');
+    const idsSelecionados = Array.from(checkboxes).map(cb => cb.dataset.id);
+    
+    await db.collection('config_boloes').doc('ativos').set({ ids: idsSelecionados });
+    showToast(`✅ ${idsSelecionados.length} bolão(ões) selecionado(s)`, 'success');
+}
+
+// Chamar no DOMContentLoaded
+document.getElementById('btnSalvarSelecao')?.addEventListener('click', salvarSelecaoBoloes);
+carregarBoloesParaGerenciar();

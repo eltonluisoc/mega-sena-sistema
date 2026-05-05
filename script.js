@@ -603,3 +603,105 @@ document.addEventListener('DOMContentLoaded', async () => {
     mostrarCartoesDoConcurso();
     showToast('🎲 Sistema Bolões Aleatórios carregado!', 'success');
 });
+async function carregarBoloesSelecionados() {
+    const card = document.getElementById('cardBolaoAtivo');
+    const container = document.getElementById('bolaoContainer');
+    
+    try {
+        // Buscar IDs selecionados
+        const configDoc = await db.collection('config_boloes').doc('ativos').get();
+        const idsSelecionados = configDoc.exists ? configDoc.data().ids || [] : [];
+        
+        if (idsSelecionados.length === 0) {
+            if (card) card.style.display = 'none';
+            return;
+        }
+        
+        // Buscar cada bolão pelo ID
+        const boloes = [];
+        for (const id of idsSelecionados) {
+            const doc = await db.collection('participantes').doc(id).get();
+            if (doc.exists) {
+                boloes.push({ id: doc.id, ...doc.data() });
+            }
+        }
+        
+        if (boloes.length === 0) {
+            if (card) card.style.display = 'none';
+            return;
+        }
+        
+        if (card) card.style.display = 'block';
+        
+        let html = '';
+        
+        for (const dados of boloes) {
+            const participantes = dados.participantes || [];
+            const totalQuitados = participantes.filter(p => p.situacao === 'quitado' || p.situacao === 'pago').length;
+            const totalAndamento = participantes.filter(p => p.situacao === 'pendente' || p.situacao === 'andamento').length;
+            
+            let expandido = false;
+            
+            function renderizarBolao(containerId, dados, participantes, totalQuitados, totalAndamento) {
+                const container = document.getElementById(containerId);
+                if (!container) return;
+                
+                let innerHtml = `
+                    <div style="margin-bottom: 15px; text-align: center; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0;">
+                        <strong style="font-size: 16px;">🎯 ${dados.titulo || 'Bolão Especial'}</strong>
+                        <div style="font-size: 12px; margin-top: 5px;">
+                            💰 Valor da cota: R$ ${dados.valorPorCota || 0},00
+                            ${dados.dataLimite ? `<br>📅 Data limite: ${new Date(dados.dataLimite).toLocaleDateString('pt-BR')}` : ''}
+                        </div>
+                        <div style="font-size: 12px; margin-top: 8px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
+                            <span style="color: #10b981;">✅ Quitados: ${totalQuitados}</span>
+                            <span style="color: #f59e0b;">🔄 Em andamento: ${totalAndamento}</span>
+                        </div>
+                    </div>
+                `;
+                
+                if (expandido) {
+                    participantes.forEach(p => {
+                        const statusClass = p.situacao === 'quitado' ? 'status-quitado' : 'status-pendente';
+                        const statusText = p.situacao === 'quitado' ? '✅ QUITADO' : '🔄 EM ANDAMENTO';
+                        innerHtml += `
+                            <div class="participante-item">
+                                <span class="participante-nome">${p.nome}</span>
+                                <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                                    <span class="participante-status ${statusClass}">${statusText}</span>
+                                    <span class="participante-valor">💰 R$ ${p.valorPago || 0},00</span>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    innerHtml += `<div style="margin-top: 15px; text-align: center;"><button class="btn-ocultar" data-id="${dados.id}" style="background: #64748b; width: auto; padding: 8px 20px;">🙈 OCULTAR LISTA</button></div>`;
+                } else {
+                    innerHtml += `<div style="margin-top: 10px; text-align: center;"><button class="btn-ver" data-id="${dados.id}" style="background: #3b82f6; width: auto; padding: 8px 20px;">👁 VER LISTA COMPLETA</button></div>`;
+                }
+                
+                container.innerHTML = innerHtml;
+                
+                // Eventos
+                document.querySelector(`.btn-ver[data-id="${dados.id}"]`)?.addEventListener('click', () => {
+                    expandido = true;
+                    renderizarBolao(containerId, dados, participantes, totalQuitados, totalAndamento);
+                });
+                document.querySelector(`.btn-ocultar[data-id="${dados.id}"]`)?.addEventListener('click', () => {
+                    expandido = false;
+                    renderizarBolao(containerId, dados, participantes, totalQuitados, totalAndamento);
+                });
+            }
+            
+            const containerId = `bolao_${dados.id}`;
+            html += `<div id="${containerId}" style="margin-bottom: 20px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;"></div>`;
+            
+            // Temporariamente adicionar ao DOM para renderizar
+            container.innerHTML = html;
+            renderizarBolao(containerId, dados, participantes, totalQuitados, totalAndamento);
+        }
+        
+    } catch (error) {
+        console.error('Erro:', error);
+        if (card) card.style.display = 'none';
+    }
+}
