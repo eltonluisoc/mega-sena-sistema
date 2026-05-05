@@ -138,7 +138,7 @@ async function carregarBolaoAtivo() {
         
         const totalQuitados = participantes.filter(p => p.situacao === 'quitado' || p.situacao === 'pago').length;
         const totalAndamento = participantes.filter(p => p.situacao === 'pendente' || p.situacao === 'andamento').length;
-        const valorTotal = participantes.reduce((sum, p) => sum + (p.valorPago || 0), 0);
+        
         
         // Estado de expansão (começa recolhido)
         let expandido = false;
