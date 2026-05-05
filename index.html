@@ -88,10 +88,10 @@
     <div class="top-bar">
         <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">v2.0</span></div>
         <div class="stats" id="totalCartoes">📊 Carregando...</div>
-        <div style="display: flex; align-items: center; gap: 15px;">
-            <div style="font-size: 11px;">Desenvolvido por Elton Luis © 2026</div>
-            <button id="btnFechar" style="background: #ef4444; border: none; padding: 4px 10px; border-radius: 20px; cursor: pointer; font-size: 11px; font-weight: bold; width: auto;">✖ FECHAR</button>
-        </div>
+        <button id="btnFechar" style="background: none; border: none; color: white; font-size: 20px; cursor: pointer; width: auto; padding: 0 10px;" title="Fechar">✖</button>
+    </div>
+    <div style="text-align: center; font-size: 11px; color: #94a3b8; margin-top: -10px; margin-bottom: 10px;">
+        Desenvolvido por Elton Luis © 2026
     </div>
 
     <div class="loteria-selector">
@@ -123,7 +123,7 @@
         <div class="card-body" id="resultadosArea"><div class="empty-state">🔍 Selecione um concurso e clique em "Conferir Resultados"</div></div>
     </div>
 
-    <!-- Card: Bolões Especiais -->
+    <!-- Card: Bolões Especiais (Expansível) -->
     <div class="card" id="cardBolaoAtivo" style="display: none;">
         <div class="card-header" style="background: #f59e0b;">⭐ BOLÕES ESPECIAIS</div>
         <div class="card-body" id="bolaoContainer">

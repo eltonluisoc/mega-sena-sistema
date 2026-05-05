@@ -137,39 +137,75 @@ async function carregarBolaoAtivo() {
         if (card) card.style.display = 'block';
         
         const totalQuitados = participantes.filter(p => p.situacao === 'quitado').length;
-        const totalPendentes = participantes.filter(p => p.situacao === 'pendente').length;
+        const totalAndamento = participantes.filter(p => p.situacao === 'andamento' || p.situacao === 'pendente').length;
         const valorTotal = participantes.reduce((sum, p) => sum + (p.valorPago || 0), 0);
         
-        let html = `
-            <div style="margin-bottom: 15px; text-align: center; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0;">
-                <strong style="font-size: 16px;">🎯 ${dados.titulo || 'Bolão Ativo'}</strong>
-                <div style="font-size: 12px; margin-top: 5px;">
-                    💰 Valor da cota: R$ ${dados.valorPorCota || 0},00
-                    ${dados.dataLimite ? `<br>📅 Data limite: ${new Date(dados.dataLimite).toLocaleDateString('pt-BR')}` : ''}
-                </div>
-                <div style="font-size: 12px; margin-top: 5px; display: flex; justify-content: center; gap: 15px;">
-                    <span style="color: #10b981;">✅ Quitados: ${totalQuitados}</span>
-                    <span style="color: #f59e0b;">⏳ Pendentes: ${totalPendentes}</span>
-                    <span style="color: #3b82f6;">💰 Total: R$ ${valorTotal},00</span>
-                </div>
-            </div>
-        `;
+        // Estado de expansão (começa recolhido)
+        let expandido = false;
         
-        participantes.forEach(p => {
-            const statusClass = p.situacao === 'quitado' ? 'status-quitado' : 'status-pendente';
-            const statusText = p.situacao === 'quitado' ? '✅ QUITADO' : '⚠️ PENDENTE';
-            html += `
-                <div class="participante-item">
-                    <span class="participante-nome">${p.nome}</span>
-                    <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
-                        <span class="participante-status ${statusClass}">${statusText}</span>
-                        <span class="participante-valor">💰 R$ ${p.valorPago || 0},00</span>
+        // Função para renderizar
+        function renderizar() {
+            let html = `
+                <div style="margin-bottom: 15px; text-align: center; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0;">
+                    <strong style="font-size: 16px;">🎯 ${dados.titulo || 'Bolão Especial'}</strong>
+                    <div style="font-size: 12px; margin-top: 5px;">
+                        💰 Valor da cota: R$ ${dados.valorPorCota || 0},00
+                        ${dados.dataLimite ? `<br>📅 Data limite: ${new Date(dados.dataLimite).toLocaleDateString('pt-BR')}` : ''}
+                    </div>
+                    <div style="font-size: 12px; margin-top: 8px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
+                        <span style="color: #10b981;">✅ Quitados: ${totalQuitados}</span>
+                        <span style="color: #f59e0b;">🔄 Em andamento: ${totalAndamento}</span>
+                        <span style="color: #3b82f6;">💰 Total: R$ ${valorTotal},00</span>
                     </div>
                 </div>
             `;
-        });
+            
+            if (expandido) {
+                // Lista completa de participantes
+                participantes.forEach(p => {
+                    const statusClass = p.situacao === 'quitado' ? 'status-quitado' : 'status-pendente';
+                    const statusText = p.situacao === 'quitado' ? '✅ QUITADO' : '🔄 EM ANDAMENTO';
+                    html += `
+                        <div class="participante-item">
+                            <span class="participante-nome">${p.nome}</span>
+                            <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                                <span class="participante-status ${statusClass}">${statusText}</span>
+                                <span class="participante-valor">💰 R$ ${p.valorPago || 0},00</span>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += `<div style="margin-top: 15px; text-align: center;">
+                            <button id="btnOcultarLista" style="background: #64748b; width: auto; padding: 8px 20px;">🙈 OCULTAR LISTA</button>
+                        </div>`;
+            } else {
+                html += `<div style="margin-top: 10px; text-align: center;">
+                            <button id="btnVerLista" style="background: #3b82f6; width: auto; padding: 8px 20px;">👁 VER LISTA COMPLETA</button>
+                        </div>`;
+            }
+            
+            container.innerHTML = html;
+            
+            // Eventos dos botões
+            const btnVer = document.getElementById('btnVerLista');
+            const btnOcultar = document.getElementById('btnOcultarLista');
+            
+            if (btnVer) {
+                btnVer.onclick = () => {
+                    expandido = true;
+                    renderizar();
+                };
+            }
+            if (btnOcultar) {
+                btnOcultar.onclick = () => {
+                    expandido = false;
+                    renderizar();
+                };
+            }
+        }
         
-        container.innerHTML = html;
+        renderizar();
         
     } catch (error) {
         console.error('Erro ao carregar bolão:', error);
