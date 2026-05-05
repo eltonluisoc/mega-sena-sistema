@@ -54,7 +54,7 @@
                     </div>
                 </div>
 
-                <!-- Dashboard -->
+                <!-- Dashboard Resumo -->
                 <div class="card">
                     <div class="card-header bg-blue">📊 DASHBOARD RESUMO</div>
                     <div class="card-body">
@@ -94,7 +94,6 @@
                 </div>
             </div>
 
-            <!-- Lista de cartões -->
             <div class="lista-panel">
                 <div class="card">
                     <div class="card-header bg-orange" id="listaHeader">📋 CARTÕES CADASTRADOS - MEGA-SENA</div>
@@ -112,10 +111,25 @@
                 </div>
             </div>
         </div>
+
+        <!-- Card: Gerenciar Bolões (fora do admin-layout, antes do footer) -->
+        <div class="card">
+            <div class="card-header" style="background: #8b5cf6;">📋 GERENCIAR BOLÕES</div>
+            <div class="card-body">
+                <div id="listaBoloes" style="max-height: 300px; overflow-y: auto;">
+                    <div class="empty-state">Carregando bolões...</div>
+                </div>
+                <button id="btnSalvarSelecao" class="btn btn-primary" style="margin-top: 15px;">💾 SALVAR SELEÇÃO</button>
+            </div>
+        </div>
     </div>
 
     <div id="authModal" class="modal"><div class="modal-content"><div class="modal-header">🔐 ACESSO ADMINISTRATIVO</div><div class="modal-body"><input type="password" id="senhaAdmin" class="form-control" placeholder="Digite a senha"><button id="btnAutenticar" class="btn btn-primary btn-large">🔓 ENTRAR</button></div></div></div>
-    <div class="footer"><div>© 2026 Bolões Aleatórios - Versão 2.0</div><div style="font-size: 11px;">Desenvolvido por Elton Luis</div></div>
+    
+    <div class="footer">
+        <div>© 2026 Bolões Aleatórios - Versão 2.0</div>
+        <div style="font-size: 11px;">Desenvolvido por Elton Luis</div>
+    </div>
 
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
@@ -123,16 +137,5 @@
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
     <script src="firebase-config.js"></script>
     <script src="admin.js"></script>
-    
-    <!-- Card: Gerenciar Bolões -->
-    <div class="card">
-    <div class="card-header" style="background: #8b5cf6;">📋 GERENCIAR BOLÕES</div>
-    <div class="card-body">
-        <div id="listaBoloes" style="max-height: 300px; overflow-y: auto;">
-            <div class="empty-state">Carregando bolões...</div>
-        </div>
-        <button id="btnSalvarSelecao" class="btn btn-primary" style="margin-top: 15px;">💾 SALVAR SELEÇÃO</button>
-    </div>
-</div>
 </body>
 </html>
