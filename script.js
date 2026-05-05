@@ -582,8 +582,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnQuina = document.getElementById('btnQuina');
     const selCon = document.getElementById('concursoSelect');
     const btnConf = document.getElementById('btnConferir');
-    const btnFechar = document.getElementById('btnFechar');
-    
+        
     if (btnMega) btnMega.addEventListener('click', () => setLoteria('mega'));
     if (btnLoto) btnLoto.addEventListener('click', () => setLoteria('lotofacil'));
     if (btnQuina) btnQuina.addEventListener('click', () => setLoteria('quina'));
@@ -592,14 +591,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnConf.addEventListener('click', conferirResultados);
         btnConf.addEventListener('touchstart', conferirResultados);
     }
-    if (btnFechar) {
-        btnFechar.addEventListener('click', () => {
-            if (confirm('Deseja fechar o aplicativo?')) {
-                window.close();
-                if (window.close === undefined) alert('Feche esta aba manualmente.');
-            }
-        });
-    }
+    
     
     adicionarBotaoInstalar();
     mostrarCartoesDoConcurso();
