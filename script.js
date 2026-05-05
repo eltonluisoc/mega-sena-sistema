@@ -89,7 +89,7 @@ function setLoteria(loteria) {
         document.getElementById('labelNumeros').innerHTML = '🎲 NÚMEROS SORTEADOS (5 números):';
         document.getElementById('numerosSorteados').placeholder = 'Ex: 12 15 23 34 45';
     }
-    
+    atualizarTimer();
     atualizarSelectConcursos();
     // Não precisa chamar mostrarCartoesDoConcurso() separadamente, pois a função atualizarSelectConcursos já chama!
     showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA-SENA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
@@ -300,7 +300,17 @@ function compartilharWhatsApp() {
     }
     
     msg += `${linha}\n🔗 Confira: ${window.location.href}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+    // Detecta se é mobile ou desktop
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    let whatsappUrl;
+
+    if (isMobile) {
+        whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+    } else {
+        whatsappUrl = `https://web.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+    }
+
+    window.open(whatsappUrl, '_blank');
     showToast('📱 Abrindo WhatsApp...', 'info');
 }
 
@@ -468,11 +478,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     await new Promise(r => setTimeout(r, 500));
     await carregarDados();
     iniciarAutoAtualizacao();
+    iniciarTimer();
     iniciarMonitoramento();
     const btnMega = document.getElementById('btnMegaSena');
     const btnLoto = document.getElementById('btnLotofacil');
     const btnQuina = document.getElementById('btnQuina');
     const selCon = document.getElementById('concursoSelect');
+    const btnFechar = document.getElementById('btnFechar');
+    if (btnFechar) {
+        btnFechar.addEventListener('click', () => {
+            if (confirm('Deseja fechar o aplicativo?')) {
+                window.close();
+                // Fallback para alguns navegadores
+                if (window.close === undefined) {
+                    alert('Feche esta aba manualmente no navegador.');
+                }
+            }
+        });
+    }
     const btnConf = document.getElementById('btnConferir');
     if (btnMega) btnMega.addEventListener('click', () => setLoteria('mega'));
     if (btnLoto) btnLoto.addEventListener('click', () => setLoteria('lotofacil'));
@@ -486,3 +509,89 @@ document.addEventListener('DOMContentLoaded', async () => {
     mostrarCartoesDoConcurso();
     showToast('🎲 Sistema Bolões Aleatórios carregado!', 'success');
 });
+function getProximoSorteio(loteria) {
+    const agora = new Date();
+    const dia = agora.getDay(); // 0=Domingo, 1=Segunda, 2=Terça, 3=Quarta, 4=Quinta, 5=Sexta, 6=Sábado
+    const hora = agora.getHours();
+    const minutos = agora.getMinutes();
+    const segundos = agora.getSeconds();
+    
+    let diasParaSorteio = 0;
+    let nomeDia = '';
+    
+    if (loteria === 'mega') {
+        // Mega-Sena: Quarta (3) e Sábado (6)
+        if (dia === 3 && hora < 20) diasParaSorteio = 0;
+        else if (dia === 6 && hora < 20) diasParaSorteio = 0;
+        else if (dia < 3) diasParaSorteio = 3 - dia;
+        else if (dia < 6) diasParaSorteio = 6 - dia;
+        else diasParaSorteio = (3 + 7) - dia;
+        nomeDia = diasParaSorteio === 0 ? 'hoje' : (diasParaSorteio === 1 ? 'amanhã' : `em ${diasParaSorteio} dias`);
+    } else if (loteria === 'lotofacil') {
+        // Lotofácil: Segunda a Sábado
+        if (dia >= 1 && dia <= 6 && hora < 20) diasParaSorteio = 0;
+        else if (dia === 0) diasParaSorteio = 1;
+        else if (dia === 6 && hora >= 20) diasParaSorteio = 1;
+        else if (dia < 6) diasParaSorteio = 1;
+        else diasParaSorteio = 1;
+        nomeDia = diasParaSorteio === 0 ? 'hoje' : (diasParaSorteio === 1 ? 'amanhã' : `em ${diasParaSorteio} dias`);
+    } else if (loteria === 'quina') {
+        // Quina: Segunda a Sábado
+        if (dia >= 1 && dia <= 6 && hora < 20) diasParaSorteio = 0;
+        else if (dia === 0) diasParaSorteio = 1;
+        else if (dia === 6 && hora >= 20) diasParaSorteio = 1;
+        else diasParaSorteio = 1;
+        nomeDia = diasParaSorteio === 0 ? 'hoje' : (diasParaSorteio === 1 ? 'amanhã' : `em ${diasParaSorteio} dias`);
+    }
+    
+    return { dias: diasParaSorteio, nomeDia };
+}
+
+function atualizarTimer() {
+    const { dias, nomeDia } = getProximoSorteio(loteriaAtual);
+    const agora = new Date();
+    const hora = agora.getHours();
+    const minutos = agora.getMinutes();
+    const segundos = agora.getSeconds();
+    
+    let horasRestantes = 0;
+    let minutosRestantes = 0;
+    let segundosRestantes = 0;
+    
+    if (dias === 0) {
+        if (hora < 20) {
+            horasRestantes = 19 - hora;
+            minutosRestantes = 59 - minutos;
+            segundosRestantes = 59 - segundos;
+        } else {
+            // Já passou do horário, mostrar próximo dia
+            horasRestantes = 24 - hora + 19;
+            minutosRestantes = 59 - minutos;
+            segundosRestantes = 59 - segundos;
+        }
+    } else {
+        const totalHoras = (dias * 24) + (19 - hora);
+        horasRestantes = totalHoras;
+        minutosRestantes = 59 - minutos;
+        segundosRestantes = 59 - segundos;
+    }
+    
+    let timerText = '';
+    if (horasRestantes > 0) timerText += `${horasRestantes}h `;
+    if (minutosRestantes > 0 || horasRestantes > 0) timerText += `${minutosRestantes}m `;
+    timerText += `${segundosRestantes}s`;
+    
+    let loteriaNome = loteriaAtual === 'mega' ? 'MEGA-SENA' : (loteriaAtual === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA');
+    document.getElementById('timerDisplay').innerHTML = `⏰ ${timerText}`;
+    document.getElementById('proximoDia').innerHTML = `${loteriaNome} - Próximo sorteio ${nomeDia} às 20h`;
+}
+
+// Iniciar timer (atualiza a cada segundo)
+let timerInterval;
+function iniciarTimer() {
+    if (timerInterval) clearInterval(timerInterval);
+    atualizarTimer();
+    timerInterval = setInterval(atualizarTimer, 1000);
+}
+
+// Chamar iniciarTimer() dentro do DOMContentLoaded e também ao mudar de loteria
