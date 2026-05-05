@@ -8,6 +8,7 @@ let ultimoResultadoDados = null;
 let ultimoEstadoMega = {};
 let ultimoEstadoLotofacil = {};
 let ultimoEstadoQuina = {};
+let timerInterval;
 
 function showToast(message, type = 'info') {
     let container = document.querySelector('.toast-container');
@@ -61,6 +62,123 @@ function adicionarBotaoInstalar() {
     if (btn) btn.onclick = mostrarPopupInstalar;
 }
 
+// ============ TIMER DO PRÓXIMO SORTEIO ============
+function getProximoSorteio(loteria) {
+    const agora = new Date();
+    const dia = agora.getDay();
+    const hora = agora.getHours();
+    
+    if (loteria === 'mega') {
+        if (dia === 3 && hora < 20) return { dias: 0, nomeDia: 'hoje' };
+        if (dia === 6 && hora < 20) return { dias: 0, nomeDia: 'hoje' };
+        if (dia < 3) return { dias: 3 - dia, nomeDia: (3 - dia === 1 ? 'amanhã' : `em ${3 - dia} dias`) };
+        if (dia < 6) return { dias: 6 - dia, nomeDia: (6 - dia === 1 ? 'amanhã' : `em ${6 - dia} dias`) };
+        return { dias: (3 + 7) - dia, nomeDia: `em ${(3 + 7) - dia} dias` };
+    } else {
+        if (dia >= 1 && dia <= 6 && hora < 20) return { dias: 0, nomeDia: 'hoje' };
+        if (dia === 0) return { dias: 1, nomeDia: 'amanhã' };
+        if (dia === 6 && hora >= 20) return { dias: 1, nomeDia: 'amanhã' };
+        return { dias: 1, nomeDia: 'amanhã' };
+    }
+}
+
+function atualizarTimer() {
+    const { dias, nomeDia } = getProximoSorteio(loteriaAtual);
+    const agora = new Date();
+    const hora = agora.getHours();
+    const minutos = agora.getMinutes();
+    const segundos = agora.getSeconds();
+    
+    let horasRestantes = 0;
+    if (dias === 0) {
+        horasRestantes = hora < 20 ? 19 - hora : 24 - hora + 19;
+    } else {
+        horasRestantes = (dias * 24) + (19 - hora);
+    }
+    const minutosRestantes = 59 - minutos;
+    const segundosRestantes = 59 - segundos;
+    
+    let timerText = '';
+    if (horasRestantes > 0) timerText += `${horasRestantes}h `;
+    if (minutosRestantes > 0 || horasRestantes > 0) timerText += `${minutosRestantes}m `;
+    timerText += `${segundosRestantes}s`;
+    
+    let loteriaNome = loteriaAtual === 'mega' ? 'MEGA-SENA' : (loteriaAtual === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA');
+    document.getElementById('timerDisplay').innerHTML = `⏰ ${timerText}`;
+    document.getElementById('proximoDia').innerHTML = `${loteriaNome} - Próximo sorteio ${nomeDia} às 20h`;
+}
+
+function iniciarTimer() {
+    if (timerInterval) clearInterval(timerInterval);
+    atualizarTimer();
+    timerInterval = setInterval(atualizarTimer, 1000);
+}
+
+// ============ CARREGAR BOLÃO ATIVO (ENVIADO PELO DESKTOP) ============
+async function carregarBolaoAtivo() {
+    try {
+        const doc = await db.collection('participantes').doc('bolao_atual').get();
+        const card = document.getElementById('cardBolaoAtivo');
+        const container = document.getElementById('bolaoContainer');
+        
+        if (!doc.exists) {
+            if (card) card.style.display = 'none';
+            return;
+        }
+        
+        const dados = doc.data();
+        const participantes = dados.participantes || [];
+        
+        if (participantes.length === 0) {
+            if (card) card.style.display = 'none';
+            return;
+        }
+        
+        if (card) card.style.display = 'block';
+        
+        const totalQuitados = participantes.filter(p => p.situacao === 'quitado').length;
+        const totalPendentes = participantes.filter(p => p.situacao === 'pendente').length;
+        const valorTotal = participantes.reduce((sum, p) => sum + (p.valorPago || 0), 0);
+        
+        let html = `
+            <div style="margin-bottom: 15px; text-align: center; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0;">
+                <strong style="font-size: 16px;">🎯 ${dados.titulo || 'Bolão Ativo'}</strong>
+                <div style="font-size: 12px; margin-top: 5px;">
+                    💰 Valor da cota: R$ ${dados.valorPorCota || 0},00
+                    ${dados.dataLimite ? `<br>📅 Data limite: ${new Date(dados.dataLimite).toLocaleDateString('pt-BR')}` : ''}
+                </div>
+                <div style="font-size: 12px; margin-top: 5px; display: flex; justify-content: center; gap: 15px;">
+                    <span style="color: #10b981;">✅ Quitados: ${totalQuitados}</span>
+                    <span style="color: #f59e0b;">⏳ Pendentes: ${totalPendentes}</span>
+                    <span style="color: #3b82f6;">💰 Total: R$ ${valorTotal},00</span>
+                </div>
+            </div>
+        `;
+        
+        participantes.forEach(p => {
+            const statusClass = p.situacao === 'quitado' ? 'status-quitado' : 'status-pendente';
+            const statusText = p.situacao === 'quitado' ? '✅ QUITADO' : '⚠️ PENDENTE';
+            html += `
+                <div class="participante-item">
+                    <span class="participante-nome">${p.nome}</span>
+                    <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                        <span class="participante-status ${statusClass}">${statusText}</span>
+                        <span class="participante-valor">💰 R$ ${p.valorPago || 0},00</span>
+                    </div>
+                </div>
+            `;
+        });
+        
+        container.innerHTML = html;
+        
+    } catch (error) {
+        console.error('Erro ao carregar bolão:', error);
+        const card = document.getElementById('cardBolaoAtivo');
+        if (card) card.style.display = 'none';
+    }
+}
+
+// ============ SETAR LOTERIA ============
 function setLoteria(loteria) {
     loteriaAtual = loteria;
     const btnMega = document.getElementById('btnMegaSena');
@@ -74,27 +192,24 @@ function setLoteria(loteria) {
         if (btnMega) btnMega.classList.add('active');
         document.getElementById('cardHeaderConferencia').innerHTML = '🔍 CONFERIR RESULTADOS - MEGA-SENA';
         document.getElementById('cardHeaderCartoes').innerHTML = '📋 CARTÕES DO CONCURSO - MEGA-SENA';
-        document.getElementById('labelNumeros').innerHTML = '🎲 NÚMEROS SORTEADOS (6 números):';
-        document.getElementById('numerosSorteados').placeholder = 'Ex: 12 15 23 34 45 56';
     } else if (loteria === 'lotofacil') {
         if (btnLoto) btnLoto.classList.add('active');
         document.getElementById('cardHeaderConferencia').innerHTML = '🔍 CONFERIR RESULTADOS - LOTOFÁCIL';
         document.getElementById('cardHeaderCartoes').innerHTML = '📋 CARTÕES DO CONCURSO - LOTOFÁCIL';
-        document.getElementById('labelNumeros').innerHTML = '🎲 NÚMEROS SORTEADOS (15 números):';
-        document.getElementById('numerosSorteados').placeholder = 'Ex: 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15';
     } else if (loteria === 'quina') {
         if (btnQuina) btnQuina.classList.add('active');
         document.getElementById('cardHeaderConferencia').innerHTML = '🔍 CONFERIR RESULTADOS - QUINA';
         document.getElementById('cardHeaderCartoes').innerHTML = '📋 CARTÕES DO CONCURSO - QUINA';
-        document.getElementById('labelNumeros').innerHTML = '🎲 NÚMEROS SORTEADOS (5 números):';
-        document.getElementById('numerosSorteados').placeholder = 'Ex: 12 15 23 34 45';
     }
-    atualizarTimer();
+    
     atualizarSelectConcursos();
-    // Não precisa chamar mostrarCartoesDoConcurso() separadamente, pois a função atualizarSelectConcursos já chama!
+    const sel = document.getElementById('concursoSelect');
+    if (sel && sel.value) mostrarCartoesDoConcurso();
+    atualizarTimer();
     showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA-SENA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
 }
 
+// ============ CARREGAR DADOS ============
 async function carregarDados() {
     console.log('🔄 Carregando dados...');
     try {
@@ -141,7 +256,7 @@ async function carregarDados() {
         console.error('Erro:', error);
         showToast('❌ Erro ao carregar dados', 'error');
         const cont = document.getElementById('cartoesConcurso');
-        if (cont) cont.innerHTML = '<div class="empty-state">❌ Erro ao conectar. Verifique sua internet.</div>';
+        if (cont) cont.innerHTML = '<div class="empty-state">❌ Erro ao conectar.</div>';
     }
 }
 
@@ -171,31 +286,14 @@ function atualizarSelectConcursos() {
         opt.textContent = `Concurso ${con} (${total} cartões)`;
         select.appendChild(opt);
     });
-    
-    // === NOVO: Selecionar o concurso mais recente automaticamente ===
-    if (concursos.length > 0) {
-        const ultimoConcurso = concursos[0]; // já está ordenado decrescente
-        select.value = ultimoConcurso;
-        console.log(`📌 Concurso mais recente selecionado: ${ultimoConcurso}`);
-    }
+    if (concursos.length > 0) select.value = concursos[0];
 }
 
 function selecionarUltimoConcurso() {
     const select = document.getElementById('concursoSelect');
-    if (!select) return;
-    
-    // Ordenar os concursos por número (decrescente - maior primeiro)
-    const options = Array.from(select.options);
-    const concursos = options.filter(opt => opt.value !== '').map(opt => parseInt(opt.value));
-    concursos.sort((a, b) => b - a);
-    
-    if (concursos.length > 0) {
-        const ultimoConcurso = concursos[0].toString();
-        select.value = ultimoConcurso;
+    if (select && select.options.length > 1) {
+        select.selectedIndex = 1;
         mostrarCartoesDoConcurso();
-        console.log(`📌 Concurso mais recente selecionado: ${ultimoConcurso}`);
-    } else {
-        console.log('📌 Nenhum concurso disponível');
     }
 }
 
@@ -218,10 +316,10 @@ function mostrarCartoesDoConcurso() {
     filtrados.forEach(c => { const b = c.bolao || 'Sem Bolão'; if (!porBolao[b]) porBolao[b] = []; porBolao[b].push(c); });
     let html = '';
     for (const [bolao, lista] of Object.entries(porBolao)) {
-        html += `<div style="margin-bottom:20px"><div style="background:#3b82f6;color:white;padding:8px 12px;border-radius:8px;margin-bottom:10px">🎯 ${bolao}</div><div style="display:flex;flex-wrap:wrap;gap:10px">`;
+        html += `<div style="margin-bottom:20px"><div style="background:#3b82f6;color:white;padding:6px 10px;border-radius:6px;margin-bottom:8px;font-size:13px;">🎯 ${bolao}</div><div style="display:flex;flex-wrap:wrap;gap:8px;">`;
         lista.forEach(cartao => {
-            const numsHtml = cartao.numeros.map(n => `<span style="background:${salvos.includes(n)?'#10b981':'#e2e8f0'};color:${salvos.includes(n)?'white':'#333'};padding:4px 8px;border-radius:5px;font-family:monospace;font-size:${loteriaAtual==='mega'?'12px':loteriaAtual==='lotofacil'?'10px':'11px'}">${n.toString().padStart(2,'0')}</span>`).join('');
-            html += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;min-width:200px;max-width:${loteriaAtual==='mega'?'250px':loteriaAtual==='lotofacil'?'350px':'280px'}"><div style="font-size:11px;color:#64748b;margin-bottom:5px">Cartão</div><div style="display:flex;flex-wrap:wrap;gap:3px">${numsHtml}</div>${salvos.length>0?`<div style="font-size:10px;color:#10b981;margin-top:5px">${cartao.numeros.filter(n=>salvos.includes(n)).length} acertos</div>`:''}</div>`;
+            const numsHtml = cartao.numeros.map(n => `<span style="background:${salvos.includes(n)?'#10b981':'#e2e8f0'};color:${salvos.includes(n)?'white':'#333'};padding:3px 7px;border-radius:5px;font-family:monospace;font-size:11px;">${n.toString().padStart(2,'0')}</span>`).join('');
+            html += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px;min-width:180px;"><div style="font-size:10px;color:#64748b;margin-bottom:4px;">Cartão</div><div style="display:flex;flex-wrap:wrap;gap:3px;">${numsHtml}</div>${salvos.length>0?`<div style="font-size:9px;color:#10b981;margin-top:4px;">${cartao.numeros.filter(n=>salvos.includes(n)).length} acertos</div>`:''}</div>`;
         });
         html += `</div></div>`;
     }
@@ -235,7 +333,6 @@ async function buscarResultadoInterno(concurso, loteria) {
         if (loteria === 'mega') url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/megasena/${concurso}`;
         else if (loteria === 'lotofacil') url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/lotofacil/${concurso}`;
         else url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/quina/${concurso}`;
-        
         const resp = await fetch(url);
         if (resp.ok) {
             const dados = await resp.json();
@@ -257,59 +354,33 @@ function compartilharWhatsApp() {
         return;
     }
     const { numeros, dataSorteio, premios } = ultimoResultadoDados;
-    const linha = '════════════════════════════════════════';
+    const linha = '────────────────────────────────────';
     let msg = `*RESULTADO: BOLÕES ALEATÓRIOS* 🎲\n${linha}\n📌 Concurso: ${ultimoResultadoConcurso}\n🗓️ Dezenas Sorteadas:\n${numeros.join(' — ')}\n${linha}\n🏆 DESEMPENHO DO GRUPO:\n`;
     
     if (loteriaAtual === 'mega') {
         msg += `✨ Sena: ${premios.sena}\n✨ Quina: ${premios.quina}\n✨ Quadra: ${premios.quadra}\n✅ Terno: ${premios.terno}\n✅ Duque: ${premios.duque}\n`;
-        if (premios.terno > 0 || premios.duque > 0) {
-            msg += `⚠️ O terno mostra que estamos chegando perto. Seguimos firmes!\n`;
-        } else if (premios.quadra > 0) {
-            msg += `⚠️ Quadra! Estamos no caminho certo!\n`;
-        } else if (premios.quina > 0) {
-            msg += `⭐ Quina! Quase lá!\n`;
-        } else if (premios.sena > 0) {
-            msg += `🎉🎉🎉 SENA! PARABÉNS! 🎉🎉🎉\n`;
-        } else {
-            msg += `💪 Vamos tentar novamente no próximo concurso acumulado.\n`;
-        }
+        if (premios.terno > 0 || premios.duque > 0) msg += `⚠️ O terno mostra que estamos chegando perto!\n`;
+        else if (premios.quadra > 0) msg += `⚠️ Quadra! Estamos no caminho certo!\n`;
+        else if (premios.quina > 0) msg += `⭐ Quina! Quase lá!\n`;
+        else if (premios.sena > 0) msg += `🎉🎉🎉 SENA! PARABÉNS! 🎉🎉🎉\n`;
+        else msg += `💪 Vamos tentar novamente no próximo concurso.\n`;
     } else if (loteriaAtual === 'lotofacil') {
         msg += `✨ 15 Pontos: ${premios.pontos15}\n✨ 14 Pontos: ${premios.pontos14}\n✨ 13 Pontos: ${premios.pontos13}\n✅ 12 Pontos: ${premios.pontos12}\n✅ 11 Pontos: ${premios.pontos11}\n`;
-        if (premios.pontos12 > 0 || premios.pontos11 > 0) {
-            msg += `⚠️ Estamos chegando perto!\n`;
-        } else if (premios.pontos13 > 0) {
-            msg += `⚠️ 13 pontos! Quase lá!\n`;
-        } else if (premios.pontos14 > 0) {
-            msg += `⭐ 14 pontos! Muito perto!\n`;
-        } else if (premios.pontos15 > 0) {
-            msg += `🎉🎉🎉 15 PONTOS! PARABÉNS! 🎉🎉🎉\n`;
-        } else {
-            msg += `💪 Vamos tentar novamente no próximo concurso acumulado.\n`;
-        }
-    } else if (loteriaAtual === 'quina') {
-        msg += `✨ Quina: ${premios.quina}\n✨ Quadra: ${premios.quadra}\n✅ Terno: ${premios.terno}\n✅ Duque: ${premios.duque}\n`;
-        if (premios.terno > 0 || premios.duque > 0) {
-            msg += `⚠️ Estamos chegando perto!\n`;
-        } else if (premios.quadra > 0) {
-            msg += `⚠️ Quadra! Quase lá!\n`;
-        } else if (premios.quina > 0) {
-            msg += `🎉🎉🎉 QUINA! PARABÉNS! 🎉🎉🎉\n`;
-        } else {
-            msg += `💪 Vamos tentar novamente no próximo concurso acumulado.\n`;
-        }
-    }
-    
-    msg += `${linha}\n🔗 Confira: ${window.location.href}`;
-    // Detecta se é mobile ou desktop
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    let whatsappUrl;
-
-    if (isMobile) {
-        whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+        if (premios.pontos12 > 0 || premios.pontos11 > 0) msg += `⚠️ Estamos chegando perto!\n`;
+        else if (premios.pontos13 > 0) msg += `⚠️ 13 pontos! Quase lá!\n`;
+        else if (premios.pontos14 > 0) msg += `⭐ 14 pontos! Muito perto!\n`;
+        else if (premios.pontos15 > 0) msg += `🎉🎉🎉 15 PONTOS! PARABÉNS! 🎉🎉🎉\n`;
+        else msg += `💪 Vamos tentar novamente no próximo concurso.\n`;
     } else {
-        whatsappUrl = `https://web.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+        msg += `✨ Quina: ${premios.quina}\n✨ Quadra: ${premios.quadra}\n✅ Terno: ${premios.terno}\n✅ Duque: ${premios.duque}\n`;
+        if (premios.terno > 0 || premios.duque > 0) msg += `⚠️ Estamos chegando perto!\n`;
+        else if (premios.quadra > 0) msg += `⚠️ Quadra! Quase lá!\n`;
+        else if (premios.quina > 0) msg += `🎉🎉🎉 QUINA! PARABÉNS! 🎉🎉🎉\n`;
+        else msg += `💪 Vamos tentar novamente no próximo concurso.\n`;
     }
-
+    msg += `${linha}\n🔗 Confira: ${window.location.href}`;
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const whatsappUrl = isMobile ? `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}` : `https://web.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
     window.open(whatsappUrl, '_blank');
     showToast('📱 Abrindo WhatsApp...', 'info');
 }
@@ -327,12 +398,10 @@ async function conferirResultados() {
         return;
     }
     
-    // Analytics
     if (typeof firebase !== 'undefined' && firebase.analytics) {
         try {
             firebase.analytics().logEvent('conferir_resultados', { loteria: loteriaAtual, concurso: concurso, quantidade_cartoes: cartoesConc.length });
-            console.log('📊 Evento registrado no Analytics');
-        } catch(e) { console.log('Analytics erro:', e); }
+        } catch(e) {}
     }
     
     let numeros = null, dataSorteio = null;
@@ -345,11 +414,9 @@ async function conferirResultados() {
         if (busca) {
             numeros = busca.numeros;
             dataSorteio = busca.dataSorteio;
-            const inp = document.getElementById('numerosSorteados');
-            if (inp) inp.value = numeros.join(' ');
             showToast('✅ Resultado encontrado!', 'success');
         } else {
-            area.innerHTML = `<div class="empty-state">❌ Resultado não encontrado. Digite manualmente.</div>`;
+            area.innerHTML = `<div class="empty-state">❌ Resultado não encontrado. Digite manualmente no Admin.</div>`;
             showToast('❌ Resultado não encontrado', 'error');
             return;
         }
@@ -385,28 +452,23 @@ async function conferirResultados() {
     ultimoResultadoConcurso = concurso;
     ultimoResultadoDados = { numeros, dataSorteio, premios };
     
-    let html = `<div style="background:#f0fdf4;border-radius:10px;padding:20px;margin-bottom:20px;text-align:center"><h3>🏆 RESULTADO DO CONCURSO ${concurso} - ${loteriaAtual === 'mega' ? 'MEGA-SENA' : loteriaAtual === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}</h3><div style="display:flex;justify-content:center;gap:15px;margin:15px 0;flex-wrap:wrap">`;
-    
+    let html = `<div style="background:#f0fdf4;border-radius:10px;padding:15px;margin-bottom:15px;text-align:center"><h3 style="font-size:16px;">🏆 RESULTADO DO CONCURSO ${concurso}</h3><div style="display:flex;justify-content:center;gap:12px;margin:12px 0;flex-wrap:wrap">`;
     if (loteriaAtual === 'mega') {
-        html += `<div><span style="font-size:24px;font-weight:bold;color:#f59e0b">${premios.sena}</span><br>SENA</div><div><span style="font-size:24px;font-weight:bold;color:#eab308">${premios.quina}</span><br>QUINA</div><div><span style="font-size:24px;font-weight:bold;color:#a855f7">${premios.quadra}</span><br>QUADRA</div><div><span style="font-size:24px;font-weight:bold;color:#3b82f6">${premios.terno}</span><br>TERNO</div><div><span style="font-size:24px;font-weight:bold;color:#64748b">${premios.duque}</span><br>DUQUE</div><div><span style="font-size:24px;font-weight:bold">${calc.length}</span><br>CARTÕES</div>`;
+        html += `<div><span style="font-size:20px;font-weight:bold;color:#f59e0b">${premios.sena}</span><br>SENA</div><div><span style="font-size:20px;font-weight:bold;color:#eab308">${premios.quina}</span><br>QUINA</div><div><span style="font-size:20px;font-weight:bold;color:#a855f7">${premios.quadra}</span><br>QUADRA</div><div><span style="font-size:20px;font-weight:bold;color:#3b82f6">${premios.terno}</span><br>TERNO</div><div><span style="font-size:20px;font-weight:bold;color:#64748b">${premios.duque}</span><br>DUQUE</div>`;
     } else if (loteriaAtual === 'lotofacil') {
-        html += `<div><span style="font-size:24px;font-weight:bold;color:#f59e0b">${premios.pontos15}</span><br>15 PTS</div><div><span style="font-size:24px;font-weight:bold;color:#eab308">${premios.pontos14}</span><br>14 PTS</div><div><span style="font-size:24px;font-weight:bold;color:#a855f7">${premios.pontos13}</span><br>13 PTS</div><div><span style="font-size:24px;font-weight:bold;color:#3b82f6">${premios.pontos12}</span><br>12 PTS</div><div><span style="font-size:24px;font-weight:bold;color:#64748b">${premios.pontos11}</span><br>11 PTS</div><div><span style="font-size:24px;font-weight:bold">${calc.length}</span><br>CARTÕES</div>`;
+        html += `<div><span style="font-size:20px;font-weight:bold;color:#f59e0b">${premios.pontos15}</span><br>15 PTS</div><div><span style="font-size:20px;font-weight:bold;color:#eab308">${premios.pontos14}</span><br>14 PTS</div><div><span style="font-size:20px;font-weight:bold;color:#a855f7">${premios.pontos13}</span><br>13 PTS</div><div><span style="font-size:20px;font-weight:bold;color:#3b82f6">${premios.pontos12}</span><br>12 PTS</div><div><span style="font-size:20px;font-weight:bold;color:#64748b">${premios.pontos11}</span><br>11 PTS</div>`;
     } else {
-        html += `<div><span style="font-size:24px;font-weight:bold;color:#f59e0b">${premios.quina}</span><br>QUINA</div><div><span style="font-size:24px;font-weight:bold;color:#eab308">${premios.quadra}</span><br>QUADRA</div><div><span style="font-size:24px;font-weight:bold;color:#a855f7">${premios.terno}</span><br>TERNO</div><div><span style="font-size:24px;font-weight:bold;color:#3b82f6">${premios.duque}</span><br>DUQUE</div><div><span style="font-size:24px;font-weight:bold">${calc.length}</span><br>CARTÕES</div>`;
+        html += `<div><span style="font-size:20px;font-weight:bold;color:#f59e0b">${premios.quina}</span><br>QUINA</div><div><span style="font-size:20px;font-weight:bold;color:#eab308">${premios.quadra}</span><br>QUADRA</div><div><span style="font-size:20px;font-weight:bold;color:#a855f7">${premios.terno}</span><br>TERNO</div><div><span style="font-size:20px;font-weight;bold;color:#3b82f6">${premios.duque}</span><br>DUQUE</div>`;
     }
-    
-    html += `</div><div style="background:#d1fae5;padding:10px;border-radius:8px">🎲 Sorteados: ${numeros.join(' - ')}${dataSorteio?`<br>📅 Data: ${new Date(dataSorteio).toLocaleDateString('pt-BR')}`:''}</div><button id="btnWhatsApp" class="btn-whatsapp" style="margin-top:15px">📱 COMPARTILHAR NO WHATSAPP</button></div>`;
+    html += `<div><span style="font-size:20px;font-weight:bold">${calc.length}</span><br>CARTÕES</div></div><div style="background:#d1fae5;padding:8px;border-radius:6px;font-size:12px;">🎲 Sorteados: ${numeros.join(' - ')}${dataSorteio?`<br>📅 Data: ${new Date(dataSorteio).toLocaleDateString('pt-BR')}`:''}</div><button id="btnWhatsApp" class="btn-whatsapp" style="margin-top:12px;background:#25D366;width:100%;padding:10px;">📱 COMPARTILHAR NO WHATSAPP</button></div>`;
     
     const porBolao = {};
     calc.forEach(r => { const b = r.bolao || 'Sem Bolão'; if (!porBolao[b]) porBolao[b] = []; porBolao[b].push(r); });
     for (const [bolao, lista] of Object.entries(porBolao)) {
-        html += `<div style="background:white;border-radius:10px;padding:20px;margin-bottom:20px;border:1px solid #e2e8f0"><h4 style="color:#3b82f6">🎯 ${bolao}</h4>`;
+        html += `<div style="background:white;border-radius:10px;padding:15px;margin-bottom:15px;border:1px solid #e2e8f0"><h4 style="color:#3b82f6;font-size:14px;">🎯 ${bolao}</h4>`;
         lista.forEach(c => {
-            let cor;
-            if (loteriaAtual === 'mega') cor = (c.acertos >= 6 ? '#f59e0b' : c.acertos === 5 ? '#eab308' : c.acertos === 4 ? '#a855f7' : c.acertos === 3 ? '#3b82f6' : '#cbd5e1');
-            else if (loteriaAtual === 'lotofacil') cor = (c.acertos >= 15 ? '#f59e0b' : c.acertos === 14 ? '#eab308' : c.acertos === 13 ? '#a855f7' : c.acertos === 12 ? '#3b82f6' : '#cbd5e1');
-            else cor = (c.acertos >= 5 ? '#f59e0b' : c.acertos === 4 ? '#eab308' : c.acertos === 3 ? '#a855f7' : '#cbd5e1');
-            html += `<div style="border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:10px"><div style="display:flex;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px"><span>Cartão</span><span style="background:${cor};color:white;padding:2px 10px;border-radius:20px">${c.acertos} acertos</span></div><div style="display:flex;flex-wrap:wrap;gap:4px">${c.numeros.map(n => `<span style="background:${numeros.includes(n)?'#10b981':'#e2e8f0'};color:${numeros.includes(n)?'white':'#333'};padding:4px 8px;border-radius:5px;font-family:monospace;font-size:${loteriaAtual==='mega'?'12px':loteriaAtual==='lotofacil'?'10px':'11px'}">${n.toString().padStart(2,'0')}</span>`).join('')}</div></div>`;
+            let cor = loteriaAtual === 'mega' ? (c.acertos >= 6 ? '#f59e0b' : c.acertos === 5 ? '#eab308' : c.acertos === 4 ? '#a855f7' : c.acertos === 3 ? '#3b82f6' : '#cbd5e1') : (loteriaAtual === 'lotofacil' ? (c.acertos >= 15 ? '#f59e0b' : c.acertos === 14 ? '#eab308' : c.acertos === 13 ? '#a855f7' : c.acertos === 12 ? '#3b82f6' : '#cbd5e1') : (c.acertos >= 5 ? '#f59e0b' : c.acertos === 4 ? '#eab308' : c.acertos === 3 ? '#a855f7' : '#cbd5e1'));
+            html += `<div style="border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin-bottom:8px;"><div style="display:flex;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px;"><span style="font-size:12px;">Cartão</span><span style="background:${cor};color:white;padding:2px 8px;border-radius:20px;font-size:11px;">${c.acertos} acertos</span></div><div style="display:flex;flex-wrap:wrap;gap:3px;">${c.numeros.map(n => `<span style="background:${numeros.includes(n)?'#10b981':'#e2e8f0'};color:${numeros.includes(n)?'white':'#333'};padding:3px 6px;border-radius:4px;font-family:monospace;font-size:10px;">${n.toString().padStart(2,'0')}</span>`).join('')}</div></div>`;
         });
         html += `</div>`;
     }
@@ -460,7 +522,6 @@ async function verificarNovosResultados() {
             }
         }
         ultimoEstadoQuina = novosQuina;
-        
         atualizarStats();
     } catch(e) { console.log('Erro:', e); }
 }
@@ -469,34 +530,22 @@ let intervalo, intervaloNotif;
 function iniciarAutoAtualizacao() { if (intervalo) clearInterval(intervalo); intervalo = setInterval(() => carregarDados(), 60000); }
 function iniciarMonitoramento() { if (intervaloNotif) clearInterval(intervaloNotif); intervaloNotif = setInterval(() => verificarNovosResultados(), 30000); }
 
-const animStyle = document.createElement('style');
-animStyle.textContent = `@keyframes pulse{0%{transform:scale(1);background:#3b82f6}50%{transform:scale(1.05);background:#f59e0b}100%{transform:scale(1);background:#3b82f6}}`;
-document.head.appendChild(animStyle);
-
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('📄 Inicializando...');
     await new Promise(r => setTimeout(r, 500));
     await carregarDados();
+    await carregarBolaoAtivo();
     iniciarAutoAtualizacao();
-    iniciarTimer();
     iniciarMonitoramento();
+    iniciarTimer();
+    
     const btnMega = document.getElementById('btnMegaSena');
     const btnLoto = document.getElementById('btnLotofacil');
     const btnQuina = document.getElementById('btnQuina');
     const selCon = document.getElementById('concursoSelect');
-    const btnFechar = document.getElementById('btnFechar');
-    if (btnFechar) {
-        btnFechar.addEventListener('click', () => {
-            if (confirm('Deseja fechar o aplicativo?')) {
-                window.close();
-                // Fallback para alguns navegadores
-                if (window.close === undefined) {
-                    alert('Feche esta aba manualmente no navegador.');
-                }
-            }
-        });
-    }
     const btnConf = document.getElementById('btnConferir');
+    const btnFechar = document.getElementById('btnFechar');
+    
     if (btnMega) btnMega.addEventListener('click', () => setLoteria('mega'));
     if (btnLoto) btnLoto.addEventListener('click', () => setLoteria('lotofacil'));
     if (btnQuina) btnQuina.addEventListener('click', () => setLoteria('quina'));
@@ -505,93 +554,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnConf.addEventListener('click', conferirResultados);
         btnConf.addEventListener('touchstart', conferirResultados);
     }
+    if (btnFechar) {
+        btnFechar.addEventListener('click', () => {
+            if (confirm('Deseja fechar o aplicativo?')) {
+                window.close();
+                if (window.close === undefined) alert('Feche esta aba manualmente.');
+            }
+        });
+    }
+    
     adicionarBotaoInstalar();
     mostrarCartoesDoConcurso();
     showToast('🎲 Sistema Bolões Aleatórios carregado!', 'success');
 });
-function getProximoSorteio(loteria) {
-    const agora = new Date();
-    const dia = agora.getDay(); // 0=Domingo, 1=Segunda, 2=Terça, 3=Quarta, 4=Quinta, 5=Sexta, 6=Sábado
-    const hora = agora.getHours();
-    const minutos = agora.getMinutes();
-    const segundos = agora.getSeconds();
-    
-    let diasParaSorteio = 0;
-    let nomeDia = '';
-    
-    if (loteria === 'mega') {
-        // Mega-Sena: Quarta (3) e Sábado (6)
-        if (dia === 3 && hora < 20) diasParaSorteio = 0;
-        else if (dia === 6 && hora < 20) diasParaSorteio = 0;
-        else if (dia < 3) diasParaSorteio = 3 - dia;
-        else if (dia < 6) diasParaSorteio = 6 - dia;
-        else diasParaSorteio = (3 + 7) - dia;
-        nomeDia = diasParaSorteio === 0 ? 'hoje' : (diasParaSorteio === 1 ? 'amanhã' : `em ${diasParaSorteio} dias`);
-    } else if (loteria === 'lotofacil') {
-        // Lotofácil: Segunda a Sábado
-        if (dia >= 1 && dia <= 6 && hora < 20) diasParaSorteio = 0;
-        else if (dia === 0) diasParaSorteio = 1;
-        else if (dia === 6 && hora >= 20) diasParaSorteio = 1;
-        else if (dia < 6) diasParaSorteio = 1;
-        else diasParaSorteio = 1;
-        nomeDia = diasParaSorteio === 0 ? 'hoje' : (diasParaSorteio === 1 ? 'amanhã' : `em ${diasParaSorteio} dias`);
-    } else if (loteria === 'quina') {
-        // Quina: Segunda a Sábado
-        if (dia >= 1 && dia <= 6 && hora < 20) diasParaSorteio = 0;
-        else if (dia === 0) diasParaSorteio = 1;
-        else if (dia === 6 && hora >= 20) diasParaSorteio = 1;
-        else diasParaSorteio = 1;
-        nomeDia = diasParaSorteio === 0 ? 'hoje' : (diasParaSorteio === 1 ? 'amanhã' : `em ${diasParaSorteio} dias`);
-    }
-    
-    return { dias: diasParaSorteio, nomeDia };
-}
-
-function atualizarTimer() {
-    const { dias, nomeDia } = getProximoSorteio(loteriaAtual);
-    const agora = new Date();
-    const hora = agora.getHours();
-    const minutos = agora.getMinutes();
-    const segundos = agora.getSeconds();
-    
-    let horasRestantes = 0;
-    let minutosRestantes = 0;
-    let segundosRestantes = 0;
-    
-    if (dias === 0) {
-        if (hora < 20) {
-            horasRestantes = 19 - hora;
-            minutosRestantes = 59 - minutos;
-            segundosRestantes = 59 - segundos;
-        } else {
-            // Já passou do horário, mostrar próximo dia
-            horasRestantes = 24 - hora + 19;
-            minutosRestantes = 59 - minutos;
-            segundosRestantes = 59 - segundos;
-        }
-    } else {
-        const totalHoras = (dias * 24) + (19 - hora);
-        horasRestantes = totalHoras;
-        minutosRestantes = 59 - minutos;
-        segundosRestantes = 59 - segundos;
-    }
-    
-    let timerText = '';
-    if (horasRestantes > 0) timerText += `${horasRestantes}h `;
-    if (minutosRestantes > 0 || horasRestantes > 0) timerText += `${minutosRestantes}m `;
-    timerText += `${segundosRestantes}s`;
-    
-    let loteriaNome = loteriaAtual === 'mega' ? 'MEGA-SENA' : (loteriaAtual === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA');
-    document.getElementById('timerDisplay').innerHTML = `⏰ ${timerText}`;
-    document.getElementById('proximoDia').innerHTML = `${loteriaNome} - Próximo sorteio ${nomeDia} às 20h`;
-}
-
-// Iniciar timer (atualiza a cada segundo)
-let timerInterval;
-function iniciarTimer() {
-    if (timerInterval) clearInterval(timerInterval);
-    atualizarTimer();
-    timerInterval = setInterval(atualizarTimer, 1000);
-}
-
-// Chamar iniciarTimer() dentro do DOMContentLoaded e também ao mudar de loteria
