@@ -434,7 +434,7 @@ function compartilharWhatsApp() {
         return;
     }
     const { numeros, dataSorteio, premios } = ultimoResultadoDados;
-    const linha = '────────────────────────';
+    const linha = '────────────────';
     let loteriaNome = loteriaAtual === 'mega' ? 'MEGA-SENA' : (loteriaAtual === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA');
     
     let msg = `*🏆 RESULTADO - ${loteriaNome}* 🎲\n`;
