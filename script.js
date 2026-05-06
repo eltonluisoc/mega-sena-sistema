@@ -654,6 +654,28 @@ let intervalo, intervaloNotif;
 function iniciarAutoAtualizacao() { if (intervalo) clearInterval(intervalo); intervalo = setInterval(() => carregarDados(), 60000); }
 function iniciarMonitoramento() { if (intervaloNotif) clearInterval(intervaloNotif); intervaloNotif = setInterval(() => verificarNovosResultados(), 30000); }
 
+// ============ COMPARTILHAR SITE ============
+function compartilharSite() {
+    const url = window.location.href;
+    const mensagem = `🎲 *BOLÕES ALEATÓRIOS* 🎲\n\nVenha conferir os resultados dos nossos bolões!\n\n🔗 ${url}`;
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const whatsappUrl = isMobile 
+        ? `https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`
+        : `https://web.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
+    window.open(whatsappUrl, '_blank');
+    showToast('📱 Abrindo WhatsApp para compartilhar...', 'info');
+}
+
+// ============ ENVIAR SUGESTÃO ============
+function enviarSugestao() {
+    // Substitua o número abaixo pelo seu WhatsApp (com DDD, sem espaços)
+    const numeroAdmin = '5561998507770';  // <--- COLOQUE SEU NÚMERO AQUI!
+    const mensagem = `💡 *SUGESTÃO PARA O SITE* 💡\n\nOlá! Gostaria de sugerir: `;
+    const url = `https://wa.me/${numeroAdmin}?text=${encodeURIComponent(mensagem)}`;
+    window.open(url, '_blank');
+    showToast('📱 Abrindo WhatsApp para enviar sugestão...', 'info');
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('📄 Inicializando...');
     await new Promise(r => setTimeout(r, 500));
@@ -668,6 +690,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnQuina = document.getElementById('btnQuina');
     const selCon = document.getElementById('concursoSelect');
     const btnConf = document.getElementById('btnConferir');
+    const btnCompartilhar = document.getElementById('btnCompartilhar');
+    const btnSugestao = document.getElementById('btnSugestao');
         
     if (btnMega) btnMega.addEventListener('click', () => setLoteria('mega'));
     if (btnLoto) btnLoto.addEventListener('click', () => setLoteria('lotofacil'));
@@ -677,6 +701,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnConf.addEventListener('click', conferirResultados);
         btnConf.addEventListener('touchstart', conferirResultados);
     }
+    if (btnCompartilhar) btnCompartilhar.addEventListener('click', compartilharSite);
+    if (btnSugestao) btnSugestao.addEventListener('click', enviarSugestao);
     
     
     adicionarBotaoInstalar();
