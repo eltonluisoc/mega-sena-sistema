@@ -129,27 +129,26 @@ function iniciarTimer() {
 async function carregarBolaoAtivo() {
     const card = document.getElementById('cardBolaoAtivo');
     const container = document.getElementById('bolaoContainer');
+    const loading = document.getElementById('loadingBolao');
     
     if (!card || !container) return;
-     // MOSTRA O LOADING
+    
     if (loading) loading.style.display = 'block';
     container.innerHTML = '';
+    
     try {
-        // Buscar apenas os IDs selecionados (já é rápido)
         const configDoc = await db.collection('config_boloes').doc('ativos').get();
         const idsSelecionados = configDoc.exists ? configDoc.data().ids || [] : [];
         
         if (idsSelecionados.length === 0) {
             card.style.display = 'none';
+            if (loading) loading.style.display = 'none';
             return;
         }
         
-        // Buscar apenas os bolões selecionados (não todos)
+        // Buscar bolões selecionados
         const boloes = [];
-        const limite = 5; // Limitar a 5 bolões por vez
-        
-        for (let i = 0; i < Math.min(idsSelecionados.length, limite); i++) {
-            const id = idsSelecionados[i];
+        for (const id of idsSelecionados) {
             try {
                 const doc = await db.collection('participantes').doc(id).get();
                 if (doc.exists) {
@@ -160,13 +159,16 @@ async function carregarBolaoAtivo() {
         
         if (boloes.length === 0) {
             card.style.display = 'none';
+            if (loading) loading.style.display = 'none';
             return;
         }
         
         card.style.display = 'block';
         
-        let html = '';
-        for (const dados of boloes) {
+        // Para cada bolão, criar um card expansível
+        let globalHtml = '';
+        for (let idx = 0; idx < boloes.length; idx++) {
+            const dados = boloes[idx];
             const participantes = dados.participantes || [];
             const totalQuitados = participantes.filter(p => p.situacao === 'quitado').length;
             const totalAndamento = participantes.filter(p => p.situacao === 'pendente').length;
@@ -175,8 +177,10 @@ async function carregarBolaoAtivo() {
             const statusText = statusBolao === 'aberto' ? '🟢 INSCRIÇÕES ABERTAS' : '⚫ INSCRIÇÕES ENCERRADAS';
             const statusCor = statusBolao === 'aberto' ? '#10b981' : '#64748b';
             
-            html += `
-                <div style="margin-bottom: 20px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;">
+            const bolaoId = `bolao_especial_${idx}_${dados.id}`;
+            
+            globalHtml += `
+                <div id="${bolaoId}" style="margin-bottom: 20px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;">
                     <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
                         <strong style="font-size: 16px;">🎯 ${dados.titulo || 'Bolão Especial'}</strong>
                         <span style="background: ${statusCor}; color: white; padding: 2px 10px; border-radius: 20px; font-size: 10px;">${statusText}</span>
@@ -189,15 +193,55 @@ async function carregarBolaoAtivo() {
                         <span style="color: #10b981;">✅ Quitados: ${totalQuitados}</span>
                         <span style="color: #f59e0b;">🔄 Em andamento: ${totalAndamento}</span>
                     </div>
+                    <div id="participantes_${bolaoId}" style="display: none; margin-top: 15px; border-top: 1px solid #e2e8f0; padding-top: 10px;"></div>
+                    <button class="btn-ver-lista" data-id="${bolaoId}" data-nome="${dados.titulo}" style="margin-top: 10px; background: #3b82f6; width: auto; padding: 6px 15px;">👁 VER LISTA COMPLETA</button>
                 </div>
             `;
         }
         
-        container.innerHTML = html;
+        container.innerHTML = globalHtml;
+        
+        // Adicionar evento para cada botão "VER LISTA COMPLETA"
+        document.querySelectorAll('.btn-ver-lista').forEach(btn => {
+            btn.onclick = async () => {
+                const bolaoId = btn.dataset.id;
+                const participantesDiv = document.getElementById(`participantes_${bolaoId}`);
+                const btnTexto = btn;
+                
+                if (participantesDiv.style.display === 'none') {
+                    // Buscar o bolão novamente para pegar os participantes
+                    const idOriginal = bolaoId.split('_')[2];
+                    const doc = await db.collection('participantes').doc(idOriginal).get();
+                    const dados = doc.data();
+                    const participantes = dados.participantes || [];
+                    
+                    let participantesHtml = '<div style="margin-top: 10px;"><strong>📋 PARTICIPANTES</strong></div>';
+                    participantes.forEach(p => {
+                        const statusClass = p.situacao === 'quitado' ? 'status-quitado' : 'status-pendente';
+                        const statusText = p.situacao === 'quitado' ? '✅ QUITADO' : '🔄 EM ANDAMENTO';
+                        participantesHtml += `
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
+                                <span>${p.nome}</span>
+                                <span class="${statusClass}" style="padding: 2px 8px; border-radius: 20px; font-size: 11px;">${statusText}</span>
+                            </div>
+                        `;
+                    });
+                    
+                    participantesDiv.innerHTML = participantesHtml;
+                    participantesDiv.style.display = 'block';
+                    btn.innerHTML = '🙈 OCULTAR LISTA';
+                } else {
+                    participantesDiv.style.display = 'none';
+                    btn.innerHTML = '👁 VER LISTA COMPLETA';
+                }
+            };
+        });
         
     } catch (error) {
         console.error('❌ Erro:', error);
         card.style.display = 'none';
+    } finally {
+        if (loading) loading.style.display = 'none';
     }
 }
 // ============ SETAR LOTERIA ============
