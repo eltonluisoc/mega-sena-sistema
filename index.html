@@ -24,14 +24,102 @@
         .version { font-size: 11px; color: #94a3b8; margin-left: 8px; }
         .stats { font-size: 11px; background: rgba(255,255,255,0.1); padding: 5px 12px; border-radius: 20px; }
         
-        .loteria-selector { display: flex; justify-content: center; gap: 15px; margin: 15px 0; flex-wrap: wrap; }
-        .loteria-btn { background: #334155; color: white; border: none; padding: 10px 20px; border-radius: 30px; font-size: 14px; font-weight: bold; cursor: pointer; transition: all 0.3s; width: auto; min-width: 110px; }
-        .loteria-btn.active { box-shadow: 0 0 15px rgba(139,92,246,0.5); }
-        .loteria-btn.mega.active { background: #8b5cf6; }
-        .loteria-btn.lotofacil.active { background: #10b981; }
-        .loteria-btn.quina.active { background: #ef4444; }
-        .loteria-btn.quina { background: #b91c1c; }
-        .loteria-btn:hover { transform: translateY(-2px); filter: brightness(1.1); }
+        .loteria-selector {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin: 20px 0;
+    flex-wrap: wrap;
+}
+
+.loteria-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: #f1f5f9;
+    color: #1e293b;
+    border: 2px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 15px 25px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    width: 130px;
+    font-family: inherit;
+}
+
+.loteria-btn .loteria-icon {
+    font-size: 32px;
+}
+
+.loteria-btn .loteria-nome {
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.loteria-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* Estilo do botão ativo */
+.loteria-btn.active {
+    background: #8b5cf6;
+    border-color: #8b5cf6;
+    color: white;
+    box-shadow: 0 4px 15px rgba(139,92,246,0.4);
+}
+
+.loteria-btn.mega.active {
+    background: #8b5cf6;
+    border-color: #8b5cf6;
+}
+
+.loteria-btn.lotofacil.active {
+    background: #10b981;
+    border-color: #10b981;
+}
+
+.loteria-btn.quina.active {
+    background: #ef4444;
+    border-color: #ef4444;
+}
+
+/* Dica visual de que é clicável */
+.loteria-btn {
+    cursor: pointer;
+}
+
+/* Tooltip sutil ao passar o mouse */
+.loteria-btn::after {
+    content: "▼ clique para selecionar";
+    display: block;
+    font-size: 9px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    margin-top: 4px;
+}
+
+.loteria-btn:hover::after {
+    opacity: 0.6;
+}
+
+@media (max-width: 768px) {
+    .loteria-btn {
+        width: 100px;
+        padding: 10px 15px;
+    }
+    .loteria-btn .loteria-icon {
+        font-size: 24px;
+    }
+    .loteria-btn .loteria-nome {
+        font-size: 12px;
+    }
+    .loteria-btn::after {
+        display: none;
+    }
+}
         
         .container { max-width: 1200px; margin: 20px auto; padding: 0 15px; }
         .card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-bottom: 20px; }
@@ -96,9 +184,18 @@
     </div>
 
     <div class="loteria-selector">
-        <button id="btnMegaSena" class="loteria-btn mega active">🎯 MEGA-SENA</button>
-        <button id="btnLotofacil" class="loteria-btn lotofacil">🌟 LOTOFÁCIL</button>
-        <button id="btnQuina" class="loteria-btn quina">🎯 QUINA</button>
+    <button id="btnMegaSena" class="loteria-btn mega active">
+        <span class="loteria-icon">🎯</span>
+        <span class="loteria-nome">MEGA-SENA</span>
+    </button>
+    <button id="btnLotofacil" class="loteria-btn lotofacil">
+        <span class="loteria-icon">🌟</span>
+        <span class="loteria-nome">LOTOFÁCIL</span>
+    </button>
+    <button id="btnQuina" class="loteria-btn quina">
+        <span class="loteria-icon">🎯</span>
+        <span class="loteria-nome">QUINA</span>
+    </button>
     </div>
 
     <div class="container">
