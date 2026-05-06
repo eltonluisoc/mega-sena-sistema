@@ -212,7 +212,7 @@ async function carregarBolaoAtivo() {
                                 <span class="participante-nome">${p.nome}</span>
                                 <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
                                     <span class="participante-status ${statusClass}">${statusText}</span>
-                                    <span class="participante-valor">💰 R$ ${p.valorPago || 0},00</span>
+                                    
                                 </div>
                             </div>
                         `;
