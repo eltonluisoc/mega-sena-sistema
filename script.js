@@ -382,13 +382,6 @@ function mostrarCartoesDoConcurso() {
     const container = document.getElementById('cartoesConcurso');
     if (!container) return;
     
-    // Atualizar título do card com o número do concurso
-    const headerCartoes = document.getElementById('cardHeaderCartoes');
-    if (headerCartoes && concurso) {
-        const loteriaNome = loteriaAtual === 'mega' ? 'MEGA' : (loteriaAtual === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA');
-        headerCartoes.innerHTML = `📋 CARTÕES DO CONCURSO ${concurso} - ${loteriaNome}`;
-    }
-    
     if (!concurso) {
         container.innerHTML = '<div class="empty-state">Selecione um concurso</div>';
         return;
@@ -693,7 +686,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     iniciarAutoAtualizacao();
     iniciarMonitoramento();
     //iniciarTimer();
-    iniciarInfoSorteio();
+    //iniciarInfoSorteio();
     
     const btnMega = document.getElementById('btnMegaSena');
     const btnLoto = document.getElementById('btnLotofacil');
