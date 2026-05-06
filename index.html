@@ -199,7 +199,15 @@
     </div>
 
     <div class="container">
-    <!-- Card: Conferência -->
+    <!-- Card: Cartões do Concurso (1º) -->
+    <div class="card">
+        <div class="card-header bg-blue" id="cardHeaderCartoes">📋 CARTÕES DO CONCURSO - MEGA-SENA</div>
+        <div class="card-body" id="cartoesConcurso">
+            <div class="empty-state">Selecione um concurso para ver os cartões</div>
+        </div>
+    </div>
+
+    <!-- Card: Conferência (2º) -->
     <div class="card">
         <div class="card-header bg-purple" id="cardHeaderConferencia">🔍 CONFERIR RESULTADOS - MEGA-SENA</div>
         <div class="card-body">
@@ -209,27 +217,15 @@
         </div>
     </div>
 
-    <!-- Card: Cartões do Concurso -->
-    <div class="card">
-        <div class="card-header bg-blue" id="cardHeaderCartoes">📋 CARTÕES DO CONCURSO - MEGA-SENA</div>
-        <div class="card-body" id="cartoesConcurso"><div class="empty-state">Selecione um concurso para ver os cartões</div></div>
-    </div>
-
-    <!-- Card: Resultados da Conferência -->
+    <!-- Card: Resultados da Conferência (3º) -->
     <div class="card">
         <div class="card-header bg-green" id="cardHeaderResultados">📊 RESULTADOS DA CONFERÊNCIA</div>
-        <div class="card-body" id="resultadosArea"><div class="empty-state">🔍 Selecione um concurso e clique em "Conferir Resultados"</div></div>
-    </div>
-
-    <!-- Card: Bolões Especiais (Expansível) -->
-    <div class="card" id="cardBolaoAtivo" style="display: none;">
-        <div class="card-header" style="background: #f59e0b;">⭐ BOLÕES ESPECIAIS</div>
-        <div class="card-body" id="bolaoContainer">
-            <div class="empty-state">Carregando...</div>
+        <div class="card-body" id="resultadosArea">
+            <div class="empty-state">🔍 Clique em "Conferir Resultados" para ver os acertos</div>
         </div>
     </div>
 
-    <!-- Card: Próximo Sorteio (ÚLTIMO) -->
+    <!-- Card: Próximo Sorteio -->
     <div class="card" id="cardTimer">
         <div class="card-header" style="background: #f59e0b;">⏱️ PRÓXIMO SORTEIO</div>
         <div class="card-body">
@@ -237,7 +233,15 @@
             <div style="text-align: center; font-size: 12px; color: #666; margin-top: 8px;" id="proximoDia">MEGA-SENA</div>
         </div>
     </div>
-</div>
+
+    <!-- Card: Bolões Especiais -->
+    <div class="card" id="cardBolaoAtivo" style="display: none;">
+        <div class="card-header" style="background: #f59e0b;">⭐ BOLÕES ESPECIAIS</div>
+        <div class="card-body" id="bolaoContainer">
+            <div class="empty-state">Carregando...</div>
+        </div>
+    </div>
+    </div>
 
     <div class="footer">
         <div>© 2026 Bolões Aleatórios - Versão 2.0</div>
