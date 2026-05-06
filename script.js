@@ -434,31 +434,75 @@ function compartilharWhatsApp() {
         return;
     }
     const { numeros, dataSorteio, premios } = ultimoResultadoDados;
-    const linha = '────────────────────────────────────';
-    let msg = `*RESULTADO: BOLÕES ALEATÓRIOS* 🎲\n${linha}\n📌 Concurso: ${ultimoResultadoConcurso}\n🗓️ Dezenas Sorteadas:\n${numeros.join(' — ')}\n${linha}\n🏆 DESEMPENHO DO GRUPO:\n`;
+    const linha = '────────────────────────';
+    let loteriaNome = loteriaAtual === 'mega' ? 'MEGA-SENA' : (loteriaAtual === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA');
+    
+    let msg = `*🏆 RESULTADO - ${loteriaNome}* 🎲\n`;
+    msg += `${linha}\n`;
+    msg += `📌 Concurso: ${ultimoResultadoConcurso}\n`;
+    msg += `🎯 Números Sorteados:\n`;
+    msg += `   ${numeros.join(' - ')}\n`;
+    if (dataSorteio) msg += `📅 Sorteio: ${new Date(dataSorteio).toLocaleDateString('pt-BR')}\n`;
+    msg += `${linha}\n`;
+    msg += `📊 DESEMPENHO DO GRUPO:\n`;
     
     if (loteriaAtual === 'mega') {
-        msg += `✨ Sena: ${premios.sena}\n✨ Quina: ${premios.quina}\n✨ Quadra: ${premios.quadra}\n✅ Terno: ${premios.terno}\n✅ Duque: ${premios.duque}\n`;
-        if (premios.terno > 0 || premios.duque > 0) msg += `⚠️ O terno mostra que estamos chegando perto!\n`;
-        else if (premios.quadra > 0) msg += `⚠️ Quadra! Estamos no caminho certo!\n`;
-        else if (premios.quina > 0) msg += `⭐ Quina! Quase lá!\n`;
-        else if (premios.sena > 0) msg += `🎉🎉🎉 SENA! PARABÉNS! 🎉🎉🎉\n`;
-        else msg += `💪 Vamos tentar novamente no próximo concurso.\n`;
+        msg += `   ✨ Sena: ${premios.sena}\n`;
+        msg += `   ✨ Quina: ${premios.quina}\n`;
+        msg += `   ✨ Quadra: ${premios.quadra}\n`;
+        msg += `   ✅ Terno: ${premios.terno}\n`;
+        msg += `   ✅ Duque: ${premios.duque}\n\n`;
+        
+        if (premios.terno > 0 || premios.duque > 0) {
+            msg += `⚠️ Terno e Duque mostram que estamos chegando perto!\n`;
+        } else if (premios.quadra > 0) {
+            msg += `⚠️ Quadra! Estamos no caminho certo!\n`;
+        } else if (premios.quina > 0) {
+            msg += `⭐ Quina! Quase lá!\n`;
+        } else if (premios.sena > 0) {
+            msg += `🎉🎉🎉 SENA! PARABÉNS! 🎉🎉🎉\n`;
+        } else {
+            msg += `💪 Vamos tentar novamente no próximo concurso.\n`;
+        }
     } else if (loteriaAtual === 'lotofacil') {
-        msg += `✨ 15 Pontos: ${premios.pontos15}\n✨ 14 Pontos: ${premios.pontos14}\n✨ 13 Pontos: ${premios.pontos13}\n✅ 12 Pontos: ${premios.pontos12}\n✅ 11 Pontos: ${premios.pontos11}\n`;
-        if (premios.pontos12 > 0 || premios.pontos11 > 0) msg += `⚠️ Estamos chegando perto!\n`;
-        else if (premios.pontos13 > 0) msg += `⚠️ 13 pontos! Quase lá!\n`;
-        else if (premios.pontos14 > 0) msg += `⭐ 14 pontos! Muito perto!\n`;
-        else if (premios.pontos15 > 0) msg += `🎉🎉🎉 15 PONTOS! PARABÉNS! 🎉🎉🎉\n`;
-        else msg += `💪 Vamos tentar novamente no próximo concurso.\n`;
-    } else {
-        msg += `✨ Quina: ${premios.quina}\n✨ Quadra: ${premios.quadra}\n✅ Terno: ${premios.terno}\n✅ Duque: ${premios.duque}\n`;
-        if (premios.terno > 0 || premios.duque > 0) msg += `⚠️ Estamos chegando perto!\n`;
-        else if (premios.quadra > 0) msg += `⚠️ Quadra! Quase lá!\n`;
-        else if (premios.quina > 0) msg += `🎉🎉🎉 QUINA! PARABÉNS! 🎉🎉🎉\n`;
-        else msg += `💪 Vamos tentar novamente no próximo concurso.\n`;
+        msg += `   ✨ 15 Pontos: ${premios.pontos15}\n`;
+        msg += `   ✨ 14 Pontos: ${premios.pontos14}\n`;
+        msg += `   ✨ 13 Pontos: ${premios.pontos13}\n`;
+        msg += `   ✅ 12 Pontos: ${premios.pontos12}\n`;
+        msg += `   ✅ 11 Pontos: ${premios.pontos11}\n\n`;
+        
+        if (premios.pontos12 > 0 || premios.pontos11 > 0) {
+            msg += `⚠️ Estamos chegando perto!\n`;
+        } else if (premios.pontos13 > 0) {
+            msg += `⚠️ 13 pontos! Quase lá!\n`;
+        } else if (premios.pontos14 > 0) {
+            msg += `⭐ 14 pontos! Muito perto!\n`;
+        } else if (premios.pontos15 > 0) {
+            msg += `🎉🎉🎉 15 PONTOS! PARABÉNS! 🎉🎉🎉\n`;
+        } else {
+            msg += `💪 Vamos tentar novamente no próximo concurso.\n`;
+        }
+    } else if (loteriaAtual === 'quina') {
+        msg += `   ✨ Quina: ${premios.quina}\n`;
+        msg += `   ✨ Quadra: ${premios.quadra}\n`;
+        msg += `   ✅ Terno: ${premios.terno}\n`;
+        msg += `   ✅ Duque: ${premios.duque}\n\n`;
+        
+        if (premios.terno > 0 || premios.duque > 0) {
+            msg += `⚠️ Estamos chegando perto!\n`;
+        } else if (premios.quadra > 0) {
+            msg += `⚠️ Quadra! Quase lá!\n`;
+        } else if (premios.quina > 0) {
+            msg += `🎉🎉🎉 QUINA! PARABÉNS! 🎉🎉🎉\n`;
+        } else {
+            msg += `💪 Vamos tentar novamente no próximo concurso.\n`;
+        }
     }
-    msg += `${linha}\n🔗 Confira: ${window.location.href}`;
+    
+    msg += `${linha}\n`;
+    msg += `🔗 Acesse o resultado completo:\n`;
+    msg += `${window.location.href}`;
+    
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const whatsappUrl = isMobile ? `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}` : `https://web.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
     window.open(whatsappUrl, '_blank');
