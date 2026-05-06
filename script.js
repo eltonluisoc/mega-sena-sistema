@@ -34,25 +34,36 @@ function showToast(message, type = 'info') {
 function mostrarPopupInstalar() {
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     const isAndroid = /Android/.test(navigator.userAgent);
-    let titulo = '📱 SALVAR COMO APP NO CELULAR';
+    let titulo = '📱 SALVAR COMO APP';
     let mensagem = '';
+    
     if (isIOS) {
-        mensagem = '📲 No iPhone/iPad:\n\n1. Toque no botão "Compartilhar" 📤\n2. Role a tela para baixo\n3. Toque em "Adicionar à Tela de Início"\n4. Confirme\n\nO app aparecerá na tela inicial!';
+        mensagem = '📲 No iPhone/iPad:\n\n1. Toque no botão "Compartilhar" 📤 (ícone de quadrado com seta)\n2. Role a tela para baixo\n3. Toque em "Adicionar à Tela de Início"\n4. Confirme o nome e toque em "Adicionar"\n\nO app aparecerá na tela inicial como um aplicativo normal!';
     } else if (isAndroid) {
-        mensagem = '📲 No Android (Chrome):\n\n1. Toque nos 3 pontinhos ⋮\n2. Toque em "Instalar aplicativo"\n3. Confirme\n\nO app aparecerá na tela inicial!';
+        mensagem = '📲 No Android (Chrome):\n\n1. Toque nos 3 pontinhos ⋮ no canto superior direito\n2. Toque em "Instalar aplicativo"\n3. Confirme a instalação\n\nO app aparecerá na tela inicial!';
     } else {
-        mensagem = '💻 No computador, acesso normal.\nNo celular: iPhone → Compartilhar → Adicionar à Tela de Início\nAndroid → ⋮ → Instalar aplicativo';
+        mensagem = '💻 No computador, você pode:\n\n1. Acessar o site normalmente\n2. Ou usar o PWA no celular escaneando o QR Code\n\nNo celular, os passos são:\n• iPhone: Compartilhar → Adicionar à Tela de Início\n• Android: ⋮ → Instalar aplicativo';
     }
+    
     let modal = document.getElementById('modalInstalar');
     if (modal) modal.remove();
+    
     modal = document.createElement('div');
     modal.id = 'modalInstalar';
     modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; display: flex; justify-content: center; align-items: center;';
+    
     const modalContent = document.createElement('div');
-    modalContent.style.cssText = 'background: white; border-radius: 20px; max-width: 350px; width: 90%; padding: 25px; text-align: center;';
-    modalContent.innerHTML = `<div style="font-size:24px">📱</div><div style="font-size:20px;font-weight:bold;margin:10px 0">${titulo}</div><div style="white-space:pre-line;text-align:left;font-size:14px;margin:15px 0">${mensagem}</div><button id="fecharModalInstalar" style="background:#3b82f6;color:white;border:none;padding:12px;border-radius:30px;width:100%;font-weight:bold">Fechar</button>`;
+    modalContent.style.cssText = 'background: white; border-radius: 20px; max-width: 350px; width: 90%; padding: 25px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.3);';
+    modalContent.innerHTML = `
+        <div style="font-size: 48px; margin-bottom: 10px;">📱</div>
+        <div style="font-size: 20px; font-weight: bold; margin-bottom: 10px;">${titulo}</div>
+        <div style="white-space: pre-line; text-align: left; font-size: 14px; line-height: 1.6; margin: 15px 0;">${mensagem}</div>
+        <button id="fecharModalInstalar" style="background: #3b82f6; color: white; border: none; padding: 12px 20px; border-radius: 30px; font-size: 14px; cursor: pointer; width: 100%; font-weight: bold;">Fechar</button>
+    `;
+    
     modal.appendChild(modalContent);
     document.body.appendChild(modal);
+    
     document.getElementById('fecharModalInstalar').onclick = () => modal.remove();
     modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 }
@@ -284,12 +295,17 @@ function setLoteria(loteria) {
     const sel = document.getElementById('concursoSelect');
     if (sel && sel.value) mostrarCartoesDoConcurso();
     atualizarTimer();
-    showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA-SENA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
+    //showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA-SENA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
 }
 
 // ============ CARREGAR DADOS ============
 async function carregarDados() {
     console.log('🔄 Carregando dados...');
+    
+    // Mostrar loading
+    const loadingDiv = document.getElementById('loadingIndicator');
+    if (loadingDiv) loadingDiv.style.display = 'block';
+    
     try {
         const snap = await db.collection('cartoes').get();
         cartoes = [];
@@ -329,12 +345,16 @@ async function carregarDados() {
         atualizarSelectConcursos();
         atualizarStats();
         selecionarUltimoConcurso();
-        showToast(`✅ ${cartoes.length} cartões carregados`, 'success');
+        // showToast(`✅ ${cartoes.length} cartões carregados`, 'success'); // REMOVIDO
+        
     } catch (error) {
         console.error('Erro:', error);
         showToast('❌ Erro ao carregar dados', 'error');
         const cont = document.getElementById('cartoesConcurso');
         if (cont) cont.innerHTML = '<div class="empty-state">❌ Erro ao conectar.</div>';
+    } finally {
+        // Esconder loading
+        if (loadingDiv) loadingDiv.style.display = 'none';
     }
 }
 
@@ -401,7 +421,7 @@ function mostrarCartoesDoConcurso() {
         html += `<div style="margin-bottom:20px"><div style="background:#3b82f6;color:white;padding:6px 10px;border-radius:6px;margin-bottom:8px;font-size:13px;">🎯 ${bolao}</div><div style="display:flex;flex-wrap:wrap;gap:8px;">`;
         lista.forEach(cartao => {
             const numsHtml = cartao.numeros.map(n => `<span style="background:#e2e8f0;color:#333;padding:3px 7px;border-radius:5px;font-family:monospace;font-size:11px;">${n.toString().padStart(2,'0')}</span>`).join('');
-            html += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px;min-width:180px;"><div style="font-size:10px;color:#64748b;margin-bottom:4px;">Cartão</div><div style="display:flex;flex-wrap:wrap;gap:3px;">${numsHtml}</div></div>`;
+            html += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px;min-width:180px;"><div style="font-size:10px;color:#64748b;margin-bottom:4px;">Cartão - Concurso ${concurso}</div><div style="display:flex;flex-wrap:wrap;gap:3px;">${numsHtml}</div></div>`;
         });
         html += `</div></div>`;
     }
@@ -508,7 +528,7 @@ function compartilharWhatsApp() {
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const whatsappUrl = isMobile ? `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}` : `https://web.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
     window.open(whatsappUrl, '_blank');
-    showToast('📱 Abrindo WhatsApp...', 'info');
+    //showToast('📱 Abrindo WhatsApp...', 'info');
 }
 
 async function conferirResultados() {
@@ -533,14 +553,14 @@ async function conferirResultados() {
     let numeros = null, dataSorteio = null;
     if (resultados[concurso]) {
         numeros = resultados[concurso];
-        showToast('📋 Usando resultado salvo', 'info');
+        //showToast('📋 Usando resultado salvo', 'info');
     } else {
         showToast('🔍 Buscando online...', 'info');
         const busca = await buscarResultadoInterno(concurso, loteriaAtual);
         if (busca) {
             numeros = busca.numeros;
             dataSorteio = busca.dataSorteio;
-            showToast('✅ Resultado encontrado!', 'success');
+            //showToast('✅ Resultado encontrado!', 'success');
         } else {
             area.innerHTML = `<div class="empty-state">❌ Resultado não encontrado. Digite manualmente no Admin.</div>`;
             showToast('❌ Resultado não encontrado', 'error');
@@ -602,7 +622,7 @@ async function conferirResultados() {
     mostrarCartoesDoConcurso();
     const btn = document.getElementById('btnWhatsApp');
     if (btn) btn.addEventListener('click', compartilharWhatsApp);
-    showToast('🏆 Conferência concluída!', 'success');
+    //showToast('🏆 Conferência concluída!', 'success');
 }
 
 async function verificarNovosResultados() {
@@ -665,7 +685,7 @@ function compartilharSite() {
         ? `https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`
         : `https://web.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
     window.open(whatsappUrl, '_blank');
-    showToast('📱 Abrindo WhatsApp para compartilhar...', 'info');
+    //showToast('📱 Abrindo WhatsApp para compartilhar...', 'info');
 }
 
 // ============ ENVIAR SUGESTÃO ============
@@ -675,7 +695,7 @@ function enviarSugestao() {
     const mensagem = `💡 *SUGESTÃO PARA O SITE* 💡\n\nOlá! Gostaria de sugerir: `;
     const url = `https://wa.me/${numeroAdmin}?text=${encodeURIComponent(mensagem)}`;
     window.open(url, '_blank');
-    showToast('📱 Abrindo WhatsApp para enviar sugestão...', 'info');
+    //showToast('📱 Abrindo WhatsApp para enviar sugestão...', 'info');
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
