@@ -141,7 +141,6 @@ async function carregarBolaoAtivo() {
             return;
         }
         
-        // Buscar TODOS os bolões (sem filtro, sem limite)
         const boloes = [];
         for (const id of idsSelecionados) {
             try {
@@ -165,9 +164,17 @@ async function carregarBolaoAtivo() {
             const totalQuitados = participantes.filter(p => p.situacao === 'quitado').length;
             const totalAndamento = participantes.filter(p => p.situacao === 'pendente').length;
             
+            // Determinar status e cor
+            const statusBolao = dados.status || 'andamento';
+            const statusText = statusBolao === 'aberto' ? '🟢 INSCRIÇÕES ABERTAS' : '⚫ INSCRIÇÕES ENCERRADAS';
+            const statusCor = statusBolao === 'aberto' ? '#10b981' : '#64748b';
+            
             html += `
                 <div style="margin-bottom: 20px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;">
-                    <strong style="font-size: 16px;">🎯 ${dados.titulo || 'Bolão Especial'}</strong>
+                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                        <strong style="font-size: 16px;">🎯 ${dados.titulo || 'Bolão Especial'}</strong>
+                        <span style="background: ${statusCor}; color: white; padding: 2px 10px; border-radius: 20px; font-size: 10px;">${statusText}</span>
+                    </div>
                     <div style="font-size: 12px; margin-top: 5px;">
                         💰 Valor da cota: R$ ${dados.valorPorCota || 0},00
                         ${dados.dataLimite ? `<br>📅 Data limite: ${new Date(dados.dataLimite).toLocaleDateString('pt-BR')}` : ''}
@@ -183,7 +190,7 @@ async function carregarBolaoAtivo() {
         container.innerHTML = html;
         
     } catch (error) {
-        console.error('❌ Erro:', error);
+        console.error('❌ Erro ao carregar bolões:', error);
         card.style.display = 'none';
     }
 }
@@ -199,8 +206,8 @@ function setLoteria(loteria) {
     
     if (loteria === 'mega') {
         if (btnMega) btnMega.classList.add('active');
-        document.getElementById('cardHeaderConferencia').innerHTML = '🔍 CONFERIR RESULTADOS - MEGA-SENA';
-        document.getElementById('cardHeaderCartoes').innerHTML = '📋 CARTÕES DO CONCURSO - MEGA-SENA';
+        document.getElementById('cardHeaderConferencia').innerHTML = '🔍 CONFERIR RESULTADOS - MEGA';
+        document.getElementById('cardHeaderCartoes').innerHTML = '📋 CARTÕES DO CONCURSO - MEGA';
     } else if (loteria === 'lotofacil') {
         if (btnLoto) btnLoto.classList.add('active');
         document.getElementById('cardHeaderConferencia').innerHTML = '🔍 CONFERIR RESULTADOS - LOTOFÁCIL';
@@ -756,4 +763,44 @@ async function carregarBoloesSelecionados() {
         console.error('Erro:', error);
         if (card) card.style.display = 'none';
     }
+}
+function mostrarModalParticipacao(chavePix, titulo, valor) {
+    let modal = document.getElementById('modalParticipacao');
+    if (modal) modal.remove();
+    
+    modal = document.createElement('div');
+    modal.id = 'modalParticipacao';
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; display: flex; justify-content: center; align-items: center;';
+    
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = 'background: white; border-radius: 20px; max-width: 400px; width: 90%; padding: 25px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.3);';
+    modalContent.innerHTML = `
+        <div style="font-size: 24px; margin-bottom: 10px;">📝</div>
+        <div style="font-size: 20px; font-weight: bold; margin-bottom: 15px;">COMO PARTICIPAR</div>
+        <div style="text-align: left; margin-bottom: 20px;">
+            <p><strong>🎯 ${titulo}</strong></p>
+            <p>💰 Valor da cota: R$ ${valor || 0},00</p>
+            <p>💳 Pague via PIX:</p>
+            <div style="background: #f1f5f9; padding: 12px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin: 10px 0;">
+                <code style="font-size: 14px;">${chavePix}</code>
+                <button id="copiarPix" style="background: #3b82f6; color: white; border: none; padding: 5px 12px; border-radius: 6px; cursor: pointer; width: auto;">📋 COPIAR</button>
+            </div>
+            <p>📲 Após o pagamento, envie o comprovante para:</p>
+        </div>
+        <button id="falarWhatsApp" style="background: #25D366; color: white; border: none; padding: 12px 20px; border-radius: 30px; font-size: 16px; cursor: pointer; width: 100%; margin-bottom: 10px;">📲 FALAR COM ADMIN</button>
+        <button id="fecharModal" style="background: #64748b; color: white; border: none; padding: 10px 20px; border-radius: 30px; font-size: 14px; cursor: pointer; width: 100%;">Fechar</button>
+    `;
+    
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+    
+    document.getElementById('fecharModal').onclick = () => modal.remove();
+    document.getElementById('copiarPix').onclick = () => {
+        navigator.clipboard.writeText(chavePix);
+        showToast('✅ PIX copiado!', 'success');
+    };
+    document.getElementById('falarWhatsApp').onclick = () => {
+        window.open('https://wa.me/5561998507770', '_blank');
+    };
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 }

@@ -173,12 +173,9 @@
 </head>
 <body>
     <div class="top-bar">
-        <div style="text-align: center;">
-            <div class="logo" style="font-size: 22px; margin-bottom: 5px;">🎲 BOLÕES ALEATÓRIOS<span class="version" style="font-size: 12px;"> v2.0</span></div>
-            <div style="display: flex; align-items: center; justify-content: center; gap: 30px; font-size: 12px;">
-                <span id="statsConcursos">🎯 0 concursos</span>
-                <span id="statsCartoes">📊 0 cartões</span>
-            </div>
+    <div style="text-align: center;">
+        <div class="logo" style="font-size: 22px; margin-bottom: 5px;">🎲 BOLÕES ALEATÓRIOS<span class="version" style="font-size: 12px;"> v2.0</span></div>
+        <div style="font-size: 14px; font-style: italic; color: #f59e0b; margin-top: 5px;">🎯 Rumo ao grande prêmio 🎯</div>
         </div>
     </div>
 
@@ -198,9 +195,18 @@
     </div>
 
     <div class="container">
-    <!-- Card: Cartões do Concurso (1º) -->
+    <!-- Card: Bolão Aberto (destaque elegante) - TOPO -->
+    <div id="cardBolaoAberto" style="display: none; margin-bottom: 20px;">
+        <div class="card" style="background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%); border: 2px solid #10b981; box-shadow: 0 4px 15px rgba(16,185,129,0.2); border-radius: 16px;">
+            <div class="card-body" id="bolaoAbertoContainer">
+                <div class="empty-state">Carregando...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card: Cartões do Concurso (1º card normal) -->
     <div class="card">
-        <div class="card-header bg-blue" id="cardHeaderCartoes">📋 CARTÕES DO CONCURSO</div>
+        <div class="card-header bg-blue" id="cardHeaderCartoes">📋 CARTÕES DO CONCURSO - MEGA</div>
         <div class="card-body" id="cartoesConcurso">
             <div class="empty-state">Selecione um concurso para ver os cartões</div>
         </div>
@@ -214,7 +220,6 @@
             <div id="statusBusca" class="status"></div>
             <button id="btnConferir">🎲 CONFERIR RESULTADOS</button>
         </div>
-        <div id="loadingIndicator" style="display: none; text-align: center; padding: 10px; color: #3b82f6;">🔄 Carregando dados...</div>
     </div>
 
     <!-- Card: Resultados da Conferência (3º) -->
@@ -250,16 +255,14 @@
             </div>
         </div>
     </div>
-
-    
-</div> <!-- FECHA O CONTAINER -->
-
-<!-- RODAPÉ (FORA DO CONTAINER) -->
-<div class="footer">
-    <div>© 2026 Bolões Aleatórios - Versão 2.0</div>
-    <div style="font-size: 10px; margin-top: 5px;">Desenvolvido por Elton Luis - Todos os direitos reservados</div>
-    <button id="btnInstalarApp" style="background: #334155; border: none; padding: 6px 15px; border-radius: 30px; font-size: 11px; margin-top: 8px; width: auto; cursor: pointer;">📱 SALVAR COMO APP</button>
 </div>
+
+<!-- Rodapé -->
+    <div class="footer">
+        <div>© 2026 Bolões Aleatórios - Versão 2.0</div>
+        <div style="font-size: 10px; margin-top: 5px;">Desenvolvido por Elton Luis - Todos os direitos reservados</div>
+        <button id="btnInstalarApp" style="background: #334155; border: none; padding: 6px 15px; border-radius: 30px; font-size: 11px; margin-top: 8px; width: auto; cursor: pointer;">📱 SALVAR COMO APP</button>
+    </div>
 
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>

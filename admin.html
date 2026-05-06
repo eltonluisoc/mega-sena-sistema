@@ -113,19 +113,30 @@
         </div>
 
         <!-- Card: Gerenciar Bolões (fora do admin-layout, antes do footer) -->
-        <div class="card">
-            <div class="card-header" style="background: #8b5cf6;">📋 GERENCIAR BOLÕES</div>
-            <div class="card-body">
-                <div id="listaBoloes" style="max-height: 300px; overflow-y: auto;">
-                    <div class="empty-state">Carregando bolões...</div>
-                </div>
-                <button id="btnSalvarSelecao" class="btn btn-primary" style="margin-top: 15px;">💾 SALVAR SELEÇÃO</button>
+    <div class="card">
+        <div class="card-header" style="background: #8b5cf6;">📋 GERENCIAR BOLÕES</div>
+        <div class="card-body">
+            <div id="listaBoloes" style="max-height: 300px; overflow-y: auto;">
+                <div class="empty-state">Carregando bolões...</div>
             </div>
+            <button id="btnSalvarSelecao" class="btn btn-primary" style="margin-top: 15px;">💾 SALVAR SELEÇÃO</button>
         </div>
     </div>
 
     <div id="authModal" class="modal"><div class="modal-content"><div class="modal-header">🔐 ACESSO ADMINISTRATIVO</div><div class="modal-body"><input type="password" id="senhaAdmin" class="form-control" placeholder="Digite a senha"><button id="btnAutenticar" class="btn btn-primary btn-large">🔓 ENTRAR</button></div></div></div>
     
+    <!-- Card: Configuração Geral -->
+    <div class="card">
+        <div class="card-header" style="background: #10b981;">💳 CONFIGURAÇÃO GERAL</div>
+        <div class="card-body">
+            <div class="form-group">
+                <label>🔑 Chave PIX (para todos os bolões):</label>
+                <input type="text" id="pixConfig" class="form-control" placeholder="Ex: 61998507770 ou email@email.com">
+            </div>
+            <button id="btnSalvarPix" class="btn btn-success">💾 SALVAR PIX</button>
+        </div>
+    </div>
+
     <div class="footer">
         <div>© 2026 Bolões Aleatórios - Versão 2.0</div>
         <div style="font-size: 11px;">Desenvolvido por Elton Luis</div>

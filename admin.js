@@ -384,6 +384,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('filtroConcurso').onchange = exibirCartoesAdmin;
     document.getElementById('ordenarPor').onchange = exibirCartoesAdmin;
     document.getElementById('senhaAdmin').onkeypress = (e) => { if (e.key === 'Enter') autenticar(); };
+    carregarPixConfig();
+    document.getElementById('btnSalvarPix').onclick = salvarPixConfig;
     
     // ============ NOVAS LINHAS PARA GERENCIAR BOLÕES ============
     carregarBoloesParaGerenciar();
@@ -415,26 +417,41 @@ async function carregarBoloesParaGerenciar() {
             if (configDoc.exists) {
                 selecionados = configDoc.data().ids || [];
             }
-        } catch (e) {
-            console.log('Erro ao carregar seleção:', e);
-        }
+        } catch (e) {}
         
         let html = '';
-        boloes.forEach(bolao => {
+        for (const bolao of boloes) {
             const checked = selecionados.includes(bolao.id) ? 'checked' : '';
+            const statusAtual = bolao.status || 'andamento';
+            
             html += `
-                <div style="padding: 10px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 10px;">
-                    <input type="checkbox" class="checkbox-bolao" data-id="${bolao.id}" ${checked} style="width: 20px; height: 20px;">
-                    <div>
-                        <strong>${bolao.titulo || 'Sem título'}</strong>
-                        <div style="font-size: 12px; color: #666;">${bolao.participantes?.length || 0} participantes | ${bolao.loteria || '?'} | ID: ${bolao.id.slice(-8)}</div>
+                <div style="padding: 10px; border-bottom: 1px solid #eee; margin-bottom: 5px;">
+                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <input type="checkbox" class="checkbox-bolao" data-id="${bolao.id}" ${checked} style="width: 20px; height: 20px;">
+                        <div style="flex: 1;">
+                            <strong>${bolao.titulo || 'Sem título'}</strong>
+                            <div style="font-size: 12px; color: #666;">${bolao.participantes?.length || 0} participantes | ${bolao.loteria || '?'}</div>
+                        </div>
+                        <select class="status-select" data-id="${bolao.id}" style="padding: 5px 10px; border-radius: 6px; border: 1px solid #ccc;">
+                            <option value="aberto" ${statusAtual === 'aberto' ? 'selected' : ''}>🟢 ABERTO (aparece no topo)</option>
+                            <option value="andamento" ${statusAtual === 'andamento' ? 'selected' : ''}>⚫ EM ANDAMENTO (em Bolões Especiais)</option>
+                        </select>
                     </div>
                 </div>
             `;
-        });
+        }
         
         container.innerHTML = html;
-        console.log(`✅ ${boloes.length} bolões carregados`);
+        
+        // Evento para salvar status quando mudar
+        document.querySelectorAll('.status-select').forEach(select => {
+            select.onchange = async () => {
+                const id = select.dataset.id;
+                const novoStatus = select.value;
+                await db.collection('participantes').doc(id).update({ status: novoStatus });
+                showToast(`✅ Status atualizado para ${novoStatus === 'aberto' ? 'ABERTO' : 'EM ANDAMENTO'}`, 'success');
+            };
+        });
         
     } catch (error) {
         console.error('Erro ao carregar bolões:', error);
@@ -466,3 +483,29 @@ async function salvarSelecaoBoloes() {
 // Chamar no DOMContentLoaded
 document.getElementById('btnSalvarSelecao')?.addEventListener('click', salvarSelecaoBoloes);
 carregarBoloesParaGerenciar();
+
+// ============ PIX CONFIGURAÇÃO ============
+async function carregarPixConfig() {
+    try {
+        const doc = await db.collection('config_geral').doc('pix').get();
+        if (doc.exists) {
+            document.getElementById('pixConfig').value = doc.data().chave || '';
+        }
+    } catch (error) {
+        console.error('Erro ao carregar PIX:', error);
+    }
+}
+
+async function salvarPixConfig() {
+    const chave = document.getElementById('pixConfig').value.trim();
+    if (!chave) {
+        showToast('⚠️ Digite uma chave PIX', 'warning');
+        return;
+    }
+    try {
+        await db.collection('config_geral').doc('pix').set({ chave: chave });
+        showToast('✅ PIX salvo com sucesso!', 'success');
+    } catch (error) {
+        showToast('❌ Erro ao salvar PIX', 'error');
+    }
+}
