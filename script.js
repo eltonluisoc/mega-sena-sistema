@@ -127,42 +127,35 @@ function iniciarTimer() {
 
 // ============ CARREGAR BOLÃO ATIVO (ENVIADO PELO DESKTOP) ============
 async function carregarBolaoAtivo() {
-    //console.log('📋 Carregando bolões selecionados...');
+    // console.log('📋 Carregando bolões selecionados...'); // REMOVIDO
     const card = document.getElementById('cardBolaoAtivo');
     const container = document.getElementById('bolaoContainer');
     
-    if (!card || !container) {
-        console.log('❌ Card ou container não encontrado');
-        return;
-    }
+    if (!card || !container) return;
     
     try {
-        // Buscar IDs selecionados no admin
         const configDoc = await db.collection('config_boloes').doc('ativos').get();
-        const idsSelecionados = configDoc.exists ? configDoc.data().ids || [] : [];
+        let idsSelecionados = configDoc.exists ? configDoc.data().ids || [] : [];
         
-        console.log(`📋 IDs selecionados:`, idsSelecionados);
+        // Filtrar IDs antigos
+        idsSelecionados = idsSelecionados.filter(id => id !== 'bolao_atual');
         
         if (idsSelecionados.length === 0) {
-            console.log('⚠️ Nenhum bolão selecionado');
             card.style.display = 'none';
             return;
         }
         
-        // Buscar cada bolão pelo ID
+        // Limitar a 5 bolões
         const boloes = [];
-        for (const id of idsSelecionados) {
+        const limite = 5;
+        for (let i = 0; i < Math.min(idsSelecionados.length, limite); i++) {
+            const id = idsSelecionados[i];
             try {
                 const doc = await db.collection('participantes').doc(id).get();
                 if (doc.exists) {
                     boloes.push({ id: doc.id, ...doc.data() });
-                    console.log(`✅ Bolão carregado: ${doc.data().titulo}`);
-                } else {
-                    console.log(`⚠️ Bolão não encontrado: ${id}`);
                 }
-            } catch (e) {
-                console.log(`❌ Erro ao buscar ${id}:`, e);
-            }
+            } catch (e) {}
         }
         
         if (boloes.length === 0) {
@@ -172,98 +165,31 @@ async function carregarBolaoAtivo() {
         
         card.style.display = 'block';
         
-        // Para cada bolão, criar um card expansível
-        let htmlGlobal = '';
-        
-        for (let idx = 0; idx < boloes.length; idx++) {
-            const dados = boloes[idx];
+        let html = '';
+        for (const dados of boloes) {
             const participantes = dados.participantes || [];
-            const totalQuitados = participantes.filter(p => p.situacao === 'quitado' || p.situacao === 'pago').length;
-            const totalAndamento = participantes.filter(p => p.situacao === 'pendente' || p.situacao === 'andamento' || p.situacao === 'em_andamento').length;
+            const totalQuitados = participantes.filter(p => p.situacao === 'quitado').length;
+            const totalAndamento = participantes.filter(p => p.situacao === 'pendente').length;
             
-            // Usar ID único para cada bolão
-            const bolaoId = `bolao_${idx}_${dados.id}`;
-            
-            htmlGlobal += `<div id="${bolaoId}" style="margin-bottom: 20px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;"></div>`;
-        }
-        
-        container.innerHTML = htmlGlobal;
-        
-        // Renderizar cada bolão (função separada para cada)
-        for (let idx = 0; idx < boloes.length; idx++) {
-            const dados = boloes[idx];
-            const participantes = dados.participantes || [];
-            const totalQuitados = participantes.filter(p => p.situacao === 'quitado' || p.situacao === 'pago').length;
-            const totalAndamento = participantes.filter(p => p.situacao === 'pendente' || p.situacao === 'andamento' || p.situacao === 'em_andamento').length;
-            
-            const bolaoId = `bolao_${idx}_${dados.id}`;
-            const containerBolao = document.getElementById(bolaoId);
-            
-            let expandido = false;
-            
-            function renderizarBolao() {
-                let html = `
+            html += `
+                <div style="margin-bottom: 20px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;">
                     <strong style="font-size: 16px;">🎯 ${dados.titulo || 'Bolão Especial'}</strong>
                     <div style="font-size: 12px; margin-top: 5px;">
                         💰 Valor da cota: R$ ${dados.valorPorCota || 0},00
                         ${dados.dataLimite ? `<br>📅 Data limite: ${new Date(dados.dataLimite).toLocaleDateString('pt-BR')}` : ''}
                     </div>
-                    <div style="font-size: 12px; margin-top: 8px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
+                    <div style="font-size: 12px; margin-top: 8px;">
                         <span style="color: #10b981;">✅ Quitados: ${totalQuitados}</span>
                         <span style="color: #f59e0b;">🔄 Em andamento: ${totalAndamento}</span>
                     </div>
-                `;
-                
-                if (expandido) {
-                    participantes.forEach(p => {
-                        const statusClass = p.situacao === 'quitado' ? 'status-quitado' : 'status-pendente';
-                        const statusText = p.situacao === 'quitado' ? '✅ QUITADO' : '🔄 EM ANDAMENTO';
-                        html += `
-                            <div class="participante-item" style="margin-top: 10px;">
-                                <span class="participante-nome">${p.nome}</span>
-                                <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
-                                    <span class="participante-status ${statusClass}">${statusText}</span>
-                                    
-                                </div>
-                            </div>
-                        `;
-                    });
-                    html += `<div style="margin-top: 15px; text-align: center;">
-                                <button class="btn-ocultar" data-idx="${idx}" style="background: #64748b; width: auto; padding: 8px 20px;">🙈 OCULTAR LISTA</button>
-                            </div>`;
-                } else {
-                    html += `<div style="margin-top: 10px; text-align: center;">
-                                <button class="btn-ver" data-idx="${idx}" style="background: #3b82f6; width: auto; padding: 8px 20px;">👁 VER LISTA COMPLETA</button>
-                            </div>`;
-                }
-                
-                containerBolao.innerHTML = html;
-                
-                // Eventos
-                const btnVer = containerBolao.querySelector('.btn-ver');
-                const btnOcultar = containerBolao.querySelector('.btn-ocultar');
-                
-                if (btnVer) {
-                    btnVer.onclick = () => {
-                        expandido = true;
-                        renderizarBolao();
-                    };
-                }
-                if (btnOcultar) {
-                    btnOcultar.onclick = () => {
-                        expandido = false;
-                        renderizarBolao();
-                    };
-                }
-            }
-            
-            renderizarBolao();
+                </div>
+            `;
         }
         
-        console.log(`✅ ${boloes.length} bolão(ões) exibido(s)`);
+        container.innerHTML = html;
         
     } catch (error) {
-        console.error('❌ Erro ao carregar bolões:', error);
+        console.error('❌ Erro:', error);
         card.style.display = 'none';
     }
 }
@@ -300,7 +226,7 @@ function setLoteria(loteria) {
 
 // ============ CARREGAR DADOS ============
 async function carregarDados() {
-    console.log('🔄 Carregando dados...');
+    //console.log('🔄 Carregando dados...');
     
     // Mostrar loading
     const loadingDiv = document.getElementById('loadingIndicator');
@@ -322,7 +248,7 @@ async function carregarDados() {
                 });
             }
         });
-        console.log(`📊 Total: ${cartoes.length} | Mega: ${cartoes.filter(c => c.tipo === 'mega').length} | Loto: ${cartoes.filter(c => c.tipo === 'lotofacil').length} | Quina: ${cartoes.filter(c => c.tipo === 'quina').length}`);
+        //console.log(`📊 Total: ${cartoes.length} | Mega: ${cartoes.filter(c => c.tipo === 'mega').length} | Loto: ${cartoes.filter(c => c.tipo === 'lotofacil').length} | Quina: ${cartoes.filter(c => c.tipo === 'quina').length}`);
         
         const resMega = await db.collection('resultados').where('tipo', '==', 'mega').get();
         resultadosMega = {};
@@ -699,7 +625,7 @@ function enviarSugestao() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('📄 Inicializando...');
+    //console.log('📄 Inicializando...');
     await new Promise(r => setTimeout(r, 500));
     await carregarDados();
     await carregarBolaoAtivo();
