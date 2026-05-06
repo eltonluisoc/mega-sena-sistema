@@ -194,7 +194,7 @@ async function carregarBolaoAtivo() {
                         <span style="color: #f59e0b;">🔄 Em andamento: ${totalAndamento}</span>
                     </div>
                     <div id="participantes_${bolaoId}" style="display: none; margin-top: 15px; border-top: 1px solid #e2e8f0; padding-top: 10px;"></div>
-                    <button class="btn-ver-lista" data-id="${bolaoId}" data-nome="${dados.titulo}" style="margin-top: 10px; background: #3b82f6; width: auto; padding: 6px 15px;">👁 VER LISTA COMPLETA</button>
+                    <button class="btn-ver-lista" data-id="${bolaoId}" data-nome="${dados.titulo}" style="margin-top: 10px; background: #3b82f6; color: white; border: none; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 11px; width: auto;">👁 VER LISTA</button>
                 </div>
             `;
         }
