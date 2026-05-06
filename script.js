@@ -131,8 +131,11 @@ async function carregarBolaoAtivo() {
     const container = document.getElementById('bolaoContainer');
     
     if (!card || !container) return;
-    
+     // MOSTRA O LOADING
+    if (loading) loading.style.display = 'block';
+    container.innerHTML = '';
     try {
+        // Buscar apenas os IDs selecionados (já é rápido)
         const configDoc = await db.collection('config_boloes').doc('ativos').get();
         const idsSelecionados = configDoc.exists ? configDoc.data().ids || [] : [];
         
@@ -141,8 +144,12 @@ async function carregarBolaoAtivo() {
             return;
         }
         
+        // Buscar apenas os bolões selecionados (não todos)
         const boloes = [];
-        for (const id of idsSelecionados) {
+        const limite = 5; // Limitar a 5 bolões por vez
+        
+        for (let i = 0; i < Math.min(idsSelecionados.length, limite); i++) {
+            const id = idsSelecionados[i];
             try {
                 const doc = await db.collection('participantes').doc(id).get();
                 if (doc.exists) {
@@ -164,7 +171,6 @@ async function carregarBolaoAtivo() {
             const totalQuitados = participantes.filter(p => p.situacao === 'quitado').length;
             const totalAndamento = participantes.filter(p => p.situacao === 'pendente').length;
             
-            // Determinar status e cor
             const statusBolao = dados.status || 'andamento';
             const statusText = statusBolao === 'aberto' ? '🟢 INSCRIÇÕES ABERTAS' : '⚫ INSCRIÇÕES ENCERRADAS';
             const statusCor = statusBolao === 'aberto' ? '#10b981' : '#64748b';
@@ -190,7 +196,7 @@ async function carregarBolaoAtivo() {
         container.innerHTML = html;
         
     } catch (error) {
-        console.error('❌ Erro ao carregar bolões:', error);
+        console.error('❌ Erro:', error);
         card.style.display = 'none';
     }
 }
