@@ -390,16 +390,19 @@ function mostrarCartoesDoConcurso() {
         container.innerHTML = `<div class="empty-state">Nenhum cartão para o concurso ${concurso}</div>`;
         return;
     }
-    const resultados = loteriaAtual === 'mega' ? resultadosMega : loteriaAtual === 'lotofacil' ? resultadosLotofacil : resultadosQuina;
-    const salvos = resultados[concurso] || [];
+    
+    // ALTERAÇÃO AQUI: usar array vazio para não marcar números
+    const resultadoSalvo = []; // <--- LINHA ALTERADA
+    
     const porBolao = {};
     filtrados.forEach(c => { const b = c.bolao || 'Sem Bolão'; if (!porBolao[b]) porBolao[b] = []; porBolao[b].push(c); });
     let html = '';
     for (const [bolao, lista] of Object.entries(porBolao)) {
         html += `<div style="margin-bottom:20px"><div style="background:#3b82f6;color:white;padding:6px 10px;border-radius:6px;margin-bottom:8px;font-size:13px;">🎯 ${bolao}</div><div style="display:flex;flex-wrap:wrap;gap:8px;">`;
         lista.forEach(cartao => {
-            const numsHtml = cartao.numeros.map(n => `<span style="background:${salvos.includes(n)?'#10b981':'#e2e8f0'};color:${salvos.includes(n)?'white':'#333'};padding:3px 7px;border-radius:5px;font-family:monospace;font-size:11px;">${n.toString().padStart(2,'0')}</span>`).join('');
-            html += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px;min-width:180px;"><div style="font-size:10px;color:#64748b;margin-bottom:4px;">Cartão</div><div style="display:flex;flex-wrap:wrap;gap:3px;">${numsHtml}</div>${salvos.length>0?`<div style="font-size:9px;color:#10b981;margin-top:4px;">${cartao.numeros.filter(n=>salvos.includes(n)).length} acertos</div>`:''}</div>`;
+            // Aqui os números são exibidos sem destaque (pois resultadoSalvo está vazio)
+            const numsHtml = cartao.numeros.map(n => `<span style="background:#e2e8f0;color:#333;padding:3px 7px;border-radius:5px;font-family:monospace;font-size:11px;">${n.toString().padStart(2,'0')}</span>`).join('');
+            html += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px;min-width:180px;"><div style="font-size:10px;color:#64748b;margin-bottom:4px;">Cartão</div><div style="display:flex;flex-wrap:wrap;gap:3px;">${numsHtml}</div></div>`;
         });
         html += `</div></div>`;
     }
@@ -656,8 +659,8 @@ function iniciarMonitoramento() { if (intervaloNotif) clearInterval(intervaloNot
 
 // ============ COMPARTILHAR SITE ============
 function compartilharSite() {
-    const url = window.location.href;
-    const mensagem = `🎲 *BOLÕES ALEATÓRIOS* 🎲\n\nVenha conferir os resultados dos nossos bolões!\n\n🔗 ${url}`;
+    const url = 'https://rebrand.ly/boloesaleatorios';  // Link encurtado
+    const mensagem = `🎲 *BOLÕES ALEATÓRIOS* 🎲\n\nVenha participar e conferir os resultados dos nossos bolões!!!\n\n🔗 ${url}`;
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const whatsappUrl = isMobile 
         ? `https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`
