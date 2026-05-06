@@ -116,7 +116,7 @@ function iniciarTimer() {
 
 // ============ CARREGAR BOLÃO ATIVO (ENVIADO PELO DESKTOP) ============
 async function carregarBolaoAtivo() {
-    console.log('📋 Carregando bolões selecionados...');
+    //console.log('📋 Carregando bolões selecionados...');
     const card = document.getElementById('cardBolaoAtivo');
     const container = document.getElementById('bolaoContainer');
     
@@ -707,7 +707,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     adicionarBotaoInstalar();
     mostrarCartoesDoConcurso();
-    showToast('🎲 Sistema Bolões Aleatórios carregado!', 'success');
+    //showToast('🎲 Sistema Bolões Aleatórios carregado!', 'success');
 });
 async function carregarBoloesSelecionados() {
     const card = document.getElementById('cardBolaoAtivo');
