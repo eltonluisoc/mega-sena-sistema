@@ -692,7 +692,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     await carregarBolaoAtivo();
     iniciarAutoAtualizacao();
     iniciarMonitoramento();
-    iniciarTimer();
+    //iniciarTimer();
+    iniciarInfoSorteio();
     
     const btnMega = document.getElementById('btnMegaSena');
     const btnLoto = document.getElementById('btnLotofacil');
