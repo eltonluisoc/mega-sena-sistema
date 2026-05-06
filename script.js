@@ -127,7 +127,6 @@ function iniciarTimer() {
 
 // ============ CARREGAR BOLÃO ATIVO (ENVIADO PELO DESKTOP) ============
 async function carregarBolaoAtivo() {
-    // console.log('📋 Carregando bolões selecionados...'); // REMOVIDO
     const card = document.getElementById('cardBolaoAtivo');
     const container = document.getElementById('bolaoContainer');
     
@@ -135,21 +134,16 @@ async function carregarBolaoAtivo() {
     
     try {
         const configDoc = await db.collection('config_boloes').doc('ativos').get();
-        let idsSelecionados = configDoc.exists ? configDoc.data().ids || [] : [];
-        
-        // Filtrar IDs antigos
-        idsSelecionados = idsSelecionados.filter(id => id !== 'bolao_atual');
+        const idsSelecionados = configDoc.exists ? configDoc.data().ids || [] : [];
         
         if (idsSelecionados.length === 0) {
             card.style.display = 'none';
             return;
         }
         
-        // Limitar a 5 bolões
+        // Buscar TODOS os bolões (sem filtro, sem limite)
         const boloes = [];
-        const limite = 5;
-        for (let i = 0; i < Math.min(idsSelecionados.length, limite); i++) {
-            const id = idsSelecionados[i];
+        for (const id of idsSelecionados) {
             try {
                 const doc = await db.collection('participantes').doc(id).get();
                 if (doc.exists) {
@@ -347,7 +341,10 @@ function mostrarCartoesDoConcurso() {
         html += `<div style="margin-bottom:20px"><div style="background:#3b82f6;color:white;padding:6px 10px;border-radius:6px;margin-bottom:8px;font-size:13px;">🎯 ${bolao}</div><div style="display:flex;flex-wrap:wrap;gap:8px;">`;
         lista.forEach(cartao => {
             const numsHtml = cartao.numeros.map(n => `<span style="background:#e2e8f0;color:#333;padding:3px 7px;border-radius:5px;font-family:monospace;font-size:11px;">${n.toString().padStart(2,'0')}</span>`).join('');
-            html += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px;min-width:180px;"><div style="font-size:10px;color:#64748b;margin-bottom:4px;">Cartão - Concurso ${concurso}</div>`;
+            html += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px;min-width:180px;">
+                        <div style="font-size:10px;color:#64748b;margin-bottom:4px;">Cartão - Concurso ${concurso}</div>
+                        <div style="display:flex;flex-wrap:wrap;gap:3px;">${numsHtml}</div>
+                     </div>`;
         });
         html += `</div></div>`;
     }
