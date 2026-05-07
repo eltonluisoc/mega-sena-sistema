@@ -93,7 +93,7 @@ function compartilharSite() {
 }
 
 function enviarSugestao() {
-    const numeroAdmin = '5511999999999';
+    const numeroAdmin = '5561998507770';
     const mensagem = `💡 *SUGESTÃO PARA O SITE* 💡\n\nOlá! Gostaria de sugerir: `;
     const url = `https://wa.me/${numeroAdmin}?text=${encodeURIComponent(mensagem)}`;
     window.open(url, '_blank');
@@ -112,20 +112,28 @@ function setLoteria(loteria) {
     if (loteria === 'mega') {
         if (btnMega) btnMega.classList.add('active');
         document.getElementById('cardHeaderConferencia').innerHTML = '🔍 CONFERIR RESULTADOS - MEGA';
-        document.getElementById('cardHeaderCartoes').innerHTML = '📋 CARTÕES DO CONCURSO - MEGA';
+        document.getElementById('cardHeaderCartoes').innerHTML = '📋 CARTÕES DO CONCURSO';
     } else if (loteria === 'lotofacil') {
         if (btnLoto) btnLoto.classList.add('active');
         document.getElementById('cardHeaderConferencia').innerHTML = '🔍 CONFERIR RESULTADOS - LOTOFÁCIL';
-        document.getElementById('cardHeaderCartoes').innerHTML = '📋 CARTÕES DO CONCURSO - LOTOFÁCIL';
+        document.getElementById('cardHeaderCartoes').innerHTML = '📋 CARTÕES DO CONCURSO';
     } else if (loteria === 'quina') {
         if (btnQuina) btnQuina.classList.add('active');
         document.getElementById('cardHeaderConferencia').innerHTML = '🔍 CONFERIR RESULTADOS - QUINA';
-        document.getElementById('cardHeaderCartoes').innerHTML = '📋 CARTÕES DO CONCURSO - QUINA';
+        document.getElementById('cardHeaderCartoes').innerHTML = '📋 CARTÕES DO CONCURSO';
     }
     
+    // Apenas atualizar o select de concursos (baseado nos cartoes já carregados)
     atualizarSelectConcursos();
+    
     const sel = document.getElementById('concursoSelect');
-    if (sel && sel.value) mostrarCartoesDoConcurso();
+    if (sel && sel.value) {
+        mostrarCartoesDoConcurso();
+    } else if (sel && sel.options.length > 1) {
+        sel.selectedIndex = 1;
+        mostrarCartoesDoConcurso();
+    }
+    
     showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
 }
 
@@ -230,9 +238,9 @@ function mostrarCartoesDoConcurso() {
         return;
     }
     
-    const loteriaNome = loteriaAtual === 'mega' ? 'MEGA' : (loteriaAtual === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA');
-    const headerCartoes = document.getElementById('cardHeaderCartoes');
-    if (headerCartoes) headerCartoes.innerHTML = `📋 CARTÕES DO CONCURSO ${concurso} - ${loteriaNome}`;
+    //const loteriaNome = loteriaAtual === 'mega' ? 'MEGA' : (loteriaAtual === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA');
+    //const headerCartoes = document.getElementById('cardHeaderCartoes');
+    //if (headerCartoes) headerCartoes.innerHTML = `📋 CARTÕES DO CONCURSO ${concurso} - ${loteriaNome}`;
     
     const filtrados = cartoes.filter(c => c.tipo === loteriaAtual && c.concurso == concurso);
     if (filtrados.length === 0) {
@@ -639,7 +647,7 @@ function mostrarModalParticipacao(bolao) {
     if (falarAdmin) {
         falarAdmin.onclick = () => {
             const msg = `Olá! Gostaria de participar do bolão "${bolao.titulo}"`;
-            window.open(`https://wa.me/5511999999999?text=${encodeURIComponent(msg)}`, '_blank');
+            window.open(`https://wa.me/5561998507770?text=${encodeURIComponent(msg)}`, '_blank');
         };
     }
 }
