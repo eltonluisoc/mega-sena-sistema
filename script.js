@@ -84,7 +84,7 @@ async function carregarConfiguracoes() {
 }
 
 function compartilharSite() {
-    const url = window.location.href;
+    const url = 'https://rebrand.ly/boloesaleatorios';
     const mensagem = `🎲 *BOLÕES ALEATÓRIOS* 🎲\n\n🏆 Rumo ao Grande Prêmio!\n\nVenha participar e conferir os resultados dos nossos bolões!!!\n\n🔗 ${url}`;
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const whatsappUrl = isMobile ? `https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}` : `https://web.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
@@ -290,7 +290,7 @@ function compartilharWhatsApp() {
         return;
     }
     const { numeros, dataSorteio, premios } = ultimoResultadoDados;
-    const linha = '────────────────────────';
+    const linha = '──────────────';
     let loteriaNome = loteriaAtual === 'mega' ? 'MEGA-SENA' : (loteriaAtual === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA');
     
     let msg = `*🏆 RESULTADO - ${loteriaNome}* 🎲\n🏆 Rumo ao Grande Prêmio!\n${linha}\n📌 Concurso: ${ultimoResultadoConcurso}\n🎯 Números Sorteados:\n   ${numeros.join(' - ')}\n`;
@@ -319,7 +319,7 @@ function compartilharWhatsApp() {
         else msg += `💪 Vamos tentar novamente no próximo concurso.\n`;
     }
     
-    msg += `${linha}\n🔗 Acesse o resultado completo:\n${window.location.href}`;
+    msg += `${linha}\n🔗 Acesse o resultado completo:\nhttps://rebrand.ly/boloesaleatorios`;
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const whatsappUrl = isMobile ? `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}` : `https://web.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
     window.open(whatsappUrl, '_blank');
@@ -448,6 +448,14 @@ async function carregarBolaoAtivo() {
             return;
         }
         
+         // ============ ORDENAÇÃO: primeiro os ABERTOS, depois os EM ANDAMENTO ============
+        boloes.sort((a, b) => {
+            const statusA = statusMap[a.id] || 'andamento';
+            const statusB = statusMap[b.id] || 'andamento';
+            if (statusA === 'aberto' && statusB !== 'aberto') return -1;
+            if (statusA !== 'aberto' && statusB === 'aberto') return 1;
+            return 0;
+        });
         card.style.display = 'block';
         
         let html = '';
@@ -615,11 +623,10 @@ function mostrarModalParticipacao(bolao) {
         <div style="text-align: left;">
             <p><strong>🎯 ${bolao.titulo}</strong></p>
             <p>💰 Valor da cota: R$ ${bolao.valorPorCota || 0},00</p>
-            <p>🔴 Vagas restantes: ${vagasDisponiveis}</p>
             <p>💳 Pague via PIX:</p>
-            <div style="background: #f1f5f9; padding: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
-                <code style="font-size: 14px;">${pixChave}</code>
-                <button id="copiarPix" style="background: #3b82f6; border: none; padding: 5px 10px; border-radius: 5px; color: white;">📋 COPIAR</button>
+            <div style="background: #f1f5f9; padding: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <code style="font-size: 14px; word-break: break-all; flex: 1;">${pixChave}</code>
+                <button id="copiarPix" style="background: #3b82f6; border: none; padding: 6px 12px; border-radius: 6px; color: white; cursor: pointer; font-size: 12px; width: auto; white-space: nowrap;">📋 COPIAR</button>
             </div>
             <p style="margin-top: 15px;">Após o pagamento, envie o comprovante para:</p>
             <button id="falarAdmin" style="background: #25D366; margin-top: 5px; width: 100%; padding: 10px;">📲 FALAR COM ADMIN</button>
