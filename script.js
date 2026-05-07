@@ -339,6 +339,18 @@ async function conferirResultados() {
         return;
     }
     
+ // 🔴🔴🔴 ANALYTICS ESTÁ AQUI 🔴🔴🔴 (depois do if e antes do let numeros)
+    if (typeof firebase !== 'undefined' && firebase.analytics) {
+        try {
+            firebase.analytics().logEvent('conferir_resultados', { 
+                loteria: loteriaAtual, 
+                concurso: concurso, 
+                quantidade_cartoes: cartoesConc.length 
+            });
+        } catch(e) {}
+    }
+    // 🔴🔴🔴 FIM DO ANALYTICS 🔴🔴🔴
+
     let numeros = null, dataSorteio = null;
     if (resultados[concurso]) {
         numeros = resultados[concurso];
