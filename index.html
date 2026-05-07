@@ -7,39 +7,38 @@
     
     <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#667eea">
+    <meta name="theme-color" content="#3b82f6">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Bolões Aleatórios">
     
-    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' rx='40' fill='%23667eea'/%3E%3Ccircle cx='100' cy='65' r='28' fill='none' stroke='white' stroke-width='4'/%3E%3Ctext x='100' y='80' font-size='30' text-anchor='middle' fill='white' font-family='Arial, sans-serif'%3E🎲%3C/text%3E%3Ctext x='100' y='135' font-size='24' font-weight='bold' text-anchor='middle' fill='white' font-family='Arial, sans-serif'%3EBolões%3C/text%3E%3Ctext x='100' y='165' font-size='24' font-weight='bold' text-anchor='middle' fill='white' font-family='Arial, sans-serif'%3EAleatórios%3C/text%3E%3C/svg%3E">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' rx='40' fill='%233b82f6'/%3E%3Ccircle cx='100' cy='65' r='28' fill='none' stroke='white' stroke-width='4'/%3E%3Ctext x='100' y='80' font-size='30' text-anchor='middle' fill='white' font-family='Arial, sans-serif'%3E🎲%3C/text%3E%3Ctext x='100' y='135' font-size='24' font-weight='bold' text-anchor='middle' fill='white' font-family='Arial, sans-serif'%3EBolões%3C/text%3E%3Ctext x='100' y='165' font-size='24' font-weight='bold' text-anchor='middle' fill='white' font-family='Arial, sans-serif'%3EAleatórios%3C/text%3E%3C/svg%3E">
     
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #3b82f6 0%, #10b981 100%); min-height: 100vh; }
         
         .top-bar { background: #1e293b; color: white; padding: 15px 20px; text-align: center; }
         .logo { font-size: 22px; font-weight: bold; }
         .version { font-size: 11px; color: #94a3b8; margin-left: 8px; }
+        .subtitle { text-align: center; font-size: 12px; color: #f59e0b; margin-top: 5px; font-weight: bold; }
         .stats { font-size: 11px; background: rgba(255,255,255,0.1); padding: 5px 12px; border-radius: 20px; display: inline-block; margin-top: 8px; }
         
         .loteria-selector { display: flex; justify-content: center; gap: 15px; margin: 20px 0; flex-wrap: wrap; }
-        .loteria-btn { background: #f1f5f9; border: 2px solid #e2e8f0; border-radius: 16px; padding: 12px 20px; cursor: pointer; transition: all 0.3s ease; width: 110px; text-align: center; }
+        .loteria-btn { background: white; border: 2px solid #e2e8f0; border-radius: 16px; padding: 12px 20px; cursor: pointer; transition: all 0.3s ease; width: 110px; text-align: center; }
         .loteria-btn .loteria-icon { font-size: 28px; display: block; }
-        .loteria-btn .loteria-nome { font-size: 14px; font-weight: bold; margin-top: 5px; }
+        .loteria-btn .loteria-nome { font-size: 14px; font-weight: bold; margin-top: 5px; color: #1e293b; }
         .loteria-btn:hover { transform: translateY(-3px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-        .loteria-btn.active { background: #8b5cf6; border-color: #8b5cf6; color: white; }
-        .loteria-btn.mega.active { background: #8b5cf6; }
-        .loteria-btn.lotofacil.active { background: #10b981; }
-        .loteria-btn.quina.active { background: #ef4444; }
+        .loteria-btn.active { background: #3b82f6; border-color: #3b82f6; }
+        .loteria-btn.active .loteria-nome { color: white; }
         
         .container { max-width: 1200px; margin: 20px auto; padding: 0 15px; }
         .card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-bottom: 20px; }
         .card-header { padding: 12px 15px; font-weight: bold; font-size: 16px; color: white; }
-        .bg-purple { background: #8b5cf6; }
         .bg-blue { background: #3b82f6; }
         .bg-green { background: #10b981; }
+        .bg-orange { background: #f59e0b; }
         .card-body { padding: 15px; }
         
         .form-group { margin-bottom: 12px; }
@@ -58,9 +57,9 @@
         
         .footer { text-align: center; padding: 15px; color: #94a3b8; font-size: 11px; background: #1e293b; margin-top: 20px; }
         
-        .participante-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #e2e8f0; flex-wrap: wrap; gap: 8px; }
-        .participante-nome { font-weight: bold; font-size: 13px; }
-        .participante-status { font-size: 11px; padding: 2px 8px; border-radius: 20px; }
+        .participante-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #e2e8f0; flex-wrap: wrap; gap: 8px; }
+        .participante-nome { font-weight: bold; font-size: 12px; }
+        .participante-status { font-size: 10px; padding: 2px 8px; border-radius: 20px; }
         .status-quitado { background: #d1fae5; color: #065f46; }
         .status-pendente { background: #fef3c7; color: #92400e; }
         
@@ -78,13 +77,14 @@
             .top-bar { text-align: center; }
             .loteria-btn { padding: 8px 12px; width: 90px; }
             .loteria-btn .loteria-icon { font-size: 22px; }
-            .loteria-btn .loteria-nome { font-size: 12px; }
+            .loteria-btn .loteria-nome { font-size: 11px; }
         }
     </style>
 </head>
 <body>
     <div class="top-bar">
         <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">v2.0</span></div>
+        <div class="subtitle">🏆 RUMO AO GRANDE PRÊMIO 🏆</div>
         <div class="stats" id="totalCartoes">📊 Carregando...</div>
     </div>
 
@@ -105,9 +105,9 @@
     </div>
 
     <div class="container">
-        <!-- Card: Bolão Aberto (destaque) -->
+        <!-- Card: Bolão Aberto (destaque - PRIMEIRO CARD) -->
         <div id="cardBolaoAberto" style="display: none; margin-bottom: 20px;">
-            <div class="card" style="background: linear-gradient(135deg, #fef3c7 0%, #ffffff 100%); border: 2px solid #f59e0b; box-shadow: 0 4px 15px rgba(245,158,11,0.3); border-radius: 16px; animation: pulse 1.5s infinite;">
+            <div class="card" style="background: linear-gradient(135deg, #fef3c7 0%, #ffffff 100%); border: 2px solid #f59e0b; border-radius: 16px; animation: pulse 1.5s infinite;">
                 <div class="card-body" id="bolaoAbertoContainer">
                     <div class="empty-state">Carregando...</div>
                 </div>
@@ -124,7 +124,7 @@
 
         <!-- Card: Conferência -->
         <div class="card">
-            <div class="card-header bg-purple" id="cardHeaderConferencia">🔍 CONFERIR RESULTADOS - MEGA</div>
+            <div class="card-header bg-blue" id="cardHeaderConferencia">🔍 CONFERIR RESULTADOS - MEGA</div>
             <div class="card-body">
                 <div class="form-group"><label>📌 CONCURSO:</label><select id="concursoSelect"><option value="">Carregando concursos...</option></select></div>
                 <div id="statusBusca" class="status"></div>
@@ -143,7 +143,7 @@
 
         <!-- Card: Bolões Especiais (EM ANDAMENTO) -->
         <div class="card" id="cardBolaoAtivo" style="display: none;">
-            <div class="card-header" style="background: #f59e0b;">⭐ BOLÕES ESPECIAIS</div>
+            <div class="card-header bg-orange">⭐ BOLÕES ESPECIAIS</div>
             <div class="card-body" id="bolaoContainer">
                 <div class="empty-state">Carregando...</div>
             </div>
@@ -151,13 +151,13 @@
 
         <!-- Card: Compartilhar e Opine -->
         <div class="card">
-            <div class="card-header" style="background: #3b82f6;">👥 COMPARTILHE E OPINE</div>
+            <div class="card-header bg-green">👥 COMPARTILHE E OPINE</div>
             <div class="card-body" style="text-align: center;">
                 <div style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;">
-                    <button id="btnCompartilhar" style="background: #25D366; width: auto; padding: 12px 25px;">📤 COMPARTILHAR SITE</button>
-                    <button id="btnSugestao" style="background: #f59e0b; width: auto; padding: 12px 25px;">💬 ENVIAR SUGESTÃO</button>
+                    <button id="btnCompartilhar" style="background: #25D366; width: auto; padding: 10px 20px;">📤 COMPARTILHAR SITE</button>
+                    <button id="btnSugestao" style="background: #f59e0b; width: auto; padding: 10px 20px;">💬 ENVIAR SUGESTÃO</button>
                 </div>
-                <div style="font-size: 11px; color: #666; margin-top: 12px;">
+                <div style="font-size: 11px; color: #666; margin-top: 10px;">
                     ✨ Compartilhe o site com seus amigos | ✨ Sua opinião é importante para melhorarmos
                 </div>
             </div>
