@@ -30,6 +30,7 @@ function verificarAutenticacao() {
         document.getElementById('authModal').classList.add('show');
     } else {
         document.getElementById('authModal').classList.remove('show');
+        carregarPixConfig();
         carregarDadosAdmin();
     }
 }
@@ -59,27 +60,41 @@ function setLoteriaAdmin(loteria) {
     
     if (loteria === 'mega') {
         document.getElementById('adminBtnMega').classList.add('active');
-        document.getElementById('cadastroHeader').innerHTML = '📝 CADASTRAR CARTÕES - MEGA-SENA';
-        document.getElementById('resultadosHeader').innerHTML = '🔍 RESULTADOS OFICIAIS - MEGA-SENA';
-        document.getElementById('listaHeader').innerHTML = '📋 CARTÕES CADASTRADOS - MEGA-SENA';
-        document.getElementById('labelNumeros').innerHTML = '🔢 Números (um por linha - MEGA-SENA: 6 números):';
-        document.getElementById('dicaNumeros').innerHTML = '💡 MEGA-SENA: mínimo 6 números por linha.';
+        document.getElementById('cadastroHeader').innerHTML = '📝 CADASTRAR CARTÕES - MEGA';
+        document.getElementById('resultadosHeader').innerHTML = '🔍 RESULTADOS OFICIAIS - MEGA';
+        document.getElementById('listaHeader').innerHTML = '📋 CARTÕES CADASTRADOS - MEGA';
+        document.getElementById('labelNumeros').innerHTML = '🔢 Números (um por linha - MEGA: 6 números):';
+        document.getElementById('dicaNumeros').innerHTML = '💡 MEGA: mínimo 6 números.';
     } else if (loteria === 'lotofacil') {
         document.getElementById('adminBtnLotofacil').classList.add('active');
         document.getElementById('cadastroHeader').innerHTML = '📝 CADASTRAR CARTÕES - LOTOFÁCIL';
         document.getElementById('resultadosHeader').innerHTML = '🔍 RESULTADOS OFICIAIS - LOTOFÁCIL';
         document.getElementById('listaHeader').innerHTML = '📋 CARTÕES CADASTRADOS - LOTOFÁCIL';
         document.getElementById('labelNumeros').innerHTML = '🔢 Números (um por linha - LOTOFÁCIL: 15 números):';
-        document.getElementById('dicaNumeros').innerHTML = '💡 LOTOFÁCIL: mínimo 15 números por linha.';
+        document.getElementById('dicaNumeros').innerHTML = '💡 LOTOFÁCIL: mínimo 15 números.';
     } else if (loteria === 'quina') {
         document.getElementById('adminBtnQuina').classList.add('active');
         document.getElementById('cadastroHeader').innerHTML = '📝 CADASTRAR CARTÕES - QUINA';
         document.getElementById('resultadosHeader').innerHTML = '🔍 RESULTADOS OFICIAIS - QUINA';
         document.getElementById('listaHeader').innerHTML = '📋 CARTÕES CADASTRADOS - QUINA';
-        document.getElementById('labelNumeros').innerHTML = '🔢 Números (um por linha - QUINA: mínimo 5 números):';
-        document.getElementById('dicaNumeros').innerHTML = '💡 QUINA: mínimo 5 números por linha (máximo 15).';
+        document.getElementById('labelNumeros').innerHTML = '🔢 Números (um por linha - QUINA: minimum 5 números):';
+        document.getElementById('dicaNumeros').innerHTML = '💡 QUINA: mínimo 5 números (máximo 15).';
     }
     carregarDadosAdmin();
+}
+
+async function carregarPixConfig() {
+    try {
+        const doc = await db.collection('config_geral').doc('pix').get();
+        const pix = doc.exists ? doc.data().chave : '';
+        document.getElementById('pixConfig').value = pix;
+    } catch(e) { console.log('Erro ao carregar PIX:', e); }
+}
+
+async function salvarPixConfig() {
+    const pix = document.getElementById('pixConfig').value;
+    await db.collection('config_geral').doc('pix').set({ chave: pix });
+    showToast('✅ Chave PIX salva!', 'success');
 }
 
 async function carregarDadosAdmin() {
@@ -189,7 +204,7 @@ async function editarCartao(id) {
     const maxNumeros = loteriaAdmin === 'mega' ? 6 : (loteriaAdmin === 'lotofacil' ? 15 : 5);
     const maxValor = loteriaAdmin === 'mega' ? 60 : (loteriaAdmin === 'lotofacil' ? 25 : 80);
     
-    const novos = prompt(`Editar números (separados por espaço):\nAtuais: ${cartao.numeros.join(', ')}\n${loteriaAdmin === 'mega' ? 'MEGA-SENA: 6 números (1-60)' : loteriaAdmin === 'lotofacil' ? 'LOTOFÁCIL: 15 números (1-25)' : 'QUINA: mínimo 5 números (1-80)'}`, cartao.numeros.join(' '));
+    const novos = prompt(`Editar números (separados por espaço):\nAtuais: ${cartao.numeros.join(', ')}\n${loteriaAdmin === 'mega' ? 'MEGA: 6 números (1-60)' : loteriaAdmin === 'lotofacil' ? 'LOTOFÁCIL: 15 números (1-25)' : 'QUINA: mínimo 5 números (1-80)'}`, cartao.numeros.join(' '));
     if (!novos) return;
     
     const numeros = novos.match(/\d+/g).map(Number);
@@ -356,7 +371,7 @@ async function adicionarCartoes() {
         carregarDadosAdmin();
     } else {
         let msg = `❌ Nenhum cartão adicionado. `;
-        if (loteriaAdmin === 'mega') msg += `MEGA-SENA: mínimo 6 números entre 1 e 60.`;
+        if (loteriaAdmin === 'mega') msg += `MEGA: mínimo 6 números entre 1 e 60.`;
         else if (loteriaAdmin === 'lotofacil') msg += `LOTOFÁCIL: mínimo 15 números entre 1 e 25.`;
         else msg += `QUINA: mínimo 5 números entre 1 e 80.`;
         showToast(msg, 'error');
@@ -366,34 +381,6 @@ async function adicionarCartoes() {
 function limparFormulario() { document.getElementById('numerosCartoes').value = ''; showToast('🧹 Formulário limpo', 'info'); }
 function recarregarLista() { carregarDadosAdmin(); showToast('🔄 Dados recarregados', 'info'); }
 
-document.addEventListener('DOMContentLoaded', () => {
-    verificarAutenticacao();
-    document.getElementById('btnAutenticar').onclick = autenticar;
-    document.getElementById('btnSair').onclick = sair;
-    document.getElementById('adminBtnMega').onclick = () => setLoteriaAdmin('mega');
-    document.getElementById('adminBtnLotofacil').onclick = () => setLoteriaAdmin('lotofacil');
-    document.getElementById('adminBtnQuina').onclick = () => setLoteriaAdmin('quina');
-    document.getElementById('btnAdicionar').onclick = adicionarCartoes;
-    document.getElementById('btnLimpar').onclick = limparFormulario;
-    document.getElementById('btnSalvarResultado').onclick = salvarResultado;
-    document.getElementById('btnRecarregar').onclick = recarregarLista;
-    document.getElementById('btnExcluirSelecionados').onclick = excluirSelecionados;
-    document.getElementById('btnImportarExcel').onclick = importarExcel;
-    const btnExportar = document.getElementById('btnExportarExcel');
-    if (btnExportar) btnExportar.onclick = exportarCartoes;
-    document.getElementById('filtroConcurso').onchange = exibirCartoesAdmin;
-    document.getElementById('ordenarPor').onchange = exibirCartoesAdmin;
-    document.getElementById('senhaAdmin').onkeypress = (e) => { if (e.key === 'Enter') autenticar(); };
-    carregarPixConfig();
-    document.getElementById('btnSalvarPix').onclick = salvarPixConfig;
-    
-    // ============ NOVAS LINHAS PARA GERENCIAR BOLÕES ============
-    carregarBoloesParaGerenciar();
-    const btnSalvarSelecao = document.getElementById('btnSalvarSelecao');
-    if (btnSalvarSelecao) {
-        btnSalvarSelecao.addEventListener('click', salvarSelecaoBoloes);
-    }
-});
 async function carregarBoloesParaGerenciar() {
     const container = document.getElementById('listaBoloes');
     if (!container) return;
@@ -410,17 +397,14 @@ async function carregarBoloesParaGerenciar() {
             return;
         }
         
-        // Carregar seleção atual
         let selecionados = [];
         let statusMap = {};
-        let pixMap = {};
         
         try {
             const configDoc = await db.collection('config_boloes').doc('ativos').get();
             if (configDoc.exists) {
                 selecionados = configDoc.data().ids || [];
                 statusMap = configDoc.data().status || {};
-                pixMap = configDoc.data().pix || {};
             }
         } catch (e) {
             console.log('Erro ao carregar seleção:', e);
@@ -430,7 +414,6 @@ async function carregarBoloesParaGerenciar() {
         boloes.forEach(bolao => {
             const checked = selecionados.includes(bolao.id) ? 'checked' : '';
             const status = statusMap[bolao.id] || 'andamento';
-            const pix = pixMap[bolao.id] || '';
             
             html += `
                 <div style="padding: 12px; border-bottom: 1px solid #eee; margin-bottom: 8px;">
@@ -445,8 +428,6 @@ async function carregarBoloesParaGerenciar() {
                             <option value="aberto" ${status === 'aberto' ? 'selected' : ''}>🟢 ABERTO</option>
                             <option value="andamento" ${status === 'andamento' ? 'selected' : ''}>🟡 EM ANDAMENTO</option>
                         </select>
-                        <label style="font-size: 12px;">Chave PIX:</label>
-                        <input type="text" class="pix-input" data-id="${bolao.id}" value="${pix}" placeholder="admin@email.com" style="padding: 4px 8px; border-radius: 6px; width: 180px;">
                     </div>
                 </div>
             `;
@@ -454,19 +435,15 @@ async function carregarBoloesParaGerenciar() {
         
         container.innerHTML = html;
         
-        // Adicionar eventos para salvar alterações
         document.querySelectorAll('.status-select').forEach(select => {
             select.addEventListener('change', () => salvarConfigBoloes());
-        });
-        document.querySelectorAll('.pix-input').forEach(input => {
-            input.addEventListener('change', () => salvarConfigBoloes());
         });
         
         console.log(`✅ ${boloes.length} bolões carregados`);
         
     } catch (error) {
         console.error('Erro ao carregar bolões:', error);
-        container.innerHTML = '<div class="empty-state">Erro ao carregar bolões. Verifique o console (F12).</div>';
+        container.innerHTML = '<div class="empty-state">Erro ao carregar bolões.</div>';
     }
 }
 
@@ -475,20 +452,14 @@ async function salvarConfigBoloes() {
     const idsSelecionados = Array.from(checkboxes).map(cb => cb.dataset.id);
     
     const statusMap = {};
-    const pixMap = {};
-    
     document.querySelectorAll('.status-select').forEach(select => {
         statusMap[select.dataset.id] = select.value;
-    });
-    document.querySelectorAll('.pix-input').forEach(input => {
-        pixMap[input.dataset.id] = input.value;
     });
     
     try {
         await db.collection('config_boloes').doc('ativos').set({ 
             ids: idsSelecionados,
-            status: statusMap,
-            pix: pixMap
+            status: statusMap
         });
         showToast(`✅ ${idsSelecionados.length} bolão(ões) selecionado(s)`, 'success');
     } catch (error) {
@@ -497,53 +468,30 @@ async function salvarConfigBoloes() {
     }
 }
 
-async function salvarSelecaoBoloes() {
-    const checkboxes = document.querySelectorAll('.checkbox-bolao:checked');
-    const idsSelecionados = Array.from(checkboxes).map(cb => cb.dataset.id);
+document.addEventListener('DOMContentLoaded', () => {
+    verificarAutenticacao();
+    document.getElementById('btnAutenticar').onclick = autenticar;
+    document.getElementById('btnSair').onclick = sair;
+    document.getElementById('adminBtnMega').onclick = () => setLoteriaAdmin('mega');
+    document.getElementById('adminBtnLotofacil').onclick = () => setLoteriaAdmin('lotofacil');
+    document.getElementById('adminBtnQuina').onclick = () => setLoteriaAdmin('quina');
+    document.getElementById('btnAdicionar').onclick = adicionarCartoes;
+    document.getElementById('btnLimpar').onclick = limparFormulario;
+    document.getElementById('btnSalvarResultado').onclick = salvarResultado;
+    document.getElementById('btnRecarregar').onclick = recarregarLista;
+    document.getElementById('btnExcluirSelecionados').onclick = excluirSelecionados;
+    document.getElementById('btnImportarExcel').onclick = importarExcel;
+    document.getElementById('btnSalvarPix').onclick = salvarPixConfig;
     
-    try {
-        await db.collection('config_boloes').doc('ativos').set({ ids: idsSelecionados });
-        showToast(`✅ ${idsSelecionados.length} bolão(ões) selecionado(s)`, 'success');
-    } catch (error) {
-        console.error('Erro ao salvar:', error);
-        showToast('❌ Erro ao salvar seleção', 'error');
-    }
-}
-
-async function salvarSelecaoBoloes() {
-    const checkboxes = document.querySelectorAll('.checkbox-bolao:checked');
-    const idsSelecionados = Array.from(checkboxes).map(cb => cb.dataset.id);
+    const btnExportar = document.getElementById('btnExportarExcel');
+    if (btnExportar) btnExportar.onclick = exportarCartoes;
+    document.getElementById('filtroConcurso').onchange = exibirCartoesAdmin;
+    document.getElementById('ordenarPor').onchange = exibirCartoesAdmin;
+    document.getElementById('senhaAdmin').onkeypress = (e) => { if (e.key === 'Enter') autenticar(); };
     
-    await db.collection('config_boloes').doc('ativos').set({ ids: idsSelecionados });
-    showToast(`✅ ${idsSelecionados.length} bolão(ões) selecionado(s)`, 'success');
-}
-
-// Chamar no DOMContentLoaded
-document.getElementById('btnSalvarSelecao')?.addEventListener('click', salvarSelecaoBoloes);
-carregarBoloesParaGerenciar();
-
-// ============ PIX CONFIGURAÇÃO ============
-async function carregarPixConfig() {
-    try {
-        const doc = await db.collection('config_geral').doc('pix').get();
-        if (doc.exists) {
-            document.getElementById('pixConfig').value = doc.data().chave || '';
-        }
-    } catch (error) {
-        console.error('Erro ao carregar PIX:', error);
+    carregarBoloesParaGerenciar();
+    const btnSalvarSelecao = document.getElementById('btnSalvarSelecao');
+    if (btnSalvarSelecao) {
+        btnSalvarSelecao.addEventListener('click', salvarConfigBoloes);
     }
-}
-
-async function salvarPixConfig() {
-    const chave = document.getElementById('pixConfig').value.trim();
-    if (!chave) {
-        showToast('⚠️ Digite uma chave PIX', 'warning');
-        return;
-    }
-    try {
-        await db.collection('config_geral').doc('pix').set({ chave: chave });
-        showToast('✅ PIX salvo com sucesso!', 'success');
-    } catch (error) {
-        showToast('❌ Erro ao salvar PIX', 'error');
-    }
-}
+});

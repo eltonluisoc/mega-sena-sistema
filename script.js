@@ -8,6 +8,7 @@ let ultimoResultadoDados = null;
 let ultimoEstadoMega = {};
 let ultimoEstadoLotofacil = {};
 let ultimoEstadoQuina = {};
+let pixGeral = '';
 
 function showToast(message, type = 'info') {
     let container = document.querySelector('.toast-container');
@@ -71,13 +72,24 @@ function adicionarBotaoInstalar() {
     if (btn) btn.onclick = mostrarPopupInstalar;
 }
 
+async function carregarPixGeral() {
+    try {
+        const doc = await db.collection('config_geral').doc('pix').get();
+        pixGeral = doc.exists ? doc.data().chave : '';
+    } catch(e) { console.log('Erro ao carregar PIX:', e); }
+}
+
+async function carregarConfiguracoes() {
+    await carregarPixGeral();
+}
+
 function compartilharSite() {
     const url = window.location.href;
-    const mensagem = `🎲 *BOLÕES ALEATÓRIOS* 🎲\n\nVenha participar e conferir os resultados dos nossos bolões!!!\n\n🔗 ${url}`;
+    const mensagem = `🎲 *BOLÕES ALEATÓRIOS* 🎲\n\n🏆 Rumo ao Grande Prêmio!\n\nVenha participar e conferir os resultados dos nossos bolões!!!\n\n🔗 ${url}`;
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const whatsappUrl = isMobile ? `https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}` : `https://web.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
     window.open(whatsappUrl, '_blank');
-    showToast('📱 Abrindo WhatsApp para compartilhar...', 'info');
+    showToast('📱 Abrindo WhatsApp...', 'info');
 }
 
 function enviarSugestao() {
@@ -85,7 +97,7 @@ function enviarSugestao() {
     const mensagem = `💡 *SUGESTÃO PARA O SITE* 💡\n\nOlá! Gostaria de sugerir: `;
     const url = `https://wa.me/${numeroAdmin}?text=${encodeURIComponent(mensagem)}`;
     window.open(url, '_blank');
-    showToast('📱 Abrindo WhatsApp para enviar sugestão...', 'info');
+    showToast('📱 Abrindo WhatsApp...', 'info');
 }
 
 function setLoteria(loteria) {
@@ -273,7 +285,7 @@ function compartilharWhatsApp() {
     const linha = '────────────────────────';
     let loteriaNome = loteriaAtual === 'mega' ? 'MEGA-SENA' : (loteriaAtual === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA');
     
-    let msg = `*🏆 RESULTADO - ${loteriaNome}* 🎲\n${linha}\n📌 Concurso: ${ultimoResultadoConcurso}\n🎯 Números Sorteados:\n   ${numeros.join(' - ')}\n`;
+    let msg = `*🏆 RESULTADO - ${loteriaNome}* 🎲\n🏆 Rumo ao Grande Prêmio!\n${linha}\n📌 Concurso: ${ultimoResultadoConcurso}\n🎯 Números Sorteados:\n   ${numeros.join(' - ')}\n`;
     if (dataSorteio) msg += `📅 Sorteio: ${new Date(dataSorteio).toLocaleDateString('pt-BR')}\n`;
     msg += `${linha}\n📊 DESEMPENHO DO GRUPO:\n`;
     
@@ -370,9 +382,9 @@ async function conferirResultados() {
     } else if (loteriaAtual === 'lotofacil') {
         html += `<div><span style="font-size:20px;font-weight:bold;color:#f59e0b">${premios.pontos15}</span><br>15 PTS</div><div><span style="font-size:20px;font-weight:bold;color:#eab308">${premios.pontos14}</span><br>14 PTS</div><div><span style="font-size:20px;font-weight:bold;color:#a855f7">${premios.pontos13}</span><br>13 PTS</div><div><span style="font-size:20px;font-weight:bold;color:#3b82f6">${premios.pontos12}</span><br>12 PTS</div><div><span style="font-size:20px;font-weight:bold;color:#64748b">${premios.pontos11}</span><br>11 PTS</div>`;
     } else {
-        html += `<div><span style="font-size:20px;font-weight:bold;color:#f59e0b">${premios.quina}</span><br>QUINA</div><div><span style="font-size:20px;font-weight:bold;color:#eab308">${premios.quadra}</span><br>QUADRA</div><div><span style="font-size:20px;font-weight:bold;color:#a855f7">${premios.terno}</span><br>TERNO</div><div><span style="font-size:20px;font-weight:bold;color:#3b82f6">${premios.duque}</span><br>DUQUE</div>`;
-    }
-    html += `<div><span style="font-size:20px;font-weight:bold">${resultadosCalc.length}</span><br>CARTÕES</div></div><div style="background:#d1fae5;padding:8px;border-radius:6px;font-size:12px;">🎲 Sorteados: ${numeros.join(' - ')}${dataSorteio?`<br>📅 Data: ${new Date(dataSorteio).toLocaleDateString('pt-BR')}`:''}</div><button id="btnWhatsApp" class="btn-whatsapp" style="margin-top:12px;background:#25D366;width:100%;padding:10px;">📱 COMPARTILHAR NO WHATSAPP</button></div>`;
+html += `<div><span style="font-size:20px;font-weight:bold;color:#f59e0b">${premios.quina}</span><br>QUINA</div><div><span style="font-size:20px;font-weight:bold;color:#eab308">${premios.quadra}</span><br>QUADRA</div><div><span style="font-size:20px;font-weight:bold;color:#a855f7">${premios.terno}</span><br>TERNO</div><div><span style="font-size:20px;font-weight:bold;color:#3b82f6">${premios.duque}</span><br>DUQUE</div>`;
+}
+html += `<div><span style="font-size:20px;font-weight:bold">${resultadosCalc.length}</span><br>CARTÕES</div></div><div style="background:#d1fae5;padding:8px;border-radius:6px;font-size:12px;">🎲 Sorteados: ${numeros.join(' - ')}${dataSorteio?`<br>📅 Data: ${new Date(dataSorteio).toLocaleDateString('pt-BR')}`:''}</div><button id="btnWhatsApp" class="btn-whatsapp" style="margin-top:12px;background:#25D366;width:100%;padding:10px;">📱 COMPARTILHAR NO WHATSAPP</button></div>`;
     
     const porBolao = {};
     resultadosCalc.forEach(r => { const b = r.bolao || 'Sem Bolão'; if (!porBolao[b]) porBolao[b] = []; porBolao[b].push(r); });
@@ -435,10 +447,14 @@ async function carregarBolaoAtivo() {
             const participantes = bolao.participantes || [];
             const totalQuitados = participantes.filter(p => p.situacao === 'quitado' || p.situacao === 'pago').length;
             const totalAndamento = participantes.filter(p => p.situacao !== 'quitado' && p.situacao !== 'pago').length;
+            const statusText = statusMap[bolao.id] === 'aberto' ? '🟢 ABERTO' : '🟡 EM ANDAMENTO';
+            const statusColor = statusMap[bolao.id] === 'aberto' ? '#10b981' : '#f59e0b';
             
             html += `
                 <div style="margin-bottom: 20px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;">
-                    <strong style="font-size: 16px;">🎯 ${bolao.titulo || 'Bolão Especial'}</strong>
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+                        <strong style="font-size: 16px;">🎯 ${bolao.titulo} <span style="font-size: 11px; color: ${statusColor};">${statusText}</span></strong>
+                    </div>
                     <div style="font-size: 12px; margin-top: 5px;">
                         💰 Valor da cota: R$ ${bolao.valorPorCota || 0},00
                         ${bolao.dataLimite ? `<br>📅 Data limite: ${new Date(bolao.dataLimite).toLocaleDateString('pt-BR')}` : ''}
@@ -447,7 +463,7 @@ async function carregarBolaoAtivo() {
                         <span style="color: #10b981;">✅ Quitados: ${totalQuitados}</span>
                         <span style="color: #f59e0b;">🔄 Em andamento: ${totalAndamento}</span>
                     </div>
-                    <button class="btn-ver-participantes" data-id="${bolao.id}" style="background: #3b82f6; width: auto; padding: 6px 15px; margin-top: 10px;">👁 VER PARTICIPANTES</button>
+                    <button class="btn-ver-participantes" data-id="${bolao.id}" style="background: #3b82f6; width: auto; padding: 4px 10px; font-size: 11px; margin-top: 8px;">👁 VER</button>
                     <div id="participantes-${bolao.id}" style="display: none; margin-top: 10px;"></div>
                 </div>
             `;
@@ -468,10 +484,10 @@ async function carregarBolaoAtivo() {
                     });
                     div.innerHTML = listaHtml;
                     div.style.display = 'block';
-                    btn.textContent = '🙈 OCULTAR PARTICIPANTES';
+                    btn.textContent = '🙈 OCULTAR';
                 } else {
                     div.style.display = 'none';
-                    btn.textContent = '👁 VER PARTICIPANTES';
+                    btn.textContent = '👁 VER';
                 }
             };
         });
@@ -499,7 +515,6 @@ async function carregarBolaoAberto() {
         const dados = configDoc.data();
         const idsSelecionados = dados.ids || [];
         const statusMap = dados.status || {};
-        const pixMap = dados.pix || {};
         
         let bolaoAberto = null;
         let bolaoId = null;
@@ -523,12 +538,11 @@ async function carregarBolaoAberto() {
         card.style.display = 'block';
         
         const vagasDisponiveis = bolaoAberto.vagasDisponiveis || 0;
-        const vagasTotais = bolaoAberto.vagasTotais || 0;
         const vagasTexto = vagasDisponiveis <= 5 ? `🔴 ÚLTIMAS ${vagasDisponiveis} VAGAS!` : `${vagasDisponiveis} vagas disponíveis`;
         
         let html = `
             <div style="text-align: center;">
-                <strong style="font-size: 18px;">🎯 ${bolaoAberto.titulo || 'Bolão Aberto'}</strong>
+                <strong style="font-size: 18px;">🎯 ${bolaoAberto.titulo || 'Bolão Aberto'} <span style="font-size: 12px; color: #10b981;">🟢 ABERTO</span></strong>
                 <div style="font-size: 13px; margin-top: 5px;">
                     ${bolaoAberto.loteria === 'mega' ? 'MEGA-SENA' : bolaoAberto.loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'} - Concurso ${bolaoAberto.concurso || '?'}
                 </div>
@@ -547,7 +561,7 @@ async function carregarBolaoAberto() {
         
         const btnParticipar = document.getElementById('btnParticiparAberto');
         if (btnParticipar) {
-            btnParticipar.onclick = () => mostrarModalParticipacao(bolaoAberto, pixMap[bolaoId] || '');
+            btnParticipar.onclick = () => mostrarModalParticipacao(bolaoAberto);
         }
         
     } catch (error) {
@@ -556,7 +570,7 @@ async function carregarBolaoAberto() {
     }
 }
 
-function mostrarModalParticipacao(bolao, pix) {
+function mostrarModalParticipacao(bolao) {
     let modal = document.getElementById('modalParticipacao');
     if (modal) modal.remove();
     
@@ -565,7 +579,7 @@ function mostrarModalParticipacao(bolao, pix) {
     modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; display: flex; justify-content: center; align-items: center;';
     
     const vagasDisponiveis = bolao.vagasDisponiveis || 0;
-    const pixChave = pix || 'Chave PIX não cadastrada';
+    const pixChave = pixGeral || 'Chave PIX não cadastrada';
     
     const modalContent = document.createElement('div');
     modalContent.style.cssText = 'background: white; border-radius: 20px; max-width: 400px; width: 90%; padding: 25px; text-align: center;';
@@ -579,7 +593,7 @@ function mostrarModalParticipacao(bolao, pix) {
             <p>💳 Pague via PIX:</p>
             <div style="background: #f1f5f9; padding: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
                 <code style="font-size: 14px;">${pixChave}</code>
-                ${pix ? '<button id="copiarPix" style="background: #3b82f6; border: none; padding: 5px 10px; border-radius: 5px; color: white;">📋 COPIAR</button>' : ''}
+                <button id="copiarPix" style="background: #3b82f6; border: none; padding: 5px 10px; border-radius: 5px; color: white;">📋 COPIAR</button>
             </div>
             <p style="margin-top: 15px;">Após o pagamento, envie o comprovante para:</p>
             <button id="falarAdmin" style="background: #25D366; margin-top: 5px; width: 100%; padding: 10px;">📲 FALAR COM ADMIN</button>
@@ -596,7 +610,7 @@ function mostrarModalParticipacao(bolao, pix) {
     const copiarBtn = document.getElementById('copiarPix');
     if (copiarBtn) {
         copiarBtn.onclick = () => {
-            navigator.clipboard.writeText(pix);
+            navigator.clipboard.writeText(pixChave);
             showToast('✅ Chave PIX copiada!', 'success');
         };
     }
@@ -637,6 +651,7 @@ function iniciarMonitoramento() { if (intervaloNotif) clearInterval(intervaloNot
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('📄 Inicializando...');
+    await carregarConfiguracoes();
     await new Promise(r => setTimeout(r, 500));
     await carregarDados();
     await carregarBolaoAtivo();

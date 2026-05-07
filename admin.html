@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>Admin - Cadastro de Cartões Bolões Aleatórios</title>
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#667eea">
+    <meta name="theme-color" content="#3b82f6">
     <link rel="stylesheet" href="style.css">
     <style>
         .loteria-selector-admin { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
         .loteria-btn-admin { flex: 1; min-width: 100px; padding: 12px 10px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: all 0.3s; font-size: 13px; }
-        .loteria-btn-admin.mega { background: #8b5cf6; color: white; }
+        .loteria-btn-admin.mega { background: #3b82f6; color: white; }
         .loteria-btn-admin.lotofacil { background: #10b981; color: white; }
         .loteria-btn-admin.quina { background: #ef4444; color: white; }
         .loteria-btn-admin.active { box-shadow: 0 0 10px currentColor; filter: brightness(1.1); transform: scale(1.02); }
@@ -47,7 +47,7 @@
                     <div class="card-header bg-blue">🎲 SELECIONAR LOTERIA</div>
                     <div class="card-body">
                         <div class="loteria-selector-admin">
-                            <button id="adminBtnMega" class="loteria-btn-admin mega active">🎯 MEGA-SENA</button>
+                            <button id="adminBtnMega" class="loteria-btn-admin mega active">🎯 MEGA</button>
                             <button id="adminBtnLotofacil" class="loteria-btn-admin lotofacil">🌟 LOTOFÁCIL</button>
                             <button id="adminBtnQuina" class="loteria-btn-admin quina">🎯 QUINA</button>
                         </div>
@@ -69,24 +69,24 @@
 
                 <!-- Cadastro -->
                 <div class="card">
-                    <div class="card-header bg-green" id="cadastroHeader">📝 CADASTRAR CARTÕES - MEGA-SENA</div>
+                    <div class="card-header bg-green" id="cadastroHeader">📝 CADASTRAR CARTÕES - MEGA</div>
                     <div class="card-body">
                         <div class="form-row">
                             <div class="form-group"><label>📌 Concurso:</label><input type="number" id="concurso" class="form-control" placeholder="Ex: 2700"></div>
                             <div class="form-group"><label>👥 Bolão:</label><input type="text" id="bolao" class="form-control" placeholder="Ex: Família, Amigos"></div>
                         </div>
                         <div class="form-group">
-                            <label id="labelNumeros">🔢 Números (um por linha - MEGA-SENA: 6 números):</label>
+                            <label id="labelNumeros">🔢 Números (um por linha - MEGA: 6 números):</label>
                             <textarea id="numerosCartoes" rows="8" class="form-control" placeholder="Ex:&#10;12 15 23 34 45 56&#10;05 10 15 20 25 30"></textarea>
                         </div>
-                        <div class="dica" id="dicaNumeros">💡 MEGA-SENA: mínimo 6 números. LOTOFÁCIL: mínimo 15. QUINA: mínimo 5 números (máx 15).</div>
+                        <div class="dica" id="dicaNumeros">💡 MEGA: mínimo 6 números. LOTOFÁCIL: mínimo 15. QUINA: mínimo 5 números (máx 15).</div>
                         <div class="form-buttons"><button id="btnAdicionar" class="btn btn-green">➕ ADICIONAR CARTÕES</button><button id="btnLimpar" class="btn btn-gray">🗑️ LIMPAR</button></div>
                     </div>
                 </div>
 
                 <!-- Resultados oficiais -->
                 <div class="card">
-                    <div class="card-header bg-purple" id="resultadosHeader">🔍 RESULTADOS OFICIAIS - MEGA-SENA</div>
+                    <div class="card-header bg-purple" id="resultadosHeader">🔍 RESULTADOS OFICIAIS - MEGA</div>
                     <div class="card-body">
                         <div class="form-group"><label>Concurso:</label><select id="concursoResultado" class="form-control"><option value="">Selecione um concurso</option></select></div>
                         <div class="form-group"><label>Números Sorteados:</label><div class="numeros-container"><input type="text" id="numerosSorteadosInput" class="form-control" placeholder="Ex: 12 15 23 34 45 56"><button id="btnSalvarResultado" class="btn btn-success">💾 SALVAR</button></div></div>
@@ -96,7 +96,7 @@
 
             <div class="lista-panel">
                 <div class="card">
-                    <div class="card-header bg-orange" id="listaHeader">📋 CARTÕES CADASTRADOS - MEGA-SENA</div>
+                    <div class="card-header bg-orange" id="listaHeader">📋 CARTÕES CADASTRADOS - MEGA</div>
                     <div class="card-body">
                         <div class="filtros">
                             <select id="filtroConcurso"><option value="todos">Todos os concursos</option></select>
@@ -112,33 +112,34 @@
             </div>
         </div>
 
-        <!-- Card: Gerenciar Bolões (fora do admin-layout, antes do footer) -->
-    <div class="card">
-        <div class="card-header" style="background: #8b5cf6;">📋 GERENCIAR BOLÕES</div>
-        <div class="card-body">
-            <div id="listaBoloes" style="max-height: 400px; overflow-y: auto;">
-                <div class="empty-state">Carregando bolões...</div>
+        <!-- Card: Gerenciar Bolões -->
+        <div class="card">
+            <div class="card-header" style="background: #8b5cf6;">📋 GERENCIAR BOLÕES</div>
+            <div class="card-body">
+                <div id="listaBoloes" style="max-height: 400px; overflow-y: auto;">
+                    <div class="empty-state">Carregando bolões...</div>
+                </div>
+                <div style="margin-top: 15px;">
+                    <button id="btnSalvarSelecao" class="btn btn-primary" style="width: 100%;">💾 SALVAR CONFIGURAÇÕES</button>
+                </div>
             </div>
-            <div style="margin-top: 15px;">
-                <button id="btnSalvarSelecao" class="btn btn-primary" style="width: 100%;">💾 SALVAR CONFIGURAÇÕES</button>
+        </div>
+
+        <!-- Card: Configuração Geral -->
+        <div class="card">
+            <div class="card-header" style="background: #10b981;">💳 CONFIGURAÇÃO GERAL</div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label>🔑 Chave PIX (para todos os bolões):</label>
+                    <input type="text" id="pixConfig" class="form-control" placeholder="Ex: 61998507770 ou email@email.com">
+                </div>
+                <button id="btnSalvarPix" class="btn btn-success">💾 SALVAR PIX</button>
             </div>
         </div>
     </div>
 
     <div id="authModal" class="modal"><div class="modal-content"><div class="modal-header">🔐 ACESSO ADMINISTRATIVO</div><div class="modal-body"><input type="password" id="senhaAdmin" class="form-control" placeholder="Digite a senha"><button id="btnAutenticar" class="btn btn-primary btn-large">🔓 ENTRAR</button></div></div></div>
     
-    <!-- Card: Configuração Geral -->
-    <div class="card">
-        <div class="card-header" style="background: #10b981;">💳 CONFIGURAÇÃO GERAL</div>
-        <div class="card-body">
-            <div class="form-group">
-                <label>🔑 Chave PIX (para todos os bolões):</label>
-                <input type="text" id="pixConfig" class="form-control" placeholder="Ex: 61998507770 ou email@email.com">
-            </div>
-            <button id="btnSalvarPix" class="btn btn-success">💾 SALVAR PIX</button>
-        </div>
-    </div>
-
     <div class="footer">
         <div>© 2026 Bolões Aleatórios - Versão 2.0</div>
         <div style="font-size: 11px;">Desenvolvido por Elton Luis</div>
