@@ -15,21 +15,77 @@
         .loteria-btn-admin.quina { background: #ef4444; color: white; }
         .loteria-btn-admin.active { box-shadow: 0 0 10px currentColor; filter: brightness(1.1); transform: scale(1.02); }
         
+        /* RESPONSIVIDADE PARA CELULAR */
         @media (max-width: 768px) {
             .container { padding: 0 10px; }
             .admin-layout { grid-template-columns: 1fr; gap: 15px; }
             .loteria-selector-admin { flex-direction: column; }
-            .loteria-btn-admin { min-width: 100%; padding: 14px; font-size: 16px; }
+            .loteria-btn-admin { 
+                min-width: 100%; 
+                padding: 14px; 
+                font-size: 14px; 
+            }
             .form-row { grid-template-columns: 1fr; gap: 10px; }
-            .filtros { flex-wrap: wrap; }
+            .filtros { 
+                display: flex; 
+                flex-direction: column; 
+                gap: 8px; 
+            }
+            .filtros select, 
+            .filtros button { 
+                width: 100%; 
+                margin: 0; 
+            }
             .form-buttons { flex-direction: column; }
             .form-buttons button { width: 100%; }
-            .numeros-container { flex-direction: column; }
+            .numeros-container { 
+                display: flex; 
+                flex-direction: column; 
+                gap: 8px; 
+            }
             .numeros-container button { width: 100%; }
-        }
-        @media (max-width: 480px) {
-            .top-bar { flex-direction: column; text-align: center; }
             .card-header { font-size: 14px; }
+            .card-body { padding: 12px; }
+            .checkbox-cartao { width: 24px; height: 24px; }
+            .cartao-item > div { 
+                flex-direction: column; 
+                align-items: flex-start !important; 
+            }
+            .btn-editar, .btn-duplicar { 
+                margin-top: 8px; 
+                width: 100%; 
+            }
+            .dashboard-cards {
+                flex-direction: column;
+                align-items: center;
+            }
+            .dashboard-card {
+                width: 100%;
+                margin-bottom: 10px;
+            }
+            /* Gerenciar bolões no celular */
+            #listaBoloes > div {
+                padding: 10px;
+            }
+            #listaBoloes select, 
+            #listaBoloes input {
+                width: 100% !important;
+                margin-top: 5px;
+            }
+            .status-select, .pix-input {
+                width: 100% !important;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .top-bar { 
+                flex-direction: column; 
+                text-align: center; 
+                gap: 8px;
+            }
+            .logo { font-size: 18px; }
+            .stats { font-size: 10px; }
+            .btn-logout { padding: 4px 10px; font-size: 11px; }
         }
     </style>
 </head>

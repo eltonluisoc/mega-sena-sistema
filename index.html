@@ -105,64 +105,62 @@
     </div>
 
     <div class="container">
-        <!-- Card: Bolão Aberto (destaque - PRIMEIRO CARD) -->
-        <div id="cardBolaoAberto" style="display: none; margin-bottom: 20px;">
-            <div class="card" style="background: linear-gradient(135deg, #fef3c7 0%, #ffffff 100%); border: 2px solid #f59e0b; border-radius: 16px; animation: pulse 1.5s infinite;">
-                <div class="card-body" id="bolaoAbertoContainer">
-                    <div class="empty-state">Carregando...</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Card: Cartões do Concurso -->
-        <div class="card">
-            <div class="card-header bg-blue" id="cardHeaderCartoes">📋 CARTÕES DO CONCURSO</div>
-            <div class="card-body" id="cartoesConcurso">
-                <div class="empty-state">Selecione um concurso para ver os cartões</div>
-            </div>
-        </div>
-
-        <!-- Card: Conferência -->
-        <div class="card">
-            <div class="card-header bg-blue" id="cardHeaderConferencia">🔍 CONFERIR RESULTADOS - MEGA</div>
-            <div class="card-body">
-                <div class="form-group"><label>📌 CONCURSO:</label><select id="concursoSelect"><option value="">Carregando concursos...</option></select></div>
-                <div id="statusBusca" class="status"></div>
-                <div id="loadingIndicator" style="display: none; text-align: center; padding: 10px; color: #3b82f6;">🔄 Carregando dados...</div>
-                <button id="btnConferir">🎲 CONFERIR RESULTADOS</button>
-            </div>
-        </div>
-
-        <!-- Card: Resultados da Conferência -->
-        <div class="card">
-            <div class="card-header bg-green" id="cardHeaderResultados">📊 RESULTADOS DA CONFERÊNCIA</div>
-            <div class="card-body" id="resultadosArea">
-                <div class="empty-state">🔍 Clique em "Conferir Resultados" para ver os acertos</div>
-            </div>
-        </div>
-
-        <!-- Card: Bolões Especiais (EM ANDAMENTO) -->
-        <div class="card" id="cardBolaoAtivo" style="display: none;">
-            <div class="card-header bg-orange">⭐ BOLÕES ESPECIAIS</div>
-            <div class="card-body" id="bolaoContainer">
+    <!-- Card: Bolão Aberto (destaque - PRIMEIRO CARD) -->
+    <div id="cardBolaoAberto" style="display: none; margin-bottom: 20px;">
+        <div class="card" style="background: linear-gradient(135deg, #fef3c7 0%, #ffffff 100%); border: 2px solid #f59e0b; border-radius: 16px; animation: pulse 1.5s infinite;">
+            <div class="card-body" id="bolaoAbertoContainer">
                 <div class="empty-state">Carregando...</div>
             </div>
         </div>
+    </div>
 
-        <!-- Card: Compartilhar e Opine -->
-        <div class="card">
-            <div class="card-header bg-green">👥 COMPARTILHE E OPINE</div>
-            <div class="card-body" style="text-align: center;">
-                <div style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;">
-                    <button id="btnCompartilhar" style="background: #25D366; width: auto; padding: 10px 20px;">📤 COMPARTILHAR SITE</button>
-                    <button id="btnSugestao" style="background: #f59e0b; width: auto; padding: 10px 20px;">💬 ENVIAR SUGESTÃO</button>
+    <!-- Card ÚNICO: Conferir Resultados + Cartões do Concurso -->
+    <div class="card">
+        <div class="card-header bg-blue" id="cardHeaderConferencia">🔍 CONFERIR RESULTADOS - MEGA</div>
+        <div class="card-body">
+            <div class="form-group"><label>📌 CONCURSO:</label><select id="concursoSelect"><option value="">Carregando concursos...</option></select></div>
+            <div id="cartoesUnificado" style="margin: 15px 0; padding: 10px; background: #f8fafc; border-radius: 8px;">
+                <div style="font-weight: bold; margin-bottom: 10px;">📋 CARTÕES DO CONCURSO</div>
+                <div id="cartoesConcurso" style="max-height: 300px; overflow-y: auto;">
+                    <div class="empty-state">Selecione um concurso para ver os cartões</div>
                 </div>
-                <div style="font-size: 11px; color: #666; margin-top: 10px;">
-                    ✨ Compartilhe o site com seus amigos | ✨ Sua opinião é importante para melhorarmos
-                </div>
+            </div>
+            <div id="statusBusca" class="status"></div>
+            <div id="loadingIndicator" style="display: none; text-align: center; padding: 10px; color: #3b82f6;">🔄 Carregando dados...</div>
+            <button id="btnConferir">🎲 CONFERIR RESULTADOS</button>
+        </div>
+    </div>
+
+    <!-- Card: Resultados da Conferência -->
+    <div class="card">
+        <div class="card-header bg-green" id="cardHeaderResultados">📊 RESULTADOS DA CONFERÊNCIA</div>
+        <div class="card-body" id="resultadosArea">
+            <div class="empty-state">🔍 Clique em "Conferir Resultados" para ver os acertos</div>
+        </div>
+    </div>
+
+    <!-- Card: Bolões Especiais (EM ANDAMENTO) -->
+    <div class="card" id="cardBolaoAtivo" style="display: none;">
+        <div class="card-header bg-orange">⭐ BOLÕES ESPECIAIS</div>
+        <div class="card-body" id="bolaoContainer">
+            <div class="empty-state">Carregando...</div>
+        </div>
+    </div>
+
+    <!-- Card: Compartilhar e Opine -->
+    <div class="card">
+        <div class="card-header bg-green">👥 COMPARTILHE E OPINE</div>
+        <div class="card-body" style="text-align: center;">
+            <div style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;">
+                <button id="btnCompartilhar" style="background: #25D366; width: auto; padding: 10px 20px;">📤 COMPARTILHAR SITE</button>
+                <button id="btnSugestao" style="background: #f59e0b; width: auto; padding: 10px 20px;">💬 ENVIAR SUGESTÃO</button>
+            </div>
+            <div style="font-size: 11px; color: #666; margin-top: 10px;">
+                ✨ Compartilhe o site com seus amigos | ✨ Sua opinião é importante para melhorarmos
             </div>
         </div>
     </div>
+</div>
 
     <div class="footer">
         <div>© 2026 Bolões Aleatórios - Versão 2.0</div>

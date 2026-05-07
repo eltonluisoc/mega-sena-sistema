@@ -290,7 +290,7 @@ function compartilharWhatsApp() {
         return;
     }
     const { numeros, dataSorteio, premios } = ultimoResultadoDados;
-    const linha = '──────────────';
+    const linha = '────────────────────';  // 20 caracteres (menor)
     let loteriaNome = loteriaAtual === 'mega' ? 'MEGA-SENA' : (loteriaAtual === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA');
     
     let msg = `*🏆 RESULTADO - ${loteriaNome}* 🎲\n🏆 Rumo ao Grande Prêmio!\n${linha}\n📌 Concurso: ${ultimoResultadoConcurso}\n🎯 Números Sorteados:\n   ${numeros.join(' - ')}\n`;
@@ -320,6 +320,7 @@ function compartilharWhatsApp() {
     }
     
     msg += `${linha}\n🔗 Acesse o resultado completo:\nhttps://rebrand.ly/boloesaleatorios`;
+    
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const whatsappUrl = isMobile ? `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}` : `https://web.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
     window.open(whatsappUrl, '_blank');
@@ -440,7 +441,8 @@ async function carregarBolaoAtivo() {
         let idsSelecionados = dados.ids || [];
         const statusMap = dados.status || {};
         
-        //idsSelecionados = idsSelecionados.filter(id => statusMap[id] !== 'aberto');
+        // NÃO remover os abertos - eles também aparecem aqui
+        // idsSelecionados = idsSelecionados.filter(id => statusMap[id] !== 'aberto');
         
         if (idsSelecionados.length === 0) {
             if (card) card.style.display = 'none';
@@ -460,7 +462,7 @@ async function carregarBolaoAtivo() {
             return;
         }
         
-         // ============ ORDENAÇÃO: primeiro os ABERTOS, depois os EM ANDAMENTO ============
+        // ORDENAR: primeiro os ABERTOS, depois os EM ANDAMENTO
         boloes.sort((a, b) => {
             const statusA = statusMap[a.id] || 'andamento';
             const statusB = statusMap[b.id] || 'andamento';
@@ -468,6 +470,7 @@ async function carregarBolaoAtivo() {
             if (statusA !== 'aberto' && statusB === 'aberto') return 1;
             return 0;
         });
+        
         card.style.display = 'block';
         
         let html = '';
@@ -478,6 +481,14 @@ async function carregarBolaoAtivo() {
             const statusText = statusMap[bolao.id] === 'aberto' ? '🟢 ABERTO' : '🟡 EM ANDAMENTO';
             const statusColor = statusMap[bolao.id] === 'aberto' ? '#10b981' : '#f59e0b';
             
+            // DATA LIMITE: só para abertos
+            let dataTexto = '';
+            if (statusMap[bolao.id] === 'aberto' && bolao.dataLimite) {
+                dataTexto = `<br>📅 Até ${new Date(bolao.dataLimite).toLocaleDateString('pt-BR')}`;
+            } else if (statusMap[bolao.id] !== 'aberto') {
+                dataTexto = `<br>📅 Inscrições encerradas`;
+            }
+            
             html += `
                 <div style="margin-bottom: 20px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
@@ -485,7 +496,7 @@ async function carregarBolaoAtivo() {
                     </div>
                     <div style="font-size: 12px; margin-top: 5px;">
                         💰 Valor da cota: R$ ${bolao.valorPorCota || 0},00
-                        ${bolao.dataLimite ? `<br>📅 Data limite: ${new Date(bolao.dataLimite).toLocaleDateString('pt-BR')}` : ''}
+                        ${dataTexto}
                     </div>
                     <div style="font-size: 12px; margin-top: 8px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
                         <span style="color: #10b981;">✅ Quitados: ${totalQuitados}</span>
@@ -520,7 +531,7 @@ async function carregarBolaoAtivo() {
             };
         });
         
-        console.log(`✅ ${boloes.length} bolão(ões) em andamento exibido(s)`);
+        console.log(`✅ ${boloes.length} bolão(ões) exibido(s)`);
         
     } catch (error) {
         console.error('Erro ao carregar bolões:', error);
@@ -569,21 +580,24 @@ async function carregarBolaoAberto() {
         const vagasTotais = bolaoAberto.vagasTotais || 0;
         
         let vagasTexto = '';
-if (vagasTotais > 0) {
-    if (vagasDisponiveis <= 5 && vagasDisponiveis > 0) {
-        vagasTexto = `🔴 ÚLTIMAS ${vagasDisponiveis} VAGAS!`;
-    } else if (vagasDisponiveis > 0) {
-        vagasTexto = `${vagasDisponiveis} vagas disponíveis de ${vagasTotais}`;
-    } else if (vagasDisponiveis === 0 && vagasTotais > 0) {
-        vagasTexto = `🔴 LOTADO - Inscrições encerradas`;
-    }
-    // else: não mostra nada (vagasTexto continua vazio)
-} else {
-    if (vagasDisponiveis > 0) {
-        vagasTexto = `${vagasDisponiveis} vagas disponíveis`;
-    }
-    // else: não mostra nada
-}
+        if (vagasTotais > 0) {
+            if (vagasDisponiveis <= 5 && vagasDisponiveis > 0) {
+                vagasTexto = `🔴 ÚLTIMAS ${vagasDisponiveis} VAGAS!`;
+            } else if (vagasDisponiveis > 0) {
+                vagasTexto = `${vagasDisponiveis} vagas disponíveis de ${vagasTotais}`;
+            } else if (vagasDisponiveis === 0 && vagasTotais > 0) {
+                vagasTexto = `🔴 LOTADO - Inscrições encerradas`;
+            }
+        } else if (vagasDisponiveis > 0) {
+            vagasTexto = `${vagasDisponiveis} vagas disponíveis`;
+        }
+        // removido o "Consultar disponibilidade"
+        
+        // Data limite apenas para bolão aberto
+        let dataTexto = '';
+        if (bolaoAberto.dataLimite) {
+            dataTexto = ` | 📅 Até ${new Date(bolaoAberto.dataLimite).toLocaleDateString('pt-BR')}`;
+        }
         
         let html = `
             <div style="text-align: center;">
@@ -593,12 +607,9 @@ if (vagasTotais > 0) {
                     ${bolaoAberto.concurso ? ` - Concurso ${bolaoAberto.concurso}` : ''}
                 </div>
                 <div style="font-size: 13px; margin-top: 5px;">
-                    💰 R$ ${bolaoAberto.valorPorCota || 0},00 por cota
-                    ${bolaoAberto.dataLimite ? ` | 📅 Até ${new Date(bolaoAberto.dataLimite).toLocaleDateString('pt-BR')}` : ''}
+                    💰 R$ ${bolaoAberto.valorPorCota || 0},00 por cota${dataTexto}
                 </div>
-                <div style="font-size: 14px; margin-top: 8px; font-weight: bold; color: ${vagasTexto.includes('LOTADO') ? '#ef4444' : (vagasDisponiveis <= 5 && vagasDisponiveis > 0) ? '#ef4444' : '#059669'};">
-                    ${vagasTexto}
-                </div>
+                ${vagasTexto ? `<div style="font-size: 14px; margin-top: 8px; font-weight: bold; color: ${vagasTexto.includes('LOTADO') ? '#ef4444' : (vagasDisponiveis <= 5 && vagasDisponiveis > 0) ? '#ef4444' : '#059669'};">${vagasTexto}</div>` : ''}
                 <button id="btnParticiparAberto" style="background: #10b981; margin-top: 12px; width: auto; padding: 10px 25px;">📝 QUERO PARTICIPAR</button>
             </div>
         `;
@@ -624,7 +635,6 @@ function mostrarModalParticipacao(bolao) {
     modal.id = 'modalParticipacao';
     modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; display: flex; justify-content: center; align-items: center;';
     
-    const vagasDisponiveis = bolao.vagasDisponiveis || 0;
     const pixChave = pixGeral || 'Chave PIX não cadastrada';
     
     const modalContent = document.createElement('div');
