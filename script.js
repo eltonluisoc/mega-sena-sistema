@@ -146,7 +146,6 @@ async function carregarBolaoAtivo() {
             return;
         }
         
-        // Buscar bolões selecionados
         const boloes = [];
         for (const id of idsSelecionados) {
             try {
@@ -165,7 +164,6 @@ async function carregarBolaoAtivo() {
         
         card.style.display = 'block';
         
-        // Para cada bolão, criar um card expansível
         let globalHtml = '';
         for (let idx = 0; idx < boloes.length; idx++) {
             const dados = boloes[idx];
@@ -174,65 +172,70 @@ async function carregarBolaoAtivo() {
             const totalAndamento = participantes.filter(p => p.situacao === 'pendente').length;
             
             const statusBolao = dados.status || 'andamento';
-            const statusText = statusBolao === 'aberto' ? '🟢 INSCRIÇÕES ABERTAS' : '⚫ INSCRIÇÕES ENCERRADAS';
+            const statusText = statusBolao === 'aberto' ? '🟢 ABERTO' : '⚫ ENCERRADO';
             const statusCor = statusBolao === 'aberto' ? '#10b981' : '#64748b';
             
             const bolaoId = `bolao_especial_${idx}_${dados.id}`;
             
             globalHtml += `
-                <div id="${bolaoId}" style="margin-bottom: 20px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;">
+                <div id="${bolaoId}" style="margin-bottom: 16px; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px;">
                     <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
-                        <strong style="font-size: 16px;">🎯 ${dados.titulo || 'Bolão Especial'}</strong>
-                        <span style="background: ${statusCor}; color: white; padding: 2px 10px; border-radius: 20px; font-size: 10px;">${statusText}</span>
+                        <div>
+                            <strong style="font-size: 15px;">🎯 ${dados.titulo || 'Bolão Especial'}</strong>
+                            <span style="background: ${statusCor}; color: white; padding: 2px 8px; border-radius: 20px; font-size: 9px; margin-left: 8px;">${statusText}</span>
+                        </div>
+                        <button class="btn-ver-lista-mini" data-id="${bolaoId}" data-original-id="${dados.id}" style="background: none; color: #64748b; border: 1px solid #cbd5e1; padding: 4px 10px; border-radius: 20px; cursor: pointer; font-size: 11px; width: auto; display: inline-flex; align-items: center; gap: 4px;">👁 Ver participantes</button>
                     </div>
-                    <div style="font-size: 12px; margin-top: 5px;">
-                        💰 Valor da cota: R$ ${dados.valorPorCota || 0},00
-                        ${dados.dataLimite ? `<br>📅 Data limite: ${new Date(dados.dataLimite).toLocaleDateString('pt-BR')}` : ''}
+                    <div style="font-size: 12px; margin-top: 8px; display: flex; flex-wrap: wrap; gap: 12px;">
+                        <span>💰 R$ ${dados.valorPorCota || 0},00</span>
+                        ${dados.dataLimite ? `<span>📅 ${new Date(dados.dataLimite).toLocaleDateString('pt-BR')}</span>` : ''}
+                        <span>✅ ${totalQuitados} quitados</span>
+                        <span>🔄 ${totalAndamento} andamento</span>
                     </div>
-                    <div style="font-size: 12px; margin-top: 8px;">
-                        <span style="color: #10b981;">✅ Quitados: ${totalQuitados}</span>
-                        <span style="color: #f59e0b;">🔄 Em andamento: ${totalAndamento}</span>
-                    </div>
-                    <div id="participantes_${bolaoId}" style="display: none; margin-top: 15px; border-top: 1px solid #e2e8f0; padding-top: 10px;"></div>
-                    <button class="btn-ver-lista" data-id="${bolaoId}" data-nome="${dados.titulo}" style="margin-top: 10px; background: #3b82f6; color: white; border: none; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 11px; width: auto;">👁 VER LISTA</button>
+                    <div id="lista_${bolaoId}" style="display: none; margin-top: 12px; padding-top: 10px; border-top: 1px solid #e2e8f0;"></div>
                 </div>
             `;
         }
         
         container.innerHTML = globalHtml;
         
-        // Adicionar evento para cada botão "VER LISTA COMPLETA"
-        document.querySelectorAll('.btn-ver-lista').forEach(btn => {
+        // Eventos para os botões de ver lista
+        document.querySelectorAll('.btn-ver-lista-mini').forEach(btn => {
             btn.onclick = async () => {
                 const bolaoId = btn.dataset.id;
-                const participantesDiv = document.getElementById(`participantes_${bolaoId}`);
-                const btnTexto = btn;
+                const originalId = btn.dataset.originalId;
+                const listaDiv = document.getElementById(`lista_${bolaoId}`);
                 
-                if (participantesDiv.style.display === 'none') {
-                    // Buscar o bolão novamente para pegar os participantes
-                    const idOriginal = bolaoId.split('_')[2];
-                    const doc = await db.collection('participantes').doc(idOriginal).get();
+                if (listaDiv.style.display === 'none') {
+                    // Buscar participantes
+                    const doc = await db.collection('participantes').doc(originalId).get();
                     const dados = doc.data();
                     const participantes = dados.participantes || [];
                     
-                    let participantesHtml = '<div style="margin-top: 10px;"><strong>📋 PARTICIPANTES</strong></div>';
+                    let participantesHtml = '<div style="font-size: 12px; font-weight: bold; margin-bottom: 8px;">📋 PARTICIPANTES</div>';
+                    participantesHtml += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px;">';
+                    
                     participantes.forEach(p => {
-                        const statusClass = p.situacao === 'quitado' ? 'status-quitado' : 'status-pendente';
-                        const statusText = p.situacao === 'quitado' ? '✅ QUITADO' : '🔄 EM ANDAMENTO';
+                        const statusClass = p.situacao === 'quitado' ? '✅' : '🔄';
+                        const statusText = p.situacao === 'quitado' ? 'quitado' : 'andamento';
                         participantesHtml += `
-                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
-                                <span>${p.nome}</span>
-                                <span class="${statusClass}" style="padding: 2px 8px; border-radius: 20px; font-size: 11px;">${statusText}</span>
+                            <div style="display: flex; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px solid #f1f5f9;">
+                                <span style="font-size: 12px;">${statusClass}</span>
+                                <span style="font-size: 12px; flex: 1;">${p.nome}</span>
+                                <span style="font-size: 10px; color: #64748b;">${statusText}</span>
                             </div>
                         `;
                     });
                     
-                    participantesDiv.innerHTML = participantesHtml;
-                    participantesDiv.style.display = 'block';
-                    btn.innerHTML = '🙈 OCULTAR LISTA';
+                    participantesHtml += `</div>`;
+                    listaDiv.innerHTML = participantesHtml;
+                    listaDiv.style.display = 'block';
+                    btn.innerHTML = '🙈 Ocultar';
+                    btn.style.background = '#f1f5f9';
                 } else {
-                    participantesDiv.style.display = 'none';
-                    btn.innerHTML = '👁 VER LISTA COMPLETA';
+                    listaDiv.style.display = 'none';
+                    btn.innerHTML = '👁 Ver participantes';
+                    btn.style.background = 'none';
                 }
             };
         });
