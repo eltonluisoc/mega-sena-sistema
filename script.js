@@ -440,6 +440,7 @@ async function carregarBolaoAtivo() {
         const dados = configDoc.data();
         let idsSelecionados = dados.ids || [];
         const statusMap = dados.status || {};
+        const dataLimiteMap = dados.dataLimite || {};
         
         // NÃO remover os abertos - eles também aparecem aqui
         // idsSelecionados = idsSelecionados.filter(id => statusMap[id] !== 'aberto');
@@ -564,6 +565,8 @@ async function carregarBolaoAberto() {
                 if (doc.exists) {
                     bolaoAberto = doc.data();
                     bolaoId = id;
+                const dataLimite = dataLimiteMap[bolaoId] || '';
+
                     break;
                 }
             }
@@ -599,6 +602,8 @@ async function carregarBolaoAberto() {
             dataTexto = ` | 📅 Até ${new Date(bolaoAberto.dataLimite).toLocaleDateString('pt-BR')}`;
         }
         
+        const dataTexto = dataLimite ? ` | 📅 Até ${new Date(dataLimite).toLocaleDateString('pt-BR')}` : '';
+
         let html = `
             <div style="text-align: center;">
                 <strong style="font-size: 18px;">🎯 ${bolaoAberto.titulo || 'Bolão Aberto'} <span style="font-size: 12px; color: #10b981;">🟢 ABERTO</span></strong>

@@ -399,12 +399,14 @@ async function carregarBoloesParaGerenciar() {
         
         let selecionados = [];
         let statusMap = {};
-        
+        let dataLimiteMap = {};
+
         try {
             const configDoc = await db.collection('config_boloes').doc('ativos').get();
             if (configDoc.exists) {
                 selecionados = configDoc.data().ids || [];
                 statusMap = configDoc.data().status || {};
+                dataLimiteMap = configDoc.data().dataLimite || {};
             }
         } catch (e) {
             console.log('Erro ao carregar seleção:', e);
@@ -454,6 +456,10 @@ async function salvarConfigBoloes() {
     const statusMap = {};
     document.querySelectorAll('.status-select').forEach(select => {
         statusMap[select.dataset.id] = select.value;
+    });
+    const dataLimiteMap = {};
+    document.querySelectorAll('.data-limite-input').forEach(input => {
+        dataLimiteMap[input.dataset.id] = input.value;
     });
     
     try {
