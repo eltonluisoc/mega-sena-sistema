@@ -428,7 +428,7 @@ async function carregarBolaoAtivo() {
         let idsSelecionados = dados.ids || [];
         const statusMap = dados.status || {};
         
-        idsSelecionados = idsSelecionados.filter(id => statusMap[id] !== 'aberto');
+        //idsSelecionados = idsSelecionados.filter(id => statusMap[id] !== 'aberto');
         
         if (idsSelecionados.length === 0) {
             if (card) card.style.display = 'none';
@@ -549,23 +549,21 @@ async function carregarBolaoAberto() {
         const vagasTotais = bolaoAberto.vagasTotais || 0;
         
         let vagasTexto = '';
-        if (vagasTotais > 0) {
-            if (vagasDisponiveis <= 5 && vagasDisponiveis > 0) {
-                vagasTexto = `🔴 ÚLTIMAS ${vagasDisponiveis} VAGAS!`;
-            } else if (vagasDisponiveis > 0) {
-                vagasTexto = `${vagasDisponiveis} vagas disponíveis de ${vagasTotais}`;
-            } else if (vagasDisponiveis === 0 && vagasTotais > 0) {
-                vagasTexto = `🔴 LOTADO - Inscrições encerradas`;
-            } else {
-                vagasTexto = `Consultar disponibilidade`;
-            }
-        } else {
-            if (vagasDisponiveis > 0) {
-                vagasTexto = `${vagasDisponiveis} vagas disponíveis`;
-            } else {
-                vagasTexto = `Consultar disponibilidade`;
-            }
-        }
+if (vagasTotais > 0) {
+    if (vagasDisponiveis <= 5 && vagasDisponiveis > 0) {
+        vagasTexto = `🔴 ÚLTIMAS ${vagasDisponiveis} VAGAS!`;
+    } else if (vagasDisponiveis > 0) {
+        vagasTexto = `${vagasDisponiveis} vagas disponíveis de ${vagasTotais}`;
+    } else if (vagasDisponiveis === 0 && vagasTotais > 0) {
+        vagasTexto = `🔴 LOTADO - Inscrições encerradas`;
+    }
+    // else: não mostra nada (vagasTexto continua vazio)
+} else {
+    if (vagasDisponiveis > 0) {
+        vagasTexto = `${vagasDisponiveis} vagas disponíveis`;
+    }
+    // else: não mostra nada
+}
         
         let html = `
             <div style="text-align: center;">
