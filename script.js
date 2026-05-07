@@ -38,7 +38,7 @@ function mostrarPopupInstalar() {
     let mensagem = '';
     
     if (isIOS) {
-        mensagem = '📲 No iPhone/iPad:\n\n1. Toque no botão "Compartilhar" 📤 (ícone de quadrado com seta)\n2. Role a tela para baixo\n3. Toque em "Adicionar à Tela de Início"\n4. Confirme o nome e toque em "Adicionar"\n\nO app aparecerá na tela inicial como um aplicativo normal!';
+        mensagem = '📲 No iPhone/iPad:\n\n1. Toque no botão "Compartilhar" 📤\n2. Role a tela para baixo\n3. Toque em "Adicionar à Tela de Início"\n4. Confirme o nome e toque em "Adicionar"\n\nO app aparecerá na tela inicial como um aplicativo normal!';
     } else if (isAndroid) {
         mensagem = '📲 No Android (Chrome):\n\n1. Toque nos 3 pontinhos ⋮ no canto superior direito\n2. Toque em "Instalar aplicativo"\n3. Confirme a instalação\n\nO app aparecerá na tela inicial!';
     } else {
@@ -73,181 +73,6 @@ function adicionarBotaoInstalar() {
     if (btn) btn.onclick = mostrarPopupInstalar;
 }
 
-// ============ TIMER DO PRÓXIMO SORTEIO ============
-function getProximoSorteio(loteria) {
-    const agora = new Date();
-    const dia = agora.getDay();
-    const hora = agora.getHours();
-    
-    if (loteria === 'mega') {
-        if (dia === 3 && hora < 20) return { dias: 0, nomeDia: 'hoje' };
-        if (dia === 6 && hora < 20) return { dias: 0, nomeDia: 'hoje' };
-        if (dia < 3) return { dias: 3 - dia, nomeDia: (3 - dia === 1 ? 'amanhã' : `em ${3 - dia} dias`) };
-        if (dia < 6) return { dias: 6 - dia, nomeDia: (6 - dia === 1 ? 'amanhã' : `em ${6 - dia} dias`) };
-        return { dias: (3 + 7) - dia, nomeDia: `em ${(3 + 7) - dia} dias` };
-    } else {
-        if (dia >= 1 && dia <= 6 && hora < 20) return { dias: 0, nomeDia: 'hoje' };
-        if (dia === 0) return { dias: 1, nomeDia: 'amanhã' };
-        if (dia === 6 && hora >= 20) return { dias: 1, nomeDia: 'amanhã' };
-        return { dias: 1, nomeDia: 'amanhã' };
-    }
-}
-
-function atualizarTimer() {
-    const { dias, nomeDia } = getProximoSorteio(loteriaAtual);
-    const agora = new Date();
-    const hora = agora.getHours();
-    const minutos = agora.getMinutes();
-    const segundos = agora.getSeconds();
-    
-    let horasRestantes = 0;
-    if (dias === 0) {
-        horasRestantes = hora < 20 ? 19 - hora : 24 - hora + 19;
-    } else {
-        horasRestantes = (dias * 24) + (19 - hora);
-    }
-    const minutosRestantes = 59 - minutos;
-    const segundosRestantes = 59 - segundos;
-    
-    let timerText = '';
-    if (horasRestantes > 0) timerText += `${horasRestantes}h `;
-    if (minutosRestantes > 0 || horasRestantes > 0) timerText += `${minutosRestantes}m `;
-    timerText += `${segundosRestantes}s`;
-    
-    let loteriaNome = loteriaAtual === 'mega' ? 'MEGA-SENA' : (loteriaAtual === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA');
-    document.getElementById('timerDisplay').innerHTML = `⏰ ${timerText}`;
-    document.getElementById('proximoDia').innerHTML = `${loteriaNome} - Próximo sorteio ${nomeDia} às 20h`;
-}
-
-function iniciarTimer() {
-    if (timerInterval) clearInterval(timerInterval);
-    atualizarTimer();
-    timerInterval = setInterval(atualizarTimer, 1000);
-}
-
-// ============ CARREGAR BOLÃO ATIVO (ENVIADO PELO DESKTOP) ============
-async function carregarBolaoAtivo() {
-    const card = document.getElementById('cardBolaoAtivo');
-    const container = document.getElementById('bolaoContainer');
-    const loading = document.getElementById('loadingBolao');
-    
-    if (!card || !container) return;
-    
-    if (loading) loading.style.display = 'block';
-    container.innerHTML = '';
-    
-    try {
-        const configDoc = await db.collection('config_boloes').doc('ativos').get();
-        const idsSelecionados = configDoc.exists ? configDoc.data().ids || [] : [];
-        
-        if (idsSelecionados.length === 0) {
-            card.style.display = 'none';
-            if (loading) loading.style.display = 'none';
-            return;
-        }
-        
-        const boloes = [];
-        for (const id of idsSelecionados) {
-            try {
-                const doc = await db.collection('participantes').doc(id).get();
-                if (doc.exists) {
-                    boloes.push({ id: doc.id, ...doc.data() });
-                }
-            } catch (e) {}
-        }
-        
-        if (boloes.length === 0) {
-            card.style.display = 'none';
-            if (loading) loading.style.display = 'none';
-            return;
-        }
-        
-        card.style.display = 'block';
-        
-        let globalHtml = '';
-        for (let idx = 0; idx < boloes.length; idx++) {
-            const dados = boloes[idx];
-            const participantes = dados.participantes || [];
-            const totalQuitados = participantes.filter(p => p.situacao === 'quitado').length;
-            const totalAndamento = participantes.filter(p => p.situacao === 'pendente').length;
-            
-            const statusBolao = dados.status || 'andamento';
-            const statusText = statusBolao === 'aberto' ? '🟢 ABERTO' : '⚫ ENCERRADO';
-            const statusCor = statusBolao === 'aberto' ? '#10b981' : '#64748b';
-            
-            const bolaoId = `bolao_especial_${idx}_${dados.id}`;
-            
-            globalHtml += `
-                <div id="${bolaoId}" style="margin-bottom: 16px; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px;">
-                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
-                        <div>
-                            <strong style="font-size: 15px;">🎯 ${dados.titulo || 'Bolão Especial'}</strong>
-                            <span style="background: ${statusCor}; color: white; padding: 2px 8px; border-radius: 20px; font-size: 9px; margin-left: 8px;">${statusText}</span>
-                        </div>
-                        <button class="btn-ver-lista-mini" data-id="${bolaoId}" data-original-id="${dados.id}" style="background: none; color: #64748b; border: 1px solid #cbd5e1; padding: 4px 10px; border-radius: 20px; cursor: pointer; font-size: 11px; width: auto; display: inline-flex; align-items: center; gap: 4px;">👁 Ver participantes</button>
-                    </div>
-                    <div style="font-size: 12px; margin-top: 8px; display: flex; flex-wrap: wrap; gap: 12px;">
-                        <span>💰 R$ ${dados.valorPorCota || 0},00</span>
-                        ${dados.dataLimite ? `<span>📅 ${new Date(dados.dataLimite).toLocaleDateString('pt-BR')}</span>` : ''}
-                        <span>✅ ${totalQuitados} quitados</span>
-                        <span>🔄 ${totalAndamento} andamento</span>
-                    </div>
-                    <div id="lista_${bolaoId}" style="display: none; margin-top: 12px; padding-top: 10px; border-top: 1px solid #e2e8f0;"></div>
-                </div>
-            `;
-        }
-        
-        container.innerHTML = globalHtml;
-        
-        // Eventos para os botões de ver lista
-        document.querySelectorAll('.btn-ver-lista-mini').forEach(btn => {
-            btn.onclick = async () => {
-                const bolaoId = btn.dataset.id;
-                const originalId = btn.dataset.originalId;
-                const listaDiv = document.getElementById(`lista_${bolaoId}`);
-                
-                if (listaDiv.style.display === 'none') {
-                    // Buscar participantes
-                    const doc = await db.collection('participantes').doc(originalId).get();
-                    const dados = doc.data();
-                    const participantes = dados.participantes || [];
-                    
-                    let participantesHtml = '<div style="font-size: 12px; font-weight: bold; margin-bottom: 8px;">📋 PARTICIPANTES</div>';
-                    participantesHtml += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px;">';
-                    
-                    participantes.forEach(p => {
-                        const statusClass = p.situacao === 'quitado' ? '✅' : '🔄';
-                        const statusText = p.situacao === 'quitado' ? 'quitado' : 'andamento';
-                        participantesHtml += `
-                            <div style="display: flex; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px solid #f1f5f9;">
-                                <span style="font-size: 12px;">${statusClass}</span>
-                                <span style="font-size: 12px; flex: 1;">${p.nome}</span>
-                                <span style="font-size: 10px; color: #64748b;">${statusText}</span>
-                            </div>
-                        `;
-                    });
-                    
-                    participantesHtml += `</div>`;
-                    listaDiv.innerHTML = participantesHtml;
-                    listaDiv.style.display = 'block';
-                    btn.innerHTML = '🙈 Ocultar';
-                    btn.style.background = '#f1f5f9';
-                } else {
-                    listaDiv.style.display = 'none';
-                    btn.innerHTML = '👁 Ver participantes';
-                    btn.style.background = 'none';
-                }
-            };
-        });
-        
-    } catch (error) {
-        console.error('❌ Erro:', error);
-        card.style.display = 'none';
-    } finally {
-        if (loading) loading.style.display = 'none';
-    }
-}
-// ============ SETAR LOTERIA ============
 function setLoteria(loteria) {
     loteriaAtual = loteria;
     const btnMega = document.getElementById('btnMegaSena');
@@ -274,18 +99,11 @@ function setLoteria(loteria) {
     atualizarSelectConcursos();
     const sel = document.getElementById('concursoSelect');
     if (sel && sel.value) mostrarCartoesDoConcurso();
-    atualizarTimer();
-    //showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA-SENA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
+    showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
 }
 
-// ============ CARREGAR DADOS ============
 async function carregarDados() {
-    //console.log('🔄 Carregando dados...');
-    
-    // Mostrar loading
-    const loadingDiv = document.getElementById('loadingIndicator');
-    if (loadingDiv) loadingDiv.style.display = 'block';
-    
+    console.log('🔄 Carregando dados...');
     try {
         const snap = await db.collection('cartoes').get();
         cartoes = [];
@@ -302,7 +120,7 @@ async function carregarDados() {
                 });
             }
         });
-        //console.log(`📊 Total: ${cartoes.length} | Mega: ${cartoes.filter(c => c.tipo === 'mega').length} | Loto: ${cartoes.filter(c => c.tipo === 'lotofacil').length} | Quina: ${cartoes.filter(c => c.tipo === 'quina').length}`);
+        console.log(`📊 Total: ${cartoes.length} | Mega: ${cartoes.filter(c => c.tipo === 'mega').length} | Loto: ${cartoes.filter(c => c.tipo === 'lotofacil').length} | Quina: ${cartoes.filter(c => c.tipo === 'quina').length}`);
         
         const resMega = await db.collection('resultados').where('tipo', '==', 'mega').get();
         resultadosMega = {};
@@ -325,16 +143,12 @@ async function carregarDados() {
         atualizarSelectConcursos();
         atualizarStats();
         selecionarUltimoConcurso();
-        // showToast(`✅ ${cartoes.length} cartões carregados`, 'success'); // REMOVIDO
         
     } catch (error) {
         console.error('Erro:', error);
         showToast('❌ Erro ao carregar dados', 'error');
         const cont = document.getElementById('cartoesConcurso');
         if (cont) cont.innerHTML = '<div class="empty-state">❌ Erro ao conectar.</div>';
-    } finally {
-        // Esconder loading
-        if (loadingDiv) loadingDiv.style.display = 'none';
     }
 }
 
@@ -381,18 +195,15 @@ function mostrarCartoesDoConcurso() {
     const concurso = document.getElementById('concursoSelect').value;
     const container = document.getElementById('cartoesConcurso');
     if (!container) return;
-    
     if (!concurso) {
         container.innerHTML = '<div class="empty-state">Selecione um concurso</div>';
         return;
     }
-    
     const filtrados = cartoes.filter(c => c.tipo === loteriaAtual && c.concurso == concurso);
     if (filtrados.length === 0) {
         container.innerHTML = `<div class="empty-state">Nenhum cartão para o concurso ${concurso}</div>`;
         return;
     }
-    
     const resultadoSalvo = []; // Não destaca números
     const porBolao = {};
     filtrados.forEach(c => { const b = c.bolao || 'Sem Bolão'; if (!porBolao[b]) porBolao[b] = []; porBolao[b].push(c); });
@@ -401,10 +212,7 @@ function mostrarCartoesDoConcurso() {
         html += `<div style="margin-bottom:20px"><div style="background:#3b82f6;color:white;padding:6px 10px;border-radius:6px;margin-bottom:8px;font-size:13px;">🎯 ${bolao}</div><div style="display:flex;flex-wrap:wrap;gap:8px;">`;
         lista.forEach(cartao => {
             const numsHtml = cartao.numeros.map(n => `<span style="background:#e2e8f0;color:#333;padding:3px 7px;border-radius:5px;font-family:monospace;font-size:11px;">${n.toString().padStart(2,'0')}</span>`).join('');
-            html += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px;min-width:180px;">
-                        <div style="font-size:10px;color:#64748b;margin-bottom:4px;">Cartão - Concurso ${concurso}</div>
-                        <div style="display:flex;flex-wrap:wrap;gap:3px;">${numsHtml}</div>
-                     </div>`;
+            html += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px;min-width:180px;"><div style="font-size:10px;color:#64748b;margin-bottom:4px;">Cartão - Concurso ${concurso}</div><div style="display:flex;flex-wrap:wrap;gap:3px;">${numsHtml}</div></div>`;
         });
         html += `</div></div>`;
     }
@@ -439,8 +247,8 @@ function compartilharWhatsApp() {
         return;
     }
     const { numeros, dataSorteio, premios } = ultimoResultadoDados;
-    const linha = '────────────────';
-    let loteriaNome = loteriaAtual === 'mega' ? 'MEGA-SENA' : (loteriaAtual === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA');
+    const linha = '────────────────────────';
+    let loteriaNome = loteriaAtual === 'mega' ? 'MEGA' : (loteriaAtual === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA');
     
     let msg = `*🏆 RESULTADO - ${loteriaNome}* 🎲\n`;
     msg += `${linha}\n`;
@@ -511,7 +319,7 @@ function compartilharWhatsApp() {
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const whatsappUrl = isMobile ? `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}` : `https://web.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
     window.open(whatsappUrl, '_blank');
-    //showToast('📱 Abrindo WhatsApp...', 'info');
+    showToast('📱 Abrindo WhatsApp...', 'info');
 }
 
 async function conferirResultados() {
@@ -536,14 +344,14 @@ async function conferirResultados() {
     let numeros = null, dataSorteio = null;
     if (resultados[concurso]) {
         numeros = resultados[concurso];
-        //showToast('📋 Usando resultado salvo', 'info');
+        showToast('📋 Usando resultado salvo', 'info');
     } else {
         showToast('🔍 Buscando online...', 'info');
         const busca = await buscarResultadoInterno(concurso, loteriaAtual);
         if (busca) {
             numeros = busca.numeros;
             dataSorteio = busca.dataSorteio;
-            //showToast('✅ Resultado encontrado!', 'success');
+            showToast('✅ Resultado encontrado!', 'success');
         } else {
             area.innerHTML = `<div class="empty-state">❌ Resultado não encontrado. Digite manualmente no Admin.</div>`;
             showToast('❌ Resultado não encontrado', 'error');
@@ -587,7 +395,7 @@ async function conferirResultados() {
     } else if (loteriaAtual === 'lotofacil') {
         html += `<div><span style="font-size:20px;font-weight:bold;color:#f59e0b">${premios.pontos15}</span><br>15 PTS</div><div><span style="font-size:20px;font-weight:bold;color:#eab308">${premios.pontos14}</span><br>14 PTS</div><div><span style="font-size:20px;font-weight:bold;color:#a855f7">${premios.pontos13}</span><br>13 PTS</div><div><span style="font-size:20px;font-weight:bold;color:#3b82f6">${premios.pontos12}</span><br>12 PTS</div><div><span style="font-size:20px;font-weight:bold;color:#64748b">${premios.pontos11}</span><br>11 PTS</div>`;
     } else {
-        html += `<div><span style="font-size:20px;font-weight:bold;color:#f59e0b">${premios.quina}</span><br>QUINA</div><div><span style="font-size:20px;font-weight:bold;color:#eab308">${premios.quadra}</span><br>QUADRA</div><div><span style="font-size:20px;font-weight:bold;color:#a855f7">${premios.terno}</span><br>TERNO</div><div><span style="font-size:20px;font-weight;bold;color:#3b82f6">${premios.duque}</span><br>DUQUE</div>`;
+        html += `<div><span style="font-size:20px;font-weight:bold;color:#f59e0b">${premios.quina}</span><br>QUINA</div><div><span style="font-size:20px;font-weight:bold;color:#eab308">${premios.quadra}</span><br>QUADRA</div><div><span style="font-size:20px;font-weight:bold;color:#a855f7">${premios.terno}</span><br>TERNO</div><div><span style="font-size:20px;font-weight:bold;color:#3b82f6">${premios.duque}</span><br>DUQUE</div>`;
     }
     html += `<div><span style="font-size:20px;font-weight:bold">${calc.length}</span><br>CARTÕES</div></div><div style="background:#d1fae5;padding:8px;border-radius:6px;font-size:12px;">🎲 Sorteados: ${numeros.join(' - ')}${dataSorteio?`<br>📅 Data: ${new Date(dataSorteio).toLocaleDateString('pt-BR')}`:''}</div><button id="btnWhatsApp" class="btn-whatsapp" style="margin-top:12px;background:#25D366;width:100%;padding:10px;">📱 COMPARTILHAR NO WHATSAPP</button></div>`;
     
@@ -605,7 +413,7 @@ async function conferirResultados() {
     mostrarCartoesDoConcurso();
     const btn = document.getElementById('btnWhatsApp');
     if (btn) btn.addEventListener('click', compartilharWhatsApp);
-    //showToast('🏆 Conferência concluída!', 'success');
+    showToast('🏆 Conferência concluída!', 'success');
 }
 
 async function verificarNovosResultados() {
@@ -659,46 +467,20 @@ let intervalo, intervaloNotif;
 function iniciarAutoAtualizacao() { if (intervalo) clearInterval(intervalo); intervalo = setInterval(() => carregarDados(), 60000); }
 function iniciarMonitoramento() { if (intervaloNotif) clearInterval(intervaloNotif); intervaloNotif = setInterval(() => verificarNovosResultados(), 30000); }
 
-// ============ COMPARTILHAR SITE ============
-function compartilharSite() {
-    const url = 'https://rebrand.ly/boloesaleatorios';  // Link encurtado
-    const mensagem = `🎲 *BOLÕES ALEATÓRIOS* 🎲\n\nVenha participar e conferir os resultados dos nossos bolões!!!\n\n🔗 ${url}`;
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const whatsappUrl = isMobile 
-        ? `https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`
-        : `https://web.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
-    window.open(whatsappUrl, '_blank');
-    //showToast('📱 Abrindo WhatsApp para compartilhar...', 'info');
-}
-
-// ============ ENVIAR SUGESTÃO ============
-function enviarSugestao() {
-    // Substitua o número abaixo pelo seu WhatsApp (com DDD, sem espaços)
-    const numeroAdmin = '5561998507770';  // <--- COLOQUE SEU NÚMERO AQUI!
-    const mensagem = `💡 *SUGESTÃO PARA O SITE* 💡\n\nOlá! Gostaria de sugerir: `;
-    const url = `https://wa.me/${numeroAdmin}?text=${encodeURIComponent(mensagem)}`;
-    window.open(url, '_blank');
-    //showToast('📱 Abrindo WhatsApp para enviar sugestão...', 'info');
-}
-
 document.addEventListener('DOMContentLoaded', async () => {
-    //console.log('📄 Inicializando...');
+    console.log('📄 Inicializando...');
     await new Promise(r => setTimeout(r, 500));
     await carregarDados();
     await carregarBolaoAtivo();
     iniciarAutoAtualizacao();
     iniciarMonitoramento();
-    //iniciarTimer();
-    //iniciarInfoSorteio();
     
     const btnMega = document.getElementById('btnMegaSena');
     const btnLoto = document.getElementById('btnLotofacil');
     const btnQuina = document.getElementById('btnQuina');
     const selCon = document.getElementById('concursoSelect');
     const btnConf = document.getElementById('btnConferir');
-    const btnCompartilhar = document.getElementById('btnCompartilhar');
-    const btnSugestao = document.getElementById('btnSugestao');
-        
+    
     if (btnMega) btnMega.addEventListener('click', () => setLoteria('mega'));
     if (btnLoto) btnLoto.addEventListener('click', () => setLoteria('lotofacil'));
     if (btnQuina) btnQuina.addEventListener('click', () => setLoteria('quina'));
@@ -707,29 +489,55 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnConf.addEventListener('click', conferirResultados);
         btnConf.addEventListener('touchstart', conferirResultados);
     }
-    if (btnCompartilhar) btnCompartilhar.addEventListener('click', compartilharSite);
-    if (btnSugestao) btnSugestao.addEventListener('click', enviarSugestao);
-    
     
     adicionarBotaoInstalar();
     mostrarCartoesDoConcurso();
-    //showToast('🎲 Sistema Bolões Aleatórios carregado!', 'success');
 });
-async function carregarBoloesSelecionados() {
+
+function compartilharSite() {
+    const url = 'https://rebrand.ly/boloesaleatorios';
+    const mensagem = `🎲 *BOLÕES ALEATÓRIOS* 🎲\n\nVenha participar e conferir os resultados dos nossos bolões!!!\n\n🔗 ${url}`;
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const whatsappUrl = isMobile 
+        ? `https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`
+        : `https://web.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
+    window.open(whatsappUrl, '_blank');
+    showToast('📱 Abrindo WhatsApp para compartilhar...', 'info');
+}
+
+function enviarSugestao() {
+    const numeroAdmin = '5511999999999';
+    const mensagem = `💡 *SUGESTÃO PARA O SITE* 💡\n\nOlá! Gostaria de sugerir: `;
+    const url = `https://wa.me/${numeroAdmin}?text=${encodeURIComponent(mensagem)}`;
+    window.open(url, '_blank');
+    showToast('📱 Abrindo WhatsApp para enviar sugestão...', 'info');
+}
+
+async function carregarBolaoAtivo() {
+    console.log('📋 Carregando bolões selecionados...');
     const card = document.getElementById('cardBolaoAtivo');
     const container = document.getElementById('bolaoContainer');
     
+    if (!card || !container) return;
+    
     try {
-        // Buscar IDs selecionados
         const configDoc = await db.collection('config_boloes').doc('ativos').get();
-        const idsSelecionados = configDoc.exists ? configDoc.data().ids || [] : [];
+        if (!configDoc.exists) {
+            if (card) card.style.display = 'none';
+            return;
+        }
+        
+        const dados = configDoc.data();
+        let idsSelecionados = dados.ids || [];
+        const statusMap = dados.status || {};
+        
+        idsSelecionados = idsSelecionados.filter(id => statusMap[id] !== 'aberto');
         
         if (idsSelecionados.length === 0) {
             if (card) card.style.display = 'none';
             return;
         }
         
-        // Buscar cada bolão pelo ID
         const boloes = [];
         for (const id of idsSelecionados) {
             const doc = await db.collection('participantes').doc(id).get();
@@ -746,114 +554,34 @@ async function carregarBoloesSelecionados() {
         if (card) card.style.display = 'block';
         
         let html = '';
-        
         for (const dados of boloes) {
             const participantes = dados.participantes || [];
             const totalQuitados = participantes.filter(p => p.situacao === 'quitado' || p.situacao === 'pago').length;
-            const totalAndamento = participantes.filter(p => p.situacao === 'pendente' || p.situacao === 'andamento').length;
+            const totalAndamento = participantes.filter(p => p.situacao !== 'quitado' && p.situacao !== 'pago').length;
             
-            let expandido = false;
-            
-            function renderizarBolao(containerId, dados, participantes, totalQuitados, totalAndamento) {
-                const container = document.getElementById(containerId);
-                if (!container) return;
-                
-                let innerHtml = `
-                    <div style="margin-bottom: 15px; text-align: center; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0;">
-                        <strong style="font-size: 16px;">🎯 ${dados.titulo || 'Bolão Especial'}</strong>
-                        <div style="font-size: 12px; margin-top: 5px;">
-                            💰 Valor da cota: R$ ${dados.valorPorCota || 0},00
-                            ${dados.dataLimite ? `<br>📅 Data limite: ${new Date(dados.dataLimite).toLocaleDateString('pt-BR')}` : ''}
-                        </div>
-                        <div style="font-size: 12px; margin-top: 8px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
-                            <span style="color: #10b981;">✅ Quitados: ${totalQuitados}</span>
-                            <span style="color: #f59e0b;">🔄 Em andamento: ${totalAndamento}</span>
-                        </div>
+            html += `
+                <div style="margin-bottom: 20px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;">
+                    <strong style="font-size: 16px;">🎯 ${dados.titulo || 'Bolão Especial'}</strong>
+                    <div style="font-size: 12px; margin-top: 5px;">
+                        💰 Valor da cota: R$ ${dados.valorPorCota || 0},00
+                        ${dados.dataLimite ? `<br>📅 Data limite: ${new Date(dados.dataLimite).toLocaleDateString('pt-BR')}` : ''}
                     </div>
-                `;
-                
-                if (expandido) {
-                    participantes.forEach(p => {
-                        const statusClass = p.situacao === 'quitado' ? 'status-quitado' : 'status-pendente';
-                        const statusText = p.situacao === 'quitado' ? '✅ QUITADO' : '🔄 EM ANDAMENTO';
-                        innerHtml += `
-                            <div class="participante-item">
-                                <span class="participante-nome">${p.nome}</span>
-                                <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
-                                    <span class="participante-status ${statusClass}">${statusText}</span>
-                                    
-                                </div>
-                            </div>
-                        `;
-                    });
-                    innerHtml += `<div style="margin-top: 15px; text-align: center;"><button class="btn-ocultar" data-id="${dados.id}" style="background: #64748b; width: auto; padding: 8px 20px;">🙈 OCULTAR LISTA</button></div>`;
-                } else {
-                    innerHtml += `<div style="margin-top: 10px; text-align: center;"><button class="btn-ver" data-id="${dados.id}" style="background: #3b82f6; width: auto; padding: 8px 20px;">👁 VER LISTA COMPLETA</button></div>`;
-                }
-                
-                container.innerHTML = innerHtml;
-                
-                // Eventos
-                document.querySelector(`.btn-ver[data-id="${dados.id}"]`)?.addEventListener('click', () => {
-                    expandido = true;
-                    renderizarBolao(containerId, dados, participantes, totalQuitados, totalAndamento);
-                });
-                document.querySelector(`.btn-ocultar[data-id="${dados.id}"]`)?.addEventListener('click', () => {
-                    expandido = false;
-                    renderizarBolao(containerId, dados, participantes, totalQuitados, totalAndamento);
-                });
-            }
-            
-            const containerId = `bolao_${dados.id}`;
-            html += `<div id="${containerId}" style="margin-bottom: 20px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;"></div>`;
-            
-            // Temporariamente adicionar ao DOM para renderizar
-            container.innerHTML = html;
-            renderizarBolao(containerId, dados, participantes, totalQuitados, totalAndamento);
+                    <div style="font-size: 12px; margin-top: 8px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
+                        <span style="color: #10b981;">✅ Quitados: ${totalQuitados}</span>
+                        <span style="color: #f59e0b;">🔄 Em andamento: ${totalAndamento}</span>
+                    </div>
+                </div>
+            `;
         }
         
+        container.innerHTML = html;
+        console.log(`✅ ${boloes.length} bolão(ões) em andamento exibido(s)`);
+        
     } catch (error) {
-        console.error('Erro:', error);
+        console.error('Erro ao carregar bolões:', error);
         if (card) card.style.display = 'none';
     }
 }
-function mostrarModalParticipacao(chavePix, titulo, valor) {
-    let modal = document.getElementById('modalParticipacao');
-    if (modal) modal.remove();
-    
-    modal = document.createElement('div');
-    modal.id = 'modalParticipacao';
-    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; display: flex; justify-content: center; align-items: center;';
-    
-    const modalContent = document.createElement('div');
-    modalContent.style.cssText = 'background: white; border-radius: 20px; max-width: 400px; width: 90%; padding: 25px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.3);';
-    modalContent.innerHTML = `
-        <div style="font-size: 24px; margin-bottom: 10px;">📝</div>
-        <div style="font-size: 20px; font-weight: bold; margin-bottom: 15px;">COMO PARTICIPAR</div>
-        <div style="text-align: left; margin-bottom: 20px;">
-            <p><strong>🎯 ${titulo}</strong></p>
-            <p>💰 Valor da cota: R$ ${valor || 0},00</p>
-            <p>💳 Pague via PIX:</p>
-            <div style="background: #f1f5f9; padding: 12px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin: 10px 0;">
-                <code style="font-size: 14px;">${chavePix}</code>
-                <button id="copiarPix" style="background: #3b82f6; color: white; border: none; padding: 5px 12px; border-radius: 6px; cursor: pointer; width: auto;">📋 COPIAR</button>
-            </div>
-            <p>📲 Após o pagamento, envie o comprovante para:</p>
-        </div>
-        <button id="falarWhatsApp" style="background: #25D366; color: white; border: none; padding: 12px 20px; border-radius: 30px; font-size: 16px; cursor: pointer; width: 100%; margin-bottom: 10px;">📲 FALAR COM ADMIN</button>
-        <button id="fecharModal" style="background: #64748b; color: white; border: none; padding: 10px 20px; border-radius: 30px; font-size: 14px; cursor: pointer; width: 100%;">Fechar</button>
-    `;
-    
-    modal.appendChild(modalContent);
-    document.body.appendChild(modal);
-    
-    document.getElementById('fecharModal').onclick = () => modal.remove();
-    document.getElementById('copiarPix').onclick = () => {
-        navigator.clipboard.writeText(chavePix);
-        showToast('✅ PIX copiado!', 'success');
-    };
-    document.getElementById('falarWhatsApp').onclick = () => {
-        window.open('https://wa.me/5561998507770', '_blank');
-    };
-    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-}
+
+document.getElementById('btnCompartilhar')?.addEventListener('click', compartilharSite);
+document.getElementById('btnSugestao')?.addEventListener('click', enviarSugestao);

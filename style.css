@@ -705,3 +705,13 @@ textarea.form-control {
 .card-header.bg-red {
     background: #ef4444;
 }
+/* Animação para o card de bolão aberto */
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+#cardBolaoAberto .card {
+    animation: pulse 1.5s infinite;
+}

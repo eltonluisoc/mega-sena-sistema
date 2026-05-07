@@ -412,50 +412,88 @@ async function carregarBoloesParaGerenciar() {
         
         // Carregar seleção atual
         let selecionados = [];
+        let statusMap = {};
+        let pixMap = {};
+        
         try {
             const configDoc = await db.collection('config_boloes').doc('ativos').get();
             if (configDoc.exists) {
                 selecionados = configDoc.data().ids || [];
+                statusMap = configDoc.data().status || {};
+                pixMap = configDoc.data().pix || {};
             }
-        } catch (e) {}
+        } catch (e) {
+            console.log('Erro ao carregar seleção:', e);
+        }
         
         let html = '';
-        for (const bolao of boloes) {
+        boloes.forEach(bolao => {
             const checked = selecionados.includes(bolao.id) ? 'checked' : '';
-            const statusAtual = bolao.status || 'andamento';
+            const status = statusMap[bolao.id] || 'andamento';
+            const pix = pixMap[bolao.id] || '';
             
             html += `
-                <div style="padding: 10px; border-bottom: 1px solid #eee; margin-bottom: 5px;">
+                <div style="padding: 12px; border-bottom: 1px solid #eee; margin-bottom: 8px;">
                     <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                         <input type="checkbox" class="checkbox-bolao" data-id="${bolao.id}" ${checked} style="width: 20px; height: 20px;">
-                        <div style="flex: 1;">
-                            <strong>${bolao.titulo || 'Sem título'}</strong>
-                            <div style="font-size: 12px; color: #666;">${bolao.participantes?.length || 0} participantes | ${bolao.loteria || '?'}</div>
-                        </div>
-                        <select class="status-select" data-id="${bolao.id}" style="padding: 5px 10px; border-radius: 6px; border: 1px solid #ccc;">
-                            <option value="aberto" ${statusAtual === 'aberto' ? 'selected' : ''}>🟢 ABERTO (aparece no topo)</option>
-                            <option value="andamento" ${statusAtual === 'andamento' ? 'selected' : ''}>⚫ EM ANDAMENTO (em Bolões Especiais)</option>
+                        <strong>${bolao.titulo || 'Sem título'}</strong>
+                        <span style="font-size: 11px; color: #666;">${bolao.participantes?.length || 0} participantes | ${bolao.loteria || '?'}</span>
+                    </div>
+                    <div style="margin-left: 35px; margin-top: 8px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+                        <label style="font-size: 12px;">Status:</label>
+                        <select class="status-select" data-id="${bolao.id}" style="padding: 4px 8px; border-radius: 6px;">
+                            <option value="aberto" ${status === 'aberto' ? 'selected' : ''}>🟢 ABERTO</option>
+                            <option value="andamento" ${status === 'andamento' ? 'selected' : ''}>🟡 EM ANDAMENTO</option>
                         </select>
+                        <label style="font-size: 12px;">Chave PIX:</label>
+                        <input type="text" class="pix-input" data-id="${bolao.id}" value="${pix}" placeholder="admin@email.com" style="padding: 4px 8px; border-radius: 6px; width: 180px;">
                     </div>
                 </div>
             `;
-        }
+        });
         
         container.innerHTML = html;
         
-        // Evento para salvar status quando mudar
+        // Adicionar eventos para salvar alterações
         document.querySelectorAll('.status-select').forEach(select => {
-            select.onchange = async () => {
-                const id = select.dataset.id;
-                const novoStatus = select.value;
-                await db.collection('participantes').doc(id).update({ status: novoStatus });
-                showToast(`✅ Status atualizado para ${novoStatus === 'aberto' ? 'ABERTO' : 'EM ANDAMENTO'}`, 'success');
-            };
+            select.addEventListener('change', () => salvarConfigBoloes());
         });
+        document.querySelectorAll('.pix-input').forEach(input => {
+            input.addEventListener('change', () => salvarConfigBoloes());
+        });
+        
+        console.log(`✅ ${boloes.length} bolões carregados`);
         
     } catch (error) {
         console.error('Erro ao carregar bolões:', error);
         container.innerHTML = '<div class="empty-state">Erro ao carregar bolões. Verifique o console (F12).</div>';
+    }
+}
+
+async function salvarConfigBoloes() {
+    const checkboxes = document.querySelectorAll('.checkbox-bolao:checked');
+    const idsSelecionados = Array.from(checkboxes).map(cb => cb.dataset.id);
+    
+    const statusMap = {};
+    const pixMap = {};
+    
+    document.querySelectorAll('.status-select').forEach(select => {
+        statusMap[select.dataset.id] = select.value;
+    });
+    document.querySelectorAll('.pix-input').forEach(input => {
+        pixMap[input.dataset.id] = input.value;
+    });
+    
+    try {
+        await db.collection('config_boloes').doc('ativos').set({ 
+            ids: idsSelecionados,
+            status: statusMap,
+            pix: pixMap
+        });
+        showToast(`✅ ${idsSelecionados.length} bolão(ões) selecionado(s)`, 'success');
+    } catch (error) {
+        console.error('Erro ao salvar:', error);
+        showToast('❌ Erro ao salvar seleção', 'error');
     }
 }
 
