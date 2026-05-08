@@ -430,6 +430,9 @@ async function carregarBoloesParaGerenciar() {
                             <option value="aberto" ${status === 'aberto' ? 'selected' : ''}>🟢 ABERTO</option>
                             <option value="andamento" ${status === 'andamento' ? 'selected' : ''}>🟡 EM ANDAMENTO</option>
                         </select>
+                        <label style="font-size: 12px;">Data limite:</label>
+                        <input type="date" class="data-limite-input" data-id="${bolao.id}" value="${dataLimiteMap[bolao.id] || ''}" style="padding: 4px 8px; border-radius: 6px;">
+                    </div>
                     </div>
                 </div>
             `;
@@ -466,6 +469,7 @@ async function salvarConfigBoloes() {
         await db.collection('config_boloes').doc('ativos').set({ 
             ids: idsSelecionados,
             status: statusMap
+            dataLimite: dataLimiteMap
         });
         showToast(`✅ ${idsSelecionados.length} bolão(ões) selecionado(s)`, 'success');
     } catch (error) {
