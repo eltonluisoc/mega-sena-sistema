@@ -460,6 +460,7 @@ async function salvarConfigBoloes() {
     document.querySelectorAll('.status-select').forEach(select => {
         statusMap[select.dataset.id] = select.value;
     });
+    
     const dataLimiteMap = {};
     document.querySelectorAll('.data-limite-input').forEach(input => {
         dataLimiteMap[input.dataset.id] = input.value;
@@ -468,7 +469,7 @@ async function salvarConfigBoloes() {
     try {
         await db.collection('config_boloes').doc('ativos').set({ 
             ids: idsSelecionados,
-            status: statusMap
+            status: statusMap,
             dataLimite: dataLimiteMap
         });
         showToast(`✅ ${idsSelecionados.length} bolão(ões) selecionado(s)`, 'success');
@@ -505,3 +506,18 @@ document.addEventListener('DOMContentLoaded', () => {
         btnSalvarSelecao.addEventListener('click', salvarConfigBoloes);
     }
 });
+
+// ============ COLLAPSE CONFIGURAÇÃO GERAL ============
+const btnConfig = document.getElementById('btnConfigGeral');
+const collapseContent = document.querySelector('.collapse-content');
+
+if (btnConfig && collapseContent) {
+    btnConfig.addEventListener('click', () => {
+        btnConfig.classList.toggle('active-collapse');
+        if (collapseContent.style.display === 'block') {
+            collapseContent.style.display = 'none';
+        } else {
+            collapseContent.style.display = 'block';
+        }
+    });
+}

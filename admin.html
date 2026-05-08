@@ -15,74 +15,39 @@
         .loteria-btn-admin.quina { background: #ef4444; color: white; }
         .loteria-btn-admin.active { box-shadow: 0 0 10px currentColor; filter: brightness(1.1); transform: scale(1.02); }
         
-        /* RESPONSIVIDADE PARA CELULAR */
+        /* Painel recolhível */
+        .collapsible { background: #f1f5f9; cursor: pointer; padding: 12px; width: 100%; border: none; text-align: left; font-weight: bold; border-radius: 8px; margin-bottom: 5px; }
+        .collapsible:hover { background: #e2e8f0; }
+        .collapsible:after { content: '▼'; float: right; }
+        .active-collapse:after { content: '▲'; }
+        .collapse-content { display: none; overflow: hidden; padding: 10px 0; }
+        
         @media (max-width: 768px) {
             .container { padding: 0 10px; }
             .admin-layout { grid-template-columns: 1fr; gap: 15px; }
             .loteria-selector-admin { flex-direction: column; }
-            .loteria-btn-admin { 
-                min-width: 100%; 
-                padding: 14px; 
-                font-size: 14px; 
-            }
+            .loteria-btn-admin { min-width: 100%; padding: 14px; font-size: 14px; }
             .form-row { grid-template-columns: 1fr; gap: 10px; }
-            .filtros { 
-                display: flex; 
-                flex-direction: column; 
-                gap: 8px; 
-            }
-            .filtros select, 
-            .filtros button { 
-                width: 100%; 
-                margin: 0; 
-            }
+            .filtros { display: flex; flex-direction: column; gap: 8px; }
+            .filtros select, .filtros button { width: 100%; margin: 0; }
             .form-buttons { flex-direction: column; }
             .form-buttons button { width: 100%; }
-            .numeros-container { 
-                display: flex; 
-                flex-direction: column; 
-                gap: 8px; 
-            }
+            .numeros-container { display: flex; flex-direction: column; gap: 8px; }
             .numeros-container button { width: 100%; }
             .card-header { font-size: 14px; }
             .card-body { padding: 12px; }
             .checkbox-cartao { width: 24px; height: 24px; }
-            .cartao-item > div { 
-                flex-direction: column; 
-                align-items: flex-start !important; 
-            }
-            .btn-editar, .btn-duplicar { 
-                margin-top: 8px; 
-                width: 100%; 
-            }
-            .dashboard-cards {
-                flex-direction: column;
-                align-items: center;
-            }
-            .dashboard-card {
-                width: 100%;
-                margin-bottom: 10px;
-            }
-            /* Gerenciar bolões no celular */
-            #listaBoloes > div {
-                padding: 10px;
-            }
-            #listaBoloes select, 
-            #listaBoloes input {
-                width: 100% !important;
-                margin-top: 5px;
-            }
-            .status-select, .pix-input {
-                width: 100% !important;
-            }
+            .cartao-item > div { flex-direction: column; align-items: flex-start !important; }
+            .btn-editar, .btn-duplicar { margin-top: 8px; width: 100%; }
+            .dashboard-cards { flex-direction: column; align-items: center; }
+            .dashboard-card { width: 100%; margin-bottom: 10px; }
+            #listaBoloes > div { padding: 10px; }
+            #listaBoloes select, #listaBoloes input { width: 100% !important; margin-top: 5px; }
+            .status-select, .data-limite-input { width: 100% !important; }
         }
         
         @media (max-width: 480px) {
-            .top-bar { 
-                flex-direction: column; 
-                text-align: center; 
-                gap: 8px;
-            }
+            .top-bar { flex-direction: column; text-align: center; gap: 8px; }
             .logo { font-size: 18px; }
             .stats { font-size: 10px; }
             .btn-logout { padding: 4px 10px; font-size: 11px; }
@@ -114,11 +79,11 @@
                 <div class="card">
                     <div class="card-header bg-blue">📊 DASHBOARD RESUMO</div>
                     <div class="card-body">
-                        <div style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: space-around;">
-                            <div style="text-align: center; background: #f0fdf4; padding: 15px; border-radius: 10px; min-width: 100px;"><div style="font-size: 28px; font-weight: bold; color: #059669;" id="dashboardTotalCartoes">0</div><div>Total Cartões</div></div>
-                            <div style="text-align: center; background: #dbeafe; padding: 15px; border-radius: 10px; min-width: 100px;"><div style="font-size: 28px; font-weight: bold; color: #3b82f6;" id="dashboardTotalConcursos">0</div><div>Concursos</div></div>
-                            <div style="text-align: center; background: #fef3c7; padding: 15px; border-radius: 10px; min-width: 100px;"><div style="font-size: 28px; font-weight: bold; color: #f59e0b;" id="dashboardTotalBoloes">0</div><div>Bolões</div></div>
-                            <div style="text-align: center; background: #f3e8ff; padding: 15px; border-radius: 10px; min-width: 100px;"><div style="font-size: 28px; font-weight: bold; color: #a855f7;" id="dashboardResultados">0</div><div>Resultados</div></div>
+                        <div class="dashboard-cards" style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: space-around;">
+                            <div class="dashboard-card" style="text-align: center; background: #f0fdf4; padding: 15px; border-radius: 10px; min-width: 100px;"><div style="font-size: 28px; font-weight: bold; color: #059669;" id="dashboardTotalCartoes">0</div><div>Total Cartões</div></div>
+                            <div class="dashboard-card" style="text-align: center; background: #dbeafe; padding: 15px; border-radius: 10px; min-width: 100px;"><div style="font-size: 28px; font-weight: bold; color: #3b82f6;" id="dashboardTotalConcursos">0</div><div>Concursos</div></div>
+                            <div class="dashboard-card" style="text-align: center; background: #fef3c7; padding: 15px; border-radius: 10px; min-width: 100px;"><div style="font-size: 28px; font-weight: bold; color: #f59e0b;" id="dashboardTotalBoloes">0</div><div>Bolões</div></div>
+                            <div class="dashboard-card" style="text-align: center; background: #f3e8ff; padding: 15px; border-radius: 10px; min-width: 100px;"><div style="font-size: 28px; font-weight: bold; color: #a855f7;" id="dashboardResultados">0</div><div>Resultados</div></div>
                         </div>
                     </div>
                 </div>
@@ -140,14 +105,7 @@
                     </div>
                 </div>
 
-                <!-- Resultados oficiais -->
-                <div class="card">
-                    <div class="card-header bg-purple" id="resultadosHeader">🔍 RESULTADOS OFICIAIS - MEGA</div>
-                    <div class="card-body">
-                        <div class="form-group"><label>Concurso:</label><select id="concursoResultado" class="form-control"><option value="">Selecione um concurso</option></select></div>
-                        <div class="form-group"><label>Números Sorteados:</label><div class="numeros-container"><input type="text" id="numerosSorteadosInput" class="form-control" placeholder="Ex: 12 15 23 34 45 56"><button id="btnSalvarResultado" class="btn btn-success">💾 SALVAR</button></div></div>
-                    </div>
-                </div>
+                <!-- REMOVIDO: Resultados Oficiais -->
             </div>
 
             <div class="lista-panel">
@@ -168,7 +126,7 @@
             </div>
         </div>
 
-        <!-- Card: Gerenciar Bolões -->
+        <!-- Gerenciar Bolões -->
         <div class="card">
             <div class="card-header" style="background: #8b5cf6;">📋 GERENCIAR BOLÕES</div>
             <div class="card-body">
@@ -181,15 +139,17 @@
             </div>
         </div>
 
-        <!-- Card: Configuração Geral -->
+        <!-- Configuração Geral (recolhível) -->
         <div class="card">
-            <div class="card-header" style="background: #10b981;">💳 CONFIGURAÇÃO GERAL</div>
-            <div class="card-body">
-                <div class="form-group">
-                    <label>🔑 Chave PIX (para todos os bolões):</label>
-                    <input type="text" id="pixConfig" class="form-control" placeholder="Ex: 61998507770 ou email@email.com">
+            <button class="collapsible" id="btnConfigGeral">💳 CONFIGURAÇÃO GERAL</button>
+            <div class="collapse-content">
+                <div class="card-body">
+                    <div class="form-group">
+                        <label>🔑 Chave PIX (para todos os bolões):</label>
+                        <input type="text" id="pixConfig" class="form-control" placeholder="Ex: 61998507770 ou email@email.com">
+                    </div>
+                    <button id="btnSalvarPix" class="btn btn-success">💾 SALVAR PIX</button>
                 </div>
-                <button id="btnSalvarPix" class="btn btn-success">💾 SALVAR PIX</button>
             </div>
         </div>
     </div>
