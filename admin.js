@@ -488,7 +488,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('adminBtnQuina').onclick = () => setLoteriaAdmin('quina');
     document.getElementById('btnAdicionar').onclick = adicionarCartoes;
     document.getElementById('btnLimpar').onclick = limparFormulario;
-    document.getElementById('btnSalvarResultado').onclick = salvarResultado;
+    
+    // Verificar se o botão existe antes de atribuir evento
+    const btnSalvarResultado = document.getElementById('btnSalvarResultado');
+    if (btnSalvarResultado) btnSalvarResultado.onclick = salvarResultado;
+    
     document.getElementById('btnRecarregar').onclick = recarregarLista;
     document.getElementById('btnExcluirSelecionados').onclick = excluirSelecionados;
     document.getElementById('btnImportarExcel').onclick = importarExcel;
