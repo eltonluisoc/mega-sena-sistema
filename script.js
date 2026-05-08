@@ -461,13 +461,14 @@ async function carregarBolaoAtivo() {
             return;
         }
         
+        const promessas = idsSelecionados.map(id => db.collection('participantes').doc(id).get());
+        const resultados = await Promise.all(promessas);
         const boloes = [];
-        for (const id of idsSelecionados) {
-            const doc = await db.collection('participantes').doc(id).get();
+        resultados.forEach(doc => {
             if (doc.exists) {
                 boloes.push({ id: doc.id, ...doc.data() });
             }
-        }
+        });
         
         if (boloes.length === 0) {
             if (card) card.style.display = 'none';
@@ -494,9 +495,11 @@ async function carregarBolaoAtivo() {
             const statusColor = statusMap[bolao.id] === 'aberto' ? '#10b981' : '#f59e0b';
             
             // DATA LIMITE: só para abertos
+            // Usar data limite do admin (dataLimiteMap) em vez do bolao.dataLimite
+            const dataLimiteAdmin = dataLimiteMap[bolao.id] || '';
             let dataTexto = '';
-            if (statusMap[bolao.id] === 'aberto' && bolao.dataLimite) {
-                dataTexto = `<br>📅 Até ${new Date(bolao.dataLimite).toLocaleDateString('pt-BR')}`;
+            if (statusMap[bolao.id] === 'aberto' && dataLimiteAdmin) {
+                dataTexto = `<br>📅 Até ${new Date(dataLimiteAdmin).toLocaleDateString('pt-BR')}`;
             } else if (statusMap[bolao.id] !== 'aberto') {
                 dataTexto = `<br>📅 Inscrições encerradas`;
             }
