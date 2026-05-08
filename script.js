@@ -140,9 +140,13 @@ function setLoteria(loteria) {
 async function carregarDados() {
     console.log('🔄 Carregando dados...');
     const loadingDiv = document.getElementById('loadingIndicator');
+    const loadingPercent = document.getElementById('loadingPercent');
     if (loadingDiv) loadingDiv.style.display = 'block';
     
     try {
+        // Atualizar percentual
+        if (loadingPercent) loadingPercent.innerText = '10% - Buscando cartões...';
+        
         const snap = await db.collection('cartoes').get();
         cartoes = [];
         snap.forEach(doc => {
@@ -158,25 +162,35 @@ async function carregarDados() {
                 });
             }
         });
-        console.log(`📊 Total: ${cartoes.length}`);
+        
+        if (loadingPercent) loadingPercent.innerText = '30% - Processando Mega-Sena...';
         
         const resMega = await db.collection('resultados').where('tipo', '==', 'mega').get();
         resultadosMega = {};
         resMega.forEach(doc => { resultadosMega[doc.id] = doc.data().numeros; });
         
+        if (loadingPercent) loadingPercent.innerText = '50% - Processando Lotofácil...';
+        
         const resLoto = await db.collection('resultados').where('tipo', '==', 'lotofacil').get();
         resultadosLotofacil = {};
         resLoto.forEach(doc => { resultadosLotofacil[doc.id] = doc.data().numeros; });
+        
+        if (loadingPercent) loadingPercent.innerText = '70% - Processando Quina...';
         
         const resQuina = await db.collection('resultados').where('tipo', '==', 'quina').get();
         resultadosQuina = {};
         resQuina.forEach(doc => { resultadosQuina[doc.id] = doc.data().numeros; });
         
-        if (Object.keys(ultimoEstadoMega).length === 0) {
-            ultimoEstadoMega = JSON.parse(JSON.stringify(resultadosMega));
-            ultimoEstadoLotofacil = JSON.parse(JSON.stringify(resultadosLotofacil));
-            ultimoEstadoQuina = JSON.parse(JSON.stringify(resultadosQuina));
-        }
+        if (loadingPercent) loadingPercent.innerText = '90% - Carregando bolões...';
+        
+        await carregarBolaoAtivo();
+        await carregarBolaoAberto();
+        
+        if (loadingPercent) loadingPercent.innerText = '100% - Concluído!';
+        
+        setTimeout(() => {
+            if (loadingDiv) loadingDiv.style.display = 'none';
+        }, 500);
         
         atualizarSelectConcursos();
         atualizarStats();
@@ -185,9 +199,6 @@ async function carregarDados() {
     } catch (error) {
         console.error('Erro:', error);
         showToast('❌ Erro ao carregar dados', 'error');
-        const cont = document.getElementById('cartoesConcurso');
-        if (cont) cont.innerHTML = '<div class="empty-state">❌ Erro ao conectar.</div>';
-    } finally {
         if (loadingDiv) loadingDiv.style.display = 'none';
     }
 }
@@ -517,11 +528,15 @@ async function carregarBolaoAtivo() {
                 if (div.style.display === 'none') {
                     const bolao = boloes.find(b => b.id === id);
                     const participantes = bolao.participantes || [];
-                    let listaHtml = '';
+                    let listaHtml = '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">';
                     participantes.forEach(p => {
                         const statusText = p.situacao === 'quitado' || p.situacao === 'pago' ? '✅ QUITADO' : '🔄 EM ANDAMENTO';
-                        listaHtml += `<div class="participante-item"><span class="participante-nome">${p.nome}</span><span class="participante-status ${p.situacao === 'quitado' || p.situacao === 'pago' ? 'status-quitado' : 'status-pendente'}">${statusText}</span></div>`;
+                        listaHtml += `<div class="participante-item" style="display: flex; justify-content: space-between; align-items: center; padding: 6px; background: #f8fafc; border-radius: 6px;">
+                                        <span class="participante-nome" style="font-size: 12px;">${p.nome}</span>
+                                        <span class="participante-status ${p.situacao === 'quitado' || p.situacao === 'pago' ? 'status-quitado' : 'status-pendente'}" style="font-size: 10px;">${statusText}</span>
+                                    </div>`;
                     });
+                    listaHtml += '</div>';
                     div.innerHTML = listaHtml;
                     div.style.display = 'block';
                     btn.textContent = '🙈 OCULTAR';
