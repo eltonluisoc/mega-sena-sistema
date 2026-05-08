@@ -718,8 +718,8 @@ async function verificarNovosResultados() {
 }
 
 let intervalo, intervaloNotif;
-function iniciarAutoAtualizacao() { if (intervalo) clearInterval(intervalo); intervalo = setInterval(() => carregarDados(), 60000); }
-function iniciarMonitoramento() { if (intervaloNotif) clearInterval(intervaloNotif); intervaloNotif = setInterval(() => verificarNovosResultados(), 30000); }
+function iniciarAutoAtualizacao() { if (intervalo) clearInterval(intervalo); intervalo = setInterval(() => carregarDados(), 180000); }
+function iniciarMonitoramento() { if (intervaloNotif) clearInterval(intervaloNotif); intervaloNotif = setInterval(() => verificarNovosResultados(), 120000); }
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('📄 Inicializando...');
