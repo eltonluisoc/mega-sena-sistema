@@ -555,6 +555,7 @@ async function carregarBolaoAberto() {
         const dados = configDoc.data();
         const idsSelecionados = dados.ids || [];
         const statusMap = dados.status || {};
+        const dataLimiteMap = dados.dataLimite || {};
         
         let bolaoAberto = null;
         let bolaoId = null;
@@ -565,8 +566,6 @@ async function carregarBolaoAberto() {
                 if (doc.exists) {
                     bolaoAberto = doc.data();
                     bolaoId = id;
-                const dataLimite = dataLimiteMap[bolaoId] || '';
-
                     break;
                 }
             }
@@ -594,16 +593,11 @@ async function carregarBolaoAberto() {
         } else if (vagasDisponiveis > 0) {
             vagasTexto = `${vagasDisponiveis} vagas disponíveis`;
         }
-        // removido o "Consultar disponibilidade"
         
-        // Data limite apenas para bolão aberto
-        let dataTexto = '';
-        if (bolaoAberto.dataLimite) {
-            dataTexto = ` | 📅 Até ${new Date(bolaoAberto.dataLimite).toLocaleDateString('pt-BR')}`;
-        }
-        
+        // Data limite do admin
+        const dataLimite = dataLimiteMap[bolaoId] || '';
         const dataTexto = dataLimite ? ` | 📅 Até ${new Date(dataLimite).toLocaleDateString('pt-BR')}` : '';
-
+        
         let html = `
             <div style="text-align: center;">
                 <strong style="font-size: 18px;">🎯 ${bolaoAberto.titulo || 'Bolão Aberto'} <span style="font-size: 12px; color: #10b981;">🟢 ABERTO</span></strong>
