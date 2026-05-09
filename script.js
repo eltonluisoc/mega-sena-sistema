@@ -111,31 +111,32 @@ function setLoteria(loteria) {
     
     if (loteria === 'mega') {
         if (btnMega) btnMega.classList.add('active');
-        document.getElementById('cardHeaderConferencia').innerHTML = '🔍 CONFERIR RESULTADOS - MEGA';
-        document.getElementById('cardHeaderCartoes').innerHTML = '📋 CARTÕES DO CONCURSO';
+        const headerConferencia = document.getElementById('cardHeaderConferencia');
+        if (headerConferencia) headerConferencia.innerHTML = '🔍 CONFERIR RESULTADOS - MEGA';
+        // REMOVIDO: cardHeaderCartoes não existe mais
     } else if (loteria === 'lotofacil') {
         if (btnLoto) btnLoto.classList.add('active');
-        document.getElementById('cardHeaderConferencia').innerHTML = '🔍 CONFERIR RESULTADOS - LOTOFÁCIL';
-        document.getElementById('cardHeaderCartoes').innerHTML = '📋 CARTÕES DO CONCURSO';
+        const headerConferencia = document.getElementById('cardHeaderConferencia');
+        if (headerConferencia) headerConferencia.innerHTML = '🔍 CONFERIR RESULTADOS - LOTOFÁCIL';
+        // REMOVIDO: cardHeaderCartoes não existe mais
     } else if (loteria === 'quina') {
         if (btnQuina) btnQuina.classList.add('active');
-        document.getElementById('cardHeaderConferencia').innerHTML = '🔍 CONFERIR RESULTADOS - QUINA';
-        document.getElementById('cardHeaderCartoes').innerHTML = '📋 CARTÕES DO CONCURSO';
+        const headerConferencia = document.getElementById('cardHeaderConferencia');
+        if (headerConferencia) headerConferencia.innerHTML = '🔍 CONFERIR RESULTADOS - QUINA';
+        // REMOVIDO: cardHeaderCartoes não existe mais
     }
     
-    // Atualizar o select de concursos (filtra apenas os da loteria atual)
+    // Atualizar o select de concursos
     atualizarSelectConcursos();
     
     // Forçar atualização dos cartões
     const selectConcurso = document.getElementById('concursoSelect');
     if (selectConcurso && selectConcurso.options.length > 1) {
-        // Se tem opções, seleciona a primeira (mais recente)
         selectConcurso.selectedIndex = 1;
         mostrarCartoesDoConcurso();
     } else if (selectConcurso && selectConcurso.value) {
         mostrarCartoesDoConcurso();
     } else {
-        // Se não tem concurso, limpa a área
         const container = document.getElementById('cartoesConcurso');
         if (container) container.innerHTML = '<div class="empty-state">Selecione um concurso para ver os cartões</div>';
     }
