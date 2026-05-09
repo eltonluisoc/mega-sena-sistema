@@ -226,13 +226,14 @@ async function duplicarCartao(id) {
     if (!novoBolao) return;
     if (!confirm(`Confirmar duplicação?\nConcurso: ${novoConcurso}\nBolão: ${novoBolao}\nNúmeros: ${original.numeros.join(', ')}`)) return;
     await db.collection('cartoes').add({ 
-        concurso: novoConcurso, 
-        bolao: novoBolao, 
-        numeros: original.numeros, 
+    concurso, 
+        bolao, 
+        numeros, 
         tipo: loteriaAdmin, 
+        tipoParticipacao: document.getElementById('tipoCartao').value,  // NOVO
         admin: true,
         dataCadastro: new Date().toISOString(), 
-        totalNumeros: original.numeros.length 
+        totalNumeros: numeros.length 
     });
     showToast('✅ Cartão duplicado!', 'success');
     carregarDadosAdmin();
