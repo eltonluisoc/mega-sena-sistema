@@ -204,15 +204,36 @@ async function editarCartao(id) {
     const maxNumeros = loteriaAdmin === 'mega' ? 6 : (loteriaAdmin === 'lotofacil' ? 15 : 5);
     const maxValor = loteriaAdmin === 'mega' ? 60 : (loteriaAdmin === 'lotofacil' ? 25 : 80);
     
-    const novos = prompt(`Editar números (separados por espaço):\nAtuais: ${cartao.numeros.join(', ')}\n${loteriaAdmin === 'mega' ? 'MEGA: 6 números (1-60)' : loteriaAdmin === 'lotofacil' ? 'LOTOFÁCIL: 15 números (1-25)' : 'QUINA: mínimo 5 números (1-80)'}`, cartao.numeros.join(' '));
-    if (!novos) return;
+    // Perguntar números
+    const novosNumeros = prompt(`Editar números (separados por espaço):\nAtuais: ${cartao.numeros.join(', ')}\n${loteriaAdmin === 'mega' ? 'MEGA: 6 números (1-60)' : loteriaAdmin === 'lotofacil' ? 'LOTOFÁCIL: 15 números (1-25)' : 'QUINA: mínimo 5 números (1-80)'}`, cartao.numeros.join(' '));
+    if (!novosNumeros) return;
     
-    const numeros = novos.match(/\d+/g).map(Number);
+    const numeros = novosNumeros.match(/\d+/g).map(Number);
     if (numeros.length < maxNumeros) { showToast(`❌ Mínimo ${maxNumeros} números!`, 'error'); return; }
     if (numeros.some(n => n < 1 || n > maxValor)) { showToast(`❌ Números devem estar entre 1 e ${maxValor}!`, 'error'); return; }
     numeros.sort((a,b) => a-b);
     
-    await db.collection('cartoes').doc(id).update({ numeros, totalNumeros: numeros.length, admin: true, dataAtualizacao: new Date().toISOString() });
+    // Perguntar tipo de participação
+    const tipoAtual = cartao.tipoParticipacao || 'exclusivo';
+    const novoTipo = prompt(`Editar tipo de participação:\nAtual: ${tipoAtual === 'cota' ? '🎟️ Cota de Bolão' : '👥 Grupo Exclusivo'}\n\nDigite 1 para Grupo Exclusivo\nDigite 2 para Cota de Bolão`, tipoAtual === 'cota' ? '2' : '1');
+    
+    let tipoParticipacao = 'exclusivo';
+    if (novoTipo === '2') {
+        tipoParticipacao = 'cota';
+    } else if (novoTipo === '1') {
+        tipoParticipacao = 'exclusivo';
+    } else {
+        // Se não escolheu, mantém o atual
+        tipoParticipacao = tipoAtual;
+    }
+    
+    await db.collection('cartoes').doc(id).update({ 
+        numeros, 
+        totalNumeros: numeros.length, 
+        tipoParticipacao: tipoParticipacao,
+        admin: true, 
+        dataAtualizacao: new Date().toISOString() 
+    });
     showToast('✅ Cartão atualizado!', 'success');
     carregarDadosAdmin();
 }
