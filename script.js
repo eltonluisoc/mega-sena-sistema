@@ -123,15 +123,21 @@ function setLoteria(loteria) {
         document.getElementById('cardHeaderCartoes').innerHTML = '📋 CARTÕES DO CONCURSO';
     }
     
-    // Apenas atualizar o select de concursos (baseado nos cartoes já carregados)
+    // Atualizar o select de concursos (filtra apenas os da loteria atual)
     atualizarSelectConcursos();
     
-    const sel = document.getElementById('concursoSelect');
-    if (sel && sel.value) {
+    // Forçar atualização dos cartões
+    const selectConcurso = document.getElementById('concursoSelect');
+    if (selectConcurso && selectConcurso.options.length > 1) {
+        // Se tem opções, seleciona a primeira (mais recente)
+        selectConcurso.selectedIndex = 1;
         mostrarCartoesDoConcurso();
-    } else if (sel && sel.options.length > 1) {
-        sel.selectedIndex = 1;
+    } else if (selectConcurso && selectConcurso.value) {
         mostrarCartoesDoConcurso();
+    } else {
+        // Se não tem concurso, limpa a área
+        const container = document.getElementById('cartoesConcurso');
+        if (container) container.innerHTML = '<div class="empty-state">Selecione um concurso para ver os cartões</div>';
     }
     
     showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
