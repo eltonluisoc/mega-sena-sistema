@@ -723,14 +723,21 @@ function iniciarMonitoramento() { if (intervaloNotif) clearInterval(intervaloNot
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('📄 Inicializando...');
-    await carregarConfiguracoes();
-    await new Promise(r => setTimeout(r, 500));
+    
+    // 1. Primeiro: carregar bolões (mais rápidos e prioritários)
+    await Promise.all([
+        carregarBolaoAberto(),
+        carregarBolaoAtivo()
+    ]);
+    
+    // 2. Depois: carregar cartões (mais pesado)
     await carregarDados();
-    await carregarBolaoAtivo();
-    await carregarBolaoAberto();
+    
+    // 3. Iniciar timers
     iniciarAutoAtualizacao();
     iniciarMonitoramento();
     
+    // 4. Configurar eventos
     const btnMega = document.getElementById('btnMegaSena');
     const btnLoto = document.getElementById('btnLotofacil');
     const btnQuina = document.getElementById('btnQuina');
@@ -752,4 +759,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     adicionarBotaoInstalar();
     mostrarCartoesDoConcurso();
+    
+    showToast('🎲 Sistema Bolões Aleatórios carregado!', 'success');
 });
