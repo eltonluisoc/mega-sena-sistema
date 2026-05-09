@@ -587,24 +587,26 @@ async function carregarBolaoAberto() {
         const statusMap = dados.status || {};
         const dataLimiteMap = dados.dataLimite || {};
         
-        let bolaoAberto = null;
-        let bolaoId = null;
-        
+        // Contar quantos bolões estão abertos
+        let boloesAbertos = [];
         for (const id of idsSelecionados) {
             if (statusMap[id] === 'aberto') {
                 const doc = await db.collection('participantes').doc(id).get();
                 if (doc.exists) {
-                    bolaoAberto = doc.data();
-                    bolaoId = id;
-                    break;
+                    boloesAbertos.push({ id: id, data: doc.data() });
                 }
             }
         }
         
-        if (!bolaoAberto) {
+        if (boloesAbertos.length === 0) {
             card.style.display = 'none';
             return;
         }
+        
+        // Pega o primeiro bolão aberto
+        const primeiroBolao = boloesAbertos[0];
+        const bolaoAberto = primeiroBolao.data;
+        const bolaoId = primeiroBolao.id;
         
         card.style.display = 'block';
         
@@ -624,9 +626,18 @@ async function carregarBolaoAberto() {
             vagasTexto = `${vagasDisponiveis} vagas disponíveis`;
         }
         
-        // Data limite do admin
         const dataLimite = dataLimiteMap[bolaoId] || '';
         const dataTexto = dataLimite ? ` | 📅 Até ${new Date(dataLimite).toLocaleDateString('pt-BR')}` : '';
+        
+        // Texto para outros bolões abertos
+        const outrosBoloes = boloesAbertos.length - 1;
+        let outrosTexto = '';
+        if (outrosBoloes > 0) {
+            outrosTexto = `<div style="margin-top: 12px; font-size: 12px;">
+                                ⭐ +${outrosBoloes} outro${outrosBoloes > 1 ? 's' : ''} bolão${outrosBoloes > 1 ? 'es' : ''} aberto(s). 
+                                <a href="#" id="linkVerTodos" style="color: #3b82f6; text-decoration: none; font-weight: bold;">Clique aqui para ver todos ➡️</a>
+                           </div>`;
+        }
         
         let html = `
             <div style="text-align: center;">
@@ -640,6 +651,7 @@ async function carregarBolaoAberto() {
                 </div>
                 ${vagasTexto ? `<div style="font-size: 14px; margin-top: 8px; font-weight: bold; color: ${vagasTexto.includes('LOTADO') ? '#ef4444' : (vagasDisponiveis <= 5 && vagasDisponiveis > 0) ? '#ef4444' : '#059669'};">${vagasTexto}</div>` : ''}
                 <button id="btnParticiparAberto" style="background: #10b981; margin-top: 12px; width: auto; padding: 10px 25px;">📝 QUERO PARTICIPAR</button>
+                ${outrosTexto}
             </div>
         `;
         
@@ -648,6 +660,18 @@ async function carregarBolaoAberto() {
         const btnParticipar = document.getElementById('btnParticiparAberto');
         if (btnParticipar) {
             btnParticipar.onclick = () => mostrarModalParticipacao(bolaoAberto);
+        }
+        
+        // Adicionar evento para rolar até os bolões especiais
+        const linkVerTodos = document.getElementById('linkVerTodos');
+        if (linkVerTodos) {
+            linkVerTodos.onclick = (e) => {
+                e.preventDefault();
+                const boloesEspeciais = document.getElementById('cardBolaoAtivo');
+                if (boloesEspeciais) {
+                    boloesEspeciais.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            };
         }
         
     } catch (error) {
