@@ -137,7 +137,11 @@ function setLoteria(loteria) {
         if (container) container.innerHTML = '<div class="empty-state">Selecione um concurso para ver os cartões</div>';
     }
 
-    setTimeout(() => buscarResultadoAutomatico(), 100);
+        // Só busca se tiver um concurso válido selecionado
+    const concursoAtual = document.getElementById('concursoSelect').value;
+    if (concursoAtual && concursoAtual !== '1' && concursoAtual !== '') {
+        setTimeout(() => buscarResultadoAutomatico(), 100);
+    }
     
     showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
 }
@@ -233,7 +237,12 @@ function atualizarSelectConcursos() {
         opt.textContent = `Concurso ${con} (${total} cartões)`;
         select.appendChild(opt);
     });
-    if (concursos.length > 0) select.value = concursos[0];
+    
+    // Selecionar o primeiro concurso (mais recente)
+    if (concursos.length > 0) {
+        select.value = concursos[0];
+        console.log(`📌 Concurso selecionado: ${concursos[0]}`);
+    }
 }
 
 function selecionarUltimoConcurso() {
@@ -744,13 +753,13 @@ function iniciarMonitoramento() { if (intervaloNotif) clearInterval(intervaloNot
 async function buscarResultadoAutomatico() {
     const concurso = document.getElementById('concursoSelect').value;
     
-    // VALIDAÇÃO: verificar se o concurso é válido (não vazio, não "1" padrão)
+    // Validação do concurso
     if (!concurso || concurso === '1' || concurso === '0' || concurso === '') {
         console.log('⏳ Nenhum concurso válido selecionado');
         return;
     }
     
-    // Verificar se o concurso existe na lista de concursos disponíveis
+    // Verificar se o concurso existe na lista
     const select = document.getElementById('concursoSelect');
     let concursoExiste = false;
     for (let i = 0; i < select.options.length; i++) {
@@ -769,12 +778,15 @@ async function buscarResultadoAutomatico() {
                        loteriaAtual === 'lotofacil' ? resultadosLotofacil : 
                        resultadosQuina;
     
+    // Se já tem resultado salvo, exibe a conferência
     if (resultados[concurso]) {
         console.log(`📋 Resultado do concurso ${concurso} já está salvo`);
         mostrarResultadoExistente(concurso, resultados[concurso]);
+        await conferirResultados();  // Exibe a conferência
         return;
     }
     
+    // Se já tentou buscar antes, mostra status de aguardo
     if (cacheResultadosBuscados[concurso]) {
         console.log(`⏳ Resultado do concurso ${concurso} já foi buscado e não encontrado`);
         mostrarStatusAguardando(concurso);
@@ -788,7 +800,7 @@ async function buscarResultadoAutomatico() {
     
     if (busca) {
         await salvarResultadoEncontrado(concurso, busca.numeros, busca.dataSorteio);
-        await conferirResultados();
+        await conferirResultados();  // Exibe a conferência
         showToast(`🎉 Resultado do concurso ${concurso} encontrado!`, 'success');
     } else {
         mostrarStatusAguardando(concurso);
@@ -840,21 +852,19 @@ async function salvarResultadoEncontrado(concurso, numeros, dataSorteio) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('📄 Inicializando...');
+    console.log('📄 Inicializando sistema...');
+    
+    // 1. Carregar configurações
     await carregarConfiguracoes();
-    await new Promise(r => setTimeout(r, 500));
+    
+    // 2. Carregar dados principais (cartões, resultados)
     await carregarDados();
+    
+    // 3. Carregar bolões especiais e abertos
     await carregarBolaoAtivo();
     await carregarBolaoAberto();
     
-    const selectConcurso = document.getElementById('concursoSelect');
-    if (selectConcurso && selectConcurso.value) {
-        setTimeout(() => buscarResultadoAutomatico(), 500);
-    }
-    
-    iniciarAutoAtualizacao();
-    iniciarMonitoramento();
-    
+    // 4. Configurar eventos dos botões
     const btnMega = document.getElementById('btnMegaSena');
     const btnLoto = document.getElementById('btnLotofacil');
     const btnQuina = document.getElementById('btnQuina');
@@ -876,6 +886,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     adicionarBotaoInstalar();
     mostrarCartoesDoConcurso();
+    
+    // 5. Iniciar timers
+    iniciarAutoAtualizacao();
+    iniciarMonitoramento();
+    
+    // 6. Buscar resultado automaticamente (após tudo carregado)
+    setTimeout(() => {
+        buscarResultadoAutomatico();
+    }, 1000);
     
     showToast('🎲 Sistema Bolões Aleatórios carregado!', 'success');
 });
