@@ -755,24 +755,15 @@ function iniciarMonitoramento() { if (intervaloNotif) clearInterval(intervaloNot
 async function buscarResultadoAutomatico() {
     const concurso = document.getElementById('concursoSelect').value;
     
-    // Validação do concurso
     if (!concurso || concurso === '1' || concurso === '0' || concurso === '') {
         console.log('⏳ Nenhum concurso válido selecionado');
         return;
     }
     
-    // Verificar se o concurso existe na lista
-    const select = document.getElementById('concursoSelect');
-    let concursoExiste = false;
-    for (let i = 0; i < select.options.length; i++) {
-        if (select.options[i].value === concurso) {
-            concursoExiste = true;
-            break;
-        }
-    }
-    
-    if (!concursoExiste) {
-        console.log(`⏳ Concurso ${concurso} não está disponível na lista`);
+    // Verificar se o concurso existe na lista de cartões
+    const cartoesConcurso = cartoes.filter(c => c.tipo === loteriaAtual && c.concurso == concurso);
+    if (cartoesConcurso.length === 0) {
+        console.log(`⏳ Nenhum cartão para o concurso ${concurso}`);
         return;
     }
     
@@ -780,15 +771,13 @@ async function buscarResultadoAutomatico() {
                        loteriaAtual === 'lotofacil' ? resultadosLotofacil : 
                        resultadosQuina;
     
-    // Se já tem resultado salvo, exibe a conferência
     if (resultados[concurso]) {
         console.log(`📋 Resultado do concurso ${concurso} já está salvo`);
         mostrarResultadoExistente(concurso, resultados[concurso]);
-        await conferirResultados();  // Exibe a conferência
+        await conferirResultados();
         return;
     }
     
-    // Se já tentou buscar antes, mostra status de aguardo
     if (cacheResultadosBuscados[concurso]) {
         console.log(`⏳ Resultado do concurso ${concurso} já foi buscado e não encontrado`);
         mostrarStatusAguardando(concurso);
@@ -800,9 +789,9 @@ async function buscarResultadoAutomatico() {
     
     const busca = await buscarResultadoInterno(concurso, loteriaAtual);
     
-    if (busca) {
+    if (busca && busca.numeros && busca.numeros.length > 0) {
         await salvarResultadoEncontrado(concurso, busca.numeros, busca.dataSorteio);
-        await conferirResultados();  // Exibe a conferência
+        await conferirResultados();
         showToast(`🎉 Resultado do concurso ${concurso} encontrado!`, 'success');
     } else {
         mostrarStatusAguardando(concurso);
@@ -844,13 +833,21 @@ async function salvarResultadoEncontrado(concurso, numeros, dataSorteio) {
         concurso: concurso,
         numeros: numeros,
         tipo: loteriaAtual,
+        admin: true,  // ← ESTA LINHA É ESSENCIAL!
         dataAtualizacao: new Date().toISOString(),
         dataSorteio: dataSorteio || null
     });
     
+    // Atualizar cache local
     if (loteriaAtual === 'mega') resultadosMega[concurso] = numeros;
     else if (loteriaAtual === 'lotofacil') resultadosLotofacil[concurso] = numeros;
     else resultadosQuina[concurso] = numeros;
+}
+        
+    } catch (error) {
+        console.error('❌ Erro ao salvar resultado:', error);
+        throw error;
+    }
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
