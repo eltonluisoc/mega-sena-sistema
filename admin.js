@@ -104,21 +104,51 @@ async function salvarPixConfig() {
 
 async function carregarDadosAdmin() {
     try {
+        // Carregar cartões
         const snapshot = await db.collection('cartoes').get();
         cartoes = [];
-        snapshot.forEach(doc => { cartoes.push({ id: doc.id, ...doc.data() }); });
+        snapshot.forEach(doc => {
+            cartoes.push({ id: doc.id, ...doc.data() });
+        });
         
-        const resMega = await db.collection('resultados').where('tipo', '==', 'mega').get();
-        resultadosMega = {};
-        resMega.forEach(doc => { resultadosMega[doc.id] = doc.data(); });
+        // Carregar resultados Mega (se existir)
+        try {
+            const resMega = await db.collection('resultados_mega').get();
+            resultadosMega = {};
+            resMega.forEach(doc => {
+                resultadosMega[doc.id] = doc.data();
+            });
+            console.log(`✅ ${Object.keys(resultadosMega).length} resultados Mega carregados`);
+        } catch (e) {
+            console.log('⚠️ Nenhum resultado Mega encontrado:', e);
+            resultadosMega = {};
+        }
         
-        const resLoto = await db.collection('resultados').where('tipo', '==', 'lotofacil').get();
-        resultadosLotofacil = {};
-        resLoto.forEach(doc => { resultadosLotofacil[doc.id] = doc.data(); });
+        // Carregar resultados Lotofácil (se existir)
+        try {
+            const resLoto = await db.collection('resultados_lotofacil').get();
+            resultadosLotofacil = {};
+            resLoto.forEach(doc => {
+                resultadosLotofacil[doc.id] = doc.data();
+            });
+            console.log(`✅ ${Object.keys(resultadosLotofacil).length} resultados Lotofácil carregados`);
+        } catch (e) {
+            console.log('⚠️ Nenhum resultado Lotofácil encontrado');
+            resultadosLotofacil = {};
+        }
         
-        const resQuina = await db.collection('resultados').where('tipo', '==', 'quina').get();
-        resultadosQuina = {};
-        resQuina.forEach(doc => { resultadosQuina[doc.id] = doc.data(); });
+        // Carregar resultados Quina (se existir)
+        try {
+            const resQuina = await db.collection('resultados_quina').get();
+            resultadosQuina = {};
+            resQuina.forEach(doc => {
+                resultadosQuina[doc.id] = doc.data();
+            });
+            console.log(`✅ ${Object.keys(resultadosQuina).length} resultados Quina carregados`);
+        } catch (e) {
+            console.log('⚠️ Nenhum resultado Quina encontrado');
+            resultadosQuina = {};
+        }
         
         exibirCartoesAdmin();
         carregarConcursosAdmin();
@@ -127,6 +157,7 @@ async function carregarDadosAdmin() {
         const total = cartoes.filter(c => c.tipo === loteriaAdmin).length;
         document.getElementById('totalCartoes').innerHTML = total + ' cartões';
         showToast('✅ Dados carregados!', 'success');
+        
     } catch (error) {
         console.error('Erro:', error);
         showToast('❌ Erro ao carregar: ' + error.message, 'error');
