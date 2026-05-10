@@ -743,7 +743,27 @@ function iniciarMonitoramento() { if (intervaloNotif) clearInterval(intervaloNot
 
 async function buscarResultadoAutomatico() {
     const concurso = document.getElementById('concursoSelect').value;
-    if (!concurso) return;
+    
+    // VALIDAÇÃO: verificar se o concurso é válido (não vazio, não "1" padrão)
+    if (!concurso || concurso === '1' || concurso === '0' || concurso === '') {
+        console.log('⏳ Nenhum concurso válido selecionado');
+        return;
+    }
+    
+    // Verificar se o concurso existe na lista de concursos disponíveis
+    const select = document.getElementById('concursoSelect');
+    let concursoExiste = false;
+    for (let i = 0; i < select.options.length; i++) {
+        if (select.options[i].value === concurso) {
+            concursoExiste = true;
+            break;
+        }
+    }
+    
+    if (!concursoExiste) {
+        console.log(`⏳ Concurso ${concurso} não está disponível na lista`);
+        return;
+    }
     
     const resultados = loteriaAtual === 'mega' ? resultadosMega : 
                        loteriaAtual === 'lotofacil' ? resultadosLotofacil : 
