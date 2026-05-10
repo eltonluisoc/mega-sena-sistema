@@ -171,23 +171,25 @@ async function carregarDados() {
             }
         });
         
+        
         if (loadingPercent) loadingPercent.innerText = '30% - Processando Mega-Sena...';
         
-        const resMega = await db.collection('resultados').where('tipo', '==', 'mega').get();
+        const resMega = await db.collection('resultados_mega').get();
         resultadosMega = {};
         resMega.forEach(doc => { resultadosMega[doc.id] = doc.data().numeros; });
         
         if (loadingPercent) loadingPercent.innerText = '50% - Processando Lotofácil...';
         
-        const resLoto = await db.collection('resultados').where('tipo', '==', 'lotofacil').get();
+        const resLoto = await db.collection('resultados_lotofacil').get();
         resultadosLotofacil = {};
         resLoto.forEach(doc => { resultadosLotofacil[doc.id] = doc.data().numeros; });
         
         if (loadingPercent) loadingPercent.innerText = '70% - Processando Quina...';
         
-        const resQuina = await db.collection('resultados').where('tipo', '==', 'quina').get();
+        const resQuina = await db.collection('resultados_quina').get();
         resultadosQuina = {};
         resQuina.forEach(doc => { resultadosQuina[doc.id] = doc.data().numeros; });
+        
         
         if (loadingPercent) loadingPercent.innerText = '90% - Carregando bolões...';
         
