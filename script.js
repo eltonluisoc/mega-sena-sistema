@@ -114,23 +114,18 @@ function setLoteria(loteria) {
         if (btnMega) btnMega.classList.add('active');
         const headerConferencia = document.getElementById('cardHeaderConferencia');
         if (headerConferencia) headerConferencia.innerHTML = '🔍 CONFERIR RESULTADOS - MEGA';
-        // REMOVIDO: cardHeaderCartoes não existe mais
     } else if (loteria === 'lotofacil') {
         if (btnLoto) btnLoto.classList.add('active');
         const headerConferencia = document.getElementById('cardHeaderConferencia');
         if (headerConferencia) headerConferencia.innerHTML = '🔍 CONFERIR RESULTADOS - LOTOFÁCIL';
-        // REMOVIDO: cardHeaderCartoes não existe mais
     } else if (loteria === 'quina') {
         if (btnQuina) btnQuina.classList.add('active');
         const headerConferencia = document.getElementById('cardHeaderConferencia');
         if (headerConferencia) headerConferencia.innerHTML = '🔍 CONFERIR RESULTADOS - QUINA';
-        // REMOVIDO: cardHeaderCartoes não existe mais
     }
     
-    // Atualizar o select de concursos
     atualizarSelectConcursos();
     
-    // Forçar atualização dos cartões
     const selectConcurso = document.getElementById('concursoSelect');
     if (selectConcurso && selectConcurso.options.length > 1) {
         selectConcurso.selectedIndex = 1;
@@ -142,7 +137,6 @@ function setLoteria(loteria) {
         if (container) container.innerHTML = '<div class="empty-state">Selecione um concurso para ver os cartões</div>';
     }
 
-    // Buscar resultado automaticamente após trocar de loteria
     setTimeout(() => buscarResultadoAutomatico(), 100);
     
     showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
@@ -155,7 +149,6 @@ async function carregarDados() {
     if (loadingDiv) loadingDiv.style.display = 'block';
     
     try {
-        // Atualizar percentual
         if (loadingPercent) loadingPercent.innerText = '10% - Buscando cartões...';
         
         const snap = await db.collection('cartoes').get();
@@ -212,7 +205,6 @@ async function carregarDados() {
         showToast('❌ Erro ao carregar dados', 'error');
         if (loadingDiv) loadingDiv.style.display = 'none';
     }
-    // Buscar resultado automaticamente após carregar dados
     setTimeout(() => buscarResultadoAutomatico(), 100);
 }
 
@@ -274,9 +266,7 @@ function mostrarCartoesDoConcurso() {
     for (const [bolao, lista] of Object.entries(porBolao)) {
         html += `<div style="margin-bottom:20px"><div style="background:#3b82f6;color:white;padding:6px 10px;border-radius:6px;margin-bottom:8px;font-size:13px;">🎯 ${bolao}</div><div style="display:flex;flex-wrap:wrap;gap:8px;">`;
         lista.forEach(cartao => {
-            // Definir o texto do tipo de participação
             const tipoParticipacao = cartao.tipoParticipacao === 'cota' ? '🎟️ Cota' : '👥 Exclusivo';
-            
             const numsHtml = cartao.numeros.map(n => `<span style="background:#e2e8f0;color:#333;padding:3px 7px;border-radius:5px;font-family:monospace;font-size:11px;">${n.toString().padStart(2,'0')}</span>`).join('');
             html += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px;min-width:180px;">
                         <div style="font-size:10px;color:#64748b;margin-bottom:4px;">
@@ -319,7 +309,7 @@ function compartilharWhatsApp() {
         return;
     }
     const { numeros, dataSorteio, premios } = ultimoResultadoDados;
-    const linha = '────────────────────';  // 20 caracteres (menor)
+    const linha = '────────────────────';
     let loteriaNome = loteriaAtual === 'mega' ? 'MEGA-SENA' : (loteriaAtual === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA');
     
     let msg = `*🏆 RESULTADO - ${loteriaNome}* 🎲\n🏆 Rumo ao Grande Prêmio!\n${linha}\n📌 Concurso: ${ultimoResultadoConcurso}\n🎯 Números Sorteados:\n   ${numeros.join(' - ')}\n`;
@@ -369,7 +359,6 @@ async function conferirResultados() {
         return;
     }
     
- // 🔴🔴🔴 ANALYTICS ESTÁ AQUI 🔴🔴🔴 (depois do if e antes do let numeros)
     if (typeof firebase !== 'undefined' && firebase.analytics) {
         try {
             firebase.analytics().logEvent('conferir_resultados', { 
@@ -379,7 +368,6 @@ async function conferirResultados() {
             });
         } catch(e) {}
     }
-    // 🔴🔴🔴 FIM DO ANALYTICS 🔴🔴🔴
 
     let numeros = null, dataSorteio = null;
     if (resultados[concurso]) {
@@ -432,9 +420,9 @@ async function conferirResultados() {
     } else if (loteriaAtual === 'lotofacil') {
         html += `<div><span style="font-size:20px;font-weight:bold;color:#f59e0b">${premios.pontos15}</span><br>15 PTS</div><div><span style="font-size:20px;font-weight:bold;color:#eab308">${premios.pontos14}</span><br>14 PTS</div><div><span style="font-size:20px;font-weight:bold;color:#a855f7">${premios.pontos13}</span><br>13 PTS</div><div><span style="font-size:20px;font-weight:bold;color:#3b82f6">${premios.pontos12}</span><br>12 PTS</div><div><span style="font-size:20px;font-weight:bold;color:#64748b">${premios.pontos11}</span><br>11 PTS</div>`;
     } else {
-html += `<div><span style="font-size:20px;font-weight:bold;color:#f59e0b">${premios.quina}</span><br>QUINA</div><div><span style="font-size:20px;font-weight:bold;color:#eab308">${premios.quadra}</span><br>QUADRA</div><div><span style="font-size:20px;font-weight:bold;color:#a855f7">${premios.terno}</span><br>TERNO</div><div><span style="font-size:20px;font-weight:bold;color:#3b82f6">${premios.duque}</span><br>DUQUE</div>`;
-}
-html += `<div><span style="font-size:20px;font-weight:bold">${resultadosCalc.length}</span><br>CARTÕES</div></div><div style="background:#d1fae5;padding:8px;border-radius:6px;font-size:12px;">🎲 Sorteados: ${numeros.join(' - ')}${dataSorteio?`<br>📅 Data: ${new Date(dataSorteio).toLocaleDateString('pt-BR')}`:''}</div><button id="btnWhatsApp" class="btn-whatsapp" style="margin-top:12px;background:#25D366;width:100%;padding:10px;">📱 COMPARTILHAR NO WHATSAPP</button></div>`;
+        html += `<div><span style="font-size:20px;font-weight:bold;color:#f59e0b">${premios.quina}</span><br>QUINA</div><div><span style="font-size:20px;font-weight:bold;color:#eab308">${premios.quadra}</span><br>QUADRA</div><div><span style="font-size:20px;font-weight:bold;color:#a855f7">${premios.terno}</span><br>TERNO</div><div><span style="font-size:20px;font-weight:bold;color:#3b82f6">${premios.duque}</span><br>DUQUE</div>`;
+    }
+    html += `<div><span style="font-size:20px;font-weight:bold">${resultadosCalc.length}</span><br>CARTÕES</div></div><div style="background:#d1fae5;padding:8px;border-radius:6px;font-size:12px;">🎲 Sorteados: ${numeros.join(' - ')}${dataSorteio?`<br>📅 Data: ${new Date(dataSorteio).toLocaleDateString('pt-BR')}`:''}</div><button id="btnWhatsApp" class="btn-whatsapp" style="margin-top:12px;background:#25D366;width:100%;padding:10px;">📱 COMPARTILHAR NO WHATSAPP</button></div>`;
     
     const porBolao = {};
     resultadosCalc.forEach(r => { const b = r.bolao || 'Sem Bolão'; if (!porBolao[b]) porBolao[b] = []; porBolao[b].push(r); });
@@ -471,9 +459,6 @@ async function carregarBolaoAtivo() {
         const statusMap = dados.status || {};
         const dataLimiteMap = dados.dataLimite || {};
         
-        // NÃO remover os abertos - eles também aparecem aqui
-        // idsSelecionados = idsSelecionados.filter(id => statusMap[id] !== 'aberto');
-        
         if (idsSelecionados.length === 0) {
             if (card) card.style.display = 'none';
             return;
@@ -493,7 +478,6 @@ async function carregarBolaoAtivo() {
             return;
         }
         
-        // ORDENAR: primeiro os ABERTOS, depois os EM ANDAMENTO
         boloes.sort((a, b) => {
             const statusA = statusMap[a.id] || 'andamento';
             const statusB = statusMap[b.id] || 'andamento';
@@ -512,8 +496,6 @@ async function carregarBolaoAtivo() {
             const statusText = statusMap[bolao.id] === 'aberto' ? '🟢 ABERTO' : '🟡 EM ANDAMENTO';
             const statusColor = statusMap[bolao.id] === 'aberto' ? '#10b981' : '#f59e0b';
             
-            // DATA LIMITE: só para abertos
-            // Usar data limite do admin (dataLimiteMap) em vez do bolao.dataLimite
             const dataLimiteAdmin = dataLimiteMap[bolao.id] || '';
             let dataTexto = '';
             if (statusMap[bolao.id] === 'aberto' && dataLimiteAdmin) {
@@ -593,7 +575,6 @@ async function carregarBolaoAberto() {
         const statusMap = dados.status || {};
         const dataLimiteMap = dados.dataLimite || {};
         
-        // Contar quantos bolões estão abertos
         let boloesAbertos = [];
         for (const id of idsSelecionados) {
             if (statusMap[id] === 'aberto') {
@@ -609,7 +590,6 @@ async function carregarBolaoAberto() {
             return;
         }
         
-        // Pega o primeiro bolão aberto
         const primeiroBolao = boloesAbertos[0];
         const bolaoAberto = primeiroBolao.data;
         const bolaoId = primeiroBolao.id;
@@ -635,7 +615,6 @@ async function carregarBolaoAberto() {
         const dataLimite = dataLimiteMap[bolaoId] || '';
         const dataTexto = dataLimite ? ` | 📅 Até ${new Date(dataLimite).toLocaleDateString('pt-BR')}` : '';
         
-        // Texto para outros bolões abertos
         const outrosBoloes = boloesAbertos.length - 1;
         let outrosTexto = '';
         if (outrosBoloes > 0) {
@@ -668,7 +647,6 @@ async function carregarBolaoAberto() {
             btnParticipar.onclick = () => mostrarModalParticipacao(bolaoAberto);
         }
         
-        // Adicionar evento para rolar até os bolões especiais
         const linkVerTodos = document.getElementById('linkVerTodos');
         if (linkVerTodos) {
             linkVerTodos.onclick = (e) => {
@@ -763,53 +741,6 @@ let intervalo, intervaloNotif;
 function iniciarAutoAtualizacao() { if (intervalo) clearInterval(intervalo); intervalo = setInterval(() => carregarDados(), 180000); }
 function iniciarMonitoramento() { if (intervaloNotif) clearInterval(intervaloNotif); intervaloNotif = setInterval(() => verificarNovosResultados(), 120000); }
 
-document.addEventListener('DOMContentLoaded', async () => {
-    console.log('📄 Inicializando...');
-    await carregarConfiguracoes();
-    await new Promise(r => setTimeout(r, 500));
-    await carregarDados();  // Primeiro carrega os dados
-    
-    // Depois que os dados estão carregados, carrega os bolões
-    await carregarBolaoAtivo();
-    await carregarBolaoAberto();
-    
-    // SÓ DEPOIS de tudo carregado, tenta buscar resultado automaticamente
-    const selectConcurso = document.getElementById('concursoSelect');
-    if (selectConcurso && selectConcurso.value) {
-        setTimeout(() => buscarResultadoAutomatico(), 500);
-    }
-    
-    iniciarAutoAtualizacao();
-    iniciarMonitoramento();
-    
-    // 4. Configurar eventos
-    const btnMega = document.getElementById('btnMegaSena');
-    const btnLoto = document.getElementById('btnLotofacil');
-    const btnQuina = document.getElementById('btnQuina');
-    const selCon = document.getElementById('concursoSelect');
-    const btnConf = document.getElementById('btnConferir');
-    const btnCompartilhar = document.getElementById('btnCompartilhar');
-    const btnSugestao = document.getElementById('btnSugestao');
-    
-    if (btnMega) btnMega.addEventListener('click', () => setLoteria('mega'));
-    if (btnLoto) btnLoto.addEventListener('click', () => setLoteria('lotofacil'));
-    if (btnQuina) btnQuina.addEventListener('click', () => setLoteria('quina'));
-    if (selCon) selCon.addEventListener('change', mostrarCartoesDoConcurso);
-    if (btnConf) {
-        btnConf.addEventListener('click', conferirResultados);
-        btnConf.addEventListener('touchstart', conferirResultados);
-    }
-    if (btnCompartilhar) btnCompartilhar.addEventListener('click', compartilharSite);
-    if (btnSugestao) btnSugestao.addEventListener('click', enviarSugestao);
-    
-    adicionarBotaoInstalar();
-    mostrarCartoesDoConcurso();
-    
-    showToast('🎲 Sistema Bolões Aleatórios carregado!', 'success');
-});
-// Cache de resultados já buscados (evita buscas repetidas)
-//let cacheResultadosBuscados = {};
-
 async function buscarResultadoAutomatico() {
     const concurso = document.getElementById('concursoSelect').value;
     if (!concurso) return;
@@ -824,7 +755,6 @@ async function buscarResultadoAutomatico() {
         return;
     }
     
-    // NÃO redeclarar cacheResultadosBuscados aqui!
     if (cacheResultadosBuscados[concurso]) {
         console.log(`⏳ Resultado do concurso ${concurso} já foi buscado e não encontrado`);
         mostrarStatusAguardando(concurso);
@@ -840,19 +770,6 @@ async function buscarResultadoAutomatico() {
         await salvarResultadoEncontrado(concurso, busca.numeros, busca.dataSorteio);
         await conferirResultados();
         showToast(`🎉 Resultado do concurso ${concurso} encontrado!`, 'success');
-    } else {
-        mostrarStatusAguardando(concurso);
-    }
-}
-    
-    // Buscar uma vez
-    const busca = await buscarResultadoInterno(concurso, loteriaAtual);
-    cacheResultadosBuscados[concurso] = true;
-    
-    if (busca) {
-        await salvarResultadoEncontrado(concurso, busca.numeros, busca.dataSorteio);
-        await conferirResultados();
-        mostrarToastResultadoEncontrado(concurso, busca.numeros);
     } else {
         mostrarStatusAguardando(concurso);
     }
@@ -884,10 +801,6 @@ function mostrarResultadoExistente(concurso, numeros) {
     }
 }
 
-function mostrarToastResultadoEncontrado(concurso, numeros) {
-    showToast(`🎉 Resultado do concurso ${concurso} encontrado! Conferindo...`, 'success');
-}
-
 async function salvarResultadoEncontrado(concurso, numeros, dataSorteio) {
     const collection = loteriaAtual === 'mega' ? 'resultados_mega' : 
                        loteriaAtual === 'lotofacil' ? 'resultados_lotofacil' : 
@@ -901,8 +814,48 @@ async function salvarResultadoEncontrado(concurso, numeros, dataSorteio) {
         dataSorteio: dataSorteio || null
     });
     
-    // Atualizar cache local
     if (loteriaAtual === 'mega') resultadosMega[concurso] = numeros;
     else if (loteriaAtual === 'lotofacil') resultadosLotofacil[concurso] = numeros;
     else resultadosQuina[concurso] = numeros;
 }
+
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log('📄 Inicializando...');
+    await carregarConfiguracoes();
+    await new Promise(r => setTimeout(r, 500));
+    await carregarDados();
+    await carregarBolaoAtivo();
+    await carregarBolaoAberto();
+    
+    const selectConcurso = document.getElementById('concursoSelect');
+    if (selectConcurso && selectConcurso.value) {
+        setTimeout(() => buscarResultadoAutomatico(), 500);
+    }
+    
+    iniciarAutoAtualizacao();
+    iniciarMonitoramento();
+    
+    const btnMega = document.getElementById('btnMegaSena');
+    const btnLoto = document.getElementById('btnLotofacil');
+    const btnQuina = document.getElementById('btnQuina');
+    const selCon = document.getElementById('concursoSelect');
+    const btnConf = document.getElementById('btnConferir');
+    const btnCompartilhar = document.getElementById('btnCompartilhar');
+    const btnSugestao = document.getElementById('btnSugestao');
+    
+    if (btnMega) btnMega.addEventListener('click', () => setLoteria('mega'));
+    if (btnLoto) btnLoto.addEventListener('click', () => setLoteria('lotofacil'));
+    if (btnQuina) btnQuina.addEventListener('click', () => setLoteria('quina'));
+    if (selCon) selCon.addEventListener('change', mostrarCartoesDoConcurso);
+    if (btnConf) {
+        btnConf.addEventListener('click', conferirResultados);
+        btnConf.addEventListener('touchstart', conferirResultados);
+    }
+    if (btnCompartilhar) btnCompartilhar.addEventListener('click', compartilharSite);
+    if (btnSugestao) btnSugestao.addEventListener('click', enviarSugestao);
+    
+    adicionarBotaoInstalar();
+    mostrarCartoesDoConcurso();
+    
+    showToast('🎲 Sistema Bolões Aleatórios carregado!', 'success');
+});
