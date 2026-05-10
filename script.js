@@ -85,7 +85,7 @@ async function carregarConfiguracoes() {
 }
 
 function compartilharSite() {
-    const url = 'https://bit.ly/boloesaleatorios';
+    const url = 'https://rebrand.ly/boloesaleatorios';
     const mensagem = `🎲 *BOLÕES ALEATÓRIOS* 🎲\n\n🏆 Rumo ao Grande Prêmio!\n\nVenha participar e conferir os resultados dos nossos bolões!!!\n\n🔗 ${url}`;
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const whatsappUrl = isMobile ? `https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}` : `https://web.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
@@ -349,7 +349,7 @@ function compartilharWhatsApp() {
         else msg += `💪 Vamos tentar novamente no próximo concurso.\n`;
     }
     
-    msg += `${linha}\n🔗 Acesse o resultado completo:\nhttps://bit.ly/boloesaleatorios`;
+    msg += `${linha}\n🔗 Acesse o resultado completo:\nhttps://rebrand.ly/boloesaleatorios`;
     
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const whatsappUrl = isMobile ? `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}` : `https://web.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
