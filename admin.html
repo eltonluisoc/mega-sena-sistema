@@ -165,6 +165,35 @@
 
     <div id="authModal" class="modal"><div class="modal-content"><div class="modal-header">🔐 ACESSO ADMINISTRATIVO</div><div class="modal-body"><input type="password" id="senhaAdmin" class="form-control" placeholder="Digite a senha"><button id="btnAutenticar" class="btn btn-primary btn-large">🔓 ENTRAR</button></div></div></div>
     
+    <!-- Card: Adicionar Participante Rápido -->
+    <div class="card">
+        <div class="card-header" style="background: #f59e0b;">⚡ ADICIONAR PARTICIPANTE RÁPIDO</div>
+        <div class="card-body">
+            <div class="form-row">
+                <div class="form-group"><label>👤 Nome:</label><input type="text" id="rapidoNome" class="form-control" placeholder="Ex: João Silva"></div>
+                <div class="form-group"><label>🎯 Bolão:</label>
+                    <select id="rapidoBolaoSelect" class="form-control">
+                        <option value="">Selecione um bolão</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>💰 Valor Pago:</label><input type="number" id="rapidoValor" class="form-control" placeholder="Ex: 50"></div>
+                <div class="form-group"><label>🎲 Loteria:</label>
+                    <select id="rapidoLoteria" class="form-control">
+                        <option value="mega">MEGA-SENA</option>
+                        <option value="lotofacil">LOTOFÁCIL</option>
+                        <option value="quina">QUINA</option>
+                    </select>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button id="btnAdicionarRapido" class="btn btn-warning" style="flex: 1;">⚡ ADICIONAR PARTICIPANTE</button>
+                <button id="btnGerarWhatsApp" class="btn btn-success" style="flex: 1;">📱 GERAR LISTA WHATSAPP</button>
+            </div>
+        </div>
+    </div>
+
     <div class="footer">
         <div>© 2026 Bolões Aleatórios - Versão 2.0</div>
         <div style="font-size: 11px;">Desenvolvido por Elton Luis</div>

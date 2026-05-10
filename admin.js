@@ -506,6 +506,87 @@ async function salvarConfigBoloes() {
     }
 }
 
+// ============ PARTICIPANTE RÁPIDO ============
+async function carregarBoloesNoSelectRapido() {
+    const select = document.getElementById('rapidoBolaoSelect');
+    if (!select) return;
+    
+    try {
+        const snapshot = await db.collection('participantes').get();
+        const boloes = [];
+        snapshot.forEach(doc => {
+            boloes.push({ id: doc.id, ...doc.data() });
+        });
+        
+        select.innerHTML = '<option value="">Selecione um bolão</option>';
+        boloes.forEach(bolao => {
+            const option = document.createElement('option');
+            option.value = bolao.id;
+            option.textContent = `${bolao.titulo} (${bolao.loteria || '?'})`;
+            select.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Erro ao carregar bolões:', error);
+    }
+}
+
+async function adicionarParticipanteRapido() {
+    const nome = document.getElementById('rapidoNome').value.trim();
+    const bolaoId = document.getElementById('rapidoBolaoSelect').value;
+    const valorPago = parseInt(document.getElementById('rapidoValor').value);
+    const loteria = document.getElementById('rapidoLoteria').value;
+    
+    if (!nome) { showToast('⚠️ Digite o nome do participante', 'warning'); return; }
+    if (!bolaoId) { showToast('⚠️ Selecione um bolão', 'warning'); return; }
+    if (!valorPago || valorPago <= 0) { showToast('⚠️ Digite um valor válido', 'warning'); return; }
+    
+    const bolaoDoc = await db.collection('participantes').doc(bolaoId).get();
+    const bolaoTitulo = bolaoDoc.exists ? bolaoDoc.data().titulo : 'Bolão';
+    
+    await db.collection('participantes_pendentes').add({
+        nome: nome,
+        bolaoId: bolaoId,
+        bolaoTitulo: bolaoTitulo,
+        valorPago: valorPago,
+        loteria: loteria,
+        data: new Date().toISOString(),
+        sincronizado: false,
+        status: 'pendente_validacao'
+    });
+    
+    showToast(`✅ ${nome} adicionado para sincronização!`, 'success');
+    
+    document.getElementById('rapidoNome').value = '';
+    document.getElementById('rapidoValor').value = '';
+}
+
+async function gerarListaWhatsApp() {
+    const bolaoId = document.getElementById('rapidoBolaoSelect').value;
+    if (!bolaoId) { showToast('⚠️ Selecione um bolão', 'warning'); return; }
+    
+    const bolaoDoc = await db.collection('participantes').doc(bolaoId).get();
+    if (!bolaoDoc.exists) { showToast('❌ Bolão não encontrado', 'error'); return; }
+    
+    const bolao = bolaoDoc.data();
+    const participantes = bolao.participantes || [];
+    const confirmados = participantes.filter(p => p.situacao === 'quitado' || p.situacao === 'pago');
+    const confirmadosLista = confirmados.map(p => `✅ ${p.nome} - R$ ${p.valorPago},00`).join('\n');
+    
+    const mensagem = `*${bolao.titulo}*\n\n` +
+        `💰 *Valor da Cota:* R$ ${bolao.valorPorCota || 0},00\n` +
+        `💳 *PIX:* 61998507770\n\n` +
+        `*✅ CONFIRMADOS:*\n${confirmadosLista || 'Nenhum participante confirmado ainda'}\n\n` +
+        `🔹 *Não precisa enviar comprovante, confirmação feita no extrato.*`;
+    
+    window.open(`https://wa.me/?text=${encodeURIComponent(mensagem)}`, '_blank');
+    showToast('📱 Abrindo WhatsApp...', 'info');
+}
+
+// Adicionar eventos no DOMContentLoaded (dentro do evento já existente)
+document.getElementById('btnAdicionarRapido').onclick = adicionarParticipanteRapido;
+document.getElementById('btnGerarWhatsApp').onclick = gerarListaWhatsApp;
+carregarBoloesNoSelectRapido();
+
 document.addEventListener('DOMContentLoaded', () => {
     verificarAutenticacao();
     document.getElementById('btnAutenticar').onclick = autenticar;

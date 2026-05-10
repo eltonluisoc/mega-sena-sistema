@@ -140,6 +140,9 @@ function setLoteria(loteria) {
         const container = document.getElementById('cartoesConcurso');
         if (container) container.innerHTML = '<div class="empty-state">Selecione um concurso para ver os cartões</div>';
     }
+
+    // Buscar resultado automaticamente após trocar de loteria
+    setTimeout(() => buscarResultadoAutomatico(), 100);
     
     showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
 }
@@ -208,6 +211,8 @@ async function carregarDados() {
         showToast('❌ Erro ao carregar dados', 'error');
         if (loadingDiv) loadingDiv.style.display = 'none';
     }
+    // Buscar resultado automaticamente após carregar dados
+    setTimeout(() => buscarResultadoAutomatico(), 100);
 }
 
 function atualizarStats() {
@@ -798,3 +803,89 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     showToast('🎲 Sistema Bolões Aleatórios carregado!', 'success');
 });
+// Cache de resultados já buscados (evita buscas repetidas)
+let cacheResultadosBuscados = {};
+
+async function buscarResultadoAutomatico() {
+    const concurso = document.getElementById('concursoSelect').value;
+    if (!concurso) return;
+    
+    // Verificar se já tem resultado salvo
+    const resultados = loteriaAtual === 'mega' ? resultadosMega : 
+                       loteriaAtual === 'lotofacil' ? resultadosLotofacil : 
+                       resultadosQuina;
+    
+    if (resultados[concurso]) {
+        console.log(`📋 Resultado do concurso ${concurso} já está salvo`);
+        mostrarResultadoExistente(concurso, resultados[concurso]);
+        return;
+    }
+    
+    // Verificar se já tentou buscar este concurso antes
+    if (cacheResultadosBuscados[concurso]) {
+        console.log(`⏳ Resultado do concurso ${concurso} já foi buscado e não encontrado`);
+        mostrarStatusAguardando(concurso);
+        return;
+    }
+    
+    // Buscar uma vez
+    const busca = await buscarResultadoInterno(concurso, loteriaAtual);
+    cacheResultadosBuscados[concurso] = true;
+    
+    if (busca) {
+        await salvarResultadoEncontrado(concurso, busca.numeros, busca.dataSorteio);
+        await conferirResultados();
+        mostrarToastResultadoEncontrado(concurso, busca.numeros);
+    } else {
+        mostrarStatusAguardando(concurso);
+    }
+}
+
+function mostrarStatusAguardando(concurso) {
+    const statusDiv = document.getElementById('statusBusca');
+    if (statusDiv) {
+        const loteriaNome = loteriaAtual === 'mega' ? 'MEGA-SENA' : 
+                           (loteriaAtual === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA');
+        statusDiv.innerHTML = `
+            <div class="status-info">
+                📢 RESULTADO DO CONCURSO ${concurso} (${loteriaNome}) AINDA NÃO DISPONÍVEL<br>
+                🔍 Quando sair o resultado, clique em "BUSCAR RESULTADO" ou aguarde que o sistema buscará automaticamente.
+            </div>
+        `;
+    }
+}
+
+function mostrarResultadoExistente(concurso, numeros) {
+    const statusDiv = document.getElementById('statusBusca');
+    if (statusDiv) {
+        statusDiv.innerHTML = `
+            <div class="status-success">
+                ✅ RESULTADO DO CONCURSO ${concurso} JÁ DISPONÍVEL! 🎲<br>
+                🎯 Números: ${numeros.join(' - ')}
+            </div>
+        `;
+    }
+}
+
+function mostrarToastResultadoEncontrado(concurso, numeros) {
+    showToast(`🎉 Resultado do concurso ${concurso} encontrado! Conferindo...`, 'success');
+}
+
+async function salvarResultadoEncontrado(concurso, numeros, dataSorteio) {
+    const collection = loteriaAtual === 'mega' ? 'resultados_mega' : 
+                       loteriaAtual === 'lotofacil' ? 'resultados_lotofacil' : 
+                       'resultados_quina';
+    
+    await db.collection(collection).doc(concurso).set({
+        concurso: concurso,
+        numeros: numeros,
+        tipo: loteriaAtual,
+        dataAtualizacao: new Date().toISOString(),
+        dataSorteio: dataSorteio || null
+    });
+    
+    // Atualizar cache local
+    if (loteriaAtual === 'mega') resultadosMega[concurso] = numeros;
+    else if (loteriaAtual === 'lotofacil') resultadosLotofacil[concurso] = numeros;
+    else resultadosQuina[concurso] = numeros;
+}
