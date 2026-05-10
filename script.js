@@ -829,27 +829,28 @@ async function salvarResultadoEncontrado(concurso, numeros, dataSorteio) {
                        loteriaAtual === 'lotofacil' ? 'resultados_lotofacil' : 
                        'resultados_quina';
     
-    await db.collection(collection).doc(concurso).set({
-        concurso: concurso,
-        numeros: numeros,
-        tipo: loteriaAtual,
-        admin: true,  // ← ESTA LINHA É ESSENCIAL!
-        dataAtualizacao: new Date().toISOString(),
-        dataSorteio: dataSorteio || null
-    });
-    
-    // Atualizar cache local
-    if (loteriaAtual === 'mega') resultadosMega[concurso] = numeros;
-    else if (loteriaAtual === 'lotofacil') resultadosLotofacil[concurso] = numeros;
-    else resultadosQuina[concurso] = numeros;
-}
+    try {
+        await db.collection(collection).doc(concurso).set({
+            concurso: concurso,
+            numeros: numeros,
+            tipo: loteriaAtual,
+            admin: true,
+            dataAtualizacao: new Date().toISOString(),
+            dataSorteio: dataSorteio || null
+        });
+        
+        console.log(`✅ Resultado do concurso ${concurso} salvo em ${collection}`);
+        
+        // Atualizar cache local
+        if (loteriaAtual === 'mega') resultadosMega[concurso] = numeros;
+        else if (loteriaAtual === 'lotofacil') resultadosLotofacil[concurso] = numeros;
+        else resultadosQuina[concurso] = numeros;
         
     } catch (error) {
         console.error('❌ Erro ao salvar resultado:', error);
         throw error;
     }
 }
-
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('📄 Inicializando sistema...');
     
