@@ -808,13 +808,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     showToast('🎲 Sistema Bolões Aleatórios carregado!', 'success');
 });
 // Cache de resultados já buscados (evita buscas repetidas)
-let cacheResultadosBuscados = {};
+//let cacheResultadosBuscados = {};
 
 async function buscarResultadoAutomatico() {
     const concurso = document.getElementById('concursoSelect').value;
     if (!concurso) return;
     
-    // Verificar se já tem resultado salvo
     const resultados = loteriaAtual === 'mega' ? resultadosMega : 
                        loteriaAtual === 'lotofacil' ? resultadosLotofacil : 
                        resultadosQuina;
@@ -825,17 +824,14 @@ async function buscarResultadoAutomatico() {
         return;
     }
     
-    // Verificar se já tentou buscar este concurso antes
-    if (cacheResultadosBuscados && cacheResultadosBuscados[concurso]) {
+    // NÃO redeclarar cacheResultadosBuscados aqui!
+    if (cacheResultadosBuscados[concurso]) {
         console.log(`⏳ Resultado do concurso ${concurso} já foi buscado e não encontrado`);
         mostrarStatusAguardando(concurso);
         return;
     }
     
     console.log(`🔍 Buscando resultado do concurso ${concurso}...`);
-    
-    // Inicializar cache se não existir
-    if (!cacheResultadosBuscados) var cacheResultadosBuscados = {};
     cacheResultadosBuscados[concurso] = true;
     
     const busca = await buscarResultadoInterno(concurso, loteriaAtual);
