@@ -8,51 +8,66 @@
     <meta name="theme-color" content="#3b82f6">
     <link rel="stylesheet" href="style.css">
     <style>
-        .loteria-selector-admin { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
-        .loteria-btn-admin { flex: 1; min-width: 100px; padding: 12px 10px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: all 0.3s; font-size: 13px; }
-        .loteria-btn-admin.mega { background: #3b82f6; color: white; }
-        .loteria-btn-admin.lotofacil { background: #10b981; color: white; }
-        .loteria-btn-admin.quina { background: #ef4444; color: white; }
-        .loteria-btn-admin.active { box-shadow: 0 0 10px currentColor; filter: brightness(1.1); transform: scale(1.02); }
+    .loteria-selector-admin { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
+    .loteria-btn-admin { flex: 1; min-width: 100px; padding: 12px 10px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: all 0.3s; font-size: 13px; }
+    .loteria-btn-admin.mega { background: #3b82f6; color: white; }
+    .loteria-btn-admin.lotofacil { background: #10b981; color: white; }
+    .loteria-btn-admin.quina { background: #ef4444; color: white; }
+    .loteria-btn-admin.active { box-shadow: 0 0 10px currentColor; filter: brightness(1.1); transform: scale(1.02); }
+    
+    /* Painel recolhível */
+    .collapsible { background: #f1f5f9; cursor: pointer; padding: 12px; width: 100%; border: none; text-align: left; font-weight: bold; border-radius: 8px; margin-bottom: 5px; }
+    .collapsible:hover { background: #e2e8f0; }
+    .collapsible:after { content: '▼'; float: right; }
+    .active-collapse:after { content: '▲'; }
+    .collapse-content { display: none; overflow: hidden; padding: 10px 0; }
+    
+    @media (max-width: 768px) {
+        .container { padding: 0 10px; }
+        .admin-layout { grid-template-columns: 1fr; gap: 15px; }
+        .loteria-selector-admin { flex-direction: column; }
+        .loteria-btn-admin { min-width: 100%; padding: 14px; font-size: 14px; }
+        .form-row { grid-template-columns: 1fr; gap: 10px; }
+        .filtros { display: flex; flex-direction: column; gap: 8px; }
+        .filtros select, .filtros button { width: 100%; margin: 0; }
+        .form-buttons { flex-direction: column; }
+        .form-buttons button { width: 100%; }
+        .numeros-container { display: flex; flex-direction: column; gap: 8px; }
+        .numeros-container button { width: 100%; }
+        .card-header { font-size: 14px; }
+        .card-body { padding: 12px; }
+        .checkbox-cartao { width: 24px; height: 24px; }
+        .cartao-item > div { flex-direction: column; align-items: flex-start !important; }
         
-        /* Painel recolhível */
-        .collapsible { background: #f1f5f9; cursor: pointer; padding: 12px; width: 100%; border: none; text-align: left; font-weight: bold; border-radius: 8px; margin-bottom: 5px; }
-        .collapsible:hover { background: #e2e8f0; }
-        .collapsible:after { content: '▼'; float: right; }
-        .active-collapse:after { content: '▲'; }
-        .collapse-content { display: none; overflow: hidden; padding: 10px 0; }
-        
-        @media (max-width: 768px) {
-            .container { padding: 0 10px; }
-            .admin-layout { grid-template-columns: 1fr; gap: 15px; }
-            .loteria-selector-admin { flex-direction: column; }
-            .loteria-btn-admin { min-width: 100%; padding: 14px; font-size: 14px; }
-            .form-row { grid-template-columns: 1fr; gap: 10px; }
-            .filtros { display: flex; flex-direction: column; gap: 8px; }
-            .filtros select, .filtros button { width: 100%; margin: 0; }
-            .form-buttons { flex-direction: column; }
-            .form-buttons button { width: 100%; }
-            .numeros-container { display: flex; flex-direction: column; gap: 8px; }
-            .numeros-container button { width: 100%; }
-            .card-header { font-size: 14px; }
-            .card-body { padding: 12px; }
-            .checkbox-cartao { width: 24px; height: 24px; }
-            .cartao-item > div { flex-direction: column; align-items: flex-start !important; }
-            .btn-editar, .btn-duplicar { margin-top: 8px; width: 100%; }
-            .dashboard-cards { flex-direction: column; align-items: center; }
-            .dashboard-card { width: 100%; margin-bottom: 10px; }
-            #listaBoloes > div { padding: 10px; }
-            #listaBoloes select, #listaBoloes input { width: 100% !important; margin-top: 5px; }
-            .status-select, .data-limite-input { width: 100% !important; }
+        /* Botões de edição no celular - CORREÇÃO IMPORTANTE */
+        .btn-editar, .btn-duplicar { 
+            margin-top: 8px; 
+            width: 100% !important; 
+            display: inline-block !important;
         }
+        .btn-editar { background: #3b82f6; }
+        .btn-duplicar { background: #8b5cf6; }
         
-        @media (max-width: 480px) {
-            .top-bar { flex-direction: column; text-align: center; gap: 8px; }
-            .logo { font-size: 18px; }
-            .stats { font-size: 10px; }
-            .btn-logout { padding: 4px 10px; font-size: 11px; }
+        .dashboard-cards { flex-direction: column; align-items: center; }
+        .dashboard-card { width: 100%; margin-bottom: 10px; }
+        #listaBoloes > div { padding: 10px; }
+        #listaBoloes select, #listaBoloes input { width: 100% !important; margin-top: 5px; }
+        .status-select, .data-limite-input { width: 100% !important; }
+        
+        /* Campo tipo de cartão */
+        #tipoCartao {
+            width: 100% !important;
+            margin-top: 5px;
         }
-    </style>
+    }
+    
+    @media (max-width: 480px) {
+        .top-bar { flex-direction: column; text-align: center; gap: 8px; }
+        .logo { font-size: 18px; }
+        .stats { font-size: 10px; }
+        .btn-logout { padding: 4px 10px; font-size: 11px; }
+    }
+</style>
 </head>
 <body>
     <div class="top-bar">

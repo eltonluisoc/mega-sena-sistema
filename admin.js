@@ -176,8 +176,8 @@ function exibirCartoesAdmin() {
                         <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;">
                             <strong>Cartão #${cartao.id ? cartao.id.slice(-6) : '???'}</strong>
                             <div style="display:flex; gap:6px;">
-                                <button class="btn-editar" data-id="${cartao.id}" style="background:#3b82f6; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer;">✏️ Editar</button>
-                                <button class="btn-duplicar" data-id="${cartao.id}" style="background:#8b5cf6; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer;">📋 Duplicar</button>
+                                <button class="btn-editar" data-id="${cartao.id}" style="background:#3b82f6; color:white; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; display:inline-block; min-width:80px;">✏️ Editar</button>
+                                <button class="btn-duplicar" data-id="${cartao.id}" style="background:#8b5cf6; color:white; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; display:inline-block; min-width:80px;">📋 Duplicar</button>
                             </div>
                         </div>
                         <div style="font-size:12px; color:#666; margin:5px 0;">Concurso ${cartao.concurso} | Bolão: ${cartao.bolao || 'Sem Bolão'} | 📅 ${dataFormatada}</div>
