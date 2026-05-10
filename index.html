@@ -182,13 +182,14 @@
     <script src="script.js"></script>
     
     <script>
-        if ('serviceWorker' in navigator) {
+        // Service Worker desativado no localhost
+        if ('serviceWorker' in navigator && window.location.hostname !== '127.0.0.1' && window.location.hostname !== 'localhost') {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/mega-sena-sistema/sw.js')
                     .then(registration => console.log('✅ Service Worker registrado'))
                     .catch(error => console.log('❌ Service Worker falhou:', error));
-            });
-        }
-    </script>
+        });
+    }
+</script>
 </body>
 </html>
