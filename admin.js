@@ -61,25 +61,30 @@ function setLoteriaAdmin(loteria) {
     if (loteria === 'mega') {
         document.getElementById('adminBtnMega').classList.add('active');
         document.getElementById('cadastroHeader').innerHTML = '📝 CADASTRAR CARTÕES - MEGA';
-        document.getElementById('resultadosHeader').innerHTML = '🔍 RESULTADOS OFICIAIS - MEGA';
-        document.getElementById('listaHeader').innerHTML = '📋 CARTÕES CADASTRADOS - MEGA';
-        document.getElementById('labelNumeros').innerHTML = '🔢 Números (um por linha - MEGA: 6 números):';
-        document.getElementById('dicaNumeros').innerHTML = '💡 MEGA: mínimo 6 números.';
     } else if (loteria === 'lotofacil') {
         document.getElementById('adminBtnLotofacil').classList.add('active');
         document.getElementById('cadastroHeader').innerHTML = '📝 CADASTRAR CARTÕES - LOTOFÁCIL';
-        document.getElementById('resultadosHeader').innerHTML = '🔍 RESULTADOS OFICIAIS - LOTOFÁCIL';
-        document.getElementById('listaHeader').innerHTML = '📋 CARTÕES CADASTRADOS - LOTOFÁCIL';
-        document.getElementById('labelNumeros').innerHTML = '🔢 Números (um por linha - LOTOFÁCIL: 15 números):';
-        document.getElementById('dicaNumeros').innerHTML = '💡 LOTOFÁCIL: mínimo 15 números.';
     } else if (loteria === 'quina') {
         document.getElementById('adminBtnQuina').classList.add('active');
         document.getElementById('cadastroHeader').innerHTML = '📝 CADASTRAR CARTÕES - QUINA';
-        document.getElementById('resultadosHeader').innerHTML = '🔍 RESULTADOS OFICIAIS - QUINA';
-        document.getElementById('listaHeader').innerHTML = '📋 CARTÕES CADASTRADOS - QUINA';
-        document.getElementById('labelNumeros').innerHTML = '🔢 Números (um por linha - QUINA: minimum 5 números):';
-        document.getElementById('dicaNumeros').innerHTML = '💡 QUINA: mínimo 5 números (máximo 15).';
     }
+    
+    // Atualizar textos dos números
+    const labelNumeros = document.getElementById('labelNumeros');
+    const dicaNumeros = document.getElementById('dicaNumeros');
+    
+    if (labelNumeros) {
+        if (loteria === 'mega') labelNumeros.innerHTML = '🔢 Números (um por linha - MEGA: 6 números):';
+        else if (loteria === 'lotofacil') labelNumeros.innerHTML = '🔢 Números (um por linha - LOTOFÁCIL: 15 números):';
+        else if (loteria === 'quina') labelNumeros.innerHTML = '🔢 Números (um por linha - QUINA: mínimo 5 números):';
+    }
+    
+    if (dicaNumeros) {
+        if (loteria === 'mega') dicaNumeros.innerHTML = '💡 MEGA: mínimo 6 números.';
+        else if (loteria === 'lotofacil') dicaNumeros.innerHTML = '💡 LOTOFÁCIL: mínimo 15 números.';
+        else if (loteria === 'quina') dicaNumeros.innerHTML = '💡 QUINA: mínimo 5 números.';
+    }
+    
     carregarDadosAdmin();
 }
 
