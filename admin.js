@@ -393,7 +393,9 @@ async function salvarResultado() {
 async function adicionarCartoes() {
     const concurso = document.getElementById('concurso').value;
     const bolao = document.getElementById('bolao').value || 'Sem Bolão';
+    const tipoParticipacao = document.getElementById('tipoCartao').value; // ← LINHA NOVA
     const texto = document.getElementById('numerosCartoes').value;
+    
     if (!concurso) { showToast('⚠️ Informe o concurso!', 'warning'); return; }
     if (!texto.trim()) { showToast('⚠️ Informe os números!', 'warning'); return; }
     
@@ -415,7 +417,7 @@ async function adicionarCartoes() {
                 bolao, 
                 numeros, 
                 tipo: loteriaAdmin, 
-                tipoParticipacao: document.getElementById('tipoCartao').value,  // ← LINHA ADICIONADA
+                tipoParticipacao: tipoParticipacao,  // ← LINHA ADICIONADA
                 admin: true,
                 dataCadastro: new Date().toISOString(), 
                 totalNumeros: numeros.length 
