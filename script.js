@@ -9,6 +9,7 @@ let ultimoEstadoMega = {};
 let ultimoEstadoLotofacil = {};
 let ultimoEstadoQuina = {};
 let pixGeral = '';
+let cacheResultadosBuscados = {};
 
 function showToast(message, type = 'info') {
     let container = document.querySelector('.toast-container');
@@ -764,17 +765,20 @@ function iniciarMonitoramento() { if (intervaloNotif) clearInterval(intervaloNot
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('📄 Inicializando...');
+    await carregarConfiguracoes();
+    await new Promise(r => setTimeout(r, 500));
+    await carregarDados();  // Primeiro carrega os dados
     
-    // 1. Primeiro: carregar bolões (mais rápidos e prioritários)
-    await Promise.all([
-        carregarBolaoAberto(),
-        carregarBolaoAtivo()
-    ]);
+    // Depois que os dados estão carregados, carrega os bolões
+    await carregarBolaoAtivo();
+    await carregarBolaoAberto();
     
-    // 2. Depois: carregar cartões (mais pesado)
-    await carregarDados();
+    // SÓ DEPOIS de tudo carregado, tenta buscar resultado automaticamente
+    const selectConcurso = document.getElementById('concursoSelect');
+    if (selectConcurso && selectConcurso.value) {
+        setTimeout(() => buscarResultadoAutomatico(), 500);
+    }
     
-    // 3. Iniciar timers
     iniciarAutoAtualizacao();
     iniciarMonitoramento();
     
@@ -822,11 +826,28 @@ async function buscarResultadoAutomatico() {
     }
     
     // Verificar se já tentou buscar este concurso antes
-    if (cacheResultadosBuscados[concurso]) {
+    if (cacheResultadosBuscados && cacheResultadosBuscados[concurso]) {
         console.log(`⏳ Resultado do concurso ${concurso} já foi buscado e não encontrado`);
         mostrarStatusAguardando(concurso);
         return;
     }
+    
+    console.log(`🔍 Buscando resultado do concurso ${concurso}...`);
+    
+    // Inicializar cache se não existir
+    if (!cacheResultadosBuscados) var cacheResultadosBuscados = {};
+    cacheResultadosBuscados[concurso] = true;
+    
+    const busca = await buscarResultadoInterno(concurso, loteriaAtual);
+    
+    if (busca) {
+        await salvarResultadoEncontrado(concurso, busca.numeros, busca.dataSorteio);
+        await conferirResultados();
+        showToast(`🎉 Resultado do concurso ${concurso} encontrado!`, 'success');
+    } else {
+        mostrarStatusAguardando(concurso);
+    }
+}
     
     // Buscar uma vez
     const busca = await buscarResultadoInterno(concurso, loteriaAtual);
