@@ -384,6 +384,7 @@ async function adicionarCartoes() {
                 bolao, 
                 numeros, 
                 tipo: loteriaAdmin, 
+                tipoParticipacao: document.getElementById('tipoCartao').value,  // ← LINHA ADICIONADA
                 admin: true,
                 dataCadastro: new Date().toISOString(), 
                 totalNumeros: numeros.length 
