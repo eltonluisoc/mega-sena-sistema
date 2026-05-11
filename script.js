@@ -101,6 +101,7 @@ function enviarSugestao() {
     window.open(url, '_blank');
     showToast('📱 Abrindo WhatsApp...', 'info');
 }
+
 function entrarGrupoWhatsApp() {
     const linkGrupo = 'https://chat.whatsapp.com/HpJzQTlhN7hJJmlvIEspbK';
     window.open(linkGrupo, '_blank');
@@ -160,7 +161,6 @@ async function carregarDados() {
     const loadingPercent = document.getElementById('loadingPercent');
     if (loadingDiv) loadingDiv.style.display = 'block';
     
-    // Função auxiliar para atualizar percentual
     const atualizarPercentual = (percent, mensagem) => {
         if (loadingPercent) loadingPercent.innerText = `${percent}% - ${mensagem}`;
         console.log(`📊 ${percent}% - ${mensagem}`);
@@ -169,7 +169,6 @@ async function carregarDados() {
     try {
         atualizarPercentual(5, 'Iniciando...');
         
-        // 1. Buscar cartões
         atualizarPercentual(10, 'Buscando cartões...');
         const snap = await db.collection('cartoes').get();
         cartoes = [];
@@ -177,18 +176,17 @@ async function carregarDados() {
             const d = doc.data();
             if (d && d.numeros) {
                 cartoes.push({
-                id: doc.id,
-                concurso: d.concurso || '0',
-                bolao: d.bolao || 'Sem Bolão',
-                numeros: d.numeros,
-                totalNumeros: d.totalNumeros || d.numeros.length,
-                tipo: d.tipo || 'mega',
-                tipoParticipacao: d.tipoParticipacao || 'exclusivo'  // ← ADICIONAR ESTA LINHA
-            });
+                    id: doc.id,
+                    concurso: d.concurso || '0',
+                    bolao: d.bolao || 'Sem Bolão',
+                    numeros: d.numeros,
+                    totalNumeros: d.totalNumeros || d.numeros.length,
+                    tipo: d.tipo || 'mega',
+                    tipoParticipacao: d.tipoParticipacao || 'exclusivo'
+                });
             }
         });
         
-        // 2. Buscar resultados Mega
         atualizarPercentual(30, 'Carregando resultados Mega-Sena...');
         try {
             const resMega = await db.collection('resultados_mega').get();
@@ -199,7 +197,6 @@ async function carregarDados() {
             resultadosMega = {};
         }
         
-        // 3. Buscar resultados Lotofácil
         atualizarPercentual(50, 'Carregando resultados Lotofácil...');
         try {
             const resLoto = await db.collection('resultados_lotofacil').get();
@@ -210,7 +207,6 @@ async function carregarDados() {
             resultadosLotofacil = {};
         }
         
-        // 4. Buscar resultados Quina
         atualizarPercentual(70, 'Carregando resultados Quina...');
         try {
             const resQuina = await db.collection('resultados_quina').get();
@@ -221,7 +217,6 @@ async function carregarDados() {
             resultadosQuina = {};
         }
         
-        // 5. Carregar bolões
         atualizarPercentual(85, 'Carregando bolões...');
         try {
             await carregarBolaoAtivo();
@@ -230,7 +225,6 @@ async function carregarDados() {
             console.warn('Erro ao carregar bolões:', e);
         }
         
-        // 6. Finalizar
         atualizarPercentual(100, 'Concluído!');
         
         setTimeout(() => {
@@ -318,25 +312,24 @@ function mostrarCartoesDoConcurso() {
     for (const [bolao, lista] of Object.entries(porBolao)) {
         html += `<div style="margin-bottom:20px"><div style="background:#3b82f6;color:white;padding:6px 10px;border-radius:6px;margin-bottom:8px;font-size:13px;">🎯 ${bolao}</div><div style="display:flex;flex-wrap:wrap;gap:8px;">`;
         lista.forEach(cartao => {
-        // Verificar o tipo de participação em múltiplos campos possíveis
-        let tipoParticipacao = '👥 Exclusivo';
-        if (cartao.tipoParticipacao === 'cota') {
-            tipoParticipacao = '🎟️ Cota';
-        } else if (cartao.tipo === 'cota') {
-            tipoParticipacao = '🎟️ Cota';
-        } else if (cartao.tipoParticipacao === 'exclusivo') {
-            tipoParticipacao = '👥 Exclusivo';
-        }
-        
-        const numsHtml = cartao.numeros.map(n => `<span style="background:#e2e8f0;color:#333;padding:3px 7px;border-radius:5px;font-family:monospace;font-size:11px;">${n.toString().padStart(2,'0')}</span>`).join('');
-        html += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px;min-width:180px;">
-                    <div style="font-size:10px;color:#64748b;margin-bottom:4px;">
-                        Cartão - Concurso ${concurso}
-                        <span style="background:#e2e8f0;padding:2px 6px;border-radius:4px;margin-left:5px;font-size:9px;">${tipoParticipacao}</span>
-                    </div>
-                    <div style="display:flex;flex-wrap:wrap;gap:3px;">${numsHtml}</div>
-                </div>`;
-    });
+            let tipoParticipacao = '👥 Exclusivo';
+            if (cartao.tipoParticipacao === 'cota') {
+                tipoParticipacao = '🎟️ Cota';
+            } else if (cartao.tipo === 'cota') {
+                tipoParticipacao = '🎟️ Cota';
+            } else if (cartao.tipoParticipacao === 'exclusivo') {
+                tipoParticipacao = '👥 Exclusivo';
+            }
+            
+            const numsHtml = cartao.numeros.map(n => `<span style="background:#e2e8f0;color:#333;padding:3px 7px;border-radius:5px;font-family:monospace;font-size:11px;">${n.toString().padStart(2,'0')}</span>`).join('');
+            html += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px;min-width:180px;">
+                        <div style="font-size:10px;color:#64748b;margin-bottom:4px;">
+                            Cartão - Concurso ${concurso}
+                            <span style="background:#e2e8f0;padding:2px 6px;border-radius:4px;margin-left:5px;font-size:9px;">${tipoParticipacao}</span>
+                        </div>
+                        <div style="display:flex;flex-wrap:wrap;gap:3px;">${numsHtml}</div>
+                    </div>`;
+        });
         html += `</div></div>`;
     }
     container.innerHTML = html;
@@ -596,7 +589,7 @@ async function carregarBolaoAtivo() {
                     participantes.forEach(p => {
                         const statusText = p.situacao === 'quitado' || p.situacao === 'pago' ? '✅ QUITADO' : '🔄 EM ANDAMENTO';
                         listaHtml += `<div class="participante-item" style="display: flex; justify-content: space-between; align-items: center; padding: 6px; background: #f8fafc; border-radius: 6px;">
-                                        <span class="participante-nome" style="font-size: 12px;">${p.nome}</span>
+                                        <span class="participante-nomura" style="font-size: 12px;">${p.nome}</span>
                                         <span class="participante-status ${p.situacao === 'quitado' || p.situacao === 'pago' ? 'status-quitado' : 'status-pendente'}" style="font-size: 10px;">${statusText}</span>
                                     </div>`;
                     });
@@ -619,17 +612,14 @@ async function carregarBolaoAtivo() {
     }
 }
 
-// Função auxiliar para formatar data IGNORANDO timezone (VERSÃO ROBUSTA)
 function formatarDataLocal(dataISO) {
     if (!dataISO) return '';
     
-    // Caso 1: String no formato YYYY-MM-DD
     if (typeof dataISO === 'string' && dataISO.match(/^\d{4}-\d{2}-\d{2}$/)) {
         const [ano, mes, dia] = dataISO.split('-');
         return `${dia}/${mes}/${ano}`;
     }
     
-    // Caso 2: String com data completa (ex: "2026-08-30T00:00:00.000Z")
     if (typeof dataISO === 'string' && dataISO.includes('T')) {
         const match = dataISO.match(/(\d{4})-(\d{2})-(\d{2})/);
         if (match) {
@@ -637,7 +627,6 @@ function formatarDataLocal(dataISO) {
         }
     }
     
-    // Caso 3: Timestamp do Firestore
     if (dataISO && typeof dataISO.toDate === 'function') {
         const data = dataISO.toDate();
         const dia = data.getDate().toString().padStart(2, '0');
@@ -646,7 +635,6 @@ function formatarDataLocal(dataISO) {
         return `${dia}/${mes}/${ano}`;
     }
     
-    // Fallback final
     try {
         const data = new Date(dataISO);
         const dia = data.getDate().toString().padStart(2, '0');
@@ -713,6 +701,9 @@ async function carregarBolaoAberto() {
         const bolaoId = primeiroBolao.id;
         const estrategia = estrategiaMap[bolaoId] || '';
         
+        // LOG PARA DIAGNÓSTICO
+        console.log('🔍 ESTRATÉGIA CARREGADA:', estrategia ? 'SIM - ' + estrategia.substring(0, 50) + '...' : 'NÃO');
+        
         card.style.display = 'block';
         
         const vagasDisponiveis = bolaoAberto.vagasDisponiveis || 0;
@@ -756,9 +747,9 @@ async function carregarBolaoAberto() {
     ${vagasTexto ? `<div style="font-size: 14px; margin-top: 8px; font-weight: bold; color: ${vagasTexto.includes('LOTADO') ? '#ef4444' : (vagasDisponiveis <= 5 && vagasDisponiveis > 0) ? '#ef4444' : '#059669'};">${vagasTexto}</div>` : ''}
     `;
 
-// Adicionar botão da estratégia SEPARADAMENTE (fora do template string)
-if (estrategia && estrategia.trim() !== '') {
-    html += `
+        // Adicionar botão da estratégia
+        if (estrategia && estrategia.trim() !== '') {
+            html += `
     <div style="margin-top: 12px;">
         <button id="btnVerEstrategia" style="background: transparent; border: 1px solid #cbd5e1; border-radius: 30px; padding: 6px 16px; font-size: 12px; color: #3b82f6; cursor: pointer; width: auto;">
             💡 VER ESTRATÉGIA DO BOLÃO
@@ -773,9 +764,9 @@ if (estrategia && estrategia.trim() !== '') {
         </div>
     </div>
     `;
-}
+        }
 
-html += `
+        html += `
     <button id="btnParticiparAberto" style="background: #10b981; margin-top: 12px; width: auto; padding: 10px 25px;">📝 QUERO PARTICIPAR</button>
     ${outrosTexto}
 </div>
@@ -783,7 +774,7 @@ html += `
         
         container.innerHTML = html;
 
-        // Evento para o botão da estratégia (se existir)
+        // Evento para o botão da estratégia
         const btnEstrategia = document.getElementById('btnVerEstrategia');
         if (btnEstrategia) {
             btnEstrategia.onclick = (e) => {
@@ -803,7 +794,6 @@ html += `
             };
         }
 
-        // Fechar modal ao clicar fora (APENAS se não for nos botões)
         const modalEstrategia = document.getElementById('modalEstrategia');
         if (modalEstrategia) {
             modalEstrategia.onclick = (e) => {
@@ -860,8 +850,6 @@ function mostrarModalParticipacao(bolao) {
             } else {
                 console.warn('⚠️ Nenhuma chave PIX cadastrada no config_geral/pix');
             }
-            
-            const vagasDisponiveis = bolao.vagasDisponiveis || 0;
             
             const modalContent = document.createElement('div');
             modalContent.style.cssText = 'background: white; border-radius: 20px; max-width: 400px; width: 90%; padding: 25px; text-align: center; max-height: 80vh; overflow-y: auto;';
@@ -924,11 +912,10 @@ function mostrarModalParticipacao(bolao) {
 }
 
 async function verificarNovosResultados() {
-    // Função desativada - as collections corretas são resultados_mega, resultados_lotofacil, resultados_quina
-    // Este monitoramento não é mais necessário e causava erro de permissão
     console.log('⏸️ Função verificarNovosResultados desativada');
     return;
 }
+
 async function buscarResultadoAutomatico() {
     const concurso = document.getElementById('concursoSelect').value;
     
@@ -966,10 +953,8 @@ async function buscarResultadoAutomatico() {
     const busca = await buscarResultadoInterno(concurso, loteriaAtual);
     
     if (busca && busca.numeros && busca.numeros.length > 0) {
-        // await salvarResultadoEncontrado(concurso, busca.numeros, busca.dataSorteio); // REMOVIDO
         console.log(`📋 Resultado do concurso ${concurso} encontrado na API, mas não será salvo automaticamente`);
         
-        // Atualizar cache local temporário
         if (loteriaAtual === 'mega') resultadosMega[concurso] = busca.numeros;
         else if (loteriaAtual === 'lotofacil') resultadosLotofacil[concurso] = busca.numeros;
         else resultadosQuina[concurso] = busca.numeros;
@@ -1064,10 +1049,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     adicionarBotaoInstalar();
     mostrarCartoesDoConcurso();
-    
-    // TIMERS REMOVIDOS - melhor performance
-    // iniciarAutoAtualizacao();  // REMOVIDO
-    // iniciarMonitoramento();     // REMOVIDO
     
     console.log('✅ Sistema carregado - sem timers automáticos');
     
