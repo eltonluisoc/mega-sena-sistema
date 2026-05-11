@@ -917,33 +917,11 @@ function mostrarModalParticipacao(bolao) {
 }
 
 async function verificarNovosResultados() {
-    try {
-        const resMega = await db.collection('resultados').where('tipo', '==', 'mega').get();
-        const novosMega = {};
-        resMega.forEach(doc => { novosMega[doc.id] = doc.data().numeros; });
-        ultimoEstadoMega = novosMega;
-        
-        const resLoto = await db.collection('resultados').where('tipo', '==', 'lotofacil').get();
-        const novosLoto = {};
-        resLoto.forEach(doc => { novosLoto[doc.id] = doc.data().numeros; });
-        ultimoEstadoLotofacil = novosLoto;
-        
-        const resQuina = await db.collection('resultados').where('tipo', '==', 'quina').get();
-        const novosQuina = {};
-        resQuina.forEach(doc => { novosQuina[doc.id] = doc.data().numeros; });
-        ultimoEstadoQuina = novosQuina;
-        
-        atualizarStats();
-    } catch(e) { console.log('Erro:', e); }
+    // Função desativada - as collections corretas são resultados_mega, resultados_lotofacil, resultados_quina
+    // Este monitoramento não é mais necessário e causava erro de permissão
+    console.log('⏸️ Função verificarNovosResultados desativada');
+    return;
 }
-
-let intervalo, intervaloNotif;
-function iniciarAutoAtualizacao() { 
-    console.log('⏸️ Auto-atualização desativada para melhor performance');
-    if (intervalo) clearInterval(intervalo); 
-}
-function iniciarMonitoramento() { if (intervaloNotif) clearInterval(intervaloNotif); intervaloNotif = setInterval(() => verificarNovosResultados(), 120000); }
-
 async function buscarResultadoAutomatico() {
     const concurso = document.getElementById('concursoSelect').value;
     
@@ -1063,6 +1041,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnCompartilhar = document.getElementById('btnCompartilhar');
     const btnSugestao = document.getElementById('btnSugestao');
     const btnGrupo = document.getElementById('btnWhatsappGrupo');
+    
     if (btnGrupo) btnGrupo.addEventListener('click', entrarGrupoWhatsApp);
     
     if (btnMega) btnMega.addEventListener('click', () => setLoteria('mega'));
@@ -1078,6 +1057,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     adicionarBotaoInstalar();
     mostrarCartoesDoConcurso();
+    
+    // TIMERS REMOVIDOS - melhor performance
+    // iniciarAutoAtualizacao();  // REMOVIDO
+    // iniciarMonitoramento();     // REMOVIDO
     
     console.log('✅ Sistema carregado - sem timers automáticos');
     
