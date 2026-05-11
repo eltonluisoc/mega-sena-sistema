@@ -789,7 +789,12 @@ async function verificarNovosResultados() {
 }
 
 let intervalo, intervaloNotif;
-function iniciarAutoAtualizacao() { if (intervalo) clearInterval(intervalo); intervalo = setInterval(() => carregarDados(), 180000); }
+// FUNÇÃO DESATIVADA - Manter apenas para não quebrar referências
+function iniciarAutoAtualizacao() { 
+    console.log('⏸️ Auto-atualização desativada para melhor performance');
+    if (intervalo) clearInterval(intervalo); 
+    // intervalo = setInterval(() => carregarDados(), 180000); // REMOVIDO
+}
 function iniciarMonitoramento() { if (intervaloNotif) clearInterval(intervaloNotif); intervaloNotif = setInterval(() => verificarNovosResultados(), 120000); }
 
 async function buscarResultadoAutomatico() {
@@ -927,9 +932,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     adicionarBotaoInstalar();
     mostrarCartoesDoConcurso();
     
-    // 5. Iniciar timers
-    iniciarAutoAtualizacao();
-    iniciarMonitoramento();
+    // TIMERS REMOVIDOS PARA MELHOR PERFORMANCE
+// iniciarAutoAtualizacao();  // ❌ Removido - recarregava tudo a cada 3min
+// iniciarMonitoramento();     // ❌ Removido - não necessário
+console.log('✅ Sistema carregado - sem timers automáticos');
     
     showToast('🎲 Sistema Bolões Aleatórios carregado!', 'success');
 });
