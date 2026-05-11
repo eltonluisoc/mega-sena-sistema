@@ -981,8 +981,10 @@ async function buscarResultadoAutomatico() {
     const busca = await buscarResultadoInterno(concurso, loteriaAtual);
     
     if (busca && busca.numeros && busca.numeros.length > 0) {
+        // await salvarResultadoEncontrado(concurso, busca.numeros, busca.dataSorteio); // REMOVIDO
         console.log(`📋 Resultado do concurso ${concurso} encontrado na API, mas não será salvo automaticamente`);
         
+        // Atualizar cache local temporário
         if (loteriaAtual === 'mega') resultadosMega[concurso] = busca.numeros;
         else if (loteriaAtual === 'lotofacil') resultadosLotofacil[concurso] = busca.numeros;
         else resultadosQuina[concurso] = busca.numeros;
