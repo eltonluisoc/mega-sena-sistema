@@ -548,7 +548,7 @@ async function carregarBolaoAtivo() {
             const dataLimiteAdmin = dataLimiteMap[bolao.id] || '';
             let dataTexto = '';
             if (statusMap[bolao.id] === 'aberto' && dataLimiteAdmin) {
-                dataTexto = `<br>📅 Até ${new Date(dataLimiteAdmin).toLocaleDateString('pt-BR')}`;
+                dataTexto = `<br>📅 Até ${formatarDataLocal(dataLimiteAdmin)}`;
             } else if (statusMap[bolao.id] !== 'aberto') {
                 dataTexto = `<br>📅 Inscrições encerradas`;
             }
@@ -679,68 +679,53 @@ async function carregarBolaoAberto() {
             vagasTexto = `${vagasDisponiveis} vagas disponíveis`;
         }
         
-        // Função auxiliar para formatar data IGNORANDO timezone
-    function formatarDataLocal(dataISO) {
-        if (!dataISO) return '';
-        // Se for string ISO (YYYY-MM-DD), converte sem ajuste de timezone
-        if (dataISO.match(/^\d{4}-\d{2}-\d{2}$/)) {
-            const [ano, mes, dia] = dataISO.split('-');
-            return `${dia}/${mes}/${ano}`;
-        }
-        // Fallback para datas completas
-        const data = new Date(dataISO);
-        return data.toLocaleDateString('pt-BR');
+    // Função auxiliar para formatar data IGNORANDO timezone (VERSÃO ROBUSTA)
+function formatarDataLocal(dataISO) {
+    if (!dataISO) return '';
+    
+    // Caso 1: String no formato YYYY-MM-DD
+    if (typeof dataISO === 'string' && dataISO.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        const [ano, mes, dia] = dataISO.split('-');
+        return `${dia}/${mes}/${ano}`;
     }
-
-    const dataLimite = dataLimiteMap[bolaoId] || '';
-    const dataTexto = dataLimite ? ` | 📅 Até ${formatarDataLocal(dataLimite)}` : '';
-        
-        const outrosBoloes = boloesAbertos.length - 1;
-        let outrosTexto = '';
-        if (outrosBoloes > 0) {
-            outrosTexto = `<div style="margin-top: 12px; font-size: 12px;">
-                                ⭐ +${outrosBoloes} outro${outrosBoloes > 1 ? 's' : ''} bolão${outrosBoloes > 1 ? 'es' : ''} aberto(s). 
-                                <a href="#" id="linkVerTodos" style="color: #3b82f6; text-decoration: none; font-weight: bold;">Clique aqui para ver todos ➡️</a>
-                           </div>`;
+    
+    // Caso 2: String com data completa (ex: "2026-08-30T00:00:00.000Z")
+    if (typeof dataISO === 'string' && dataISO.includes('T')) {
+        // Extrair apenas a parte da data YYYY-MM-DD
+        const match = dataISO.match(/(\d{4})-(\d{2})-(\d{2})/);
+        if (match) {
+            return `${match[3]}/${match[2]}/${match[1]}`;
         }
-        
-        let html = `
-            <div style="text-align: center;">
-                <strong style="font-size: 18px;">🎯 ${bolaoAberto.titulo || 'Bolão Aberto'} <span style="font-size: 12px; color: #10b981;">🟢 ABERTO</span></strong>
-                <div style="font-size: 13px; margin-top: 5px;">
-                    ${bolaoAberto.loteria === 'mega' ? 'MEGA-SENA' : bolaoAberto.loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}
-                    ${bolaoAberto.concurso ? ` - Concurso ${bolaoAberto.concurso}` : ''}
-                </div>
-                <div style="font-size: 13px; margin-top: 5px;">
-                    💰 R$ ${bolaoAberto.valorPorCota || 0},00 por cota${dataTexto}
-                </div>
-                ${vagasTexto ? `<div style="font-size: 14px; margin-top: 8px; font-weight: bold; color: ${vagasTexto.includes('LOTADO') ? '#ef4444' : (vagasDisponiveis <= 5 && vagasDisponiveis > 0) ? '#ef4444' : '#059669'};">${vagasTexto}</div>` : ''}
-                <button id="btnParticiparAberto" style="background: #10b981; margin-top: 12px; width: auto; padding: 10px 25px;">📝 QUERO PARTICIPAR</button>
-                ${outrosTexto}
-            </div>
-        `;
-        
-        container.innerHTML = html;
-        
-        const btnParticipar = document.getElementById('btnParticiparAberto');
-        if (btnParticipar) {
-            btnParticipar.onclick = () => mostrarModalParticipacao(bolaoAberto);
-        }
-        
-        const linkVerTodos = document.getElementById('linkVerTodos');
-        if (linkVerTodos) {
-            linkVerTodos.onclick = (e) => {
-                e.preventDefault();
-                const boloesEspeciais = document.getElementById('cardBolaoAtivo');
-                if (boloesEspeciais) {
-                    boloesEspeciais.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-            };
-        }
-        
-    } catch (error) {
-        console.error('Erro ao carregar bolão aberto:', error);
-        card.style.display = 'none';
+    }
+    
+    // Caso 3: Timestamp do Firestore
+    if (dataISO && typeof dataISO.toDate === 'function') {
+        const data = dataISO.toDate();
+        const dia = data.getDate().toString().padStart(2, '0');
+        const mes = (data.getMonth() + 1).toString().padStart(2, '0');
+        const ano = data.getFullYear();
+        return `${dia}/${mes}/${ano}`;
+    }
+    
+    // Caso 4: Número (timestamp Unix)
+    if (typeof dataISO === 'number') {
+        const data = new Date(dataISO);
+        const dia = data.getDate().toString().padStart(2, '0');
+        const mes = (data.getMonth() + 1).toString().padStart(2, '0');
+        const ano = data.getFullYear();
+        return `${dia}/${mes}/${ano}`;
+    }
+    
+    // Fallback final
+    try {
+        const data = new Date(dataISO);
+        const dia = data.getDate().toString().padStart(2, '0');
+        const mes = (data.getMonth() + 1).toString().padStart(2, '0');
+        const ano = data.getFullYear();
+        return `${dia}/${mes}/${ano}`;
+    } catch(e) {
+        console.warn('Erro ao formatar data:', dataISO);
+        return dataISO;
     }
 }
 
