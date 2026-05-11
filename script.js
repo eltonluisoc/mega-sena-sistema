@@ -707,47 +707,63 @@ function mostrarModalParticipacao(bolao) {
     modal.id = 'modalParticipacao';
     modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; display: flex; justify-content: center; align-items: center;';
     
-    const pixChave = pixGeral || 'Chave PIX não cadastrada';
+    // Buscar PIX diretamente do Firebase para garantir que está atualizado
+    let pixChave = pixGeral || 'Chave PIX não cadastrada';
     
-    const modalContent = document.createElement('div');
-    modalContent.style.cssText = 'background: white; border-radius: 20px; max-width: 400px; width: 90%; padding: 25px; text-align: center;';
-    modalContent.innerHTML = `
-        <div style="font-size: 24px;">📝</div>
-        <div style="font-size: 20px; font-weight: bold; margin: 10px 0;">COMO PARTICIPAR</div>
-        <div style="text-align: left;">
-            <p><strong>🎯 ${bolao.titulo}</strong></p>
-            <p>💰 Valor da cota: R$ ${bolao.valorPorCota || 0},00</p>
-            <p>💳 Pague via PIX:</p>
-            <div style="background: #f1f5f9; padding: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
-                <code style="font-size: 14px; word-break: break-all; flex: 1;">${pixChave}</code>
-                <button id="copiarPix" style="background: #3b82f6; border: none; padding: 6px 12px; border-radius: 6px; color: white; cursor: pointer; font-size: 12px; width: auto; white-space: nowrap;">📋 COPIAR</button>
+    // Tentar buscar do Firebase novamente (fallback)
+    db.collection('config_geral').doc('pix').get().then(doc => {
+        if (doc.exists && doc.data().chave) {
+            pixChave = doc.data().chave;
+        }
+        atualizarModal();
+    }).catch(() => {
+        atualizarModal();
+    });
+    
+    function atualizarModal() {
+        const vagasDisponiveis = bolao.vagasDisponiveis || 0;
+        
+        const modalContent = document.createElement('div');
+        modalContent.style.cssText = 'background: white; border-radius: 20px; max-width: 400px; width: 90%; padding: 25px; text-align: center; max-height: 80vh; overflow-y: auto;';
+        modalContent.innerHTML = `
+            <div style="font-size: 24px;">📝</div>
+            <div style="font-size: 20px; font-weight: bold; margin: 10px 0;">COMO PARTICIPAR</div>
+            <div style="text-align: left;">
+                <p><strong>🎯 ${bolao.titulo}</strong></p>
+                <p>💰 Valor da cota: R$ ${bolao.valorPorCota || 0},00</p>
+                <p>💳 Pague via PIX:</p>
+                <div style="background: #f1f5f9; padding: 12px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <code style="font-size: 14px; word-break: break-all; flex: 1;">${pixChave}</code>
+                    <button id="copiarPix" style="background: #3b82f6; border: none; padding: 8px 15px; border-radius: 8px; color: white; cursor: pointer; font-size: 13px; white-space: nowrap;">📋 COPIAR</button>
+                </div>
+                <p style="margin-top: 15px;">Após o pagamento, envie o comprovante para:</p>
+                <button id="falarAdmin" style="background: #25D366; margin-top: 5px; width: 100%; padding: 12px; border-radius: 10px; font-weight: bold;">📲 FALAR COM ADMIN</button>
             </div>
-            <p style="margin-top: 15px;">Após o pagamento, envie o comprovante para:</p>
-            <button id="falarAdmin" style="background: #25D366; margin-top: 5px; width: 100%; padding: 10px;">📲 FALAR COM ADMIN</button>
-        </div>
-        <button id="fecharModalParticipacao" style="background: #64748b; margin-top: 15px; width: 100%; padding: 10px; border-radius: 30px;">Fechar</button>
-    `;
-    
-    modal.appendChild(modalContent);
-    document.body.appendChild(modal);
-    
-    document.getElementById('fecharModalParticipacao').onclick = () => modal.remove();
-    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-    
-    const copiarBtn = document.getElementById('copiarPix');
-    if (copiarBtn) {
-        copiarBtn.onclick = () => {
-            navigator.clipboard.writeText(pixChave);
-            showToast('✅ Chave PIX copiada!', 'success');
-        };
-    }
-    
-    const falarAdmin = document.getElementById('falarAdmin');
-    if (falarAdmin) {
-        falarAdmin.onclick = () => {
-            const msg = `Olá! Gostaria de participar do bolão "${bolao.titulo}"`;
-            window.open(`https://wa.me/5561998507770?text=${encodeURIComponent(msg)}`, '_blank');
-        };
+            <button id="fecharModalParticipacao" style="background: #64748b; margin-top: 15px; width: 100%; padding: 12px; border-radius: 30px;">Fechar</button>
+        `;
+        
+        modal.innerHTML = '';
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
+        
+        document.getElementById('fecharModalParticipacao').onclick = () => modal.remove();
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+        
+        const copiarBtn = document.getElementById('copiarPix');
+        if (copiarBtn) {
+            copiarBtn.onclick = () => {
+                navigator.clipboard.writeText(pixChave);
+                showToast('✅ Chave PIX copiada!', 'success');
+            };
+        }
+        
+        const falarAdmin = document.getElementById('falarAdmin');
+        if (falarAdmin) {
+            falarAdmin.onclick = () => {
+                const msg = `Olá! Gostaria de participar do bolão "${bolao.titulo}"`;
+                window.open(`https://wa.me/5561998507770?text=${encodeURIComponent(msg)}`, '_blank');
+            };
+        }
     }
 }
 
