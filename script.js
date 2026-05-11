@@ -591,6 +591,7 @@ async function carregarBolaoAberto() {
         const idsSelecionados = dados.ids || [];
         const statusMap = dados.status || {};
         const dataLimiteMap = dados.dataLimite || {};
+        const destaqueMap = dados.destaque || {};  // ← NOVO: carregar o mapa de destaques
         
         let boloesAbertos = [];
         for (const id of idsSelecionados) {
@@ -607,7 +608,24 @@ async function carregarBolaoAberto() {
             return;
         }
         
-        const primeiroBolao = boloesAbertos[0];
+        // NOVO: Verificar se tem um bolão marcado como destaque
+        let primeiroBolao = null;
+        let bolaoDestaque = null;
+        
+        // Primeiro, tentar encontrar o bolão marcado como destaque
+        for (const b of boloesAbertos) {
+            if (destaqueMap[b.id]) {
+                bolaoDestaque = b;
+                break;
+            }
+        }
+        
+        if (bolaoDestaque) {
+            primeiroBolao = bolaoDestaque;
+        } else {
+            primeiroBolao = boloesAbertos[0];  // fallback: o primeiro da lista
+        }
+        
         const bolaoAberto = primeiroBolao.data;
         const bolaoId = primeiroBolao.id;
         

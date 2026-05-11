@@ -488,6 +488,7 @@ async function carregarBoloesParaGerenciar() {
         let selecionados = [];
         let statusMap = {};
         let dataLimiteMap = {};
+        let destaqueMap = {};
 
         try {
             const configDoc = await db.collection('config_boloes').doc('ativos').get();
@@ -495,6 +496,7 @@ async function carregarBoloesParaGerenciar() {
                 selecionados = configDoc.data().ids || [];
                 statusMap = configDoc.data().status || {};
                 dataLimiteMap = configDoc.data().dataLimite || {};
+                destaqueMap = configDoc.data().destaque || {};  // ← NOVO
             }
         } catch (e) {
             console.log('Erro ao carregar seleção:', e);
@@ -506,23 +508,25 @@ async function carregarBoloesParaGerenciar() {
             const status = statusMap[bolao.id] || 'andamento';
             
             html += `
-                <div style="padding: 12px; border-bottom: 1px solid #eee; margin-bottom: 8px;">
-                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                        <input type="checkbox" class="checkbox-bolao" data-id="${bolao.id}" ${checked} style="width: 20px; height: 20px;">
-                        <strong>${bolao.titulo || 'Sem título'}</strong>
-                        <span style="font-size: 11px; color: #666;">${bolao.participantes?.length || 0} participantes | ${bolao.loteria || '?'}</span>
-                    </div>
-                    <div style="margin-left: 35px; margin-top: 8px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
-                        <label style="font-size: 12px;">Status:</label>
-                        <select class="status-select" data-id="${bolao.id}" style="padding: 4px 8px; border-radius: 6px;">
-                            <option value="aberto" ${status === 'aberto' ? 'selected' : ''}>🟢 ABERTO</option>
-                            <option value="andamento" ${status === 'andamento' ? 'selected' : ''}>🟡 EM ANDAMENTO</option>
-                        </select>
-                        <label style="font-size: 12px;">Data limite:</label>
-                        <input type="date" class="data-limite-input" data-id="${bolao.id}" value="${dataLimiteMap[bolao.id] || ''}" style="padding: 4px 8px; border-radius: 6px;">
-                    </div>
-                </div>
-            `;
+    <div style="padding: 12px; border-bottom: 1px solid #eee; margin-bottom: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <input type="checkbox" class="checkbox-bolao" data-id="${bolao.id}" ${checked} style="width: 20px; height: 20px;">
+            <strong>${bolao.titulo || 'Sem título'}</strong>
+            <span style="font-size: 11px; color: #666;">${bolao.participantes?.length || 0} participantes | ${bolao.loteria || '?'}</span>
+            <label style="font-size: 11px; margin-left: auto;">⭐ DESTAQUE:</label>
+            <input type="checkbox" class="checkbox-destaque" data-id="${bolao.id}" ${destaqueMap[bolao.id] ? 'checked' : ''} style="width: 18px; height: 18px;">
+        </div>
+        <div style="margin-left: 35px; margin-top: 8px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+            <label style="font-size: 12px;">Status:</label>
+            <select class="status-select" data-id="${bolao.id}" style="padding: 4px 8px; border-radius: 6px;">
+                <option value="aberto" ${status === 'aberto' ? 'selected' : ''}>🟢 ABERTO</option>
+                <option value="andamento" ${status === 'andamento' ? 'selected' : ''}>🟡 EM ANDAMENTO</option>
+            </select>
+            <label style="font-size: 12px;">Data limite:</label>
+            <input type="date" class="data-limite-input" data-id="${bolao.id}" value="${dataLimiteMap[bolao.id] || ''}" style="padding: 4px 8px; border-radius: 6px;">
+        </div>
+    </div>
+`;
         }
         
         container.innerHTML = html;
@@ -556,11 +560,18 @@ async function salvarConfigBoloes() {
         dataLimiteMap[input.dataset.id] = input.value;
     });
     
+    // NOVO: coletar os bolões em destaque
+    const destaqueMap = {};
+    document.querySelectorAll('.checkbox-destaque:checked').forEach(cb => {
+        destaqueMap[cb.dataset.id] = true;
+    });
+    
     try {
         await db.collection('config_boloes').doc('ativos').set({ 
             ids: idsSelecionados,
             status: statusMap,
-            dataLimite: dataLimiteMap
+            dataLimite: dataLimiteMap,
+            destaque: destaqueMap  // ← NOVO
         });
         showToast(`✅ ${idsSelecionados.length} bolão(ões) selecionado(s)`, 'success');
     } catch (error) {
