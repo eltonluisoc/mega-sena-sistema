@@ -880,10 +880,18 @@ async function buscarResultadoAutomatico() {
     const busca = await buscarResultadoInterno(concurso, loteriaAtual);
     
     if (busca && busca.numeros && busca.numeros.length > 0) {
-        await salvarResultadoEncontrado(concurso, busca.numeros, busca.dataSorteio);
-        await conferirResultados();
-        showToast(`🎉 Resultado do concurso ${concurso} encontrado!`, 'success');
-    } else {
+    // APENAS CONFERIR - NÃO SALVAR AUTOMATICAMENTE
+    // Apenas admin pode salvar resultados
+    console.log(`📋 Resultado do concurso ${concurso} encontrado na API, mas não será salvo automaticamente`);
+    
+    // Atualizar cache local temporário para conferência
+    if (loteriaAtual === 'mega') resultadosMega[concurso] = busca.numeros;
+    else if (loteriaAtual === 'lotofacil') resultadosLotofacil[concurso] = busca.numeros;
+    else resultadosQuina[concurso] = busca.numeros;
+    
+    await conferirResultados();
+    showToast(`🎉 Resultado do concurso ${concurso} encontrado!`, 'success');
+} else {
         mostrarStatusAguardando(concurso);
     }
 }
