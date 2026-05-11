@@ -560,7 +560,7 @@ async function carregarBolaoAtivo() {
             const dataLimiteAdmin = dataLimiteMap[bolao.id] || '';
             let dataTexto = '';
             if (statusMap[bolao.id] === 'aberto' && dataLimiteAdmin) {
-                dataTexto = `<br>📅 Até ${new Date(dataLimiteAdmin).toLocaleDateString('pt-BR')}`;
+                dataTexto = `<br>📅 Até ${formatarDataLocal(dataLimiteAdmin)}`;
             } else if (statusMap[bolao.id] !== 'aberto') {
                 dataTexto = `<br>📅 Inscrições encerradas`;
             }
