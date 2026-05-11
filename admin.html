@@ -2,81 +2,339 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
     <title>Admin - Cadastro de Cartões Bolões Aleatórios</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#3b82f6">
     <link rel="stylesheet" href="style.css">
     <style>
-    .loteria-selector-admin { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
-    .loteria-btn-admin { flex: 1; min-width: 100px; padding: 12px 10px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: all 0.3s; font-size: 13px; }
-    .loteria-btn-admin.mega { background: #3b82f6; color: white; }
-    .loteria-btn-admin.lotofacil { background: #10b981; color: white; }
-    .loteria-btn-admin.quina { background: #ef4444; color: white; }
-    .loteria-btn-admin.active { box-shadow: 0 0 10px currentColor; filter: brightness(1.1); transform: scale(1.02); }
-    
-    /* Painel recolhível */
-    .collapsible { background: #f1f5f9; cursor: pointer; padding: 12px; width: 100%; border: none; text-align: left; font-weight: bold; border-radius: 8px; margin-bottom: 5px; }
-    .collapsible:hover { background: #e2e8f0; }
-    .collapsible:after { content: '▼'; float: right; }
-    .active-collapse:after { content: '▲'; }
-    .collapse-content { display: none; overflow: hidden; padding: 10px 0; }
-    
-    @media (max-width: 768px) {
-        .container { padding: 0 10px; }
-        .admin-layout { grid-template-columns: 1fr; gap: 15px; }
-        .loteria-selector-admin { flex-direction: column; }
-        .loteria-btn-admin { min-width: 100%; padding: 14px; font-size: 14px; }
-        .form-row { grid-template-columns: 1fr; gap: 10px; }
-        .filtros { display: flex; flex-direction: column; gap: 8px; }
-        .filtros select, .filtros button { width: 100%; margin: 0; }
-        .form-buttons { flex-direction: column; }
-        .form-buttons button { width: 100%; }
-        .numeros-container { display: flex; flex-direction: column; gap: 8px; }
-        .numeros-container button { width: 100%; }
-        .card-header { font-size: 14px; }
-        .card-body { padding: 12px; }
-        .checkbox-cartao { width: 24px; height: 24px; }
-        .cartao-item > div { flex-direction: column; align-items: flex-start !important; }
-        
-        /* Botões de edição no celular - CORREÇÃO IMPORTANTE */
-        .btn-editar, .btn-duplicar { 
-            margin-top: 8px; 
-            width: 100% !important; 
-            display: inline-block !important;
+        /* Reset e configurações gerais */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
         }
-        .btn-editar { background: #3b82f6; }
-        .btn-duplicar { background: #8b5cf6; }
-        
-        .dashboard-cards { flex-direction: column; align-items: center; }
-        .dashboard-card { width: 100%; margin-bottom: 10px; }
-        #listaBoloes > div { padding: 10px; }
-        #listaBoloes select, #listaBoloes input { width: 100% !important; margin-top: 5px; }
-        .status-select, .data-limite-input { width: 100% !important; }
-        
-        /* Campo tipo de cartão */
-        #tipoCartao {
-            width: 100% !important;
-            margin-top: 5px;
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #3b82f6 0%, #10b981 100%);
+            min-height: 100vh;
+            overflow-x: hidden;
         }
-    }
-    
-    @media (max-width: 480px) {
-        .top-bar { flex-direction: column; text-align: center; gap: 8px; }
-        .logo { font-size: 18px; }
-        .stats { font-size: 10px; }
-        .btn-logout { padding: 4px 10px; font-size: 11px; }
-    }
-</style>
+
+        /* Barra superior */
+        .top-bar {
+            background: #1e293b;
+            color: white;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .version {
+            font-size: 10px;
+            color: #94a3b8;
+            margin-left: 6px;
+        }
+
+        .stats {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .stat {
+            background: rgba(255,255,255,0.1);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+        }
+
+        .btn-logout {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 5px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        /* Container principal */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 12px;
+        }
+
+        /* Cards */
+        .card {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin-bottom: 16px;
+        }
+
+        .card-header {
+            padding: 12px 16px;
+            font-weight: bold;
+            font-size: 15px;
+            color: white;
+        }
+
+        .card-body {
+            padding: 16px;
+        }
+
+        .bg-blue { background: #3b82f6; }
+        .bg-green { background: #10b981; }
+        .bg-orange { background: #f59e0b; }
+        .bg-purple { background: #8b5cf6; }
+        .bg-red { background: #ef4444; }
+        .bg-slate { background: #64748b; }
+
+        /* Formulários */
+        .form-group {
+            margin-bottom: 14px;
+        }
+        .form-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .form-row .form-group {
+            flex: 1;
+            min-width: 140px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #1e293b;
+            font-size: 12px;
+        }
+        .form-control, select, input, textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 14px;
+            font-family: inherit;
+            background: #f8fafc;
+            transition: all 0.2s;
+        }
+        .form-control:focus, select:focus, input:focus, textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+        }
+
+        /* Botões */
+        .btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 13px;
+            text-align: center;
+        }
+        .btn-primary { background: #3b82f6; color: white; }
+        .btn-success { background: #10b981; color: white; }
+        .btn-warning { background: #f59e0b; color: white; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-secondary { background: #64748b; color: white; }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        .btn-block { width: 100%; }
+        
+        .btn:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.05);
+        }
+
+        /* Botões de loteria */
+        .loteria-selector-admin {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .loteria-btn-admin {
+            flex: 1;
+            padding: 10px 8px;
+            border: none;
+            border-radius: 30px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 13px;
+            text-align: center;
+        }
+        .loteria-btn-admin.mega { background: #8b5cf6; color: white; }
+        .loteria-btn-admin.lotofacil { background: #10b981; color: white; }
+        .loteria-btn-admin.quina { background: #ef4444; color: white; }
+        .loteria-btn-admin.active { 
+            transform: scale(0.98);
+            filter: brightness(0.9);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        /* Dashboard cards */
+        .dashboard-cards {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: space-between;
+        }
+        .dashboard-card {
+            flex: 1;
+            text-align: center;
+            background: #f8fafc;
+            padding: 12px;
+            border-radius: 12px;
+            min-width: 80px;
+        }
+        .dashboard-number {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        /* Filtros */
+        .filtros {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+        .filtros select, .filtros button {
+            flex: 1;
+            min-width: 100px;
+        }
+
+        /* Lista de cartões */
+        .cartoes-grid {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .cartao-item {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+        .cartao-numeros {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+        .numero {
+            background: #e2e8f0;
+            padding: 5px 10px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal.show { display: flex; }
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 350px;
+            overflow: hidden;
+        }
+        .modal-header {
+            background: #3b82f6;
+            color: white;
+            padding: 15px;
+            font-weight: bold;
+            text-align: center;
+        }
+        .modal-body { padding: 20px; }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 15px;
+            font-size: 11px;
+            color: #94a3b8;
+            background: #1e293b;
+            margin-top: 20px;
+        }
+
+        /* ========== RESPONSIVIDADE CELULAR ========== */
+        @media (max-width: 768px) {
+            .container { padding: 10px; }
+            .admin-layout { display: flex; flex-direction: column; gap: 12px; }
+            .form-row { flex-direction: column; gap: 10px; }
+            .form-row .form-group { min-width: 100%; }
+            .dashboard-cards { flex-wrap: wrap; }
+            .dashboard-card { min-width: calc(50% - 6px); }
+            .filtros { flex-direction: column; }
+            .filtros select, .filtros button { width: 100%; }
+            .form-buttons { display: flex; flex-direction: column; gap: 8px; }
+            .form-buttons button { width: 100%; }
+            .btn { padding: 12px; font-size: 14px; }
+            .card-header { font-size: 14px; padding: 10px 14px; }
+            .card-body { padding: 12px; }
+            .checkbox-cartao { width: 22px; height: 22px; }
+            .btn-editar, .btn-duplicar { width: 100%; margin-top: 8px; }
+            .cartao-item > div { flex-direction: column; align-items: flex-start !important; }
+            .loteria-selector-admin { flex-direction: row; }
+            .loteria-btn-admin { padding: 10px; font-size: 12px; }
+            .top-bar { flex-direction: column; text-align: center; }
+            .stats { justify-content: center; }
+        }
+
+        @media (max-width: 480px) {
+            .logo { font-size: 16px; }
+            .stat { font-size: 10px; padding: 3px 8px; }
+            .dashboard-number { font-size: 20px; }
+            .dashboard-card { padding: 8px; }
+        }
+    </style>
 </head>
 <body>
     <div class="top-bar">
         <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">Administração</span></div>
-        <div class="stats"><div class="stat" id="totalCartoes">📊 0 cartões</div><button id="btnSair" class="btn-logout">🔒 SAIR</button></div>
+        <div class="stats">
+            <div class="stat" id="totalCartoes">📊 0 cartões</div>
+            <button id="btnSair" class="btn-logout">🔒 SAIR</button>
+        </div>
     </div>
 
     <div class="container">
         <div class="admin-layout">
+            <!-- Coluna esquerda -->
             <div class="cadastro-panel">
                 <!-- Seletor de Loteria -->
                 <div class="card">
@@ -94,11 +352,23 @@
                 <div class="card">
                     <div class="card-header bg-blue">📊 DASHBOARD RESUMO</div>
                     <div class="card-body">
-                        <div class="dashboard-cards" style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: space-around;">
-                            <div class="dashboard-card" style="text-align: center; background: #f0fdf4; padding: 15px; border-radius: 10px; min-width: 100px;"><div style="font-size: 28px; font-weight: bold; color: #059669;" id="dashboardTotalCartoes">0</div><div>Total Cartões</div></div>
-                            <div class="dashboard-card" style="text-align: center; background: #dbeafe; padding: 15px; border-radius: 10px; min-width: 100px;"><div style="font-size: 28px; font-weight: bold; color: #3b82f6;" id="dashboardTotalConcursos">0</div><div>Concursos</div></div>
-                            <div class="dashboard-card" style="text-align: center; background: #fef3c7; padding: 15px; border-radius: 10px; min-width: 100px;"><div style="font-size: 28px; font-weight: bold; color: #f59e0b;" id="dashboardTotalBoloes">0</div><div>Bolões</div></div>
-                            <div class="dashboard-card" style="text-align: center; background: #f3e8ff; padding: 15px; border-radius: 10px; min-width: 100px;"><div style="font-size: 28px; font-weight: bold; color: #a855f7;" id="dashboardResultados">0</div><div>Resultados</div></div>
+                        <div class="dashboard-cards">
+                            <div class="dashboard-card" style="background: #f0fdf4;">
+                                <div class="dashboard-number" style="color: #059669;" id="dashboardTotalCartoes">0</div>
+                                <div>Cartões</div>
+                            </div>
+                            <div class="dashboard-card" style="background: #dbeafe;">
+                                <div class="dashboard-number" style="color: #3b82f6;" id="dashboardTotalConcursos">0</div>
+                                <div>Concursos</div>
+                            </div>
+                            <div class="dashboard-card" style="background: #fef3c7;">
+                                <div class="dashboard-number" style="color: #f59e0b;" id="dashboardTotalBoloes">0</div>
+                                <div>Bolões</div>
+                            </div>
+                            <div class="dashboard-card" style="background: #f3e8ff;">
+                                <div class="dashboard-number" style="color: #a855f7;" id="dashboardResultados">0</div>
+                                <div>Resultados</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -108,43 +378,65 @@
                     <div class="card-header bg-green" id="cadastroHeader">📝 CADASTRAR CARTÕES - MEGA</div>
                     <div class="card-body">
                         <div class="form-row">
-                            <div class="form-group"><label>📌 Concurso:</label><input type="number" id="concurso" class="form-control" placeholder="Ex: 2700"></div>
-                            <div class="form-group"><label>👥 Bolão:</label><input type="text" id="bolao" class="form-control" placeholder="Ex: Família, Amigos"></div>
+                            <div class="form-group">
+                                <label>📌 Concurso</label>
+                                <input type="number" id="concurso" class="form-control" placeholder="Ex: 2700">
+                            </div>
+                            <div class="form-group">
+                                <label>👥 Bolão</label>
+                                <input type="text" id="bolao" class="form-control" placeholder="Ex: Família">
+                            </div>
                         </div>
                         <div class="form-row">
-                            <div class="form-group"><label>🎯 Tipo:</label>
+                            <div class="form-group">
+                                <label>🎯 Tipo</label>
                                 <select id="tipoCartao" class="form-control">
                                     <option value="exclusivo">👥 Grupo Exclusivo</option>
                                     <option value="cota">🎟️ Cota de Bolão</option>
                                 </select>
                             </div>
-                            <div class="form-group"><!-- espaço vazio para manter o layout --></div>
+                            <div class="form-group"><!-- espaço --></div>
                         </div>
                         <div class="form-group">
-                            <label id="labelNumeros">🔢 Números (um por linha - MEGA: 6 números):</label>
-                            <textarea id="numerosCartoes" rows="8" class="form-control" placeholder="Ex:&#10;12 15 23 34 45 56&#10;05 10 15 20 25 30"></textarea>
+                            <label id="labelNumeros">🔢 Números (um por linha)</label>
+                            <textarea id="numerosCartoes" rows="6" class="form-control" placeholder="12 15 23 34 45 56&#10;05 10 15 20 25 30"></textarea>
                         </div>
-                        <div class="dica" id="dicaNumeros">💡 MEGA: mínimo 6 números. LOTOFÁCIL: mínimo 15. QUINA: mínimo 5 números (máx 15).</div>
-                        <div class="form-buttons"><button id="btnAdicionar" class="btn btn-green">➕ ADICIONAR CARTÕES</button><button id="btnLimpar" class="btn btn-gray">🗑️ LIMPAR</button></div>
+                        <div class="dica" style="background:#fef3c7; padding:10px; border-radius:10px; font-size:12px; margin-bottom:12px;">
+                            💡 MEGA: 6 números | LOTOFÁCIL: 15 | QUINA: 5 a 15
+                        </div>
+                        <div class="form-buttons" style="display: flex; gap: 10px;">
+                            <button id="btnAdicionar" class="btn btn-success btn-block">➕ ADICIONAR</button>
+                            <button id="btnLimpar" class="btn btn-secondary">🗑️ LIMPAR</button>
+                        </div>
                     </div>
                 </div>
-
-                <!-- REMOVIDO: Resultados Oficiais -->
             </div>
 
+            <!-- Coluna direita - Lista de cartões -->
             <div class="lista-panel">
                 <div class="card">
                     <div class="card-header bg-orange" id="listaHeader">📋 CARTÕES CADASTRADOS - MEGA</div>
                     <div class="card-body">
                         <div class="filtros">
-                            <select id="filtroConcurso"><option value="todos">Todos os concursos</option></select>
-                            <select id="ordenarPor"><option value="concurso_desc">📌 Concurso (mais novo)</option><option value="concurso_asc">📌 Concurso (mais antigo)</option><option value="bolao">👥 Bolão (A-Z)</option><option value="data">📅 Data (mais recente)</option></select>
-                            <button id="btnRecarregar" class="btn-sm btn-blue">🔄 RECARREGAR</button>
-                            <button id="btnImportarExcel" class="btn-sm" style="background:#8b5cf6;color:white;">📥 IMPORTAR</button>
-                            <button id="btnExportarExcel" class="btn-sm" style="background:#10b981;color:white;">📊 EXPORTAR</button>
-                            <button id="btnExcluirSelecionados" class="btn-sm" style="background:#ef4444;color:white;">🗑️ EXCLUIR</button>
+                            <select id="filtroConcurso" class="form-control">
+                                <option value="todos">Todos os concursos</option>
+                            </select>
+                            <select id="ordenarPor" class="form-control">
+                                <option value="concurso_desc">📌 Concurso (mais novo)</option>
+                                <option value="concurso_asc">📌 Concurso (mais antigo)</option>
+                                <option value="bolao">👥 Bolão (A-Z)</option>
+                                <option value="data">📅 Data (mais recente)</option>
+                            </select>
+                            <button id="btnRecarregar" class="btn btn-primary">🔄 RECARREGAR</button>
                         </div>
-                        <div id="cartoesLista" class="cartoes-grid"><div class="empty-state">Nenhum cartão cadastrado</div></div>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
+                            <button id="btnImportarExcel" class="btn btn-secondary btn-sm" style="flex:1;">📥 IMPORTAR</button>
+                            <button id="btnExportarExcel" class="btn btn-success btn-sm" style="flex:1;">📊 EXPORTAR</button>
+                            <button id="btnExcluirSelecionados" class="btn btn-danger btn-sm" style="flex:1;">🗑️ EXCLUIR</button>
+                        </div>
+                        <div id="cartoesLista" class="cartoes-grid">
+                            <div class="empty-state" style="text-align:center; padding:40px; color:#94a3b8;">Nenhum cartão cadastrado</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -152,66 +444,79 @@
 
         <!-- Gerenciar Bolões -->
         <div class="card">
-            <div class="card-header" style="background: #8b5cf6;">📋 GERENCIAR BOLÕES</div>
+            <div class="card-header bg-purple">📋 GERENCIAR BOLÕES</div>
             <div class="card-body">
                 <div id="listaBoloes" style="max-height: 400px; overflow-y: auto;">
-                    <div class="empty-state">Carregando bolões...</div>
+                    <div class="empty-state" style="text-align:center; padding:30px;">Carregando bolões...</div>
                 </div>
-                <div style="margin-top: 15px;">
-                    <button id="btnSalvarSelecao" class="btn btn-primary" style="width: 100%;">💾 SALVAR CONFIGURAÇÕES</button>
-                </div>
+                <button id="btnSalvarSelecao" class="btn btn-primary btn-block" style="margin-top: 15px;">💾 SALVAR CONFIGURAÇÕES</button>
             </div>
         </div>
 
         <!-- Configuração Geral (recolhível) -->
         <div class="card">
-            <button class="collapsible" id="btnConfigGeral">💳 CONFIGURAÇÃO GERAL</button>
-            <div class="collapse-content">
-                <div class="card-body">
+            <button class="collapsible" id="btnConfigGeral" style="width:100%; background:#f1f5f9; border:none; padding:14px; text-align:left; font-weight:bold; border-radius:12px; cursor:pointer;">💳 CONFIGURAÇÃO GERAL</button>
+            <div class="collapse-content" style="display:none; padding-top:12px;">
+                <div class="form-group">
+                    <label>🔑 Chave PIX (para todos os bolões)</label>
+                    <input type="text" id="pixConfig" class="form-control" placeholder="Ex: 61998507770 ou email">
+                </div>
+                <button id="btnSalvarPix" class="btn btn-success btn-block">💾 SALVAR PIX</button>
+            </div>
+        </div>
+
+        <!-- Adicionar Participante Rápido -->
+        <div class="card">
+            <div class="card-header bg-warning" style="background:#f59e0b;">⚡ ADICIONAR PARTICIPANTE RÁPIDO</div>
+            <div class="card-body">
+                <div class="form-row">
                     <div class="form-group">
-                        <label>🔑 Chave PIX (para todos os bolões):</label>
-                        <input type="text" id="pixConfig" class="form-control" placeholder="Ex: 61998507770 ou email@email.com">
+                        <label>👤 Nome</label>
+                        <input type="text" id="rapidoNome" class="form-control" placeholder="Ex: João Silva">
                     </div>
-                    <button id="btnSalvarPix" class="btn btn-success">💾 SALVAR PIX</button>
+                    <div class="form-group">
+                        <label>🎯 Bolão</label>
+                        <select id="rapidoBolaoSelect" class="form-control">
+                            <option value="">Selecione</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>💰 Valor Pago</label>
+                        <input type="number" id="rapidoValor" class="form-control" placeholder="Ex: 50">
+                    </div>
+                    <div class="form-group">
+                        <label>🎲 Loteria</label>
+                        <select id="rapidoLoteria" class="form-control">
+                            <option value="mega">MEGA-SENA</option>
+                            <option value="lotofacil">LOTOFÁCIL</option>
+                            <option value="quina">QUINA</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button id="btnAdicionarRapido" class="btn btn-warning" style="flex:1;">⚡ ADICIONAR</button>
+                    <button id="btnGerarWhatsApp" class="btn btn-success" style="flex:1;">📱 GERAR LISTA</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <div id="authModal" class="modal"><div class="modal-content"><div class="modal-header">🔐 ACESSO ADMINISTRATIVO</div><div class="modal-body"><input type="password" id="senhaAdmin" class="form-control" placeholder="Digite a senha"><button id="btnAutenticar" class="btn btn-primary btn-large">🔓 ENTRAR</button></div></div></div>
-    
-    <!-- Card: Adicionar Participante Rápido -->
-    <div class="card">
-        <div class="card-header" style="background: #f59e0b;">⚡ ADICIONAR PARTICIPANTE RÁPIDO</div>
-        <div class="card-body">
-            <div class="form-row">
-                <div class="form-group"><label>👤 Nome:</label><input type="text" id="rapidoNome" class="form-control" placeholder="Ex: João Silva"></div>
-                <div class="form-group"><label>🎯 Bolão:</label>
-                    <select id="rapidoBolaoSelect" class="form-control">
-                        <option value="">Selecione um bolão</option>
-                    </select>
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group"><label>💰 Valor Pago:</label><input type="number" id="rapidoValor" class="form-control" placeholder="Ex: 50"></div>
-                <div class="form-group"><label>🎲 Loteria:</label>
-                    <select id="rapidoLoteria" class="form-control">
-                        <option value="mega">MEGA-SENA</option>
-                        <option value="lotofacil">LOTOFÁCIL</option>
-                        <option value="quina">QUINA</option>
-                    </select>
-                </div>
-            </div>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <button id="btnAdicionarRapido" class="btn btn-warning" style="flex: 1;">⚡ ADICIONAR PARTICIPANTE</button>
-                <button id="btnGerarWhatsApp" class="btn btn-success" style="flex: 1;">📱 GERAR LISTA WHATSAPP</button>
+    <!-- Modal de autenticação -->
+    <div id="authModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">🔐 ACESSO ADMINISTRATIVO</div>
+            <div class="modal-body">
+                <input type="password" id="senhaAdmin" class="form-control" placeholder="Digite a senha">
+                <button id="btnAutenticar" class="btn btn-primary btn-block" style="margin-top:15px;">🔓 ENTRAR</button>
             </div>
         </div>
     </div>
 
     <div class="footer">
         <div>© 2026 Bolões Aleatórios - Versão 2.0</div>
-        <div style="font-size: 11px;">Desenvolvido por Elton Luis</div>
+        <div style="font-size: 10px;">Desenvolvido por Elton Luis</div>
     </div>
 
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -220,5 +525,16 @@
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
     <script src="firebase-config.js"></script>
     <script src="admin.js"></script>
+    <script>
+        // Collapse functionality
+        const btnConfig = document.getElementById('btnConfigGeral');
+        const collapseContent = document.querySelector('.collapse-content');
+        if (btnConfig && collapseContent) {
+            btnConfig.addEventListener('click', () => {
+                btnConfig.classList.toggle('active-collapse');
+                collapseContent.style.display = collapseContent.style.display === 'block' ? 'none' : 'block';
+            });
+        }
+    </script>
 </body>
 </html>
