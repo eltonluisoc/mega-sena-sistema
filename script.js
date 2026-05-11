@@ -155,9 +155,17 @@ async function carregarDados() {
     const loadingPercent = document.getElementById('loadingPercent');
     if (loadingDiv) loadingDiv.style.display = 'block';
     
+    // Função auxiliar para atualizar percentual
+    const atualizarPercentual = (percent, mensagem) => {
+        if (loadingPercent) loadingPercent.innerText = `${percent}% - ${mensagem}`;
+        console.log(`📊 ${percent}% - ${mensagem}`);
+    };
+    
     try {
-        if (loadingPercent) loadingPercent.innerText = '10% - Buscando cartões...';
+        atualizarPercentual(5, 'Iniciando...');
         
+        // 1. Buscar cartões
+        atualizarPercentual(10, 'Buscando cartões...');
         const snap = await db.collection('cartoes').get();
         cartoes = [];
         snap.forEach(doc => {
@@ -174,30 +182,50 @@ async function carregarDados() {
             }
         });
         
-        if (loadingPercent) loadingPercent.innerText = '30% - Processando Mega-Sena...';
+        // 2. Buscar resultados Mega
+        atualizarPercentual(30, 'Carregando resultados Mega-Sena...');
+        try {
+            const resMega = await db.collection('resultados_mega').get();
+            resultadosMega = {};
+            resMega.forEach(doc => { resultadosMega[doc.id] = doc.data().numeros; });
+        } catch (e) {
+            console.warn('Erro ao carregar resultados Mega:', e);
+            resultadosMega = {};
+        }
         
-        const resMega = await db.collection('resultados_mega').get();
-        resultadosMega = {};
-        resMega.forEach(doc => { resultadosMega[doc.id] = doc.data().numeros; });
+        // 3. Buscar resultados Lotofácil
+        atualizarPercentual(50, 'Carregando resultados Lotofácil...');
+        try {
+            const resLoto = await db.collection('resultados_lotofacil').get();
+            resultadosLotofacil = {};
+            resLoto.forEach(doc => { resultadosLotofacil[doc.id] = doc.data().numeros; });
+        } catch (e) {
+            console.warn('Erro ao carregar resultados Lotofácil:', e);
+            resultadosLotofacil = {};
+        }
         
-        if (loadingPercent) loadingPercent.innerText = '50% - Processando Lotofácil...';
+        // 4. Buscar resultados Quina
+        atualizarPercentual(70, 'Carregando resultados Quina...');
+        try {
+            const resQuina = await db.collection('resultados_quina').get();
+            resultadosQuina = {};
+            resQuina.forEach(doc => { resultadosQuina[doc.id] = doc.data().numeros; });
+        } catch (e) {
+            console.warn('Erro ao carregar resultados Quina:', e);
+            resultadosQuina = {};
+        }
         
-        const resLoto = await db.collection('resultados_lotofacil').get();
-        resultadosLotofacil = {};
-        resLoto.forEach(doc => { resultadosLotofacil[doc.id] = doc.data().numeros; });
+        // 5. Carregar bolões
+        atualizarPercentual(85, 'Carregando bolões...');
+        try {
+            await carregarBolaoAtivo();
+            await carregarBolaoAberto();
+        } catch (e) {
+            console.warn('Erro ao carregar bolões:', e);
+        }
         
-        if (loadingPercent) loadingPercent.innerText = '70% - Processando Quina...';
-        
-        const resQuina = await db.collection('resultados_quina').get();
-        resultadosQuina = {};
-        resQuina.forEach(doc => { resultadosQuina[doc.id] = doc.data().numeros; });
-        
-        if (loadingPercent) loadingPercent.innerText = '90% - Carregando bolões...';
-        
-        await carregarBolaoAtivo();
-        await carregarBolaoAberto();
-        
-        if (loadingPercent) loadingPercent.innerText = '100% - Concluído!';
+        // 6. Finalizar
+        atualizarPercentual(100, 'Concluído!');
         
         setTimeout(() => {
             if (loadingDiv) loadingDiv.style.display = 'none';
@@ -209,11 +237,14 @@ async function carregarDados() {
         
         dadosCarregados = true;
         
-        setTimeout(() => buscarResultadoAutomatico(), 500);
+        const concursoSelect = document.getElementById('concursoSelect');
+        if (concursoSelect && concursoSelect.value && concursoSelect.value !== '1') {
+            setTimeout(() => buscarResultadoAutomatico(), 300);
+        }
         
     } catch (error) {
-        console.error('Erro:', error);
-        showToast('❌ Erro ao carregar dados', 'error');
+        console.error('Erro ao carregar dados:', error);
+        showToast('❌ Erro ao carregar dados. Recarregue a página.', 'error');
         if (loadingDiv) loadingDiv.style.display = 'none';
         dadosCarregados = true;
     }
