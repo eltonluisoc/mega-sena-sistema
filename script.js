@@ -10,6 +10,7 @@ let ultimoEstadoLotofacil = {};
 let ultimoEstadoQuina = {};
 let pixGeral = '';
 let cacheResultadosBuscados = {};
+let dadosCarregados = false;  // NOVO: flag para evitar buscas prematuras
 
 function showToast(message, type = 'info') {
     let container = document.querySelector('.toast-container');
@@ -137,10 +138,12 @@ function setLoteria(loteria) {
         if (container) container.innerHTML = '<div class="empty-state">Selecione um concurso para ver os cartões</div>';
     }
 
-        // Só busca se tiver um concurso válido selecionado
-    const concursoAtual = document.getElementById('concursoSelect').value;
-    if (concursoAtual && concursoAtual !== '1' && concursoAtual !== '') {
-        setTimeout(() => buscarResultadoAutomatico(), 100);
+    // Só busca se tiver dados carregados e concurso válido
+    if (dadosCarregados) {
+        const concursoAtual = document.getElementById('concursoSelect').value;
+        if (concursoAtual && concursoAtual !== '1' && concursoAtual !== '') {
+            setTimeout(() => buscarResultadoAutomatico(), 100);
+        }
     }
     
     showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
@@ -148,6 +151,7 @@ function setLoteria(loteria) {
 
 async function carregarDados() {
     console.log('🔄 Carregando dados...');
+    dadosCarregados = false;
     const loadingDiv = document.getElementById('loadingIndicator');
     const loadingPercent = document.getElementById('loadingPercent');
     if (loadingDiv) loadingDiv.style.display = 'block';
@@ -171,7 +175,6 @@ async function carregarDados() {
             }
         });
         
-        
         if (loadingPercent) loadingPercent.innerText = '30% - Processando Mega-Sena...';
         
         const resMega = await db.collection('resultados_mega').get();
@@ -190,7 +193,6 @@ async function carregarDados() {
         resultadosQuina = {};
         resQuina.forEach(doc => { resultadosQuina[doc.id] = doc.data().numeros; });
         
-        
         if (loadingPercent) loadingPercent.innerText = '90% - Carregando bolões...';
         
         await carregarBolaoAtivo();
@@ -206,12 +208,17 @@ async function carregarDados() {
         atualizarStats();
         selecionarUltimoConcurso();
         
+        dadosCarregados = true;
+        
+        // Busca resultado automaticamente APENAS depois que os dados estão carregados
+        setTimeout(() => buscarResultadoAutomatico(), 500);
+        
     } catch (error) {
         console.error('Erro:', error);
         showToast('❌ Erro ao carregar dados', 'error');
         if (loadingDiv) loadingDiv.style.display = 'none';
+        dadosCarregados = true;
     }
-    setTimeout(() => buscarResultadoAutomatico(), 100);
 }
 
 function atualizarStats() {
@@ -240,7 +247,6 @@ function atualizarSelectConcursos() {
         select.appendChild(opt);
     });
     
-    // Selecionar o primeiro concurso (mais recente)
     if (concursos.length > 0) {
         select.value = concursos[0];
         console.log(`📌 Concurso selecionado: ${concursos[0]}`);
@@ -851,6 +857,7 @@ async function salvarResultadoEncontrado(concurso, numeros, dataSorteio) {
         throw error;
     }
 }
+
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('📄 Inicializando sistema...');
     
@@ -860,9 +867,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 2. Carregar dados principais (cartões, resultados)
     await carregarDados();
     
-    // 3. Carregar bolões especiais e abertos
-    await carregarBolaoAtivo();
-    await carregarBolaoAberto();
+    // 3. Carregar bolões especiais e abertos (já chamado dentro de carregarDados)
+    // NOTA: carregarBolaoAtivo e carregarBolaoAberto já são chamados dentro de carregarDados
     
     // 4. Configurar eventos dos botões
     const btnMega = document.getElementById('btnMegaSena');
@@ -890,11 +896,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 5. Iniciar timers
     iniciarAutoAtualizacao();
     iniciarMonitoramento();
-    
-    // 6. Buscar resultado automaticamente (após tudo carregado)
-    setTimeout(() => {
-        buscarResultadoAutomatico();
-    }, 1000);
     
     showToast('🎲 Sistema Bolões Aleatórios carregado!', 'success');
 });
