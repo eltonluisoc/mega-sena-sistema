@@ -101,6 +101,11 @@ function enviarSugestao() {
     window.open(url, '_blank');
     showToast('📱 Abrindo WhatsApp...', 'info');
 }
+function entrarGrupoWhatsApp() {
+    const linkGrupo = 'https://chat.whatsapp.com/HpJzQTlhN7hJJmlvIEspbK';
+    window.open(linkGrupo, '_blank');
+    showToast('📱 Abrindo grupo oficial do WhatsApp...', 'info');
+}
 
 function setLoteria(loteria) {
     loteriaAtual = loteria;
@@ -1008,6 +1013,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnConf = document.getElementById('btnConferir');
     const btnCompartilhar = document.getElementById('btnCompartilhar');
     const btnSugestao = document.getElementById('btnSugestao');
+    const btnGrupo = document.getElementById('btnWhatsappGrupo');
+    if (btnGrupo) btnGrupo.addEventListener('click', entrarGrupoWhatsApp);
     
     if (btnMega) btnMega.addEventListener('click', () => setLoteria('mega'));
     if (btnLoto) btnLoto.addEventListener('click', () => setLoteria('lotofacil'));
