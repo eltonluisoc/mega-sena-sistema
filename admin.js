@@ -304,10 +304,40 @@ async function duplicarCartao(id) {
 
 async function excluirSelecionados() {
     const selecionados = document.querySelectorAll('.checkbox-cartao:checked');
-    if (selecionados.length === 0) { showToast('⚠️ Selecione cartões', 'warning'); return; }
-    if (!confirm(`Excluir ${selecionados.length} cartão(ões)?`)) return;
-    for (const cb of selecionados) await db.collection('cartoes').doc(cb.dataset.id).delete();
-    showToast(`🗑️ ${selecionados.length} excluído(s)!`, 'success');
+    if (selecionados.length === 0) { 
+        showToast('⚠️ Selecione cartões para excluir', 'warning'); 
+        return; 
+    }
+    
+    // Modal de confirmação personalizado
+    const confirmar = confirm(`⚠️ ATENÇÃO!\n\nDeseja excluir ${selecionados.length} cartão(ões)?\n\nEsta ação NÃO pode ser desfeita!`);
+    
+    if (!confirmar) {
+        showToast('❌ Exclusão cancelada', 'info');
+        return;
+    }
+    
+    showToast(`🗑️ Excluindo ${selecionados.length} cartão(ões)...`, 'info');
+    
+    let excluidos = 0;
+    let erros = 0;
+    
+    for (const cb of selecionados) {
+        try {
+            await db.collection('cartoes').doc(cb.dataset.id).delete();
+            excluidos++;
+        } catch (error) {
+            console.error('Erro ao excluir:', error);
+            erros++;
+        }
+    }
+    
+    if (excluidos > 0) {
+        showToast(`✅ ${excluidos} cartão(ões) excluído(s)! ${erros > 0 ? `⚠️ ${erros} erro(s)` : ''}`, 'success');
+    } else {
+        showToast(`❌ Nenhum cartão foi excluído`, 'error');
+    }
+    
     carregarDadosAdmin();
 }
 
