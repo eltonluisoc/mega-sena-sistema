@@ -556,6 +556,7 @@ async function carregarBoloesParaGerenciar() {
         let statusMap = {};
         let dataLimiteMap = {};
         let destaqueMap = {};
+        let estrategiaMap = {};  // ← DECLARADO
 
         try {
             const configDoc = await db.collection('config_boloes').doc('ativos').get();
@@ -563,7 +564,8 @@ async function carregarBoloesParaGerenciar() {
                 selecionados = configDoc.data().ids || [];
                 statusMap = configDoc.data().status || {};
                 dataLimiteMap = configDoc.data().dataLimite || {};
-                destaqueMap = configDoc.data().destaque || {};  // ← NOVO
+                destaqueMap = configDoc.data().destaque || {};
+                estrategiaMap = configDoc.data().estrategia || {};  // ← CARREGADO
             }
         } catch (e) {
             console.log('Erro ao carregar seleção:', e);
@@ -592,6 +594,10 @@ async function carregarBoloesParaGerenciar() {
             <label style="font-size: 12px;">Data limite:</label>
             <input type="date" class="data-limite-input" data-id="${bolao.id}" value="${dataLimiteMap[bolao.id] || ''}" style="padding: 4px 8px; border-radius: 6px;">
         </div>
+        <div style="margin-left: 35px; margin-top: 8px;">
+            <label style="font-size: 12px;">📝 Estratégia do Bolão (opcional):</label>
+            <textarea class="estrategia-textarea" data-id="${bolao.id}" rows="2" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 12px; margin-top: 4px;" placeholder="Ex: 60 números distribuídos em 10 cartões, cobrindo 30% das combinações possíveis...">${estrategiaMap[bolao.id] || ''}</textarea>
+        </div>
     </div>
 `;
         }
@@ -603,6 +609,9 @@ async function carregarBoloesParaGerenciar() {
         });
         document.querySelectorAll('.data-limite-input').forEach(input => {
             input.addEventListener('change', () => salvarConfigBoloes());
+        });
+        document.querySelectorAll('.estrategia-textarea').forEach(textarea => {
+            textarea.addEventListener('change', () => salvarConfigBoloes());
         });
         
         console.log(`✅ ${boloes.length} bolões carregados`);
@@ -627,10 +636,18 @@ async function salvarConfigBoloes() {
         dataLimiteMap[input.dataset.id] = input.value;
     });
     
-    // NOVO: coletar os bolões em destaque
     const destaqueMap = {};
     document.querySelectorAll('.checkbox-destaque:checked').forEach(cb => {
         destaqueMap[cb.dataset.id] = true;
+    });
+    
+    // NOVO: coletar estratégias
+    const estrategiaMap = {};
+    document.querySelectorAll('.estrategia-textarea').forEach(textarea => {
+        const valor = textarea.value.trim();
+        if (valor) {
+            estrategiaMap[textarea.dataset.id] = valor;
+        }
     });
     
     try {
@@ -638,7 +655,8 @@ async function salvarConfigBoloes() {
             ids: idsSelecionados,
             status: statusMap,
             dataLimite: dataLimiteMap,
-            destaque: destaqueMap  // ← NOVO
+            destaque: destaqueMap,
+            estrategia: estrategiaMap  // ← NOVO
         });
         showToast(`✅ ${idsSelecionados.length} bolão(ões) selecionado(s)`, 'success');
     } catch (error) {

@@ -715,3 +715,141 @@ textarea.form-control {
 #cardBolaoAberto .card {
     animation: pulse 1.5s infinite;
 }
+/* ============ RESPONSIVIDADE DA TABELA DE RESULTADOS ============ */
+
+/* Desktop: tabela normal */
+.resultados-tabela {
+    overflow-x: auto;
+}
+
+.resultados-tabela table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.resultados-tabela th,
+.resultados-tabela td {
+    padding: 10px;
+    text-align: center;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+/* Celular: muda para cards */
+@media (max-width: 768px) {
+    .resultados-tabela table,
+    .resultados-tabela thead,
+    .resultados-tabela tbody,
+    .resultados-tabela tr,
+    .resultados-tabela th,
+    .resultados-tabela td {
+        display: block;
+    }
+    
+    .resultados-tabela thead {
+        display: none; /* Esconde cabeçalho no celular */
+    }
+    
+    .resultados-tabela tr {
+        margin-bottom: 15px;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 12px;
+        background: #f8fafc;
+    }
+    
+    .resultados-tabela td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid #e2e8f0;
+        font-size: 13px;
+    }
+    
+    .resultados-tabela td:last-child {
+        border-bottom: none;
+    }
+    
+    .resultados-tabela td::before {
+        content: attr(data-label);
+        font-weight: bold;
+        color: #3b82f6;
+        margin-right: 10px;
+    }
+}
+
+/* Números sorteados em destaque */
+.numeros-sorteados {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin: 10px 0;
+}
+
+.numero-sorteado-card {
+    background: #10b981;
+    color: white;
+    width: 45px;
+    height: 45px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-weight: bold;
+    font-size: 16px;
+}
+
+@media (max-width: 480px) {
+    .numero-sorteado-card {
+        width: 35px;
+        height: 35px;
+        font-size: 14px;
+    }
+}
+
+/* Cards de desempenho no celular */
+.desempenho-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 10px;
+    margin: 15px 0;
+}
+
+.desempenho-item {
+    text-align: center;
+    padding: 10px;
+    background: #f1f5f9;
+    border-radius: 10px;
+}
+
+.desempenho-numero {
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.desempenho-label {
+    font-size: 11px;
+    color: #64748b;
+}
+
+@media (max-width: 480px) {
+    .desempenho-numero {
+        font-size: 18px;
+    }
+    .desempenho-label {
+        font-size: 9px;
+    }
+}
+/* Estilo para a estratégia do bolão */
+.estrategia-textarea {
+    font-family: inherit;
+    resize: vertical;
+}
+
+.estrategia-textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59,130,246,0.1);
+}

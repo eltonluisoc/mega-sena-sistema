@@ -676,6 +676,7 @@ async function carregarBolaoAberto() {
         const statusMap = dados.status || {};
         const dataLimiteMap = dados.dataLimite || {};
         const destaqueMap = dados.destaque || {};
+        const estrategiaMap = dados.estrategia || {};
         
         let boloesAbertos = [];
         for (const id of idsSelecionados) {
@@ -710,6 +711,7 @@ async function carregarBolaoAberto() {
         
         const bolaoAberto = primeiroBolao.data;
         const bolaoId = primeiroBolao.id;
+        const estrategia = estrategiaMap[bolaoId] || '';
         
         card.style.display = 'block';
         
@@ -742,20 +744,24 @@ async function carregarBolaoAberto() {
         }
         
         let html = `
-            <div style="text-align: center;">
-                <strong style="font-size: 18px;">🎯 ${bolaoAberto.titulo || 'Bolão Aberto'} <span style="font-size: 12px; color: #10b981;">🟢 ABERTO</span></strong>
-                <div style="font-size: 13px; margin-top: 5px;">
-                    ${bolaoAberto.loteria === 'mega' ? 'MEGA-SENA' : bolaoAberto.loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}
-                    ${bolaoAberto.concurso ? ` - Concurso ${bolaoAberto.concurso}` : ''}
-                </div>
-                <div style="font-size: 13px; margin-top: 5px;">
-                    💰 R$ ${bolaoAberto.valorPorCota || 0},00 por cota${dataTexto}
-                </div>
-                ${vagasTexto ? `<div style="font-size: 14px; margin-top: 8px; font-weight: bold; color: ${vagasTexto.includes('LOTADO') ? '#ef4444' : (vagasDisponiveis <= 5 && vagasDisponiveis > 0) ? '#ef4444' : '#059669'};">${vagasTexto}</div>` : ''}
-                <button id="btnParticiparAberto" style="background: #10b981; margin-top: 12px; width: auto; padding: 10px 25px;">📝 QUERO PARTICIPAR</button>
-                ${outrosTexto}
-            </div>
-        `;
+    <div style="text-align: center;">
+        <strong style="font-size: 18px;">🎯 ${bolaoAberto.titulo || 'Bolão Aberto'} <span style="font-size: 12px; color: #10b981;">🟢 ABERTO</span></strong>
+        <div style="font-size: 13px; margin-top: 5px;">
+            ${bolaoAberto.loteria === 'mega' ? 'MEGA-SENA' : bolaoAberto.loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}
+            ${bolaoAberto.concurso ? ` - Concurso ${bolaoAberto.concurso}` : ''}
+        </div>
+        <div style="font-size: 13px; margin-top: 5px;">
+            💰 R$ ${bolaoAberto.valorPorCota || 0},00 por cota${dataTexto}
+        </div>
+        ${vagasTexto ? `<div style="font-size: 14px; margin-top: 8px; font-weight: bold; color: ${vagasTexto.includes('LOTADO') ? '#ef4444' : (vagasDisponiveis <= 5 && vagasDisponiveis > 0) ? '#ef4444' : '#059669'};">${vagasTexto}</div>` : ''}
+        ${estrategia ? `<div style="background: #fef3c7; padding: 10px; border-radius: 8px; margin-top: 12px; text-align: left;">
+            <div style="font-weight: bold; font-size: 12px; color: #92400e;">💡 ESTRATÉGIA DO BOLÃO:</div>
+            <div style="font-size: 12px; color: #78350f; margin-top: 4px;">${estrategia.replace(/\n/g, '<br>')}</div>
+        </div>` : ''}
+        <button id="btnParticiparAberto" style="background: #10b981; margin-top: 12px; width: auto; padding: 10px 25px;">📝 QUERO PARTICIPAR</button>
+        ${outrosTexto}
+    </div>
+`;
         
         container.innerHTML = html;
         
