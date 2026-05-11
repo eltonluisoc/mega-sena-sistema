@@ -352,6 +352,15 @@ function importarExcel() {
                 if (!linha.trim()) continue;
                 const numeros = linha.match(/\d+/g).map(Number);
                 if (numeros.length < minNumeros) continue;
+
+                // Validar números únicos
+                const numerosUnicos = [...new Set(numeros)];
+                if (numerosUnicos.length !== numeros.length) continue;
+
+                // Validar range
+                const maxValor = loteriaAdmin === 'mega' ? 60 : (loteriaAdmin === 'lotofacil' ? 25 : 80);
+                if (numeros.some(n => n < 1 || n > maxValor)) continue;
+
                 numeros.sort((a,b) => a-b);
                 await db.collection('cartoes').add({ 
                     concurso, 
@@ -426,11 +435,36 @@ async function adicionarCartoes() {
     const maxValor = loteriaAdmin === 'mega' ? 60 : (loteriaAdmin === 'lotofacil' ? 25 : 80);
     
     for (const linha of linhas) {
-        if (!linha.trim()) continue;
-        const numeros = linha.match(/\d+/g).map(Number);
-        if (numeros.length < minNumeros) { erros++; continue; }
-        if (numeros.some(n => n < 1 || n > maxValor)) { erros++; continue; }
+    if (!linha.trim()) continue;
+    
+    // Extrair números
+    const numeros = linha.match(/\d+/g).map(Number);
+    
+    // Validar quantidade mínima
+        if (numeros.length < minNumeros) { 
+            console.warn(`❌ Linha ignorada: apenas ${numeros.length} números (mínimo ${minNumeros})`);
+            erros++; 
+            continue; 
+        }
+        
+        // Validar números únicos (sem duplicados)
+        const numerosUnicos = [...new Set(numeros)];
+        if (numerosUnicos.length !== numeros.length) { 
+            console.warn(`❌ Linha ignorada: contém números duplicados`);
+            erros++; 
+            continue; 
+        }
+        
+        // Validar range (1 até maxValor)
+        if (numeros.some(n => n < 1 || n > maxValor)) { 
+            console.warn(`❌ Linha ignorada: números fora do range (1-${maxValor})`);
+            erros++; 
+            continue; 
+        }
+        
+        // Ordenar números
         numeros.sort((a,b) => a-b);
+        
         try {
             await db.collection('cartoes').add({ 
                 concurso, 
@@ -443,7 +477,10 @@ async function adicionarCartoes() {
                 totalNumeros: numeros.length 
             });
             adicionados++;
-        } catch (error) { erros++; }
+        } catch (error) { 
+            console.error('Erro ao adicionar cartão:', error);
+            erros++; 
+        }
     }
     
     if (adicionados > 0) {
