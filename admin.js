@@ -69,7 +69,6 @@ function setLoteriaAdmin(loteria) {
         document.getElementById('cadastroHeader').innerHTML = '📝 CADASTRAR CARTÕES - QUINA';
     }
     
-    // Atualizar textos dos números
     const labelNumeros = document.getElementById('labelNumeros');
     const dicaNumeros = document.getElementById('dicaNumeros');
     
@@ -104,14 +103,13 @@ async function salvarPixConfig() {
 
 async function carregarDadosAdmin() {
     try {
-        // Carregar cartões
         const snapshot = await db.collection('cartoes').get();
         cartoes = [];
         snapshot.forEach(doc => {
             cartoes.push({ id: doc.id, ...doc.data() });
         });
         
-        // Carregar resultados Mega (se existir)
+        // Carregar resultados Mega
         try {
             const resMega = await db.collection('resultados_mega').get();
             resultadosMega = {};
@@ -120,11 +118,11 @@ async function carregarDadosAdmin() {
             });
             console.log(`✅ ${Object.keys(resultadosMega).length} resultados Mega carregados`);
         } catch (e) {
-            console.log('⚠️ Nenhum resultado Mega encontrado:', e);
+            console.log('⚠️ Nenhum resultado Mega encontrado');
             resultadosMega = {};
         }
         
-        // Carregar resultados Lotofácil (se existir)
+        // Carregar resultados Lotofácil
         try {
             const resLoto = await db.collection('resultados_lotofacil').get();
             resultadosLotofacil = {};
@@ -137,7 +135,7 @@ async function carregarDadosAdmin() {
             resultadosLotofacil = {};
         }
         
-        // Carregar resultados Quina (se existir)
+        // Carregar resultados Quina
         try {
             const resQuina = await db.collection('resultados_quina').get();
             resultadosQuina = {};
@@ -155,7 +153,8 @@ async function carregarDadosAdmin() {
         atualizarDashboardAdmin();
         
         const total = cartoes.filter(c => c.tipo === loteriaAdmin).length;
-        document.getElementById('totalCartoes').innerHTML = total + ' cartões';
+        const totalDiv = document.getElementById('totalCartoes');
+        if (totalDiv) totalDiv.innerHTML = total + ' cartões';
         showToast('✅ Dados carregados!', 'success');
         
     } catch (error) {
@@ -169,10 +168,16 @@ function atualizarDashboardAdmin() {
     const resultados = loteriaAdmin === 'mega' ? resultadosMega : loteriaAdmin === 'lotofacil' ? resultadosLotofacil : resultadosQuina;
     const concursos = [...new Set(cartoesFiltrados.map(c => c.concurso))];
     const boloes = [...new Set(cartoesFiltrados.map(c => c.bolao || 'Sem Bolão'))];
-    document.getElementById('dashboardTotalCartoes').innerHTML = cartoesFiltrados.length;
-    document.getElementById('dashboardTotalConcursos').innerHTML = concursos.length;
-    document.getElementById('dashboardTotalBoloes').innerHTML = boloes.length;
-    document.getElementById('dashboardResultados').innerHTML = Object.keys(resultados).length;
+    
+    const totalCartoes = document.getElementById('dashboardTotalCartoes');
+    const totalConcursos = document.getElementById('dashboardTotalConcursos');
+    const totalBoloes = document.getElementById('dashboardTotalBoloes');
+    const totalResultados = document.getElementById('dashboardResultados');
+    
+    if (totalCartoes) totalCartoes.innerHTML = cartoesFiltrados.length;
+    if (totalConcursos) totalConcursos.innerHTML = concursos.length;
+    if (totalBoloes) totalBoloes.innerHTML = boloes.length;
+    if (totalResultados) totalResultados.innerHTML = Object.keys(resultados).length;
 }
 
 function exibirCartoesAdmin() {
@@ -240,7 +245,6 @@ async function editarCartao(id) {
     const maxNumeros = loteriaAdmin === 'mega' ? 6 : (loteriaAdmin === 'lotofacil' ? 15 : 5);
     const maxValor = loteriaAdmin === 'mega' ? 60 : (loteriaAdmin === 'lotofacil' ? 25 : 80);
     
-    // Perguntar números
     const novosNumeros = prompt(`Editar números (separados por espaço):\nAtuais: ${cartao.numeros.join(', ')}\n${loteriaAdmin === 'mega' ? 'MEGA: 6 números (1-60)' : loteriaAdmin === 'lotofacil' ? 'LOTOFÁCIL: 15 números (1-25)' : 'QUINA: mínimo 5 números (1-80)'}`, cartao.numeros.join(' '));
     if (!novosNumeros) return;
     
@@ -249,7 +253,6 @@ async function editarCartao(id) {
     if (numeros.some(n => n < 1 || n > maxValor)) { showToast(`❌ Números devem estar entre 1 e ${maxValor}!`, 'error'); return; }
     numeros.sort((a,b) => a-b);
     
-    // Perguntar tipo de participação
     const tipoAtual = cartao.tipoParticipacao || 'exclusivo';
     const novoTipo = prompt(`Editar tipo de participação:\nAtual: ${tipoAtual === 'cota' ? '🎟️ Cota de Bolão' : '👥 Grupo Exclusivo'}\n\nDigite 1 para Grupo Exclusivo\nDigite 2 para Cota de Bolão`, tipoAtual === 'cota' ? '2' : '1');
     
@@ -259,7 +262,6 @@ async function editarCartao(id) {
     } else if (novoTipo === '1') {
         tipoParticipacao = 'exclusivo';
     } else {
-        // Se não escolheu, mantém o atual
         tipoParticipacao = tipoAtual;
     }
     
@@ -277,20 +279,24 @@ async function editarCartao(id) {
 async function duplicarCartao(id) {
     const doc = await db.collection('cartoes').doc(id).get();
     const original = doc.data();
+    const tipoParticipacao = document.getElementById('tipoCartao').value;
+    
     const novoConcurso = prompt('Novo Concurso:', original.concurso);
     if (!novoConcurso) return;
     const novoBolao = prompt('Novo Bolão:', original.bolao || 'Sem Bolão');
     if (!novoBolao) return;
+    
     if (!confirm(`Confirmar duplicação?\nConcurso: ${novoConcurso}\nBolão: ${novoBolao}\nNúmeros: ${original.numeros.join(', ')}`)) return;
+    
     await db.collection('cartoes').add({ 
-    concurso, 
-        bolao, 
-        numeros, 
+        concurso: novoConcurso, 
+        bolao: novoBolao, 
+        numeros: original.numeros, 
         tipo: loteriaAdmin, 
-        tipoParticipacao: document.getElementById('tipoCartao').value,  // NOVO
+        tipoParticipacao: tipoParticipacao,
         admin: true,
         dataCadastro: new Date().toISOString(), 
-        totalNumeros: numeros.length 
+        totalNumeros: original.numeros.length 
     });
     showToast('✅ Cartão duplicado!', 'success');
     carregarDadosAdmin();
@@ -309,7 +315,16 @@ async function exportarCartoes() {
     const cartoesFiltrados = cartoes.filter(c => c.tipo === loteriaAdmin);
     if (cartoesFiltrados.length === 0) { showToast('⚠️ Nenhum cartão', 'warning'); return; }
     const dados = [['ID', 'Concurso', 'Bolão', 'Números', 'Quantidade', 'Data']];
-    for (const cartao of cartoesFiltrados) dados.push([cartao.id.slice(-6), cartao.concurso, cartao.bolao || 'Sem Bolão', (cartao.numeros || []).join(' - '), (cartao.numeros || []).length, cartao.dataCadastro ? new Date(cartao.dataCadastro).toLocaleDateString('pt-BR') : '']);
+    for (const cartao of cartoesFiltrados) {
+        dados.push([
+            cartao.id.slice(-6), 
+            cartao.concurso, 
+            cartao.bolao || 'Sem Bolão', 
+            (cartao.numeros || []).join(' - '), 
+            (cartao.numeros || []).length, 
+            cartao.dataCadastro ? new Date(cartao.dataCadastro).toLocaleDateString('pt-BR') : ''
+        ]);
+    }
     const ws = XLSX.utils.aoa_to_sheet(dados);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, `Cartoes_${loteriaAdmin === 'mega' ? 'Mega' : loteriaAdmin === 'lotofacil' ? 'Lotofacil' : 'Quina'}`);
@@ -326,11 +341,13 @@ function importarExcel() {
         if (!file) return;
         const concurso = prompt('Concurso:'); if (!concurso) return;
         const bolao = prompt('Bolão:'); if (!bolao) return;
+        
         const reader = new FileReader();
         reader.onload = async function(event) {
             const linhas = event.target.result.split(/\r?\n/);
             let adicionados = 0;
             const minNumeros = loteriaAdmin === 'mega' ? 6 : (loteriaAdmin === 'lotofacil' ? 15 : 5);
+            
             for (const linha of linhas) {
                 if (!linha.trim()) continue;
                 const numeros = linha.match(/\d+/g).map(Number);
@@ -361,6 +378,7 @@ function carregarConcursosAdmin() {
     concursos.sort((a,b) => b - a);
     const select = document.getElementById('concursoResultado');
     const filtro = document.getElementById('filtroConcurso');
+    
     if (select) {
         select.innerHTML = '<option value="">Selecione</option>';
         concursos.forEach(c => select.innerHTML += `<option value="${c}">Concurso ${c}</option>`);
@@ -375,10 +393,12 @@ async function salvarResultado() {
     const concurso = document.getElementById('concursoResultado').value;
     const texto = document.getElementById('numerosSorteadosInput').value;
     if (!concurso || !texto) { showToast('⚠️ Preencha os campos', 'warning'); return; }
+    
     const numeros = texto.match(/\d+/g).map(Number);
     const totalNumeros = loteriaAdmin === 'mega' ? 6 : (loteriaAdmin === 'lotofacil' ? 15 : 5);
     if (numeros.length < totalNumeros) { showToast(`❌ Mínimo ${totalNumeros} números`, 'error'); return; }
     numeros.sort((a,b) => a-b);
+    
     await db.collection('resultados').doc(concurso).set({ 
         concurso, 
         numeros, 
@@ -393,7 +413,7 @@ async function salvarResultado() {
 async function adicionarCartoes() {
     const concurso = document.getElementById('concurso').value;
     const bolao = document.getElementById('bolao').value || 'Sem Bolão';
-    const tipoParticipacao = document.getElementById('tipoCartao').value; // ← LINHA NOVA
+    const tipoParticipacao = document.getElementById('tipoCartao').value;
     const texto = document.getElementById('numerosCartoes').value;
     
     if (!concurso) { showToast('⚠️ Informe o concurso!', 'warning'); return; }
@@ -417,7 +437,7 @@ async function adicionarCartoes() {
                 bolao, 
                 numeros, 
                 tipo: loteriaAdmin, 
-                tipoParticipacao: tipoParticipacao,  // ← LINHA ADICIONADA
+                tipoParticipacao: tipoParticipacao,
                 admin: true,
                 dataCadastro: new Date().toISOString(), 
                 totalNumeros: numeros.length 
@@ -439,8 +459,15 @@ async function adicionarCartoes() {
     }
 }
 
-function limparFormulario() { document.getElementById('numerosCartoes').value = ''; showToast('🧹 Formulário limpo', 'info'); }
-function recarregarLista() { carregarDadosAdmin(); showToast('🔄 Dados recarregados', 'info'); }
+function limparFormulario() { 
+    document.getElementById('numerosCartoes').value = ''; 
+    showToast('🧹 Formulário limpo', 'info'); 
+}
+
+function recarregarLista() { 
+    carregarDadosAdmin(); 
+    showToast('🔄 Dados recarregados', 'info'); 
+}
 
 async function carregarBoloesParaGerenciar() {
     const container = document.getElementById('listaBoloes');
@@ -474,7 +501,7 @@ async function carregarBoloesParaGerenciar() {
         }
         
         let html = '';
-        boloes.forEach(bolao => {
+        for (const bolao of boloes) {
             const checked = selecionados.includes(bolao.id) ? 'checked' : '';
             const status = statusMap[bolao.id] || 'andamento';
             
@@ -494,15 +521,17 @@ async function carregarBoloesParaGerenciar() {
                         <label style="font-size: 12px;">Data limite:</label>
                         <input type="date" class="data-limite-input" data-id="${bolao.id}" value="${dataLimiteMap[bolao.id] || ''}" style="padding: 4px 8px; border-radius: 6px;">
                     </div>
-                    </div>
                 </div>
             `;
-        });
+        }
         
         container.innerHTML = html;
         
         document.querySelectorAll('.status-select').forEach(select => {
             select.addEventListener('change', () => salvarConfigBoloes());
+        });
+        document.querySelectorAll('.data-limite-input').forEach(input => {
+            input.addEventListener('change', () => salvarConfigBoloes());
         });
         
         console.log(`✅ ${boloes.length} bolões carregados`);
@@ -553,12 +582,12 @@ async function carregarBoloesNoSelectRapido() {
         });
         
         select.innerHTML = '<option value="">Selecione um bolão</option>';
-        boloes.forEach(bolao => {
+        for (const bolao of boloes) {
             const option = document.createElement('option');
             option.value = bolao.id;
             option.textContent = `${bolao.titulo} (${bolao.loteria || '?'})`;
             select.appendChild(option);
-        });
+        }
     } catch (error) {
         console.error('Erro ao carregar bolões:', error);
     }
@@ -585,7 +614,8 @@ async function adicionarParticipanteRapido() {
         loteria: loteria,
         data: new Date().toISOString(),
         sincronizado: false,
-        status: 'pendente_validacao'
+        status: 'pendente_validacao',
+        admin: true
     });
     
     showToast(`✅ ${nome} adicionado para sincronização!`, 'success');
@@ -616,43 +646,6 @@ async function gerarListaWhatsApp() {
     showToast('📱 Abrindo WhatsApp...', 'info');
 }
 
-// Adicionar eventos no DOMContentLoaded (dentro do evento já existente)
-document.getElementById('btnAdicionarRapido').onclick = adicionarParticipanteRapido;
-document.getElementById('btnGerarWhatsApp').onclick = gerarListaWhatsApp;
-carregarBoloesNoSelectRapido();
-
-document.addEventListener('DOMContentLoaded', () => {
-    verificarAutenticacao();
-    document.getElementById('btnAutenticar').onclick = autenticar;
-    document.getElementById('btnSair').onclick = sair;
-    document.getElementById('adminBtnMega').onclick = () => setLoteriaAdmin('mega');
-    document.getElementById('adminBtnLotofacil').onclick = () => setLoteriaAdmin('lotofacil');
-    document.getElementById('adminBtnQuina').onclick = () => setLoteriaAdmin('quina');
-    document.getElementById('btnAdicionar').onclick = adicionarCartoes;
-    document.getElementById('btnLimpar').onclick = limparFormulario;
-    
-    // Verificar se o botão existe antes de atribuir evento
-    const btnSalvarResultado = document.getElementById('btnSalvarResultado');
-    if (btnSalvarResultado) btnSalvarResultado.onclick = salvarResultado;
-    
-    document.getElementById('btnRecarregar').onclick = recarregarLista;
-    document.getElementById('btnExcluirSelecionados').onclick = excluirSelecionados;
-    document.getElementById('btnImportarExcel').onclick = importarExcel;
-    document.getElementById('btnSalvarPix').onclick = salvarPixConfig;
-    
-    const btnExportar = document.getElementById('btnExportarExcel');
-    if (btnExportar) btnExportar.onclick = exportarCartoes;
-    document.getElementById('filtroConcurso').onchange = exibirCartoesAdmin;
-    document.getElementById('ordenarPor').onchange = exibirCartoesAdmin;
-    document.getElementById('senhaAdmin').onkeypress = (e) => { if (e.key === 'Enter') autenticar(); };
-    
-    carregarBoloesParaGerenciar();
-    const btnSalvarSelecao = document.getElementById('btnSalvarSelecao');
-    if (btnSalvarSelecao) {
-        btnSalvarSelecao.addEventListener('click', salvarConfigBoloes);
-    }
-});
-
 // ============ COLLAPSE CONFIGURAÇÃO GERAL ============
 const btnConfig = document.getElementById('btnConfigGeral');
 const collapseContent = document.querySelector('.collapse-content');
@@ -667,3 +660,51 @@ if (btnConfig && collapseContent) {
         }
     });
 }
+
+// ============ INICIALIZAÇÃO ============
+document.addEventListener('DOMContentLoaded', () => {
+    verificarAutenticacao();
+    
+    const btnAutenticar = document.getElementById('btnAutenticar');
+    const btnSair = document.getElementById('btnSair');
+    const adminBtnMega = document.getElementById('adminBtnMega');
+    const adminBtnLotofacil = document.getElementById('adminBtnLotofacil');
+    const adminBtnQuina = document.getElementById('adminBtnQuina');
+    const btnAdicionar = document.getElementById('btnAdicionar');
+    const btnLimpar = document.getElementById('btnLimpar');
+    const btnSalvarResultado = document.getElementById('btnSalvarResultado');
+    const btnRecarregar = document.getElementById('btnRecarregar');
+    const btnExcluirSelecionados = document.getElementById('btnExcluirSelecionados');
+    const btnImportarExcel = document.getElementById('btnImportarExcel');
+    const btnSalvarPix = document.getElementById('btnSalvarPix');
+    const btnAdicionarRapido = document.getElementById('btnAdicionarRapido');
+    const btnGerarWhatsApp = document.getElementById('btnGerarWhatsApp');
+    const btnSalvarSelecao = document.getElementById('btnSalvarSelecao');
+    const btnExportar = document.getElementById('btnExportarExcel');
+    const filtroConcurso = document.getElementById('filtroConcurso');
+    const ordenarPor = document.getElementById('ordenarPor');
+    const senhaAdmin = document.getElementById('senhaAdmin');
+    
+    if (btnAutenticar) btnAutenticar.onclick = autenticar;
+    if (btnSair) btnSair.onclick = sair;
+    if (adminBtnMega) adminBtnMega.onclick = () => setLoteriaAdmin('mega');
+    if (adminBtnLotofacil) adminBtnLotofacil.onclick = () => setLoteriaAdmin('lotofacil');
+    if (adminBtnQuina) adminBtnQuina.onclick = () => setLoteriaAdmin('quina');
+    if (btnAdicionar) btnAdicionar.onclick = adicionarCartoes;
+    if (btnLimpar) btnLimpar.onclick = limparFormulario;
+    if (btnSalvarResultado) btnSalvarResultado.onclick = salvarResultado;
+    if (btnRecarregar) btnRecarregar.onclick = recarregarLista;
+    if (btnExcluirSelecionados) btnExcluirSelecionados.onclick = excluirSelecionados;
+    if (btnImportarExcel) btnImportarExcel.onclick = importarExcel;
+    if (btnSalvarPix) btnSalvarPix.onclick = salvarPixConfig;
+    if (btnAdicionarRapido) btnAdicionarRapido.onclick = adicionarParticipanteRapido;
+    if (btnGerarWhatsApp) btnGerarWhatsApp.onclick = gerarListaWhatsApp;
+    if (btnSalvarSelecao) btnSalvarSelecao.addEventListener('click', salvarConfigBoloes);
+    if (btnExportar) btnExportar.onclick = exportarCartoes;
+    if (filtroConcurso) filtroConcurso.onchange = exibirCartoesAdmin;
+    if (ordenarPor) ordenarPor.onchange = exibirCartoesAdmin;
+    if (senhaAdmin) senhaAdmin.onkeypress = (e) => { if (e.key === 'Enter') autenticar(); };
+    
+    carregarBoloesParaGerenciar();
+    carregarBoloesNoSelectRapido();
+});
