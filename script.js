@@ -10,7 +10,7 @@ let ultimoEstadoLotofacil = {};
 let ultimoEstadoQuina = {};
 let pixGeral = '';
 let cacheResultadosBuscados = {};
-let dadosCarregados = false;  // NOVO: flag para evitar buscas prematuras
+let dadosCarregados = false;
 
 function showToast(message, type = 'info') {
     let container = document.querySelector('.toast-container');
@@ -138,7 +138,6 @@ function setLoteria(loteria) {
         if (container) container.innerHTML = '<div class="empty-state">Selecione um concurso para ver os cartões</div>';
     }
 
-    // Só busca se tiver dados carregados e concurso válido
     if (dadosCarregados) {
         const concursoAtual = document.getElementById('concursoSelect').value;
         if (concursoAtual && concursoAtual !== '1' && concursoAtual !== '') {
@@ -156,17 +155,9 @@ async function carregarDados() {
     const loadingPercent = document.getElementById('loadingPercent');
     if (loadingDiv) loadingDiv.style.display = 'block';
     
-    // Função auxiliar para atualizar percentual
-    const atualizarPercentual = (percent, mensagem) => {
-        if (loadingPercent) loadingPercent.innerText = `${percent}% - ${mensagem}`;
-        console.log(`📊 ${percent}% - ${mensagem}`);
-    };
-    
     try {
-        atualizarPercentual(5, 'Iniciando...');
+        if (loadingPercent) loadingPercent.innerText = '10% - Buscando cartões...';
         
-        // 1. Buscar cartões
-        atualizarPercentual(10, 'Buscando cartões...');
         const snap = await db.collection('cartoes').get();
         cartoes = [];
         snap.forEach(doc => {
@@ -183,55 +174,34 @@ async function carregarDados() {
             }
         });
         
-        // 2. Buscar resultados Mega
-        atualizarPercentual(30, 'Carregando resultados Mega-Sena...');
-        try {
-            const resMega = await db.collection('resultados_mega').get();
-            resultadosMega = {};
-            resMega.forEach(doc => { resultadosMega[doc.id] = doc.data().numeros; });
-        } catch (e) {
-            console.warn('Erro ao carregar resultados Mega:', e);
-            resultadosMega = {};
-        }
+        if (loadingPercent) loadingPercent.innerText = '30% - Processando Mega-Sena...';
         
-        // 3. Buscar resultados Lotofácil
-        atualizarPercentual(50, 'Carregando resultados Lotofácil...');
-        try {
-            const resLoto = await db.collection('resultados_lotofacil').get();
-            resultadosLotofacil = {};
-            resLoto.forEach(doc => { resultadosLotofacil[doc.id] = doc.data().numeros; });
-        } catch (e) {
-            console.warn('Erro ao carregar resultados Lotofácil:', e);
-            resultadosLotofacil = {};
-        }
+        const resMega = await db.collection('resultados_mega').get();
+        resultadosMega = {};
+        resMega.forEach(doc => { resultadosMega[doc.id] = doc.data().numeros; });
         
-        // 4. Buscar resultados Quina
-        atualizarPercentual(70, 'Carregando resultados Quina...');
-        try {
-            const resQuina = await db.collection('resultados_quina').get();
-            resultadosQuina = {};
-            resQuina.forEach(doc => { resultadosQuina[doc.id] = doc.data().numeros; });
-        } catch (e) {
-            console.warn('Erro ao carregar resultados Quina:', e);
-            resultadosQuina = {};
-        }
+        if (loadingPercent) loadingPercent.innerText = '50% - Processando Lotofácil...';
         
-        // 5. Carregar bolões
-        atualizarPercentual(85, 'Carregando bolões...');
-        try {
-            await carregarBolaoAtivo();
-            await carregarBolaoAberto();
-        } catch (e) {
-            console.warn('Erro ao carregar bolões:', e);
-        }
+        const resLoto = await db.collection('resultados_lotofacil').get();
+        resultadosLotofacil = {};
+        resLoto.forEach(doc => { resultadosLotofacil[doc.id] = doc.data().numeros; });
         
-        // 6. Finalizar
-        atualizarPercentual(100, 'Concluído!');
+        if (loadingPercent) loadingPercent.innerText = '70% - Processando Quina...';
         
-        // Pequeno delay para o usuário ver 100%
+        const resQuina = await db.collection('resultados_quina').get();
+        resultadosQuina = {};
+        resQuina.forEach(doc => { resultadosQuina[doc.id] = doc.data().numeros; });
+        
+        if (loadingPercent) loadingPercent.innerText = '90% - Carregando bolões...';
+        
+        await carregarBolaoAtivo();
+        await carregarBolaoAberto();
+        
+        if (loadingPercent) loadingPercent.innerText = '100% - Concluído!';
+        
         setTimeout(() => {
             if (loadingDiv) loadingDiv.style.display = 'none';
-        }, 300);
+        }, 500);
         
         atualizarSelectConcursos();
         atualizarStats();
@@ -239,15 +209,11 @@ async function carregarDados() {
         
         dadosCarregados = true;
         
-        // Buscar resultado automaticamente APENAS se tiver concurso selecionado
-        const concursoSelect = document.getElementById('concursoSelect');
-        if (concursoSelect && concursoSelect.value && concursoSelect.value !== '1') {
-            setTimeout(() => buscarResultadoAutomatico(), 300);
-        }
+        setTimeout(() => buscarResultadoAutomatico(), 500);
         
     } catch (error) {
-        console.error('Erro ao carregar dados:', error);
-        showToast('❌ Erro ao carregar dados. Recarregue a página.', 'error');
+        console.error('Erro:', error);
+        showToast('❌ Erro ao carregar dados', 'error');
         if (loadingDiv) loadingDiv.style.display = 'none';
         dadosCarregados = true;
     }
@@ -548,7 +514,7 @@ async function carregarBolaoAtivo() {
             const dataLimiteAdmin = dataLimiteMap[bolao.id] || '';
             let dataTexto = '';
             if (statusMap[bolao.id] === 'aberto' && dataLimiteAdmin) {
-                dataTexto = `<br>📅 Até ${formatarDataLocal(dataLimiteAdmin)}`;
+                dataTexto = `<br>📅 Até ${new Date(dataLimiteAdmin).toLocaleDateString('pt-BR')}`;
             } else if (statusMap[bolao.id] !== 'aberto') {
                 dataTexto = `<br>📅 Inscrições encerradas`;
             }
@@ -607,6 +573,46 @@ async function carregarBolaoAtivo() {
     }
 }
 
+// Função auxiliar para formatar data IGNORANDO timezone (VERSÃO ROBUSTA)
+function formatarDataLocal(dataISO) {
+    if (!dataISO) return '';
+    
+    // Caso 1: String no formato YYYY-MM-DD
+    if (typeof dataISO === 'string' && dataISO.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        const [ano, mes, dia] = dataISO.split('-');
+        return `${dia}/${mes}/${ano}`;
+    }
+    
+    // Caso 2: String com data completa (ex: "2026-08-30T00:00:00.000Z")
+    if (typeof dataISO === 'string' && dataISO.includes('T')) {
+        const match = dataISO.match(/(\d{4})-(\d{2})-(\d{2})/);
+        if (match) {
+            return `${match[3]}/${match[2]}/${match[1]}`;
+        }
+    }
+    
+    // Caso 3: Timestamp do Firestore
+    if (dataISO && typeof dataISO.toDate === 'function') {
+        const data = dataISO.toDate();
+        const dia = data.getDate().toString().padStart(2, '0');
+        const mes = (data.getMonth() + 1).toString().padStart(2, '0');
+        const ano = data.getFullYear();
+        return `${dia}/${mes}/${ano}`;
+    }
+    
+    // Fallback final
+    try {
+        const data = new Date(dataISO);
+        const dia = data.getDate().toString().padStart(2, '0');
+        const mes = (data.getMonth() + 1).toString().padStart(2, '0');
+        const ano = data.getFullYear();
+        return `${dia}/${mes}/${ano}`;
+    } catch(e) {
+        console.warn('Erro ao formatar data:', dataISO);
+        return dataISO;
+    }
+}
+
 async function carregarBolaoAberto() {
     const card = document.getElementById('cardBolaoAberto');
     const container = document.getElementById('bolaoAbertoContainer');
@@ -623,7 +629,7 @@ async function carregarBolaoAberto() {
         const idsSelecionados = dados.ids || [];
         const statusMap = dados.status || {};
         const dataLimiteMap = dados.dataLimite || {};
-        const destaqueMap = dados.destaque || {};  // ← NOVO: carregar o mapa de destaques
+        const destaqueMap = dados.destaque || {};
         
         let boloesAbertos = [];
         for (const id of idsSelecionados) {
@@ -640,11 +646,9 @@ async function carregarBolaoAberto() {
             return;
         }
         
-        // NOVO: Verificar se tem um bolão marcado como destaque
         let primeiroBolao = null;
         let bolaoDestaque = null;
         
-        // Primeiro, tentar encontrar o bolão marcado como destaque
         for (const b of boloesAbertos) {
             if (destaqueMap[b.id]) {
                 bolaoDestaque = b;
@@ -655,7 +659,7 @@ async function carregarBolaoAberto() {
         if (bolaoDestaque) {
             primeiroBolao = bolaoDestaque;
         } else {
-            primeiroBolao = boloesAbertos[0];  // fallback: o primeiro da lista
+            primeiroBolao = boloesAbertos[0];
         }
         
         const bolaoAberto = primeiroBolao.data;
@@ -679,53 +683,55 @@ async function carregarBolaoAberto() {
             vagasTexto = `${vagasDisponiveis} vagas disponíveis`;
         }
         
-    // Função auxiliar para formatar data IGNORANDO timezone (VERSÃO ROBUSTA)
-function formatarDataLocal(dataISO) {
-    if (!dataISO) return '';
-    
-    // Caso 1: String no formato YYYY-MM-DD
-    if (typeof dataISO === 'string' && dataISO.match(/^\d{4}-\d{2}-\d{2}$/)) {
-        const [ano, mes, dia] = dataISO.split('-');
-        return `${dia}/${mes}/${ano}`;
-    }
-    
-    // Caso 2: String com data completa (ex: "2026-08-30T00:00:00.000Z")
-    if (typeof dataISO === 'string' && dataISO.includes('T')) {
-        // Extrair apenas a parte da data YYYY-MM-DD
-        const match = dataISO.match(/(\d{4})-(\d{2})-(\d{2})/);
-        if (match) {
-            return `${match[3]}/${match[2]}/${match[1]}`;
+        const dataLimite = dataLimiteMap[bolaoId] || '';
+        const dataTexto = dataLimite ? ` | 📅 Até ${formatarDataLocal(dataLimite)}` : '';
+        
+        const outrosBoloes = boloesAbertos.length - 1;
+        let outrosTexto = '';
+        if (outrosBoloes > 0) {
+            outrosTexto = `<div style="margin-top: 12px; font-size: 12px;">
+                                ⭐ +${outrosBoloes} outro${outrosBoloes > 1 ? 's' : ''} bolão${outrosBoloes > 1 ? 'es' : ''} aberto(s). 
+                                <a href="#" id="linkVerTodos" style="color: #3b82f6; text-decoration: none; font-weight: bold;">Clique aqui para ver todos ➡️</a>
+                           </div>`;
         }
-    }
-    
-    // Caso 3: Timestamp do Firestore
-    if (dataISO && typeof dataISO.toDate === 'function') {
-        const data = dataISO.toDate();
-        const dia = data.getDate().toString().padStart(2, '0');
-        const mes = (data.getMonth() + 1).toString().padStart(2, '0');
-        const ano = data.getFullYear();
-        return `${dia}/${mes}/${ano}`;
-    }
-    
-    // Caso 4: Número (timestamp Unix)
-    if (typeof dataISO === 'number') {
-        const data = new Date(dataISO);
-        const dia = data.getDate().toString().padStart(2, '0');
-        const mes = (data.getMonth() + 1).toString().padStart(2, '0');
-        const ano = data.getFullYear();
-        return `${dia}/${mes}/${ano}`;
-    }
-    
-    // Fallback final
-    try {
-        const data = new Date(dataISO);
-        const dia = data.getDate().toString().padStart(2, '0');
-        const mes = (data.getMonth() + 1).toString().padStart(2, '0');
-        const ano = data.getFullYear();
-        return `${dia}/${mes}/${ano}`;
-    } catch(e) {
-        console.warn('Erro ao formatar data:', dataISO);
-        return dataISO;
+        
+        let html = `
+            <div style="text-align: center;">
+                <strong style="font-size: 18px;">🎯 ${bolaoAberto.titulo || 'Bolão Aberto'} <span style="font-size: 12px; color: #10b981;">🟢 ABERTO</span></strong>
+                <div style="font-size: 13px; margin-top: 5px;">
+                    ${bolaoAberto.loteria === 'mega' ? 'MEGA-SENA' : bolaoAberto.loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}
+                    ${bolaoAberto.concurso ? ` - Concurso ${bolaoAberto.concurso}` : ''}
+                </div>
+                <div style="font-size: 13px; margin-top: 5px;">
+                    💰 R$ ${bolaoAberto.valorPorCota || 0},00 por cota${dataTexto}
+                </div>
+                ${vagasTexto ? `<div style="font-size: 14px; margin-top: 8px; font-weight: bold; color: ${vagasTexto.includes('LOTADO') ? '#ef4444' : (vagasDisponiveis <= 5 && vagasDisponiveis > 0) ? '#ef4444' : '#059669'};">${vagasTexto}</div>` : ''}
+                <button id="btnParticiparAberto" style="background: #10b981; margin-top: 12px; width: auto; padding: 10px 25px;">📝 QUERO PARTICIPAR</button>
+                ${outrosTexto}
+            </div>
+        `;
+        
+        container.innerHTML = html;
+        
+        const btnParticipar = document.getElementById('btnParticiparAberto');
+        if (btnParticipar) {
+            btnParticipar.onclick = () => mostrarModalParticipacao(bolaoAberto);
+        }
+        
+        const linkVerTodos = document.getElementById('linkVerTodos');
+        if (linkVerTodos) {
+            linkVerTodos.onclick = (e) => {
+                e.preventDefault();
+                const boloesEspeciais = document.getElementById('cardBolaoAtivo');
+                if (boloesEspeciais) {
+                    boloesEspeciais.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            };
+        }
+        
+    } catch (error) {
+        console.error('Erro ao carregar bolão aberto:', error);
+        card.style.display = 'none';
     }
 }
 
@@ -733,7 +739,6 @@ function mostrarModalParticipacao(bolao) {
     let modal = document.getElementById('modalParticipacao');
     if (modal) modal.remove();
     
-    // MOSTRAR LOADING ENQUANTO BUSCA O PIX
     modal = document.createElement('div');
     modal.id = 'modalParticipacao';
     modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; display: flex; justify-content: center; align-items: center;';
@@ -744,22 +749,18 @@ function mostrarModalParticipacao(bolao) {
     modal.appendChild(loadingContent);
     document.body.appendChild(modal);
     
-    // Buscar PIX antes de mostrar o modal completo
     async function carregarModalComPix() {
         try {
-            // Buscar PIX do Firebase
             const doc = await db.collection('config_geral').doc('pix').get();
             let pixChave = 'Chave PIX não cadastrada';
             
             if (doc.exists && doc.data().chave) {
                 pixChave = doc.data().chave;
-                // Atualizar variável global
                 pixGeral = pixChave;
             } else {
                 console.warn('⚠️ Nenhuma chave PIX cadastrada no config_geral/pix');
             }
             
-            // Atualizar modal com o PIX carregado
             const vagasDisponiveis = bolao.vagasDisponiveis || 0;
             
             const modalContent = document.createElement('div');
@@ -781,11 +782,9 @@ function mostrarModalParticipacao(bolao) {
                 <button id="fecharModalParticipacao" style="background: #64748b; margin-top: 15px; width: 100%; padding: 12px; border-radius: 30px;">Fechar</button>
             `;
             
-            // Substituir loading pelo conteúdo
             modal.innerHTML = '';
             modal.appendChild(modalContent);
             
-            // Adicionar eventos
             document.getElementById('fecharModalParticipacao').onclick = () => modal.remove();
             modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
             
@@ -807,7 +806,6 @@ function mostrarModalParticipacao(bolao) {
             
         } catch (error) {
             console.error('Erro ao carregar PIX:', error);
-            // Mostrar erro no modal
             const errorContent = document.createElement('div');
             errorContent.style.cssText = 'background: white; border-radius: 20px; max-width: 400px; width: 90%; padding: 25px; text-align: center;';
             errorContent.innerHTML = `
@@ -822,7 +820,6 @@ function mostrarModalParticipacao(bolao) {
         }
     }
     
-    // Carregar o modal com o PIX
     carregarModalComPix();
 }
 
@@ -848,11 +845,9 @@ async function verificarNovosResultados() {
 }
 
 let intervalo, intervaloNotif;
-// FUNÇÃO DESATIVADA - Manter apenas para não quebrar referências
 function iniciarAutoAtualizacao() { 
     console.log('⏸️ Auto-atualização desativada para melhor performance');
     if (intervalo) clearInterval(intervalo); 
-    // intervalo = setInterval(() => carregarDados(), 180000); // REMOVIDO
 }
 function iniciarMonitoramento() { if (intervaloNotif) clearInterval(intervaloNotif); intervaloNotif = setInterval(() => verificarNovosResultados(), 120000); }
 
@@ -864,7 +859,6 @@ async function buscarResultadoAutomatico() {
         return;
     }
     
-    // Verificar se o concurso existe na lista de cartões
     const cartoesConcurso = cartoes.filter(c => c.tipo === loteriaAtual && c.concurso == concurso);
     if (cartoesConcurso.length === 0) {
         console.log(`⏳ Nenhum cartão para o concurso ${concurso}`);
@@ -894,18 +888,15 @@ async function buscarResultadoAutomatico() {
     const busca = await buscarResultadoInterno(concurso, loteriaAtual);
     
     if (busca && busca.numeros && busca.numeros.length > 0) {
-    // APENAS CONFERIR - NÃO SALVAR AUTOMATICAMENTE
-    // Apenas admin pode salvar resultados
-    console.log(`📋 Resultado do concurso ${concurso} encontrado na API, mas não será salvo automaticamente`);
-    
-    // Atualizar cache local temporário para conferência
-    if (loteriaAtual === 'mega') resultadosMega[concurso] = busca.numeros;
-    else if (loteriaAtual === 'lotofacil') resultadosLotofacil[concurso] = busca.numeros;
-    else resultadosQuina[concurso] = busca.numeros;
-    
-    await conferirResultados();
-    showToast(`🎉 Resultado do concurso ${concurso} encontrado!`, 'success');
-} else {
+        console.log(`📋 Resultado do concurso ${concurso} encontrado na API, mas não será salvo automaticamente`);
+        
+        if (loteriaAtual === 'mega') resultadosMega[concurso] = busca.numeros;
+        else if (loteriaAtual === 'lotofacil') resultadosLotofacil[concurso] = busca.numeros;
+        else resultadosQuina[concurso] = busca.numeros;
+        
+        await conferirResultados();
+        showToast(`🎉 Resultado do concurso ${concurso} encontrado!`, 'success');
+    } else {
         mostrarStatusAguardando(concurso);
     }
 }
@@ -918,7 +909,7 @@ function mostrarStatusAguardando(concurso) {
         statusDiv.innerHTML = `
             <div class="status-info">
                 📢 RESULTADO DO CONCURSO ${concurso} (${loteriaNome}) AINDA NÃO DISPONÍVEL<br>
-                🔍 Quando sair o resultado, clique em "BUSCAR RESULTADO" ou aguarde que o sistema buscará automaticamente.
+                🔍 Quando sair o resultado, clique em "CONFERIR RESULTADOS" ou aguarde.
             </div>
         `;
     }
@@ -953,7 +944,6 @@ async function salvarResultadoEncontrado(concurso, numeros, dataSorteio) {
         
         console.log(`✅ Resultado do concurso ${concurso} salvo em ${collection}`);
         
-        // Atualizar cache local
         if (loteriaAtual === 'mega') resultadosMega[concurso] = numeros;
         else if (loteriaAtual === 'lotofacil') resultadosLotofacil[concurso] = numeros;
         else resultadosQuina[concurso] = numeros;
@@ -967,16 +957,9 @@ async function salvarResultadoEncontrado(concurso, numeros, dataSorteio) {
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('📄 Inicializando sistema...');
     
-    // 1. Carregar configurações
     await carregarConfiguracoes();
-    
-    // 2. Carregar dados principais (cartões, resultados)
     await carregarDados();
     
-    // 3. Carregar bolões especiais e abertos (já chamado dentro de carregarDados)
-    // NOTA: carregarBolaoAtivo e carregarBolaoAberto já são chamados dentro de carregarDados
-    
-    // 4. Configurar eventos dos botões
     const btnMega = document.getElementById('btnMegaSena');
     const btnLoto = document.getElementById('btnLotofacil');
     const btnQuina = document.getElementById('btnQuina');
@@ -999,10 +982,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     adicionarBotaoInstalar();
     mostrarCartoesDoConcurso();
     
-    // TIMERS REMOVIDOS PARA MELHOR PERFORMANCE
-// iniciarAutoAtualizacao();  // ❌ Removido - recarregava tudo a cada 3min
-// iniciarMonitoramento();     // ❌ Removido - não necessário
-console.log('✅ Sistema carregado - sem timers automáticos');
+    console.log('✅ Sistema carregado - sem timers automáticos');
     
     showToast('🎲 Sistema Bolões Aleatórios carregado!', 'success');
 });
