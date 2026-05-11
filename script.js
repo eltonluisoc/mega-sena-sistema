@@ -744,34 +744,41 @@ async function carregarBolaoAberto() {
         }
         
         let html = `
-        <div style="text-align: center;">
-            <strong style="font-size: 18px;">🎯 ${bolaoAberto.titulo || 'Bolão Aberto'} <span style="font-size: 12px; color: #10b981;">🟢 ABERTO</span></strong>
-            <div style="font-size: 13px; margin-top: 5px;">
-                ${bolaoAberto.loteria === 'mega' ? 'MEGA-SENA' : bolaoAberto.loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}
-                ${bolaoAberto.concurso ? ` - Concurso ${bolaoAberto.concurso}` : ''}
-            </div>
-            <div style="font-size: 13px; margin-top: 5px;">
-                💰 R$ ${bolaoAberto.valorPorCota || 0},00 por cota${dataTexto}
-            </div>
-            ${vagasTexto ? `<div style="font-size: 14px; margin-top: 8px; font-weight: bold; color: ${vagasTexto.includes('LOTADO') ? '#ef4444' : (vagasDisponiveis <= 5 && vagasDisponiveis > 0) ? '#ef4444' : '#059669'};">${vagasTexto}</div>` : ''}
-            ${estrategia ? `
-            <div style="margin-top: 12px;">
-                <button id="btnVerEstrategia" style="background: transparent; border: 1px solid #cbd5e1; border-radius: 30px; padding: 6px 16px; font-size: 12px; color: #3b82f6; cursor: pointer; width: auto;">
-                    💡 VER ESTRATÉGIA DO BOLÃO
-                </button>
-            </div>
-            <div id="modalEstrategia" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10001; justify-content: center; align-items: center;">
-                <div style="background: white; border-radius: 20px; max-width: 350px; width: 90%; padding: 25px; text-align: center;">
-                    <div style="font-size: 28px;">💡</div>
-                    <div style="font-size: 18px; font-weight: bold; margin: 10px 0;">ESTRATÉGIA DO BOLÃO</div>
-                    <div style="font-size: 14px; color: #333; text-align: left; margin: 15px 0; line-height: 1.5;">${estrategia.replace(/\n/g, '<br>')}</div>
-                    <button id="fecharModalEstrategia" style="background: #3b82f6; border: none; padding: 12px; border-radius: 30px; color: white; font-weight: bold; width: 100%; cursor: pointer;">FECHAR</button>
-                </div>
-            </div>
-            ` : ''}
-            <button id="btnParticiparAberto" style="background: #10b981; margin-top: 12px; width: auto; padding: 10px 25px;">📝 QUERO PARTICIPAR</button>
-            ${outrosTexto}
+<div style="text-align: center;">
+    <strong style="font-size: 18px;">🎯 ${bolaoAberto.titulo || 'Bolão Aberto'} <span style="font-size: 12px; color: #10b981;">🟢 ABERTO</span></strong>
+    <div style="font-size: 13px; margin-top: 5px;">
+        ${bolaoAberto.loteria === 'mega' ? 'MEGA-SENA' : bolaoAberto.loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}
+        ${bolaoAberto.concurso ? ` - Concurso ${bolaoAberto.concurso}` : ''}
+    </div>
+    <div style="font-size: 13px; margin-top: 5px;">
+        💰 R$ ${bolaoAberto.valorPorCota || 0},00 por cota${dataTexto}
+    </div>
+    ${vagasTexto ? `<div style="font-size: 14px; margin-top: 8px; font-weight: bold; color: ${vagasTexto.includes('LOTADO') ? '#ef4444' : (vagasDisponiveis <= 5 && vagasDisponiveis > 0) ? '#ef4444' : '#059669'};">${vagasTexto}</div>` : ''}
+    `;
+
+// Adicionar botão da estratégia SEPARADAMENTE (fora do template string)
+if (estrategia && estrategia.trim() !== '') {
+    html += `
+    <div style="margin-top: 12px;">
+        <button id="btnVerEstrategia" style="background: transparent; border: 1px solid #cbd5e1; border-radius: 30px; padding: 6px 16px; font-size: 12px; color: #3b82f6; cursor: pointer; width: auto;">
+            💡 VER ESTRATÉGIA DO BOLÃO
+        </button>
+    </div>
+    <div id="modalEstrategia" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10001; justify-content: center; align-items: center;">
+        <div style="background: white; border-radius: 20px; max-width: 350px; width: 90%; padding: 25px; text-align: center;">
+            <div style="font-size: 28px;">💡</div>
+            <div style="font-size: 18px; font-weight: bold; margin: 10px 0;">ESTRATÉGIA DO BOLÃO</div>
+            <div style="font-size: 14px; color: #333; text-align: left; margin: 15px 0; line-height: 1.5;">${estrategia.replace(/\n/g, '<br>')}</div>
+            <button id="fecharModalEstrategia" style="background: #3b82f6; border: none; padding: 12px; border-radius: 30px; color: white; font-weight: bold; width: 100%; cursor: pointer;">FECHAR</button>
         </div>
+    </div>
+    `;
+}
+
+html += `
+    <button id="btnParticiparAberto" style="background: #10b981; margin-top: 12px; width: auto; padding: 10px 25px;">📝 QUERO PARTICIPAR</button>
+    ${outrosTexto}
+</div>
 `;
         
         container.innerHTML = html;
