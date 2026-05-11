@@ -172,13 +172,14 @@ async function carregarDados() {
             const d = doc.data();
             if (d && d.numeros) {
                 cartoes.push({
-                    id: doc.id,
-                    concurso: d.concurso || '0',
-                    bolao: d.bolao || 'Sem Bolão',
-                    numeros: d.numeros,
-                    totalNumeros: d.totalNumeros || d.numeros.length,
-                    tipo: d.tipo || 'mega'
-                });
+                id: doc.id,
+                concurso: d.concurso || '0',
+                bolao: d.bolao || 'Sem Bolão',
+                numeros: d.numeros,
+                totalNumeros: d.totalNumeros || d.numeros.length,
+                tipo: d.tipo || 'mega',
+                tipoParticipacao: d.tipoParticipacao || 'exclusivo'  // ← ADICIONAR ESTA LINHA
+            });
             }
         });
         
@@ -312,16 +313,25 @@ function mostrarCartoesDoConcurso() {
     for (const [bolao, lista] of Object.entries(porBolao)) {
         html += `<div style="margin-bottom:20px"><div style="background:#3b82f6;color:white;padding:6px 10px;border-radius:6px;margin-bottom:8px;font-size:13px;">🎯 ${bolao}</div><div style="display:flex;flex-wrap:wrap;gap:8px;">`;
         lista.forEach(cartao => {
-            const tipoParticipacao = cartao.tipoParticipacao === 'cota' ? '🎟️ Cota' : '👥 Exclusivo';
-            const numsHtml = cartao.numeros.map(n => `<span style="background:#e2e8f0;color:#333;padding:3px 7px;border-radius:5px;font-family:monospace;font-size:11px;">${n.toString().padStart(2,'0')}</span>`).join('');
-            html += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px;min-width:180px;">
-                        <div style="font-size:10px;color:#64748b;margin-bottom:4px;">
-                            Cartão - Concurso ${concurso}
-                            <span style="background:#e2e8f0;padding:2px 6px;border-radius:4px;margin-left:5px;font-size:9px;">${tipoParticipacao}</span>
-                        </div>
-                        <div style="display:flex;flex-wrap:wrap;gap:3px;">${numsHtml}</div>
-                    </div>`;
-        });
+        // Verificar o tipo de participação em múltiplos campos possíveis
+        let tipoParticipacao = '👥 Exclusivo';
+        if (cartao.tipoParticipacao === 'cota') {
+            tipoParticipacao = '🎟️ Cota';
+        } else if (cartao.tipo === 'cota') {
+            tipoParticipacao = '🎟️ Cota';
+        } else if (cartao.tipoParticipacao === 'exclusivo') {
+            tipoParticipacao = '👥 Exclusivo';
+        }
+        
+        const numsHtml = cartao.numeros.map(n => `<span style="background:#e2e8f0;color:#333;padding:3px 7px;border-radius:5px;font-family:monospace;font-size:11px;">${n.toString().padStart(2,'0')}</span>`).join('');
+        html += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px;min-width:180px;">
+                    <div style="font-size:10px;color:#64748b;margin-bottom:4px;">
+                        Cartão - Concurso ${concurso}
+                        <span style="background:#e2e8f0;padding:2px 6px;border-radius:4px;margin-left:5px;font-size:9px;">${tipoParticipacao}</span>
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:3px;">${numsHtml}</div>
+                </div>`;
+    });
         html += `</div></div>`;
     }
     container.innerHTML = html;
