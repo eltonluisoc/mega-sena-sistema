@@ -679,8 +679,21 @@ async function carregarBolaoAberto() {
             vagasTexto = `${vagasDisponiveis} vagas disponíveis`;
         }
         
-        const dataLimite = dataLimiteMap[bolaoId] || '';
-        const dataTexto = dataLimite ? ` | 📅 Até ${new Date(dataLimite).toLocaleDateString('pt-BR')}` : '';
+        // Função auxiliar para formatar data IGNORANDO timezone
+    function formatarDataLocal(dataISO) {
+        if (!dataISO) return '';
+        // Se for string ISO (YYYY-MM-DD), converte sem ajuste de timezone
+        if (dataISO.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            const [ano, mes, dia] = dataISO.split('-');
+            return `${dia}/${mes}/${ano}`;
+        }
+        // Fallback para datas completas
+        const data = new Date(dataISO);
+        return data.toLocaleDateString('pt-BR');
+    }
+
+    const dataLimite = dataLimiteMap[bolaoId] || '';
+    const dataTexto = dataLimite ? ` | 📅 Até ${formatarDataLocal(dataLimite)}` : '';
         
         const outrosBoloes = boloesAbertos.length - 1;
         let outrosTexto = '';
