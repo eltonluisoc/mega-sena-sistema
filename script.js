@@ -105,14 +105,12 @@ function entrarGrupoWhatsApp() {
     showToast('📱 Abrindo grupo oficial do WhatsApp...', 'info');
 }
 
-// FUNÇÃO DE TROCA DE LOTERIA - CORRIGIDA
 function setLoteria(loteria) {
     if (loteriaAtual === loteria) return;
     
     console.log(`🔄 Trocando loteria de ${loteriaAtual} para ${loteria}`);
     loteriaAtual = loteria;
     
-    // Atualizar UI dos botões
     const btnMega = document.getElementById('btnMegaSena');
     const btnLoto = document.getElementById('btnLotofacil');
     const btnQuina = document.getElementById('btnQuina');
@@ -132,14 +130,14 @@ function setLoteria(loteria) {
         document.getElementById('cardHeaderConferencia').innerHTML = '🎯 CONFERIR RESULTADOS - QUINA';
     }
     
-    // Limpar áreas
+    // Limpar área de resultados
     const resultadosArea = document.getElementById('resultadosArea');
     if (resultadosArea) resultadosArea.innerHTML = '<div class="empty-state">🔍 Selecione um concurso e clique em "Conferir Resultados"</div>';
     
     const statusDiv = document.getElementById('statusBusca');
     if (statusDiv) statusDiv.innerHTML = '';
     
-    // FILTRAR CARTÕES DA LOTERIA ATUAL
+    // Atualizar select de concursos
     const filtrados = cartoes.filter(c => c.tipo === loteriaAtual);
     const concursos = [...new Set(filtrados.map(c => c.concurso))];
     concursos.sort((a, b) => b - a);
@@ -149,13 +147,11 @@ function setLoteria(loteria) {
     const select = document.getElementById('concursoSelect');
     if (!select) return;
     
-    // RECONSTRUIR SELECT
     let html = '<option value="">Selecione um concurso</option>';
     
     if (concursos.length === 0) {
         html = '<option value="">Nenhum concurso disponível</option>';
         select.innerHTML = html;
-        document.getElementById('cartoesConcurso').innerHTML = '<div class="empty-state">Nenhum cartão disponível</div>';
         return;
     }
     
@@ -168,40 +164,6 @@ function setLoteria(loteria) {
     select.value = concursos[0];
     
     console.log(`📌 Select atualizado para: ${select.value} (${loteriaAtual})`);
-    
-    // FORÇAR EXIBIÇÃO DOS CARTÕES DIRETAMENTE
-    const cartoesParaExibir = cartoes.filter(c => c.tipo === loteriaAtual && c.concurso == concursos[0]);
-    const container = document.getElementById('cartoesConcurso');
-    
-    if (container && cartoesParaExibir.length > 0) {
-        const porBolao = {};
-        cartoesParaExibir.forEach(c => { 
-            const b = c.bolao || 'Sem Bolão'; 
-            if (!porBolao[b]) porBolao[b] = []; 
-            porBolao[b].push(c); 
-        });
-        
-        let cardsHtml = '';
-        for (const [bolao, lista] of Object.entries(porBolao)) {
-            cardsHtml += `<div style="margin-bottom:20px"><div style="background:#3b82f6;color:white;padding:6px 10px;border-radius:6px;margin-bottom:8px;font-size:13px;">🎯 ${bolao}</div><div style="display:flex;flex-wrap:wrap;gap:8px;">`;
-            lista.forEach(cartao => {
-                let tipoParticipacao = cartao.tipoParticipacao === 'cota' ? '🎟️ Cota' : '👥 Exclusivo';
-                const numsHtml = cartao.numeros.map(n => `<span style="background:#e2e8f0;color:#333;padding:3px 7px;border-radius:5px;font-family:monospace;font-size:11px;">${n.toString().padStart(2,'0')}</span>`).join('');
-                cardsHtml += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px;min-width:180px;">
-                                    <div style="font-size:10px;color:#64748b;margin-bottom:4px;">
-                                        Cartão - Concurso ${concursos[0]}
-                                        <span style="background:#e2e8f0;padding:2px 6px;border-radius:4px;margin-left:5px;font-size:9px;">${tipoParticipacao}</span>
-                                    </div>
-                                    <div style="display:flex;flex-wrap:wrap;gap:3px;">${numsHtml}</div>
-                                </div>`;
-            });
-            cardsHtml += `</div></div>`;
-        }
-        container.innerHTML = cardsHtml;
-        console.log(`✅ Exibidos ${cartoesParaExibir.length} cartões da ${loteriaAtual}`);
-    } else if (container) {
-        container.innerHTML = `<div class="empty-state">Nenhum cartão da ${loteriaAtual.toUpperCase()} para o concurso ${concursos[0]}</div>`;
-    }
     
     showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
 }
@@ -299,7 +261,6 @@ function atualizarSelectConcursos() {
     concursos.sort((a, b) => b - a);
     
     console.log(`📋 ${loteriaAtual}: ${filtrados.length} cartões, ${concursos.length} concursos`);
-    console.log(`📋 Concursos encontrados:`, concursos);
     
     const select = document.getElementById('concursoSelect');
     if (!select) return;
@@ -345,7 +306,6 @@ async function buscarResultadoInterno(concurso, loteria) {
     return null;
 }
 
-// FUNÇÃO PRINCIPAL DE CONFERÊNCIA - UNIFICADA
 async function conferirResultados() {
     const concurso = document.getElementById('concursoSelect').value;
     const area = document.getElementById('resultadosArea');
@@ -383,7 +343,6 @@ async function conferirResultados() {
         if (busca) {
             numerosSorteados = busca.numeros;
             dataSorteio = busca.dataSorteio;
-            // Salvar no cache local
             if (loteriaAtual === 'mega') resultadosMega[concurso] = numerosSorteados;
             else if (loteriaAtual === 'lotofacil') resultadosLotofacil[concurso] = numerosSorteados;
             else resultadosQuina[concurso] = numerosSorteados;
@@ -567,7 +526,6 @@ function compartilharWhatsApp() {
     showToast('📱 Abrindo WhatsApp...', 'success');
 }
 
-// BOLÕES ESPECIAIS
 async function carregarBolaoAtivo() {
     const card = document.getElementById('cardBolaoAtivo');
     const container = document.getElementById('bolaoContainer');
@@ -665,7 +623,6 @@ async function carregarBolaoAtivo() {
     }
 }
 
-// BOLÃO ABERTO EM DESTAQUE
 async function carregarBolaoAberto() {
     const card = document.getElementById('cardBolaoAberto');
     const container = document.getElementById('bolaoAbertoContainer');
@@ -812,11 +769,11 @@ function mostrarModalParticipacao(bolao) {
         }
     })();
 }
+
 function mostrarResultadoExistente(concurso, numeros) {
     const statusDiv = document.getElementById('statusBusca');
     if (!statusDiv) return;
     
-    // SÓ MOSTRAR SE A LOTERIA FOR IGUAL
     if (loteriaAtual === 'mega' && resultadosMega[concurso]) {
         statusDiv.innerHTML = `
             <div class="status-success">
@@ -842,6 +799,7 @@ function mostrarResultadoExistente(concurso, numeros) {
         statusDiv.innerHTML = '';
     }
 }
+
 async function buscarResultadoAutomatico() {
     const concurso = document.getElementById('concursoSelect').value;
     const statusDiv = document.getElementById('statusBusca');
@@ -901,94 +859,21 @@ async function buscarResultadoAutomatico() {
     }
 }
 
-function mostrarCartoesDoConcurso() {
-    const concurso = document.getElementById('concursoSelect').value;
-    const container = document.getElementById('cartoesConcurso');
-    
-    if (!container) {
-        console.error('❌ Elemento cartoesConcurso não encontrado');
-        return;
-    }
-    
-    if (!concurso) {
-        container.innerHTML = '<div class="empty-state">Selecione um concurso</div>';
-        return;
-    }
-    
-    console.log(`🔍 mostrarCartoesDoConcurso - Loteria: ${loteriaAtual}, Concurso: ${concurso}`);
-    
-    const filtrados = cartoes.filter(c => c.tipo === loteriaAtual && c.concurso == concurso);
-    console.log(`📊 Encontrados ${filtrados.length} cartões`);
-    
-    if (filtrados.length === 0) {
-        container.innerHTML = `<div class="empty-state">Nenhum cartão da ${loteriaAtual.toUpperCase()} para o concurso ${concurso}</div>`;
-        return;
-    }
-    
-    const porBolao = {};
-    filtrados.forEach(c => { 
-        const b = c.bolao || 'Sem Bolão'; 
-        if (!porBolao[b]) porBolao[b] = []; 
-        porBolao[b].push(c); 
-    });
-    
-    let html = '';
-    for (const [bolao, lista] of Object.entries(porBolao)) {
-        html += `<div style="margin-bottom:20px"><div style="background:#3b82f6;color:white;padding:6px 10px;border-radius:6px;margin-bottom:8px;font-size:13px;">🎯 ${bolao}</div><div style="display:flex;flex-wrap:wrap;gap:8px;">`;
-        lista.forEach(cartao => {
-            let tipoParticipacao = '👥 Exclusivo';
-            if (cartao.tipoParticipacao === 'cota') {
-                tipoParticipacao = '🎟️ Cota';
-            } else if (cartao.tipo === 'cota') {
-                tipoParticipacao = '🎟️ Cota';
-            } else if (cartao.tipoParticipacao === 'exclusivo') {
-                tipoParticipacao = '👥 Exclusivo';
-            }
-            
-            const numsHtml = cartao.numeros.map(n => `<span style="background:#e2e8f0;color:#333;padding:3px 7px;border-radius:5px;font-family:monospace;font-size:11px;">${n.toString().padStart(2,'0')}</span>`).join('');
-            html += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px;min-width:180px;">
-                        <div style="font-size:10px;color:#64748b;margin-bottom:4px;">
-                            Cartão - Concurso ${concurso}
-                            <span style="background:#e2e8f0;padding:2px 6px;border-radius:4px;margin-left:5px;font-size:9px;">${tipoParticipacao}</span>
-                        </div>
-                        <div style="display:flex;flex-wrap:wrap;gap:3px;">${numsHtml}</div>
-                    </div>`;
-        });
-        html += `</div></div>`;
-    }
-    container.innerHTML = html;
-}
-
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('📄 Inicializando sistema...');
     
     await carregarConfiguracoes();
     await carregarDados();
     
-    // Eventos dos botões de loteria
     document.getElementById('btnMegaSena').addEventListener('click', () => setLoteria('mega'));
     document.getElementById('btnLotofacil').addEventListener('click', () => setLoteria('lotofacil'));
     document.getElementById('btnQuina').addEventListener('click', () => setLoteria('quina'));
-    
-    // Evento do select de concurso
-    document.getElementById('concursoSelect').addEventListener('change', () => {
-        console.log('📌 Select mudou, chamando mostrarCartoesDoConcurso');
-        mostrarCartoesDoConcurso();
-    });
-    
-    // Botão conferir
+    document.getElementById('concursoSelect').addEventListener('change', () => {});
     document.getElementById('btnConferir').addEventListener('click', conferirResultados);
-    
-    // Outros botões
     document.getElementById('btnCompartilhar').addEventListener('click', compartilharSite);
     document.getElementById('btnWhatsappGrupo').addEventListener('click', entrarGrupoWhatsApp);
     document.getElementById('btnSugestao').addEventListener('click', enviarSugestao);
     document.getElementById('btnInstalarApp').addEventListener('click', mostrarPopupInstalar);
-    
-    // Mostrar cartões iniciais
-    setTimeout(() => {
-        mostrarCartoesDoConcurso();
-    }, 500);
     
     console.log('✅ Sistema carregado');
     showToast('🎲 Sistema Bolões Aleatórios carregado!', 'success');
