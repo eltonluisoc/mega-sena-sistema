@@ -757,6 +757,76 @@ function mostrarModalParticipacao(bolao) {
         }
     })();
 }
+function mostrarResultadoExistente(concurso, numeros) {
+    const statusDiv = document.getElementById('statusBusca');
+    if (!statusDiv) return;
+    
+    // SÓ MOSTRAR SE A LOTERIA FOR IGUAL
+    if (loteriaAtual === 'mega' && resultadosMega[concurso]) {
+        statusDiv.innerHTML = `
+            <div class="status-success">
+                ✅ RESULTADO DO CONCURSO ${concurso} (MEGA-SENA) JÁ DISPONÍVEL! 🎲<br>
+                🎯 Números: ${numeros.join(' - ')}
+            </div>
+        `;
+    } else if (loteriaAtual === 'lotofacil' && resultadosLotofacil[concurso]) {
+        statusDiv.innerHTML = `
+            <div class="status-success">
+                ✅ RESULTADO DO CONCURSO ${concurso} (LOTOFÁCIL) JÁ DISPONÍVEL! 🎲<br>
+                🎯 Números: ${numeros.join(' - ')}
+            </div>
+        `;
+    } else if (loteriaAtual === 'quina' && resultadosQuina[concurso]) {
+        statusDiv.innerHTML = `
+            <div class="status-success">
+                ✅ RESULTADO DO CONCURSO ${concurso} (QUINA) JÁ DISPONÍVEL! 🎲<br>
+                🎯 Números: ${numeros.join(' - ')}
+            </div>
+        `;
+    } else {
+        statusDiv.innerHTML = '';
+    }
+}
+async function buscarResultadoAutomatico() {
+    const concurso = document.getElementById('concursoSelect').value;
+    const statusDiv = document.getElementById('statusBusca');
+    
+    if (!concurso || concurso === '1' || concurso === '0' || concurso === '') {
+        return;
+    }
+    
+    // Verificar se existe resultado para a LOTERIA ATUAL
+    let resultados;
+    let nomeLoteria;
+    if (loteriaAtual === 'mega') {
+        resultados = resultadosMega;
+        nomeLoteria = 'MEGA-SENA';
+    } else if (loteriaAtual === 'lotofacil') {
+        resultados = resultadosLotofacil;
+        nomeLoteria = 'LOTOFÁCIL';
+    } else {
+        resultados = resultadosQuina;
+        nomeLoteria = 'QUINA';
+    }
+    
+    if (resultados[concurso]) {
+        console.log(`📋 Resultado do ${nomeLoteria} concurso ${concurso} já está salvo`);
+        
+        // Só mostra se for da loteria atual
+        if (statusDiv) {
+            statusDiv.innerHTML = `
+                <div class="status-success">
+                    ✅ RESULTADO DO CONCURSO ${concurso} (${nomeLoteria}) JÁ DISPONÍVEL! 🎲<br>
+                    🎯 Números: ${resultados[concurso].join(' - ')}
+                </div>
+            `;
+        }
+        return;
+    }
+    
+    // Limpar se não tem resultado
+    if (statusDiv) statusDiv.innerHTML = '';
+}
 
 // INICIALIZAÇÃO
 document.addEventListener('DOMContentLoaded', async () => {
