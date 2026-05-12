@@ -604,34 +604,61 @@ async function carregarBolaoAtivo() {
         
         card.style.display = 'block';
         let html = '';
-        
-        for (const bolao of boloes) {
-            const participantes = bolao.participantes || [];
-            const totalQuitados = participantes.filter(p => p.situacao === 'quitado' || p.situacao === 'pago').length;
-            const statusText = statusMap[bolao.id] === 'aberto' ? '🟢 ABERTO' : '🟡 EM ANDAMENTO';
-            const statusColor = statusMap[bolao.id] === 'aberto' ? '#10b981' : '#f59e0b';
-            
-            const dataLimiteAdmin = dataLimiteMap[bolao.id] || '';
-            let dataTexto = '';
-            if (statusMap[bolao.id] === 'aberto' && dataLimiteAdmin) {
-                let dataFormatada = dataLimiteAdmin;
-                if (dataLimiteAdmin.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                    const [ano, mes, dia] = dataLimiteAdmin.split('-');
-                    dataFormatada = `${dia}/${mes}/${ano}`;
-                }
-                dataTexto = `<br>📅 Até ${dataFormatada}`;
-            }
-            
-            html += `
-                <div style="margin-bottom:15px; border:1px solid #e2e8f0; border-radius:8px; padding:12px;">
-                    <div><strong>🎯 ${bolao.titulo} <span style="color:${statusColor};">${statusText}</span></strong></div>
-                    <div style="font-size:12px;">💰 R$ ${bolao.valorPorCota || 0},00${dataTexto}</div>
-                    <div style="font-size:12px; margin:8px 0;">✅ Quitados: ${totalQuitados}</div>
-                    <button class="btn-ver-participantes" data-id="${bolao.id}" style="background:#3b82f6; width:auto; padding:4px 12px;">👁 VER</button>
-                    <div id="participantes-${bolao.id}" style="display:none; margin-top:10px;"></div>
-                </div>
-            `;
+for (const bolao of boloes) {
+    const participantes = bolao.participantes || [];
+    const totalQuitados = participantes.filter(p => p.situacao === 'quitado' || p.situacao === 'pago').length;
+    const totalAndamento = participantes.filter(p => p.situacao !== 'quitado' && p.situacao !== 'pago').length;
+    const statusText = statusMap[bolao.id] === 'aberto' ? 'ABERTO' : 'EM ANDAMENTO';
+    const statusClass = statusMap[bolao.id] === 'aberto' ? 'aberto' : 'andamento';
+    
+    const dataLimiteAdmin = dataLimiteMap[bolao.id] || '';
+    let dataTexto = '';
+    if (statusMap[bolao.id] === 'aberto' && dataLimiteAdmin) {
+        let dataFormatada = dataLimiteAdmin;
+        if (dataLimiteAdmin.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            const [ano, mes, dia] = dataLimiteAdmin.split('-');
+            dataFormatada = `${dia}/${mes}/${ano}`;
         }
+        dataTexto = `<div class="bolao-data">📅 Inscrições até ${dataFormatada}</div>`;
+    }
+    
+    html += `
+        <div class="bolao-card">
+            <div class="bolao-header">
+                <div class="bolao-titulo">
+                    <div class="bolao-nome">
+                        🎯 ${bolao.titulo}
+                    </div>
+                    <div class="bolao-status ${statusClass}">${statusText}</div>
+                </div>
+            </div>
+            <div class="bolao-body">
+                <div class="bolao-info">
+                    <div class="bolao-valor">💰 <span>R$ ${bolao.valorPorCota || 0},00</span> / cota</div>
+                    ${dataTexto}
+                </div>
+                <div class="bolao-stats">
+                    <div class="stat-item">
+                        <div class="stat-number quitado">${totalQuitados}</div>
+                        <div class="stat-label">✅ CONFIRMADOS</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number andamento">${totalAndamento}</div>
+                        <div class="stat-label">⏳ PENDENTES</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">${participantes.length}</div>
+                        <div class="stat-label">👥 TOTAL</div>
+                    </div>
+                </div>
+                <button class="btn-ver-participantes" data-id="${bolao.id}">
+                    👁 VER LISTA DE PARTICIPANTES
+                </button>
+                <div id="participantes-${bolao.id}" style="display: none; margin-top: 12px;"></div>
+            </div>
+        </div>
+    `;
+}
         container.innerHTML = html;
         
         document.querySelectorAll('.btn-ver-participantes').forEach(btn => {
@@ -639,23 +666,27 @@ async function carregarBolaoAtivo() {
                 const id = btn.dataset.id;
                 const div = document.getElementById(`participantes-${id}`);
                 if (div.style.display === 'none') {
-                    const bolao = boloes.find(b => b.id === id);
-                    const participantes = bolao.participantes || [];
-                    let listaHtml = '<div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">';
-                    participantes.forEach(p => {
-                        const statusText = p.situacao === 'quitado' || p.situacao === 'pago' ? '✅ QUITADO' : '🔄 EM ANDAMENTO';
-                        listaHtml += `<div style="display:flex; justify-content:space-between; padding:4px; background:#f8fafc; border-radius:6px;">
-                                        <span>${p.nome}</span><span>${statusText}</span>
-                                    </div>`;
-                    });
-                    listaHtml += '</div>';
-                    div.innerHTML = listaHtml;
-                    div.style.display = 'block';
-                    btn.textContent = '🙈 OCULTAR';
-                } else {
-                    div.style.display = 'none';
-                    btn.textContent = '👁 VER';
-                }
+    const bolao = boloes.find(b => b.id === id);
+    const participantes = bolao.participantes || [];
+    let listaHtml = '<div class="participantes-lista">';
+    participantes.forEach(p => {
+        const statusText = p.situacao === 'quitado' || p.situacao === 'pago' ? 'PAGO' : 'PENDENTE';
+        const statusClass = p.situacao === 'quitado' || p.situacao === 'pago' ? 'pago' : 'pendente';
+        listaHtml += `
+            <div class="participante-card">
+                <span class="participante-nome">👤 ${p.nome}</span>
+                <span class="participante-status-card ${statusClass}">${statusText}</span>
+            </div>
+        `;
+    });
+    listaHtml += '</div>';
+    div.innerHTML = listaHtml;
+    div.style.display = 'block';
+    btn.textContent = '🙈 OCULTAR LISTA';
+} else {
+    div.style.display = 'none';
+    btn.textContent = '👁 VER LISTA DE PARTICIPANTES';
+}
             };
         });
         
