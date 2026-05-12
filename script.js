@@ -792,10 +792,18 @@ async function buscarResultadoAutomatico() {
     const statusDiv = document.getElementById('statusBusca');
     
     if (!concurso || concurso === '1' || concurso === '0' || concurso === '') {
+        console.log('⏳ Nenhum concurso válido selecionado');
         return;
     }
     
-    // Verificar se existe resultado para a LOTERIA ATUAL
+    // Verificar se o concurso existe para a LOTERIA ATUAL
+    const cartoesConcurso = cartoes.filter(c => c.tipo === loteriaAtual && c.concurso == concurso);
+    if (cartoesConcurso.length === 0) {
+        console.log(`⏳ Nenhum cartão para ${loteriaAtual} concurso ${concurso}`);
+        return;
+    }
+    
+    // Pegar resultados da LOTERIA ATUAL
     let resultados;
     let nomeLoteria;
     if (loteriaAtual === 'mega') {
@@ -812,7 +820,7 @@ async function buscarResultadoAutomatico() {
     if (resultados[concurso]) {
         console.log(`📋 Resultado do ${nomeLoteria} concurso ${concurso} já está salvo`);
         
-        // Só mostra se for da loteria atual
+        // Mostrar resultado APENAS se for da loteria atual
         if (statusDiv) {
             statusDiv.innerHTML = `
                 <div class="status-success">
@@ -821,11 +829,66 @@ async function buscarResultadoAutomatico() {
                 </div>
             `;
         }
+        
+        // SEMPRE conferir os resultados (isso mostra os cartões com acertos)
+        await conferirResultados();
         return;
     }
     
-    // Limpar se não tem resultado
-    if (statusDiv) statusDiv.innerHTML = '';
+    // Verificar cache por loteria
+    const cacheKey = `${loteriaAtual}_${concurso}`;
+    if (cacheResultadosBuscados[cacheKey]) {
+        console.log(`⏳ Resultado do ${nomeLoteria} concurso ${concurso} já foi buscado`);
+        if (statusDiv) {
+            statusDiv.innerHTML = `
+                <div class="status-info">
+                    📢 RESULTADO DO CONCURSO ${concurso} (${nomeLoteria}) AINDA NÃO DISPONÍVEL
+                </div>
+            `;
+        }
+        return;
+    }
+    
+    console.log(`🔍 Buscando resultado ${nomeLoteria} concurso ${concurso}...`);
+    cacheResultadosBuscados[cacheKey] = true;
+    
+    if (statusDiv) {
+        statusDiv.innerHTML = `<div class="status-info">🔍 Buscando resultado do concurso ${concurso} (${nomeLoteria})...</div>`;
+    }
+    
+    const busca = await buscarResultadoInterno(concurso, loteriaAtual);
+    
+    if (busca && busca.numeros && busca.numeros.length > 0) {
+        console.log(`📋 Resultado do ${nomeLoteria} concurso ${concurso} encontrado na API`);
+        
+        // Salvar no cache local
+        if (loteriaAtual === 'mega') resultadosMega[concurso] = busca.numeros;
+        else if (loteriaAtual === 'lotofacil') resultadosLotofacil[concurso] = busca.numeros;
+        else resultadosQuina[concurso] = busca.numeros;
+        
+        if (statusDiv) {
+            statusDiv.innerHTML = `
+                <div class="status-success">
+                    ✅ RESULTADO DO CONCURSO ${concurso} (${nomeLoteria}) ENCONTRADO! 🎲<br>
+                    🎯 Números: ${busca.numeros.join(' - ')}
+                </div>
+            `;
+        }
+        
+        // SEMPRE conferir os resultados (mostra os cartões com acertos)
+        await conferirResultados();
+        showToast(`🎉 Resultado do concurso ${concurso} (${nomeLoteria}) encontrado!`, 'success');
+    } else {
+        console.log(`❌ Resultado do ${nomeLoteria} concurso ${concurso} não encontrado`);
+        if (statusDiv) {
+            statusDiv.innerHTML = `
+                <div class="status-info">
+                    📢 RESULTADO DO CONCURSO ${concurso} (${nomeLoteria}) AINDA NÃO DISPONÍVEL<br>
+                    🔍 Quando sair o resultado, clique em "CONFERIR RESULTADOS".
+                </div>
+            `;
+        }
+    }
 }
 
 // INICIALIZAÇÃO
