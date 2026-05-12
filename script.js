@@ -132,16 +132,14 @@ function setLoteria(loteria) {
         document.getElementById('cardHeaderConferencia').innerHTML = '🎯 CONFERIR RESULTADOS - QUINA';
     }
     
-    // Limpar área de resultados
+    // Limpar áreas
     const resultadosArea = document.getElementById('resultadosArea');
-    if (resultadosArea) {
-        resultadosArea.innerHTML = '<div class="empty-state">🔍 Selecione um concurso e clique em "Conferir Resultados"</div>';
-    }
+    if (resultadosArea) resultadosArea.innerHTML = '<div class="empty-state">🔍 Selecione um concurso e clique em "Conferir Resultados"</div>';
     
     const statusDiv = document.getElementById('statusBusca');
     if (statusDiv) statusDiv.innerHTML = '';
     
-    // RECONSTRUIR O SELECT DE CONCURSOS
+    // FILTRAR CARTÕES DA LOTERIA ATUAL
     const filtrados = cartoes.filter(c => c.tipo === loteriaAtual);
     const concursos = [...new Set(filtrados.map(c => c.concurso))];
     concursos.sort((a, b) => b - a);
@@ -151,6 +149,7 @@ function setLoteria(loteria) {
     const select = document.getElementById('concursoSelect');
     if (!select) return;
     
+    // RECONSTRUIR SELECT
     let html = '<option value="">Selecione um concurso</option>';
     
     if (concursos.length === 0) {
@@ -166,60 +165,43 @@ function setLoteria(loteria) {
     });
     
     select.innerHTML = html;
+    select.value = concursos[0];
     
-    // IMPORTANTE: Aguardar o DOM atualizar e então forçar o SELECT
-    setTimeout(() => {
-        if (concursos.length > 0) {
-            select.value = concursos[0];
-            console.log(`📌 Select atualizado para: ${select.value}`);
-            
-            // AGORA sim, mostrar os cartões
-            const container = document.getElementById('cartoesConcurso');
-            if (container) {
-                const cartoesParaExibir = cartoes.filter(c => c.tipo === loteriaAtual && c.concurso == concursos[0]);
-                console.log(`📊 Exibindo ${cartoesParaExibir.length} cartões da ${loteriaAtual}`);
-                
-                if (cartoesParaExibir.length === 0) {
-                    container.innerHTML = `<div class="empty-state">Nenhum cartão da ${loteriaAtual.toUpperCase()} para o concurso ${concursos[0]}</div>`;
-                    return;
-                }
-                
-                const porBolao = {};
-                cartoesParaExibir.forEach(c => { 
-                    const b = c.bolao || 'Sem Bolão'; 
-                    if (!porBolao[b]) porBolao[b] = []; 
-                    porBolao[b].push(c); 
-                });
-                
-                let cardsHtml = '';
-                for (const [bolao, lista] of Object.entries(porBolao)) {
-                    cardsHtml += `<div style="margin-bottom:20px"><div style="background:#3b82f6;color:white;padding:6px 10px;border-radius:6px;margin-bottom:8px;font-size:13px;">🎯 ${bolao}</div><div style="display:flex;flex-wrap:wrap;gap:8px;">`;
-                    lista.forEach(cartao => {
-                        let tipoParticipacao = '👥 Exclusivo';
-                        if (cartao.tipoParticipacao === 'cota') {
-                            tipoParticipacao = '🎟️ Cota';
-                        } else if (cartao.tipo === 'cota') {
-                            tipoParticipacao = '🎟️ Cota';
-                        } else if (cartao.tipoParticipacao === 'exclusivo') {
-                            tipoParticipacao = '👥 Exclusivo';
-                        }
-                        
-                        const numsHtml = cartao.numeros.map(n => `<span style="background:#e2e8f0;color:#333;padding:3px 7px;border-radius:5px;font-family:monospace;font-size:11px;">${n.toString().padStart(2,'0')}</span>`).join('');
-                        cardsHtml += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px;min-width:180px;">
-                                            <div style="font-size:10px;color:#64748b;margin-bottom:4px;">
-                                                Cartão - Concurso ${concursos[0]}
-                                                <span style="background:#e2e8f0;padding:2px 6px;border-radius:4px;margin-left:5px;font-size:9px;">${tipoParticipacao}</span>
-                                            </div>
-                                            <div style="display:flex;flex-wrap:wrap;gap:3px;">${numsHtml}</div>
-                                        </div>`;
-                    });
-                    cardsHtml += `</div></div>`;
-                }
-                container.innerHTML = cardsHtml;
-                console.log(`✅ Cartões exibidos com sucesso!`);
-            }
+    console.log(`📌 Select atualizado para: ${select.value} (${loteriaAtual})`);
+    
+    // FORÇAR EXIBIÇÃO DOS CARTÕES DIRETAMENTE
+    const cartoesParaExibir = cartoes.filter(c => c.tipo === loteriaAtual && c.concurso == concursos[0]);
+    const container = document.getElementById('cartoesConcurso');
+    
+    if (container && cartoesParaExibir.length > 0) {
+        const porBolao = {};
+        cartoesParaExibir.forEach(c => { 
+            const b = c.bolao || 'Sem Bolão'; 
+            if (!porBolao[b]) porBolao[b] = []; 
+            porBolao[b].push(c); 
+        });
+        
+        let cardsHtml = '';
+        for (const [bolao, lista] of Object.entries(porBolao)) {
+            cardsHtml += `<div style="margin-bottom:20px"><div style="background:#3b82f6;color:white;padding:6px 10px;border-radius:6px;margin-bottom:8px;font-size:13px;">🎯 ${bolao}</div><div style="display:flex;flex-wrap:wrap;gap:8px;">`;
+            lista.forEach(cartao => {
+                let tipoParticipacao = cartao.tipoParticipacao === 'cota' ? '🎟️ Cota' : '👥 Exclusivo';
+                const numsHtml = cartao.numeros.map(n => `<span style="background:#e2e8f0;color:#333;padding:3px 7px;border-radius:5px;font-family:monospace;font-size:11px;">${n.toString().padStart(2,'0')}</span>`).join('');
+                cardsHtml += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px;min-width:180px;">
+                                    <div style="font-size:10px;color:#64748b;margin-bottom:4px;">
+                                        Cartão - Concurso ${concursos[0]}
+                                        <span style="background:#e2e8f0;padding:2px 6px;border-radius:4px;margin-left:5px;font-size:9px;">${tipoParticipacao}</span>
+                                    </div>
+                                    <div style="display:flex;flex-wrap:wrap;gap:3px;">${numsHtml}</div>
+                                </div>`;
+            });
+            cardsHtml += `</div></div>`;
         }
-    }, 100);
+        container.innerHTML = cardsHtml;
+        console.log(`✅ Exibidos ${cartoesParaExibir.length} cartões da ${loteriaAtual}`);
+    } else if (container) {
+        container.innerHTML = `<div class="empty-state">Nenhum cartão da ${loteriaAtual.toUpperCase()} para o concurso ${concursos[0]}</div>`;
+    }
     
     showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
 }
