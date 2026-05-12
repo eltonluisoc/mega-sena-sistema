@@ -112,7 +112,6 @@ function setLoteria(loteria) {
     console.log(`🔄 Trocando loteria de ${loteriaAtual} para ${loteria}`);
     loteriaAtual = loteria;
     
-    // Atualizar UI dos botões
     const btnMega = document.getElementById('btnMegaSena');
     const btnLoto = document.getElementById('btnLotofacil');
     const btnQuina = document.getElementById('btnQuina');
@@ -135,14 +134,13 @@ function setLoteria(loteria) {
         if (headerConferencia) headerConferencia.innerHTML = '🔍 CONFERIR RESULTADOS - QUINA';
     }
     
-    // RECARREGAR TUDO - FORÇADO
-    console.log('📋 Atualizando select de concursos...');
     atualizarSelectConcursos();
-    
-    console.log('📋 Forçando exibição dos cartões...');
     mostrarCartoesDoConcurso();
     
-    // Buscar resultado automaticamente
+    // Limpar resultado anterior da tela
+    const statusDiv = document.getElementById('statusBusca');
+    if (statusDiv) statusDiv.innerHTML = '';
+    
     const selectConcurso = document.getElementById('concursoSelect');
     if (selectConcurso && selectConcurso.value && selectConcurso.value !== '1' && selectConcurso.value !== '') {
         setTimeout(() => buscarResultadoAutomatico(), 100);
@@ -406,13 +404,17 @@ async function conferirResultados() {
     if (!concurso) { showToast('⚠️ Selecione um concurso', 'warning'); return; }
     const area = document.getElementById('resultadosArea');
     if (!area) return;
-    area.innerHTML = '<div class="loading">🔍 Processando...</div>';
-    const resultados = loteriaAtual === 'mega' ? resultadosMega : loteriaAtual === 'lotofacil' ? resultadosLotofacil : resultadosQuina;
+    
+    // VALIDAÇÃO: Verificar se o concurso existe para a loteria atual
     const cartoesConc = cartoes.filter(c => c.tipo === loteriaAtual && c.concurso == concurso);
     if (cartoesConc.length === 0) {
-        area.innerHTML = `<div class="empty-state">Nenhum cartão para o concurso ${concurso}</div>`;
+        area.innerHTML = `<div class="empty-state">Nenhum cartão da ${loteriaAtual.toUpperCase()} para o concurso ${concurso}</div>`;
+        showToast(`⚠️ Nenhum cartão da ${loteriaAtual.toUpperCase()} para o concurso ${concurso}`, 'warning');
         return;
     }
+    
+    area.innerHTML = '<div class="loading">🔍 Processando...</div>';
+    const resultados = loteriaAtual === 'mega' ? resultadosMega : loteriaAtual === 'lotofacil' ? resultadosLotofacil : resultadosQuina;
     
     if (typeof firebase !== 'undefined' && firebase.analytics) {
         try {
@@ -469,7 +471,7 @@ async function conferirResultados() {
     ultimoResultadoConcurso = concurso;
     ultimoResultadoDados = { numeros, dataSorteio, premios };
     
-    let html = `<div style="background:#f0fdf4;border-radius:10px;padding:15px;margin-bottom:15px;text-align:center"><h3 style="font-size:16px;">🏆 RESULTADO DO CONCURSO ${concurso}</h3><div style="display:flex;justify-content:center;gap:12px;margin:12px 0;flex-wrap:wrap">`;
+    let html = `<div style="background:#f0fdf4;border-radius:10px;padding:15px;margin-bottom:15px;text-align:center"><h3 style="font-size:16px;">🏆 RESULTADO DO CONCURSO ${concurso} (${loteriaAtual.toUpperCase()})</h3><div style="display:flex;justify-content:center;gap:12px;margin:12px 0;flex-wrap:wrap">`;
     if (loteriaAtual === 'mega') {
         html += `<div><span style="font-size:20px;font-weight:bold;color:#f59e0b">${premios.sena}</span><br>SENA</div><div><span style="font-size:20px;font-weight:bold;color:#eab308">${premios.quina}</span><br>QUINA</div><div><span style="font-size:20px;font-weight:bold;color:#a855f7">${premios.quadra}</span><br>QUADRA</div><div><span style="font-size:20px;font-weight:bold;color:#3b82f6">${premios.terno}</span><br>TERNO</div><div><span style="font-size:20px;font-weight:bold;color:#64748b">${premios.duque}</span><br>DUQUE</div>`;
     } else if (loteriaAtual === 'lotofacil') {
@@ -590,7 +592,7 @@ async function carregarBolaoAtivo() {
                     participantes.forEach(p => {
                         const statusText = p.situacao === 'quitado' || p.situacao === 'pago' ? '✅ QUITADO' : '🔄 EM ANDAMENTO';
                         listaHtml += `<div class="participante-item" style="display: flex; justify-content: space-between; align-items: center; padding: 6px; background: #f8fafc; border-radius: 6px;">
-                                        <span class="participante-nomura" style="font-size: 12px;">${p.nome}</span>
+                                        <span class="participante-nome" style="font-size: 12px;">${p.nome}</span>
                                         <span class="participante-status ${p.situacao === 'quitado' || p.situacao === 'pago' ? 'status-quitado' : 'status-pendente'}" style="font-size: 10px;">${statusText}</span>
                                     </div>`;
                     });
@@ -702,8 +704,7 @@ async function carregarBolaoAberto() {
         const bolaoId = primeiroBolao.id;
         const estrategia = estrategiaMap[bolaoId] || '';
         
-        // LOG PARA DIAGNÓSTICO
-        console.log('🔍 ESTRATÉGIA CARREGADA:', estrategia ? 'SIM - ' + estrategia.substring(0, 50) + '...' : 'NÃO');
+        console.log('🔍 ESTRATÉGIA CARREGADA:', estrategia ? 'SIM' : 'NÃO');
         
         card.style.display = 'block';
         
@@ -748,7 +749,6 @@ async function carregarBolaoAberto() {
     ${vagasTexto ? `<div style="font-size: 14px; margin-top: 8px; font-weight: bold; color: ${vagasTexto.includes('LOTADO') ? '#ef4444' : (vagasDisponiveis <= 5 && vagasDisponiveis > 0) ? '#ef4444' : '#059669'};">${vagasTexto}</div>` : ''}
     `;
 
-        // Adicionar botão da estratégia
         if (estrategia && estrategia.trim() !== '') {
             html += `
     <div style="margin-top: 12px;">
@@ -775,7 +775,6 @@ async function carregarBolaoAberto() {
         
         container.innerHTML = html;
 
-        // Evento para o botão da estratégia
         const btnEstrategia = document.getElementById('btnVerEstrategia');
         if (btnEstrategia) {
             btnEstrategia.onclick = (e) => {
@@ -927,7 +926,7 @@ async function buscarResultadoAutomatico() {
     
     const cartoesConcurso = cartoes.filter(c => c.tipo === loteriaAtual && c.concurso == concurso);
     if (cartoesConcurso.length === 0) {
-        console.log(`⏳ Nenhum cartão para o concurso ${concurso}`);
+        console.log(`⏳ Nenhum cartão para ${loteriaAtual} concurso ${concurso}`);
         return;
     }
     
@@ -936,32 +935,33 @@ async function buscarResultadoAutomatico() {
                        resultadosQuina;
     
     if (resultados[concurso]) {
-        console.log(`📋 Resultado do concurso ${concurso} já está salvo`);
+        console.log(`📋 Resultado do ${loteriaAtual} concurso ${concurso} já está salvo`);
         mostrarResultadoExistente(concurso, resultados[concurso]);
         await conferirResultados();
         return;
     }
     
-    if (cacheResultadosBuscados[concurso]) {
-        console.log(`⏳ Resultado do concurso ${concurso} já foi buscado e não encontrado`);
+    const cacheKey = `${loteriaAtual}_${concurso}`;
+    if (cacheResultadosBuscados[cacheKey]) {
+        console.log(`⏳ Resultado do ${loteriaAtual} concurso ${concurso} já foi buscado`);
         mostrarStatusAguardando(concurso);
         return;
     }
     
-    console.log(`🔍 Buscando resultado do concurso ${concurso}...`);
-    cacheResultadosBuscados[concurso] = true;
+    console.log(`🔍 Buscando resultado ${loteriaAtual} concurso ${concurso}...`);
+    cacheResultadosBuscados[cacheKey] = true;
     
     const busca = await buscarResultadoInterno(concurso, loteriaAtual);
     
     if (busca && busca.numeros && busca.numeros.length > 0) {
-        console.log(`📋 Resultado do concurso ${concurso} encontrado na API, mas não será salvo automaticamente`);
+        console.log(`📋 Resultado do ${loteriaAtual} concurso ${concurso} encontrado na API`);
         
         if (loteriaAtual === 'mega') resultadosMega[concurso] = busca.numeros;
         else if (loteriaAtual === 'lotofacil') resultadosLotofacil[concurso] = busca.numeros;
         else resultadosQuina[concurso] = busca.numeros;
         
         await conferirResultados();
-        showToast(`🎉 Resultado do concurso ${concurso} encontrado!`, 'success');
+        showToast(`🎉 Resultado do concurso ${concurso} (${loteriaAtual.toUpperCase()}) encontrado!`, 'success');
     } else {
         mostrarStatusAguardando(concurso);
     }
@@ -984,9 +984,11 @@ function mostrarStatusAguardando(concurso) {
 function mostrarResultadoExistente(concurso, numeros) {
     const statusDiv = document.getElementById('statusBusca');
     if (statusDiv) {
+        const loteriaNome = loteriaAtual === 'mega' ? 'MEGA-SENA' : 
+                           (loteriaAtual === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA');
         statusDiv.innerHTML = `
             <div class="status-success">
-                ✅ RESULTADO DO CONCURSO ${concurso} JÁ DISPONÍVEL! 🎲<br>
+                ✅ RESULTADO DO CONCURSO ${concurso} (${loteriaNome}) JÁ DISPONÍVEL! 🎲<br>
                 🎯 Números: ${numeros.join(' - ')}
             </div>
         `;
