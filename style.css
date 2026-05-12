@@ -853,3 +853,134 @@ textarea.form-control {
     border-color: #3b82f6;
     box-shadow: 0 0 0 2px rgba(59,130,246,0.1);
 }
+/* ============ ESTILOS PARA RESULTADOS UNIFICADOS ============ */
+
+.resultado-resumo {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+    gap: 10px;
+    margin-bottom: 20px;
+    background: #f1f5f9;
+    padding: 15px;
+    border-radius: 12px;
+}
+
+.resultado-resumo-item {
+    text-align: center;
+    padding: 8px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.resultado-resumo-numero {
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.resultado-resumo-label {
+    font-size: 10px;
+    color: #64748b;
+}
+
+.numeros-sorteados {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin: 15px 0;
+    background: #d1fae5;
+    padding: 12px;
+    border-radius: 12px;
+}
+
+.numero-sorteado-card {
+    background: #10b981;
+    color: white;
+    width: 45px;
+    height: 45px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-weight: bold;
+    font-size: 16px;
+}
+
+.cartao-item-unificado {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 12px;
+}
+
+.cartao-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.cartao-bolao {
+    font-weight: bold;
+    font-size: 13px;
+    color: #3b82f6;
+}
+
+.cartao-acertos {
+    background: #cbd5e1;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: bold;
+}
+
+.cartao-numeros {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+}
+
+.numero-acertado {
+    background: #10b981;
+    color: white;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-family: monospace;
+    font-size: 12px;
+    font-weight: bold;
+    min-width: 35px;
+    text-align: center;
+}
+
+.numero-normal {
+    background: #e2e8f0;
+    color: #333;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-family: monospace;
+    font-size: 12px;
+    min-width: 35px;
+    text-align: center;
+}
+
+@media (max-width: 480px) {
+    .numero-sorteado-card {
+        width: 35px;
+        height: 35px;
+        font-size: 14px;
+    }
+    .numero-acertado, .numero-normal {
+        padding: 4px 6px;
+        font-size: 10px;
+        min-width: 28px;
+    }
+    .resultado-resumo-numero {
+        font-size: 18px;
+    }
+}
