@@ -23,7 +23,6 @@
         .logo { font-size: 22px; font-weight: bold; }
         .version { font-size: 11px; color: #94a3b8; margin-left: 8px; }
         .subtitle { text-align: center; font-size: 12px; color: #f59e0b; margin-top: 5px; font-weight: bold; }
-        .stats { font-size: 11px; background: rgba(255,255,255,0.1); padding: 5px 12px; border-radius: 20px; display: inline-block; margin-top: 8px; }
         
         .loteria-selector { display: flex; justify-content: center; gap: 15px; margin: 20px 0; flex-wrap: wrap; }
         .loteria-btn { background: white; border: 2px solid #e2e8f0; border-radius: 16px; padding: 12px 20px; cursor: pointer; transition: all 0.3s ease; width: 110px; text-align: center; }
@@ -36,9 +35,6 @@
         .container { max-width: 1200px; margin: 20px auto; padding: 0 15px; }
         .card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-bottom: 20px; }
         .card-header { padding: 12px 15px; font-weight: bold; font-size: 16px; color: white; }
-        .bg-blue { background: #3b82f6; }
-        .bg-green { background: #10b981; }
-        .bg-orange { background: #f59e0b; }
         .card-body { padding: 15px; }
         
         .form-group { margin-bottom: 12px; }
@@ -57,27 +53,148 @@
         
         .footer { text-align: center; padding: 15px; color: #94a3b8; font-size: 11px; background: #1e293b; margin-top: 20px; }
         
-        .participante-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #e2e8f0; flex-wrap: wrap; gap: 8px; }
-        .participante-nome { font-weight: bold; font-size: 12px; }
-        .participante-status { font-size: 10px; padding: 2px 8px; border-radius: 20px; }
-        .status-quitado { background: #d1fae5; color: #065f46; }
-        .status-pendente { background: #fef3c7; color: #92400e; }
+        /* Cards de resultados unificados */
+        .resultado-resumo {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+            background: #f1f5f9;
+            padding: 15px;
+            border-radius: 12px;
+        }
+        .resultado-resumo-item {
+            text-align: center;
+            padding: 8px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .resultado-resumo-numero {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .resultado-resumo-label {
+            font-size: 10px;
+            color: #64748b;
+        }
         
-        .toast-container { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
-        .toast { background: #1e293b; color: white; padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 8px; animation: slideUp 0.3s ease-out; pointer-events: auto; }
+        .numeros-sorteados {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            margin: 15px 0;
+            background: #d1fae5;
+            padding: 12px;
+            border-radius: 12px;
+        }
+        .numero-sorteado-card {
+            background: #10b981;
+            color: white;
+            width: 45px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        
+        .cartao-item-unificado {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+        .cartao-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .cartao-bolao { font-weight: bold; font-size: 13px; color: #3b82f6; }
+        .cartao-acertos { background: #cbd5e1; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; }
+        .cartao-numeros {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            justify-content: center;
+        }
+        .numero-acertado {
+            background: #10b981;
+            color: white;
+            padding: 6px 10px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            font-weight: bold;
+            min-width: 35px;
+            text-align: center;
+        }
+        .numero-normal {
+            background: #e2e8f0;
+            color: #333;
+            padding: 6px 10px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            min-width: 35px;
+            text-align: center;
+        }
+        
+        @media (max-width: 480px) {
+            .numero-sorteado-card { width: 35px; height: 35px; font-size: 14px; }
+            .numero-acertado, .numero-normal { padding: 4px 6px; font-size: 10px; min-width: 28px; }
+            .resultado-resumo-numero { font-size: 18px; }
+        }
+        
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: none;
+        }
+        .toast {
+            background: #1e293b;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            animation: slideUp 0.3s ease-out;
+            pointer-events: auto;
+        }
         .toast-success { background: #10b981; }
         .toast-error { background: #ef4444; }
         .toast-info { background: #3b82f6; }
         
-        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; visibility: hidden; } }
-        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(245,158,11,0.4); } 70% { box-shadow: 0 0 0 10px rgba(245,158,11,0); } 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0); } }
-        
-        @media (max-width: 768px) {
-            .top-bar { text-align: center; }
-            .loteria-btn { padding: 8px 12px; width: 90px; }
-            .loteria-btn .loteria-icon { font-size: 22px; }
-            .loteria-btn .loteria-nome { font-size: 11px; }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; visibility: hidden; }
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(245,158,11,0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(245,158,11,0); }
+            100% { box-shadow: 0 0 0 0 rgba(245,158,11,0); }
         }
     </style>
 </head>
@@ -85,7 +202,6 @@
     <div class="top-bar">
         <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">v2.0</span></div>
         <div class="subtitle">🏆 RUMO AO GRANDE PRÊMIO 🏆</div>
-        
     </div>
 
     <!-- Seletor de Loteria -->
@@ -105,70 +221,65 @@
     </div>
 
     <div class="container">
-    <!-- Card: Bolão Aberto (destaque - PRIMEIRO CARD) -->
-    <div id="cardBolaoAberto" style="display: none; margin-bottom: 20px;">
-        <div class="card" style="background: linear-gradient(135deg, #fef3c7 0%, #ffffff 100%); border: 2px solid #f59e0b; border-radius: 16px; animation: pulse 1.5s infinite;">
-            <div class="card-body" id="bolaoAbertoContainer">
+        <!-- Card: Bolão Aberto (destaque) -->
+        <div id="cardBolaoAberto" style="display: none; margin-bottom: 20px;">
+            <div class="card" style="background: linear-gradient(135deg, #fef3c7 0%, #ffffff 100%); border: 2px solid #f59e0b; animation: pulse 1.5s infinite;">
+                <div class="card-body" id="bolaoAbertoContainer">
+                    <div class="empty-state">Carregando...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card ÚNICO: Concurso + Cartões + Conferência -->
+        <div class="card">
+            <div class="card-header bg-blue" id="cardHeaderConferencia">🎯 CONFERIR RESULTADOS - MEGA</div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label>📌 CONCURSO:</label>
+                    <select id="concursoSelect">
+                        <option value="">Carregando concursos...</option>
+                    </select>
+                </div>
+                
+                <div id="statusBusca" class="status"></div>
+                
+                <div id="loadingIndicator" style="display: none; text-align: center; padding: 10px; color: #3b82f6;">
+                    <div>🔄 Carregando dados...</div>
+                    <div id="loadingPercent" style="font-size: 12px; font-weight: bold; margin-top: 5px;">0%</div>
+                </div>
+                
+                <button id="btnConferir" style="margin-bottom: 15px;">🎲 CONFERIR RESULTADOS</button>
+                
+                <!-- Área unificada: Resumo + Cartões com acertos -->
+                <div id="resultadosAreaUnificada">
+                    <div class="empty-state">🔍 Clique em "Conferir Resultados" para ver os acertos</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card: Bolões Especiais (EM ANDAMENTO) -->
+        <div class="card" id="cardBolaoAtivo" style="display: none;">
+            <div class="card-header bg-orange">⭐ BOLÕES ESPECIAIS</div>
+            <div class="card-body" id="bolaoContainer">
                 <div class="empty-state">Carregando...</div>
             </div>
         </div>
-    </div>
 
-    <!<!-- Card ÚNICO: Conferir Resultados + Cartões do Concurso -->
-    <div class="card">
-        <div class="card-header bg-blue" id="cardHeaderConferencia">🔍 CONFERIR RESULTADOS - MEGA</div>
-        <div class="card-body">
-            <div class="form-group"><label>📌 CONCURSO:</label><select id="concursoSelect"><option value="">Carregando concursos...</option></select></div>
-            
-            <div id="cartoesUnificado" style="margin: 15px 0; padding: 10px; background: #f8fafc; border-radius: 8px;">
-                <div style="font-weight: bold; margin-bottom: 10px;">📋 CARTÕES DO CONCURSO</div>
-                <div id="cartoesConcurso" style="max-height: 300px; overflow-y: auto;">
-                    <div class="empty-state">Selecione um concurso para ver os cartões</div>
+        <!-- Card: Compartilhar e Opine -->
+        <div class="card">
+            <div class="card-header bg-green">👥 COMPARTILHE E OPINE</div>
+            <div class="card-body" style="text-align: center;">
+                <div style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;">
+                    <button id="btnCompartilhar" style="background: #25D366; width: auto; padding: 10px 20px;">📤 COMPARTILHAR SITE</button>
+                    <button id="btnWhatsappGrupo" style="background: #075E54; width: auto; padding: 10px 20px;">👥 GRUPO OFICIAL</button>
+                    <button id="btnSugestao" style="background: #f59e0b; width: auto; padding: 10px 20px;">💬 ENVIAR SUGESTÃO</button>
+                </div>
+                <div style="font-size: 11px; color: #666; margin-top: 10px;">
+                    ✨ Compartilhe o site com seus amigos | ✨ Sua opinião é importante para melhorarmos
                 </div>
             </div>
-            
-            <div id="statusBusca" class="status"></div>
-            
-            <div id="loadingIndicator" style="display: none; text-align: center; padding: 10px; color: #3b82f6;">
-                <div>🔄 Carregando dados...</div>
-                <div id="loadingPercent" style="font-size: 12px; font-weight: bold; margin-top: 5px;">0%</div>
-            </div>
-            
-            <button id="btnConferir">🎲 CONFERIR RESULTADOS</button>
         </div>
     </div>
-
-    <!-- Card: Resultados da Conferência -->
-    <div class="card">
-        <div class="card-header bg-green" id="cardHeaderResultados">📊 RESULTADOS DA CONFERÊNCIA</div>
-        <div class="card-body" id="resultadosArea">
-            <div class="empty-state">🔍 Clique em "Conferir Resultados" para ver os acertos</div>
-        </div>
-    </div>
-
-    <!-- Card: Bolões Especiais (EM ANDAMENTO) -->
-    <div class="card" id="cardBolaoAtivo" style="display: none;">
-        <div class="card-header bg-orange">⭐ BOLÕES ESPECIAIS</div>
-        <div class="card-body" id="bolaoContainer">
-            <div class="empty-state">Carregando...</div>
-        </div>
-    </div>
-
-    <!-- Card: Compartilhar e Opine -->
-    <div class="card">
-        <div class="card-header bg-green">👥 COMPARTILHE E OPINE</div>
-        <div class="card-body" style="text-align: center;">
-            <div style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;">
-                <button id="btnCompartilhar" style="background: #25D366; width: auto; padding: 10px 20px;">📤 COMPARTILHAR SITE</button>
-                <button id="btnWhatsappGrupo" style="background: #075E54; width: auto; padding: 10px 20px;">👥 GRUPO OFICIAL</button>
-                <button id="btnSugestao" style="background: #f59e0b; width: auto; padding: 10px 20px;">💬 ENVIAR SUGESTÃO</button>
-            </div>
-            <div style="font-size: 11px; color: #666; margin-top: 10px;">
-                ✨ Compartilhe o site com seus amigos | ✨ Sua opinião é importante para melhorarmos
-            </div>
-        </div>
-    </div>
-</div>
 
     <div class="footer">
         <div>© 2026 Bolões Aleatórios - Versão 2.0</div>
@@ -183,14 +294,13 @@
     <script src="script.js"></script>
     
     <script>
-        // Service Worker desativado no localhost
         if ('serviceWorker' in navigator && window.location.hostname !== '127.0.0.1' && window.location.hostname !== 'localhost') {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/mega-sena-sistema/sw.js')
                     .then(registration => console.log('✅ Service Worker registrado'))
                     .catch(error => console.log('❌ Service Worker falhou:', error));
-        });
-    }
-</script>
+            });
+        }
+    </script>
 </body>
 </html>
