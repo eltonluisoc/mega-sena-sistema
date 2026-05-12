@@ -36,6 +36,9 @@
         .card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-bottom: 20px; }
         .card-header { padding: 12px 15px; font-weight: bold; font-size: 16px; color: white; }
         .card-body { padding: 15px; }
+        .bg-blue { background: #3b82f6; }
+        .bg-green { background: #10b981; }
+        .bg-orange { background: #f59e0b; }
         
         .form-group { margin-bottom: 12px; }
         label { display: block; margin-bottom: 5px; font-weight: bold; color: #333; font-size: 13px; }
@@ -53,7 +56,7 @@
         
         .footer { text-align: center; padding: 15px; color: #94a3b8; font-size: 11px; background: #1e293b; margin-top: 20px; }
         
-        /* Cards de resultados unificados */
+        /* Resultados unificados */
         .resultado-resumo {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
@@ -70,14 +73,8 @@
             border-radius: 10px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
-        .resultado-resumo-numero {
-            font-size: 24px;
-            font-weight: bold;
-        }
-        .resultado-resumo-label {
-            font-size: 10px;
-            color: #64748b;
-        }
+        .resultado-resumo-numero { font-size: 24px; font-weight: bold; }
+        .resultado-resumo-label { font-size: 10px; color: #64748b; }
         
         .numeros-sorteados {
             display: flex;
@@ -119,34 +116,10 @@
             border-bottom: 1px solid #e2e8f0;
         }
         .cartao-bolao { font-weight: bold; font-size: 13px; color: #3b82f6; }
-        .cartao-acertos { background: #cbd5e1; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; }
-        .cartao-numeros {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            justify-content: center;
-        }
-        .numero-acertado {
-            background: #10b981;
-            color: white;
-            padding: 6px 10px;
-            border-radius: 8px;
-            font-family: monospace;
-            font-size: 12px;
-            font-weight: bold;
-            min-width: 35px;
-            text-align: center;
-        }
-        .numero-normal {
-            background: #e2e8f0;
-            color: #333;
-            padding: 6px 10px;
-            border-radius: 8px;
-            font-family: monospace;
-            font-size: 12px;
-            min-width: 35px;
-            text-align: center;
-        }
+        .cartao-acertos { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; color: white; }
+        .cartao-numeros { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+        .numero-acertado { background: #10b981; color: white; padding: 6px 10px; border-radius: 8px; font-family: monospace; font-size: 12px; font-weight: bold; min-width: 35px; text-align: center; }
+        .numero-normal { background: #e2e8f0; color: #333; padding: 6px 10px; border-radius: 8px; font-family: monospace; font-size: 12px; min-width: 35px; text-align: center; }
         
         @media (max-width: 480px) {
             .numero-sorteado-card { width: 35px; height: 35px; font-size: 14px; }
@@ -183,19 +156,9 @@
         .toast-error { background: #ef4444; }
         .toast-info { background: #3b82f6; }
         
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fadeOut {
-            from { opacity: 1; }
-            to { opacity: 0; visibility: hidden; }
-        }
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(245,158,11,0.4); }
-            70% { box-shadow: 0 0 0 10px rgba(245,158,11,0); }
-            100% { box-shadow: 0 0 0 0 rgba(245,158,11,0); }
-        }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; visibility: hidden; } }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(245,158,11,0.4); } 70% { box-shadow: 0 0 0 10px rgba(245,158,11,0); } 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0); } }
     </style>
 </head>
 <body>
@@ -230,7 +193,7 @@
             </div>
         </div>
 
-        <!-- Card ÚNICO: Concurso + Cartões + Conferência -->
+        <!-- CARD ÚNICO: Seleção e Conferência -->
         <div class="card">
             <div class="card-header bg-blue" id="cardHeaderConferencia">🎯 CONFERIR RESULTADOS - MEGA</div>
             <div class="card-body">
@@ -241,8 +204,6 @@
                     </select>
                 </div>
                 
-                <div id="statusBusca" class="status"></div>
-                
                 <div id="loadingIndicator" style="display: none; text-align: center; padding: 10px; color: #3b82f6;">
                     <div>🔄 Carregando dados...</div>
                     <div id="loadingPercent" style="font-size: 12px; font-weight: bold; margin-top: 5px;">0%</div>
@@ -250,14 +211,14 @@
                 
                 <button id="btnConferir" style="margin-bottom: 15px;">🎲 CONFERIR RESULTADOS</button>
                 
-                <!-- Área unificada: Resumo + Cartões com acertos -->
-                <div id="resultadosAreaUnificada">
-                    <div class="empty-state">🔍 Clique em "Conferir Resultados" para ver os acertos</div>
+                <!-- Área ÚNICA de resultados (sem duplicação) -->
+                <div id="resultadosArea">
+                    <div class="empty-state">🔍 Selecione um concurso e clique em "Conferir Resultados"</div>
                 </div>
             </div>
         </div>
 
-        <!-- Card: Bolões Especiais (EM ANDAMENTO) -->
+        <!-- Card: Bolões Especiais -->
         <div class="card" id="cardBolaoAtivo" style="display: none;">
             <div class="card-header bg-orange">⭐ BOLÕES ESPECIAIS</div>
             <div class="card-body" id="bolaoContainer">
