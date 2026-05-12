@@ -109,10 +109,14 @@ function entrarGrupoWhatsApp() {
 }
 
 function setLoteria(loteria) {
+    console.log(`🔄 Trocando loteria de ${loteriaAtual} para ${loteria}`);
     loteriaAtual = loteria;
+    
+    // Atualizar UI dos botões
     const btnMega = document.getElementById('btnMegaSena');
     const btnLoto = document.getElementById('btnLotofacil');
     const btnQuina = document.getElementById('btnQuina');
+    
     if (btnMega) btnMega.classList.remove('active');
     if (btnLoto) btnLoto.classList.remove('active');
     if (btnQuina) btnQuina.classList.remove('active');
@@ -131,24 +135,17 @@ function setLoteria(loteria) {
         if (headerConferencia) headerConferencia.innerHTML = '🔍 CONFERIR RESULTADOS - QUINA';
     }
     
+    // RECARREGAR TUDO - FORÇADO
+    console.log('📋 Atualizando select de concursos...');
     atualizarSelectConcursos();
     
+    console.log('📋 Forçando exibição dos cartões...');
+    mostrarCartoesDoConcurso();
+    
+    // Buscar resultado automaticamente
     const selectConcurso = document.getElementById('concursoSelect');
-    if (selectConcurso && selectConcurso.options.length > 1) {
-        selectConcurso.selectedIndex = 1;
-        mostrarCartoesDoConcurso();
-    } else if (selectConcurso && selectConcurso.value) {
-        mostrarCartoesDoConcurso();
-    } else {
-        const container = document.getElementById('cartoesConcurso');
-        if (container) container.innerHTML = '<div class="empty-state">Selecione um concurso para ver os cartões</div>';
-    }
-
-    if (dadosCarregados) {
-        const concursoAtual = document.getElementById('concursoSelect').value;
-        if (concursoAtual && concursoAtual !== '1' && concursoAtual !== '') {
-            setTimeout(() => buscarResultadoAutomatico(), 100);
-        }
+    if (selectConcurso && selectConcurso.value && selectConcurso.value !== '1' && selectConcurso.value !== '') {
+        setTimeout(() => buscarResultadoAutomatico(), 100);
     }
     
     showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
@@ -261,20 +258,24 @@ function atualizarSelectConcursos() {
     const filtrados = cartoes.filter(c => c.tipo === loteriaAtual);
     const concursos = [...new Set(filtrados.map(c => c.concurso))];
     concursos.sort((a, b) => b - a);
+    
+    console.log(`📋 Filtrando ${loteriaAtual}: ${filtrados.length} cartões, ${concursos.length} concursos`);
+    
     const select = document.getElementById('concursoSelect');
     if (!select) return;
-    select.innerHTML = '<option value="">Selecione um concurso</option>';
+    
+    let html = '<option value="">Selecione um concurso</option>';
+    
     if (concursos.length === 0) {
-        select.innerHTML = '<option value="">Nenhum concurso disponível</option>';
-        return;
+        html = '<option value="">Nenhum concurso disponível</option>';
+    } else {
+        concursos.forEach(con => {
+            const total = filtrados.filter(c => c.concurso == con).length;
+            html += `<option value="${con}">Concurso ${con} (${total} cartões)</option>`;
+        });
     }
-    concursos.forEach(con => {
-        const total = filtrados.filter(c => c.concurso == con).length;
-        const opt = document.createElement('option');
-        opt.value = con;
-        opt.textContent = `Concurso ${con} (${total} cartões)`;
-        select.appendChild(opt);
-    });
+    
+    select.innerHTML = html;
     
     if (concursos.length > 0) {
         select.value = concursos[0];
