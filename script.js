@@ -158,7 +158,7 @@ function mostrarCartes(numerosSorteados = null) {
     container.innerHTML = html;
 }
 
-function setLoteria(loteria) {
+async function setLoteria(loteria) {
     if (loteriaAtual === loteria) return;
     
     console.log(`🔄 Trocando loteria de ${loteriaAtual} para ${loteria}`);
@@ -218,7 +218,8 @@ function setLoteria(loteria) {
     // Mostrar cartões (sem acertos)
     mostrarCartes();
     
-    atualizarInfoConcursoAtual();
+    // ATUALIZAR BARRA DE INFORMAÇÕES (COM AWAIT)
+    await atualizarInfoConcursoAtual();
     
     showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
 }
@@ -255,7 +256,7 @@ async function carregarDados() {
             }
         });
         
-        atualizarInfoConcursoAtual();
+        await atualizarInfoConcursoAtual();
         
         atualizarPercentual(30, 'Carregando resultados Mega-Sena...');
         try {
@@ -304,7 +305,7 @@ async function carregarDados() {
         atualizarSelectConcursos();
         dadosCarregados = true;
         
-        atualizarInfoConcursoAtual();
+        await atualizarInfoConcursoAtual();
         
     } catch (error) {
         console.error('Erro ao carregar dados:', error);
@@ -314,7 +315,7 @@ async function carregarDados() {
     }
 }
 
-function atualizarInfoConcursoAtual() {
+async function atualizarInfoConcursoAtual() {
     const cartoesFiltrados = cartoes.filter(c => c.tipo === loteriaAtual);
     
     if (cartoesFiltrados.length === 0) {
@@ -324,14 +325,22 @@ function atualizarInfoConcursoAtual() {
         return;
     }
     
+    // Último concurso que temos cartão
     const concursos = [...new Set(cartoesFiltrados.map(c => parseInt(c.concurso)))];
     const concursoAtual = Math.max(...concursos);
     const totalCartoes = cartoesFiltrados.filter(c => c.concurso == concursoAtual).length;
-    const proximoConcurso = concursoAtual + 1;
     
+    // Atualizar concurso atual e total de cartões
     if (document.getElementById('concursoAtualNumero')) document.getElementById('concursoAtualNumero').innerText = concursoAtual;
     if (document.getElementById('totalCartoesInfo')) document.getElementById('totalCartoesInfo').innerHTML = `${totalCartoes} cartão${totalCartoes > 1 ? 'es' : ''}`;
-    if (document.getElementById('proximoConcursoInfo')) document.getElementById('proximoConcursoInfo').innerHTML = proximoConcurso;
+    
+    // Buscar próximo concurso oficial
+    let proximoConcurso = await buscarProximoConcursoOficial();
+    if (proximoConcurso && document.getElementById('proximoConcursoInfo')) {
+        document.getElementById('proximoConcursoInfo').innerHTML = proximoConcurso;
+    } else {
+        if (document.getElementById('proximoConcursoInfo')) document.getElementById('proximoConcursoInfo').innerHTML = '---';
+    }
 }
 
 function atualizarSelectConcursos() {
@@ -394,6 +403,9 @@ async function conferirResultados() {
         showToast('⚠️ Selecione um concurso', 'warning');
         return;
     }
+    
+    // ATUALIZAR BARRA DE INFORMAÇÕES
+    await atualizarInfoConcursoAtual();
     
     area.innerHTML = '<div class="loading">🔍 Processando...</div>';
     
@@ -505,7 +517,7 @@ async function conferirResultados() {
     
     area.innerHTML = html;
     
-    atualizarInfoConcursoAtual();
+    await atualizarInfoConcursoAtual();
     
     const btnWhats = document.getElementById('btnWhatsAppResultado');
     if (btnWhats) btnWhats.addEventListener('click', compartilharWhatsApp);
@@ -983,3 +995,51 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('✅ Sistema carregado');
     showToast('🎲 Sistema Bolões Aleatórios carregado!', 'success');
 });
+// Buscar o próximo concurso oficial da loteria atual
+async function buscarProximoConcursoOficial() {
+    try {
+        // Primeiro, pegar o último concurso que temos cartão
+        const cartoesFiltrados = cartoes.filter(c => c.tipo === loteriaAtual);
+        if (cartoesFiltrados.length === 0) return null;
+        
+        const concursos = [...new Set(cartoesFiltrados.map(c => parseInt(c.concurso)))];
+        const ultimoConcursoJogado = Math.max(...concursos);
+        
+        // Buscar na API o último concurso oficial realizado
+        let url;
+        if (loteriaAtual === 'mega') {
+            url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/megasena/ultimo`;
+        } else if (loteriaAtual === 'lotofacil') {
+            url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/lotofacil/ultimo`;
+        } else {
+            url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/quina/ultimo`;
+        }
+        
+        const resp = await fetch(url);
+        if (resp.ok) {
+            const dados = await resp.json();
+            const ultimoConcursoOficial = dados.numero;
+            
+            // Se o último concurso que jogamos é menor que o último oficial,
+            // significa que o concurso já passou
+            if (ultimoConcursoJogado < ultimoConcursoOficial) {
+                // Próximo concurso é o próximo após o último oficial
+                return ultimoConcursoOficial + 1;
+            } else if (ultimoConcursoJogado === ultimoConcursoOficial) {
+                // Ainda não saiu o resultado do próximo
+                return ultimoConcursoOficial + 1;
+            } else {
+                // Caso raro: jogamos um concurso futuro? retorna o próximo
+                return ultimoConcursoJogado + 1;
+            }
+        }
+    } catch (error) {
+        console.warn('Erro ao buscar próximo concurso oficial:', error);
+        // Fallback: calcular baseado no último concurso que temos cartão
+        const cartoesFiltrados = cartoes.filter(c => c.tipo === loteriaAtual);
+        if (cartoesFiltrados.length === 0) return '---';
+        const concursos = [...new Set(cartoesFiltrados.map(c => parseInt(c.concurso)))];
+        const ultimoConcursoJogado = Math.max(...concursos);
+        return ultimoConcursoJogado + 1;
+    }
+}
