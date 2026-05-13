@@ -56,7 +56,6 @@
         
         .footer { text-align: center; padding: 15px; color: #94a3b8; font-size: 11px; background: #1e293b; margin-top: 20px; }
         
-        /* Resultados unificados */
         .resultado-resumo {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
@@ -116,7 +115,7 @@
             border-bottom: 1px solid #e2e8f0;
         }
         .cartao-bolao { font-weight: bold; font-size: 13px; color: #3b82f6; }
-        .cartao-acertos { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; color: white; }
+        .cartao-acertos { background: #cbd5e1; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; color: white; }
         .cartao-numeros { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
         .numero-acertado { background: #10b981; color: white; padding: 6px 10px; border-radius: 8px; font-family: monospace; font-size: 12px; font-weight: bold; min-width: 35px; text-align: center; }
         .numero-normal { background: #e2e8f0; color: #333; padding: 6px 10px; border-radius: 8px; font-family: monospace; font-size: 12px; min-width: 35px; text-align: center; }
@@ -182,26 +181,27 @@
             <span class="loteria-nome">QUINA</span>
         </button>
     </div>
-<!-- Barra de informações do concurso atual -->
-<div id="infoConcursoAtual" style="background: #1e293b; color: white; padding: 12px 20px; margin: 0 15px 20px 15px; border-radius: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-    <div style="display: flex; align-items: center; gap: 10px;">
-        <span style="font-size: 24px;">🏆</span>
-        <div>
-            <div style="font-size: 12px; opacity: 0.8;">CONCURSO ATUAL</div>
-            <div style="font-size: 20px; font-weight: bold;" id="concursoAtualNumero">---</div>
+
+    <!-- Barra de informações do concurso atual -->
+    <div id="infoConcursoAtual" style="background: #1e293b; color: white; padding: 12px 20px; margin: 0 15px 20px 15px; border-radius: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 24px;">🏆</span>
+            <div>
+                <div style="font-size: 12px; opacity: 0.8;">CONCURSO ATUAL</div>
+                <div style="font-size: 20px; font-weight: bold;" id="concursoAtualNumero">---</div>
+            </div>
+        </div>
+        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+            <div>
+                <div style="font-size: 11px; opacity: 0.8;">📋 CARTÕES</div>
+                <div style="font-size: 18px; font-weight: bold;" id="totalCartoesInfo">0</div>
+            </div>
+            <div>
+                <div style="font-size: 11px; opacity: 0.8;">🎲 PRÓXIMO CONCURSO</div>
+                <div style="font-size: 18px; font-weight: bold;" id="proximoConcursoInfo">---</div>
+            </div>
         </div>
     </div>
-    <div style="display: flex; gap: 20px; flex-wrap: wrap;">
-        <div>
-            <div style="font-size: 11px; opacity: 0.8;">📋 CARTÕES</div>
-            <div style="font-size: 18px; font-weight: bold;" id="totalCartoesInfo">0</div>
-        </div>
-        <div>
-            <div style="font-size: 11px; opacity: 0.8;">🎲 PRÓXIMO CONCURSO</div>
-            <div style="font-size: 18px; font-weight: bold;" id="proximoConcursoInfo">---</div>
-        </div>
-    </div>
-</div>
 
     <div class="container">
         <!-- Card: Bolão Aberto (destaque) -->
@@ -223,7 +223,8 @@
                         <option value="">Carregando concursos...</option>
                     </select>
                 </div>
-                <!-- NOVA ÁREA DE CARTÕES -->
+                
+                <!-- Área de cartões -->
                 <div id="cartoesArea">
                     <div class="empty-state">📋 Selecione um concurso para ver os cartões</div>
                 </div>
@@ -237,18 +238,6 @@
                 
                 <div id="resultadosArea">
                     <div class="empty-state">🔍 Clique em "Conferir Resultados" para ver os acertos</div>
-                </div>
-            </div>
-        </div>    
-                <div id="loadingIndicator" style="display: none; text-align: center; padding: 10px; color: #3b82f6;">
-                    <div>🔄 Carregando dados...</div>
-                    <div id="loadingPercent" style="font-size: 12px; font-weight: bold; margin-top: 5px;">0%</div>
-                </div>
-                
-                <button id="btnConferir" style="margin-bottom: 15px;">🎲 CONFERIR RESULTADOS</button>
-                
-                <div id="resultadosArea">
-                    <div class="empty-state">🔍 Selecione um concurso e clique em "Conferir Resultados"</div>
                 </div>
             </div>
         </div>
