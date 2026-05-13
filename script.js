@@ -589,12 +589,13 @@ async function carregarBolaoAtivo() {
         
         card.style.display = 'block';
         let html = '';
+        
         for (const bolao of boloes) {
             const participantes = bolao.participantes || [];
             const totalQuitados = participantes.filter(p => p.situacao === 'quitado' || p.situacao === 'pago').length;
             const totalAndamento = participantes.filter(p => p.situacao !== 'quitado' && p.situacao !== 'pago').length;
             const statusText = statusMap[bolao.id] === 'aberto' ? 'ABERTO' : 'EM ANDAMENTO';
-            const statusClass = statusMap[bolao.id] === 'aberto' ? 'aberto' : 'andamento';
+            const statusColor = statusMap[bolao.id] === 'aberto' ? '#10b981' : '#f59e0b';
             
             const dataLimiteAdmin = dataLimiteMap[bolao.id] || '';
             let dataTexto = '';
@@ -604,51 +605,66 @@ async function carregarBolaoAtivo() {
                     const [ano, mes, dia] = dataLimiteAdmin.split('-');
                     dataFormatada = `${dia}/${mes}/${ano}`;
                 }
-                dataTexto = `<div class="bolao-data">📅 Inscrições até ${dataFormatada}</div>`;
+                dataTexto = `<div style="display: flex; align-items: center; gap: 5px; font-size: 12px; color: #64748b;">📅 Inscrições até ${dataFormatada}</div>`;
             }
             
             html += `
-                <div class="bolao-card">
-                    <div class="bolao-header">
-                        <div class="bolao-titulo">
-                            <div class="bolao-nome">
-                                🎯 ${bolao.titulo}
-                            </div>
-                            <div class="bolao-status ${statusClass}">${statusText}</div>
+                <div style="background: white; border-radius: 16px; margin-bottom: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: 1px solid #e2e8f0;">
+                    <!-- CABEÇALHO -->
+                    <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 20px;">🎯</span>
+                            <span style="font-weight: bold; font-size: 16px; color: white;">${bolao.titulo}</span>
                         </div>
+                        <div style="background: ${statusColor}; padding: 4px 14px; border-radius: 30px; font-size: 11px; font-weight: bold; color: white;">${statusText}</div>
                     </div>
-                    <div class="bolao-body">
-                        <div class="bolao-info">
-                            <div class="bolao-valor">💰 <span>R$ ${bolao.valorPorCota || 0},00</span> / cota</div>
+                    
+                    <!-- CORPO -->
+                    <div style="padding: 16px 18px;">
+                        <!-- Linha 1: Valor e Data -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #e2e8f0;">
+                            <div style="display: flex; align-items: center; gap: 6px; background: #d1fae5; padding: 6px 14px; border-radius: 30px;">
+                                <span>💰</span>
+                                <span style="font-weight: bold; font-size: 15px; color: #065f46;">R$ ${bolao.valorPorCota || 0},00</span>
+                                <span style="font-size: 12px; color: #065f46;">/ cota</span>
+                            </div>
                             ${dataTexto}
                         </div>
-                        <div class="bolao-stats">
-                            <div class="stat-item">
-                                <div class="stat-number quitado">${totalQuitados}</div>
-                                <div class="stat-label">✅ CONFIRMADOS</div>
+                        
+                        <!-- Linha 2: Estatísticas em 3 blocos -->
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px;">
+                            <div style="background: #f0fdf4; border-radius: 12px; padding: 10px; text-align: center;">
+                                <div style="font-size: 24px; font-weight: bold; color: #10b981;">${totalQuitados}</div>
+                                <div style="font-size: 11px; color: #065f46; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                                    <span>✅</span> CONFIRMADOS
+                                </div>
                             </div>
-                            <div class="stat-item">
-                                <div class="stat-number andamento">${totalAndamento}</div>
-                                <div class="stat-label">⏳ PENDENTES</div>
+                            <div style="background: #fef3c7; border-radius: 12px; padding: 10px; text-align: center;">
+                                <div style="font-size: 24px; font-weight: bold; color: #f59e0b;">${totalAndamento}</div>
+                                <div style="font-size: 11px; color: #92400e; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                                    <span>⏳</span> PENDENTES
+                                </div>
                             </div>
-                            <div class="stat-item">
-                                <div class="stat-number">${participantes.length}</div>
-                                <div class="stat-label">👥 TOTAL</div>
+                            <div style="background: #f1f5f9; border-radius: 12px; padding: 10px; text-align: center;">
+                                <div style="font-size: 24px; font-weight: bold; color: #3b82f6;">${participantes.length}</div>
+                                <div style="font-size: 11px; color: #1e293b; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                                    <span>👥</span> TOTAL
+                                </div>
                             </div>
                         </div>
-                        <button class="btn-ver-participantes" data-id="${bolao.id}">
+                        
+                        <!-- Botão -->
+                        <button class="btn-ver-participantes" data-id="${bolao.id}" style="width: 100%; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); border: none; border-radius: 40px; padding: 12px; font-weight: bold; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s;">
                             👁 VER LISTA DE PARTICIPANTES
                         </button>
-                        <div id="participantes-${bolao.id}" style="display: none; margin-top: 12px;"></div>
+                        <div id="participantes-${bolao.id}" style="display: none; margin-top: 16px;"></div>
                     </div>
                 </div>
             `;
         }
         container.innerHTML = html;
         
-        // ============================================
-        // CÓDIGO CORRIGIDO: LISTA EM GRID 2 COLUNAS
-        // ============================================
+        // Evento para cada botão
         document.querySelectorAll('.btn-ver-participantes').forEach(btn => {
             btn.onclick = async () => {
                 const id = btn.dataset.id;
@@ -658,14 +674,12 @@ async function carregarBolaoAtivo() {
                     const bolao = boloes.find(b => b.id === id);
                     const participantes = bolao.participantes || [];
                     
-                    // Formatar situação para exibição
+                    // Formatar participantes
                     const participantesFormatados = participantes.map(p => {
-                        let situacao = 'pendente';
                         let statusText = '🔄 EM ANDAMENTO';
                         let bgColor = '#f59e0b';
                         
                         if (p.situacao === 'quitado' || p.situacao === 'pago') {
-                            situacao = 'pago';
                             statusText = '✅ PAGO';
                             bgColor = '#10b981';
                         }
@@ -684,9 +698,8 @@ async function carregarBolaoAtivo() {
                         return 0;
                     });
                     
-                    // GERAR HTML EM GRID 2 COLUNAS
-                    let listaHtml = '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">';
-                    
+                    // Grid 2 colunas para participantes
+                    let listaHtml = '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">';
                     participantesFormatados.forEach(p => {
                         listaHtml += `
                             <div style="background: white; border-radius: 10px; padding: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
@@ -695,14 +708,14 @@ async function carregarBolaoAtivo() {
                             </div>
                         `;
                     });
-                    
                     listaHtml += '</div>';
+                    
                     div.innerHTML = listaHtml;
                     div.style.display = 'block';
-                    btn.textContent = '🙈 OCULTAR LISTA';
+                    btn.innerHTML = '🙈 OCULTAR LISTA';
                 } else {
                     div.style.display = 'none';
-                    btn.textContent = '👁 VER LISTA DE PARTICIPANTES';
+                    btn.innerHTML = '👁 VER LISTA DE PARTICIPANTES';
                 }
             };
         });
