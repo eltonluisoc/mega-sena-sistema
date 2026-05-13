@@ -105,8 +105,9 @@ function entrarGrupoWhatsApp() {
     showToast('📱 Abrindo grupo oficial do WhatsApp...', 'info');
 }
 
-// FUNÇÃO PARA MOSTRAR CARTÕES (sem acertos - antes da conferência)
-function mostrarCartesSemAcertos() {
+// FUNÇÃO PARA MOSTRAR CARTÕES (com ou sem acertos)
+// FUNÇÃO PARA MOSTRAR CARTÕES (com ou sem acertos)
+function mostrarCartes(numerosSorteados = null) {
     const concurso = document.getElementById('concursoSelect').value;
     const container = document.getElementById('cartoesArea');
     
@@ -118,7 +119,6 @@ function mostrarCartesSemAcertos() {
     }
     
     const filtrados = cartoes.filter(c => c.tipo === loteriaAtual && c.concurso == concurso);
-    console.log(`📋 Mostrando ${filtrados.length} cartões do concurso ${concurso} (${loteriaAtual})`);
     
     if (filtrados.length === 0) {
         container.innerHTML = `<div class="empty-state">📋 Nenhum cartão da ${loteriaAtual.toUpperCase()} para o concurso ${concurso}</div>`;
@@ -139,11 +139,17 @@ function mostrarCartesSemAcertos() {
         
         for (const cartao of lista) {
             const tipoParticipacao = cartao.tipoParticipacao === 'cota' ? '🎟️ Cota' : '👥 Exclusivo';
-            const numsHtml = cartao.numeros.map(n => `<span style="background:#e2e8f0;color:#333;padding:6px 10px;border-radius:8px;font-family:monospace;font-size:12px;min-width:35px;text-align:center;">${n.toString().padStart(2,'0')}</span>`).join('');
+            const acertosCount = numerosSorteados ? cartao.numeros.filter(n => numerosSorteados.includes(n)).length : 0;
+            
+            const numsHtml = cartao.numeros.map(n => {
+                const acertou = numerosSorteados ? numerosSorteados.includes(n) : false;
+                return `<span style="background:${acertou ? '#10b981' : '#e2e8f0'};color:${acertou ? 'white' : '#333'};padding:6px 10px;border-radius:8px;font-family:monospace;font-size:12px;font-weight:${acertou ? 'bold' : 'normal'};min-width:35px;text-align:center;">${n.toString().padStart(2,'0')}</span>`;
+            }).join('');
             
             html += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px;">
                         <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
                             <span style="font-weight:bold;font-size:12px;">${tipoParticipacao}</span>
+                            ${numerosSorteados ? `<span style="background:#cbd5e1;padding:4px 10px;border-radius:20px;font-size:11px;">${acertosCount} acertos</span>` : ''}
                         </div>
                         <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;">${numsHtml}</div>
                     </div>`;
@@ -211,9 +217,10 @@ function setLoteria(loteria) {
     select.value = concursos[0];
     
     // Mostrar cartões (sem acertos)
-    mostrarCartesSemAcertos();
-     // ⭐ ADICIONAR ESTA LINHA AQUI
+    mostrarCartes();  // ← ALTERADO: sem parâmetro, sem acertos
+    
     atualizarInfoConcursoAtual();
+    
     showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
 }
 
@@ -400,8 +407,7 @@ async function conferirResultados() {
         showToast('⚠️ Selecione um concurso', 'warning');
         return;
     }
-    // ⭐ ADICIONAR ESTA LINHA AQUI
-    atualizarInfoConcursoAtual();
+    
     area.innerHTML = '<div class="loading">🔍 Processando...</div>';
     
     const cartoesConcurso = cartoes.filter(c => c.tipo === loteriaAtual && c.concurso == concurso);
@@ -412,6 +418,7 @@ async function conferirResultados() {
         return;
     }
     
+    // Buscar resultados
     let resultados;
     if (loteriaAtual === 'mega') resultados = resultadosMega;
     else if (loteriaAtual === 'lotofacil') resultados = resultadosLotofacil;
@@ -439,6 +446,10 @@ async function conferirResultados() {
         }
     }
     
+    // ATUALIZAR OS CARTÕES COM ACERTOS (NÃO DUPLICA, APENAS ATUALIZA)
+    mostrarCartes(numerosSorteados);
+    
+    // Calcular premiações
     const cartoesComAcertos = cartoesConcurso.map(cartao => {
         const acertos = cartao.numeros.filter(n => numerosSorteados.includes(n)).length;
         return { ...cartao, acertos };
@@ -473,7 +484,7 @@ async function conferirResultados() {
     ultimoResultadoConcurso = concurso;
     ultimoResultadoDados = { numeros: numerosSorteados, dataSorteio, premios };
     
-    // Montar HTML de resultados (apenas resumo e cartões com acertos)
+    // Montar HTML do resumo (SOMENTE O RESUMO, SEM CARTÕES)
     let html = '';
     
     html += `<div class="resultado-resumo">`;
@@ -508,57 +519,10 @@ async function conferirResultados() {
     
     html += `<button id="btnWhatsAppResultado" style="background:#25D366; width:100%; padding:12px; border-radius:30px; margin-bottom:20px; font-weight:bold;">📱 COMPARTILHAR RESULTADO NO WHATSAPP</button>`;
     
-    // Re-exibir os cartões AGORA COM ACERTOS DESTACADOS
-    const porBolao = {};
-    cartoesComAcertos.forEach(c => {
-        const b = c.bolao || 'Sem Bolão';
-        if (!porBolao[b]) porBolao[b] = [];
-        porBolao[b].push(c);
-    });
-    
-    for (const [bolao, lista] of Object.entries(porBolao)) {
-        html += `<div style="margin-top: 20px;"><div style="background:#3b82f6;color:white;padding:8px 12px;border-radius:8px;margin-bottom:12px;">🎯 ${bolao}</div>`;
-        
-        for (const cartao of lista) {
-            let corAcertos;
-            if (loteriaAtual === 'mega') {
-                if (cartao.acertos >= 6) corAcertos = '#f59e0b';
-                else if (cartao.acertos === 5) corAcertos = '#eab308';
-                else if (cartao.acertos === 4) corAcertos = '#a855f7';
-                else if (cartao.acertos === 3) corAcertos = '#3b82f6';
-                else corAcertos = '#cbd5e1';
-            } else if (loteriaAtual === 'lotofacil') {
-                if (cartao.acertos >= 15) corAcertos = '#f59e0b';
-                else if (cartao.acertos === 14) corAcertos = '#eab308';
-                else if (cartao.acertos === 13) corAcertos = '#a855f7';
-                else if (cartao.acertos === 12) corAcertos = '#3b82f6';
-                else corAcertos = '#cbd5e1';
-            } else {
-                if (cartao.acertos >= 5) corAcertos = '#f59e0b';
-                else if (cartao.acertos === 4) corAcertos = '#eab308';
-                else if (cartao.acertos === 3) corAcertos = '#a855f7';
-                else corAcertos = '#cbd5e1';
-            }
-            
-            const tipoParticipacao = cartao.tipoParticipacao === 'cota' ? '🎟️ Cota' : '👥 Exclusivo';
-            
-            html += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px;margin-bottom:12px;">
-                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-                            <span style="font-weight:bold;">${tipoParticipacao}</span>
-                            <span style="background:${corAcertos};color:white;padding:4px 12px;border-radius:20px;font-size:12px;">${cartao.acertos} acertos</span>
-                        </div>
-                        <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;">
-                            ${cartao.numeros.map(n => {
-                                const acertou = numerosSorteados.includes(n);
-                                return `<span style="background:${acertou ? '#10b981' : '#e2e8f0'};color:${acertou ? 'white' : '#333'};padding:6px 10px;border-radius:8px;font-family:monospace;font-size:12px;font-weight:${acertou ? 'bold' : 'normal'};min-width:35px;text-align:center;">${n.toString().padStart(2,'0')}</span>`;
-                            }).join('')}
-                        </div>
-                    </div>`;
-        }
-        html += `</div>`;
-    }
-    
     area.innerHTML = html;
+    
+    // Atualizar barra de informações
+    atualizarInfoConcursoAtual();
     
     const btnWhats = document.getElementById('btnWhatsAppResultado');
     if (btnWhats) btnWhats.addEventListener('click', compartilharWhatsApp);
@@ -980,8 +944,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btnLotofacil').addEventListener('click', () => setLoteria('lotofacil'));
     document.getElementById('btnQuina').addEventListener('click', () => setLoteria('quina'));
     document.getElementById('concursoSelect').addEventListener('change', () => {
-        mostrarCartesSemAcertos();
-    });
+    mostrarCartes();  // ← ALTERADO: sem acertos
+});
     document.getElementById('btnConferir').addEventListener('click', conferirResultados);
     document.getElementById('btnCompartilhar').addEventListener('click', compartilharSite);
     document.getElementById('btnWhatsappGrupo').addEventListener('click', entrarGrupoWhatsApp);
