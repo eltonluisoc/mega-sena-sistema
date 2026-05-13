@@ -212,7 +212,8 @@ function setLoteria(loteria) {
     
     // Mostrar cartões (sem acertos)
     mostrarCartesSemAcertos();
-    
+     // ⭐ ADICIONAR ESTA LINHA AQUI
+    atualizarInfoConcursoAtual();
     showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
 }
 
@@ -247,6 +248,11 @@ async function carregarDados() {
                 });
             }
         });
+        
+        // ============================================
+        // ⭐ COLOCAR AQUI - DEPOIS DE CARREGAR OS CARTÕES
+        // ============================================
+        atualizarInfoConcursoAtual();
         
         atualizarPercentual(30, 'Carregando resultados Mega-Sena...');
         try {
@@ -295,12 +301,43 @@ async function carregarDados() {
         atualizarSelectConcursos();
         dadosCarregados = true;
         
+        // ============================================
+        // ⭐ TAMBÉM PODE COLOCAR AQUI (opcional, para garantir)
+        // ============================================
+        atualizarInfoConcursoAtual();
+        
     } catch (error) {
         console.error('Erro ao carregar dados:', error);
         showToast('❌ Erro ao carregar dados. Recarregue a página.', 'error');
         if (loadingDiv) loadingDiv.style.display = 'none';
         dadosCarregados = true;
     }
+}
+
+// Função para atualizar a barra de informações do concurso atual
+function atualizarInfoConcursoAtual() {
+    // Filtrar cartões da loteria atual
+    const cartoesFiltrados = cartoes.filter(c => c.tipo === loteriaAtual);
+    
+    if (cartoesFiltrados.length === 0) {
+        document.getElementById('concursoAtualNumero').innerText = '---';
+        document.getElementById('totalCartoesInfo').innerText = '0';
+        document.getElementById('proximoConcursoInfo').innerHTML = '---';
+        return;
+    }
+    
+    // Pegar o maior número de concurso (mais recente)
+    const concursos = [...new Set(cartoesFiltrados.map(c => parseInt(c.concurso)))];
+    const concursoAtual = Math.max(...concursos);
+    const totalCartoes = cartoesFiltrados.filter(c => c.concurso == concursoAtual).length;
+    
+    // Calcular próximo concurso (concurso atual + 1)
+    const proximoConcurso = concursoAtual + 1;
+    
+    // Atualizar a barra
+    document.getElementById('concursoAtualNumero').innerText = concursoAtual;
+    document.getElementById('totalCartoesInfo').innerHTML = `${totalCartoes} cartão${totalCartoes > 1 ? 'es' : ''}`;
+    document.getElementById('proximoConcursoInfo').innerHTML = proximoConcurso;
 }
 
 function atualizarSelectConcursos() {
@@ -363,7 +400,8 @@ async function conferirResultados() {
         showToast('⚠️ Selecione um concurso', 'warning');
         return;
     }
-    
+    // ⭐ ADICIONAR ESTA LINHA AQUI
+    atualizarInfoConcursoAtual();
     area.innerHTML = '<div class="loading">🔍 Processando...</div>';
     
     const cartoesConcurso = cartoes.filter(c => c.tipo === loteriaAtual && c.concurso == concurso);
