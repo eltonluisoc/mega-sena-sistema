@@ -646,24 +646,56 @@ async function carregarBolaoAtivo() {
         }
         container.innerHTML = html;
         
+        // ============================================
+        // CÓDIGO CORRIGIDO: LISTA EM GRID 2 COLUNAS
+        // ============================================
         document.querySelectorAll('.btn-ver-participantes').forEach(btn => {
             btn.onclick = async () => {
                 const id = btn.dataset.id;
                 const div = document.getElementById(`participantes-${id}`);
+                
                 if (div.style.display === 'none') {
                     const bolao = boloes.find(b => b.id === id);
                     const participantes = bolao.participantes || [];
-                    let listaHtml = '<div class="participantes-lista">';
-                    participantes.forEach(p => {
-                        const statusText = p.situacao === 'quitado' || p.situacao === 'pago' ? 'PAGO' : 'PENDENTE';
-                        const statusClass = p.situacao === 'quitado' || p.situacao === 'pago' ? 'pago' : 'pendente';
+                    
+                    // Formatar situação para exibição
+                    const participantesFormatados = participantes.map(p => {
+                        let situacao = 'pendente';
+                        let statusText = '⏳ PENDENTE';
+                        let bgColor = '#f59e0b';
+                        
+                        if (p.situacao === 'quitado' || p.situacao === 'pago') {
+                            situacao = 'pago';
+                            statusText = '✅ PAGO';
+                            bgColor = '#10b981';
+                        }
+                        
+                        return {
+                            nome: p.nome,
+                            statusText: statusText,
+                            bgColor: bgColor
+                        };
+                    });
+                    
+                    // Ordenar: pagos primeiro
+                    participantesFormatados.sort((a, b) => {
+                        if (a.statusText.includes('PAGO') && !b.statusText.includes('PAGO')) return -1;
+                        if (!a.statusText.includes('PAGO') && b.statusText.includes('PAGO')) return 1;
+                        return 0;
+                    });
+                    
+                    // GERAR HTML EM GRID 2 COLUNAS
+                    let listaHtml = '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">';
+                    
+                    participantesFormatados.forEach(p => {
                         listaHtml += `
-                            <div class="participante-card">
-                                <span class="participante-nome">👤 ${p.nome}</span>
-                                <span class="participante-status-card ${statusClass}">${statusText}</span>
+                            <div style="background: white; border-radius: 10px; padding: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                                <span style="font-weight: 600; font-size: 13px;">👤 ${p.nome}</span>
+                                <span style="font-size: 10px; font-weight: bold; padding: 4px 10px; border-radius: 30px; background: ${p.bgColor}; color: white;">${p.statusText}</span>
                             </div>
                         `;
                     });
+                    
                     listaHtml += '</div>';
                     div.innerHTML = listaHtml;
                     div.style.display = 'block';
