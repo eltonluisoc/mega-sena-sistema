@@ -265,7 +265,7 @@ async function setLoteria(loteria) {
     mostrarCartes();
     
     // ATUALIZAR BARRA DE INFORMAÇÕES
-    await atualizarInfoConcursoAtual();
+    // await atualizarInfoConcursoAtual();
     
     showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
 }
@@ -302,7 +302,7 @@ async function carregarDados() {
             }
         });
         
-        await atualizarInfoConcursoAtual();
+        // await atualizarInfoConcursoAtual();
         
         atualizarPercentual(30, 'Carregando resultados Mega-Sena...');
         try {
@@ -351,7 +351,7 @@ async function carregarDados() {
         atualizarSelectConcursos();
         dadosCarregados = true;
         
-        await atualizarInfoConcursoAtual();
+        // await atualizarInfoConcursoAtual();
         
     } catch (error) {
         console.error('Erro ao carregar dados:', error);
@@ -459,7 +459,7 @@ async function conferirResultados() {
         return;
     }
     
-    await atualizarInfoConcursoAtual();
+    // await atualizarInfoConcursoAtual();
     
     area.innerHTML = '<div class="loading">🔍 Processando...</div>';
     
@@ -570,7 +570,7 @@ async function conferirResultados() {
     
     area.innerHTML = html;
     
-    await atualizarInfoConcursoAtual();
+    // await atualizarInfoConcursoAtual();
     
     const btnWhats = document.getElementById('btnWhatsAppResultado');
     if (btnWhats) btnWhats.addEventListener('click', compartilharWhatsApp);
