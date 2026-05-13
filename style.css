@@ -507,14 +507,12 @@ textarea.form-control {
 
 /* ============ CORREÇÕES PARA CARTÕES NA LISTA (CELULAR) ============ */
 @media (max-width: 768px) {
-    /* Container do cartão na lista - mantém linha para checkbox e conteúdo */
     .cartao-item > div {
         flex-direction: row !important;
         align-items: flex-start !important;
         flex-wrap: wrap;
     }
     
-    /* Checkbox maior para toque no celular */
     .checkbox-cartao {
         width: 26px !important;
         height: 26px !important;
@@ -522,13 +520,11 @@ textarea.form-control {
         margin-top: 8px;
     }
     
-    /* Conteúdo do cartão ocupa o resto */
     .cartao-item > div > div:nth-child(2) {
         flex: 1;
         min-width: 0;
     }
     
-    /* Botão editar volta para o canto, mas menor */
     .btn-editar {
         width: auto !important;
         margin-top: 0;
@@ -538,7 +534,6 @@ textarea.form-control {
         white-space: nowrap;
     }
     
-    /* Números do cartão - HORIZONTAL */
     .cartao-numeros {
         display: flex !important;
         flex-direction: row !important;
@@ -548,14 +543,12 @@ textarea.form-control {
         justify-content: flex-start;
     }
     
-    /* Cada número individual */
     .cartao-numeros span {
         font-size: 10px !important;
         padding: 3px 6px !important;
         display: inline-block;
     }
     
-    /* Botões da barra de filtros no celular */
     .filtros {
         flex-direction: column;
         width: 100%;
@@ -567,7 +560,6 @@ textarea.form-control {
         margin: 3px 0;
     }
     
-    /* Títulos do cartão menores */
     .cartao-item strong {
         font-size: 13px;
     }
@@ -594,6 +586,7 @@ textarea.form-control {
         height: 22px !important;
     }
 }
+
 /* ============ GARANTIR NÚMEROS NA HORIZONTAL NO CELULAR ============ */
 @media (max-width: 768px) {
     .cartao-numeros {
@@ -620,6 +613,7 @@ textarea.form-control {
         white-space: nowrap !important;
     }
 }
+
 /* ============ TOAST NOTIFICATIONS ============ */
 .toast-container {
     position: fixed;
@@ -687,6 +681,7 @@ textarea.form-control {
         visibility: hidden;
     }
 }
+
 /* Cores para a Quina */
 .loteria-btn.quina {
     background: #b91c1c;
@@ -705,6 +700,7 @@ textarea.form-control {
 .card-header.bg-red {
     background: #ef4444;
 }
+
 /* Animação para o card de bolão aberto */
 @keyframes pulse {
     0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
@@ -715,9 +711,8 @@ textarea.form-control {
 #cardBolaoAberto .card {
     animation: pulse 1.5s infinite;
 }
-/* ============ RESPONSIVIDADE DA TABELA DE RESULTADOS ============ */
 
-/* Desktop: tabela normal */
+/* ============ RESPONSIVIDADE DA TABELA DE RESULTADOS ============ */
 .resultados-tabela {
     overflow-x: auto;
 }
@@ -735,7 +730,6 @@ textarea.form-control {
     border-bottom: 1px solid #e2e8f0;
 }
 
-/* Celular: muda para cards */
 @media (max-width: 768px) {
     .resultados-tabela table,
     .resultados-tabela thead,
@@ -747,7 +741,7 @@ textarea.form-control {
     }
     
     .resultados-tabela thead {
-        display: none; /* Esconde cabeçalho no celular */
+        display: none;
     }
     
     .resultados-tabela tr {
@@ -842,6 +836,7 @@ textarea.form-control {
         font-size: 9px;
     }
 }
+
 /* Estilo para a estratégia do bolão */
 .estrategia-textarea {
     font-family: inherit;
@@ -853,8 +848,8 @@ textarea.form-control {
     border-color: #3b82f6;
     box-shadow: 0 0 0 2px rgba(59,130,246,0.1);
 }
-/* ============ ESTILOS PARA RESULTADOS UNIFICADOS ============ */
 
+/* ============ ESTILOS PARA RESULTADOS UNIFICADOS ============ */
 .resultado-resumo {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
@@ -881,30 +876,6 @@ textarea.form-control {
 .resultado-resumo-label {
     font-size: 10px;
     color: #64748b;
-}
-
-.numeros-sorteados {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    justify-content: center;
-    margin: 15px 0;
-    background: #d1fae5;
-    padding: 12px;
-    border-radius: 12px;
-}
-
-.numero-sorteado-card {
-    background: #10b981;
-    color: white;
-    width: 45px;
-    height: 45px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    font-weight: bold;
-    font-size: 16px;
 }
 
 .cartao-item-unificado {
@@ -969,31 +940,13 @@ textarea.form-control {
     text-align: center;
 }
 
-@media (max-width: 480px) {
-    .numero-sorteado-card {
-        width: 35px;
-        height: 35px;
-        font-size: 14px;
-    }
-    .numero-acertado, .numero-normal {
-        padding: 4px 6px;
-        font-size: 10px;
-        min-width: 28px;
-    }
-    .resultado-resumo-numero {
-        font-size: 18px;
-    }
-}
 /* ============ BOLÕES ESPECIAIS - DESIGN PROFISSIONAL ============ */
-
-/* Container principal dos bolões especiais */
 .boloes-especiais-container {
     display: flex;
     flex-direction: column;
     gap: 16px;
 }
 
-/* Card individual do bolão */
 .bolao-card {
     background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
     border-radius: 20px;
@@ -1008,7 +961,6 @@ textarea.form-control {
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
 }
 
-/* Cabeçalho do bolão */
 .bolao-header {
     padding: 16px 18px;
     background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
@@ -1051,12 +1003,10 @@ textarea.form-control {
     color: white;
 }
 
-/* Corpo do bolão */
 .bolao-body {
     padding: 16px 18px;
 }
 
-/* Informações do bolão */
 .bolao-info {
     display: flex;
     justify-content: space-between;
@@ -1090,7 +1040,6 @@ textarea.form-control {
     gap: 5px;
 }
 
-/* Estatísticas de participantes */
 .bolao-stats {
     display: flex;
     justify-content: space-around;
@@ -1125,7 +1074,6 @@ textarea.form-control {
     margin-top: 4px;
 }
 
-/* Botão VER participantes */
 .btn-ver-participantes {
     width: 100%;
     background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
@@ -1148,57 +1096,92 @@ textarea.form-control {
     transform: scale(1.01);
 }
 
-/* Lista de participantes */
+/* ============ LISTA DE PARTICIPANTES EM GRID 2 COLUNAS ============ */
 .participantes-lista {
     margin-top: 16px;
     background: #f8fafc;
     border-radius: 14px;
     overflow: hidden;
     border: 1px solid #e2e8f0;
+    padding: 12px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
 }
 
 .participante-card {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 14px;
-    border-bottom: 1px solid #e2e8f0;
-    transition: background 0.2s;
-}
-
-.participante-card:last-child {
-    border-bottom: none;
+    padding: 10px 12px;
+    background: white;
+    border-radius: 12px;
+    transition: all 0.2s ease;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
 .participante-card:hover {
-    background: #f1f5f9;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    border-color: #3b82f6;
 }
 
 .participante-nome {
-    font-weight: 500;
+    font-weight: 600;
     font-size: 13px;
     color: #1e293b;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.participante-nome::before {
+    content: "👤";
+    font-size: 14px;
 }
 
 .participante-status-card {
     font-size: 10px;
     font-weight: bold;
-    padding: 4px 10px;
+    padding: 4px 12px;
     border-radius: 30px;
+    transition: all 0.2s;
 }
 
 .participante-status-card.pago {
-    background: #d1fae5;
-    color: #065f46;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    box-shadow: 0 2px 5px rgba(16, 185, 129, 0.3);
 }
 
 .participante-status-card.pendente {
-    background: #fef3c7;
-    color: #92400e;
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: white;
+    box-shadow: 0 2px 5px rgba(245, 158, 11, 0.3);
 }
 
-/* Responsivo para celular */
+/* Responsivo para celular: muda para 1 coluna */
 @media (max-width: 768px) {
+    .participantes-lista {
+        grid-template-columns: 1fr;
+        gap: 8px;
+        padding: 10px;
+    }
+    
+    .participante-card {
+        padding: 8px 12px;
+    }
+    
+    .participante-nome {
+        font-size: 12px;
+    }
+    
+    .participante-status-card {
+        font-size: 9px;
+        padding: 3px 10px;
+    }
+    
     .bolao-header {
         padding: 12px 14px;
     }
@@ -1214,10 +1197,11 @@ textarea.form-control {
     .stat-number {
         font-size: 18px;
     }
-    
-    .participante-card {
-        flex-direction: column;
-        text-align: center;
-        gap: 6px;
+}
+
+/* Desktop: manter 2 colunas */
+@media (min-width: 769px) {
+    .participantes-lista {
+        grid-template-columns: 1fr 1fr;
     }
 }
