@@ -158,6 +158,45 @@ function mostrarCartes(numerosSorteados = null) {
     container.innerHTML = html;
 }
 
+// Buscar o próximo concurso oficial da loteria atual
+async function buscarProximoConcursoOficial() {
+    try {
+        const cartoesFiltrados = cartoes.filter(c => c.tipo === loteriaAtual);
+        if (cartoesFiltrados.length === 0) return null;
+        
+        const concursos = [...new Set(cartoesFiltrados.map(c => parseInt(c.concurso)))];
+        const ultimoConcursoJogado = Math.max(...concursos);
+        
+        let url;
+        if (loteriaAtual === 'mega') {
+            url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/megasena/ultimo`;
+        } else if (loteriaAtual === 'lotofacil') {
+            url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/lotofacil/ultimo`;
+        } else {
+            url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/quina/ultimo`;
+        }
+        
+        console.log(`🔍 Buscando último concurso oficial de ${loteriaAtual}...`);
+        const resp = await fetch(url);
+        
+        if (resp.ok) {
+            const dados = await resp.json();
+            const ultimoConcursoOficial = dados.numero;
+            console.log(`📊 Último oficial: ${ultimoConcursoOficial}, Último jogado: ${ultimoConcursoJogado}`);
+            return ultimoConcursoOficial + 1;
+        } else {
+            return ultimoConcursoJogado + 1;
+        }
+    } catch (error) {
+        console.error('Erro ao buscar próximo concurso:', error);
+        const cartoesFiltrados = cartoes.filter(c => c.tipo === loteriaAtual);
+        if (cartoesFiltrados.length === 0) return null;
+        const concursos = [...new Set(cartoesFiltrados.map(c => parseInt(c.concurso)))];
+        const ultimoConcursoJogado = Math.max(...concursos);
+        return ultimoConcursoJogado + 1;
+    }
+}
+
 async function setLoteria(loteria) {
     if (loteriaAtual === loteria) return;
     
@@ -218,7 +257,7 @@ async function setLoteria(loteria) {
     // Mostrar cartões (sem acertos)
     mostrarCartes();
     
-    // ATUALIZAR BARRA DE INFORMAÇÕES (COM AWAIT)
+    // ATUALIZAR BARRA DE INFORMAÇÕES
     await atualizarInfoConcursoAtual();
     
     showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
@@ -325,17 +364,14 @@ async function atualizarInfoConcursoAtual() {
         return;
     }
     
-    // Último concurso que temos cartão
     const concursos = [...new Set(cartoesFiltrados.map(c => parseInt(c.concurso)))];
     const concursoAtual = Math.max(...concursos);
     const totalCartoes = cartoesFiltrados.filter(c => c.concurso == concursoAtual).length;
     
-    // Atualizar concurso atual e total de cartões
     if (document.getElementById('concursoAtualNumero')) document.getElementById('concursoAtualNumero').innerText = concursoAtual;
     if (document.getElementById('totalCartoesInfo')) document.getElementById('totalCartoesInfo').innerHTML = `${totalCartoes} cartão${totalCartoes > 1 ? 'es' : ''}`;
     
-    // Buscar próximo concurso oficial
-    let proximoConcurso = await buscarProximoConcursoOficial();
+    const proximoConcurso = await buscarProximoConcursoOficial();
     if (proximoConcurso && document.getElementById('proximoConcursoInfo')) {
         document.getElementById('proximoConcursoInfo').innerHTML = proximoConcurso;
     } else {
@@ -404,7 +440,6 @@ async function conferirResultados() {
         return;
     }
     
-    // ATUALIZAR BARRA DE INFORMAÇÕES
     await atualizarInfoConcursoAtual();
     
     area.innerHTML = '<div class="loading">🔍 Processando...</div>';
@@ -444,7 +479,6 @@ async function conferirResultados() {
         }
     }
     
-    // ATUALIZAR OS CARTÕES COM ACERTOS
     mostrarCartes(numerosSorteados);
     
     const cartoesComAcertos = cartoesConcurso.map(cartao => {
@@ -622,7 +656,6 @@ async function carregarBolaoAtivo() {
             
             html += `
                 <div style="background: white; border-radius: 16px; margin-bottom: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: 1px solid #e2e8f0;">
-                    <!-- CABEÇALHO -->
                     <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <span style="font-size: 20px;">🎯</span>
@@ -630,10 +663,7 @@ async function carregarBolaoAtivo() {
                         </div>
                         <div style="background: ${statusColor}; padding: 4px 14px; border-radius: 30px; font-size: 11px; font-weight: bold; color: white;">${statusText}</div>
                     </div>
-                    
-                    <!-- CORPO -->
                     <div style="padding: 16px 18px;">
-                        <!-- Linha 1: Valor e Data -->
                         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #e2e8f0;">
                             <div style="display: flex; align-items: center; gap: 6px; background: #d1fae5; padding: 6px 14px; border-radius: 30px;">
                                 <span>💰</span>
@@ -642,8 +672,6 @@ async function carregarBolaoAtivo() {
                             </div>
                             ${dataTexto}
                         </div>
-                        
-                        <!-- Linha 2: Estatísticas em 3 blocos -->
                         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px;">
                             <div style="background: #f0fdf4; border-radius: 12px; padding: 10px; text-align: center;">
                                 <div style="font-size: 24px; font-weight: bold; color: #10b981;">${totalQuitados}</div>
@@ -664,8 +692,6 @@ async function carregarBolaoAtivo() {
                                 </div>
                             </div>
                         </div>
-                        
-                        <!-- Botão -->
                         <button class="btn-ver-participantes" data-id="${bolao.id}" style="width: 100%; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); border: none; border-radius: 40px; padding: 12px; font-weight: bold; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s;">
                             👁 VER LISTA DE PARTICIPANTES
                         </button>
@@ -676,7 +702,6 @@ async function carregarBolaoAtivo() {
         }
         container.innerHTML = html;
         
-        // Evento para cada botão
         document.querySelectorAll('.btn-ver-participantes').forEach(btn => {
             btn.onclick = async () => {
                 const id = btn.dataset.id;
@@ -686,7 +711,6 @@ async function carregarBolaoAtivo() {
                     const bolao = boloes.find(b => b.id === id);
                     const participantes = bolao.participantes || [];
                     
-                    // Formatar participantes
                     const participantesFormatados = participantes.map(p => {
                         let statusText = '🔄 EM ANDAMENTO';
                         let bgColor = '#f59e0b';
@@ -703,14 +727,12 @@ async function carregarBolaoAtivo() {
                         };
                     });
                     
-                    // Ordenar: pagos primeiro
                     participantesFormatados.sort((a, b) => {
                         if (a.statusText.includes('PAGO') && !b.statusText.includes('PAGO')) return -1;
                         if (!a.statusText.includes('PAGO') && b.statusText.includes('PAGO')) return 1;
                         return 0;
                     });
                     
-                    // Grid 2 colunas para participantes
                     let listaHtml = '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">';
                     participantesFormatados.forEach(p => {
                         listaHtml += `
@@ -995,51 +1017,3 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('✅ Sistema carregado');
     showToast('🎲 Sistema Bolões Aleatórios carregado!', 'success');
 });
-// Buscar o próximo concurso oficial da loteria atual
-async function buscarProximoConcursoOficial() {
-    try {
-        // Primeiro, pegar o último concurso que temos cartão
-        const cartoesFiltrados = cartoes.filter(c => c.tipo === loteriaAtual);
-        if (cartoesFiltrados.length === 0) return null;
-        
-        const concursos = [...new Set(cartoesFiltrados.map(c => parseInt(c.concurso)))];
-        const ultimoConcursoJogado = Math.max(...concursos);
-        
-        // Buscar na API o último concurso oficial realizado
-        let url;
-        if (loteriaAtual === 'mega') {
-            url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/megasena/ultimo`;
-        } else if (loteriaAtual === 'lotofacil') {
-            url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/lotofacil/ultimo`;
-        } else {
-            url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/quina/ultimo`;
-        }
-        
-        const resp = await fetch(url);
-        if (resp.ok) {
-            const dados = await resp.json();
-            const ultimoConcursoOficial = dados.numero;
-            
-            // Se o último concurso que jogamos é menor que o último oficial,
-            // significa que o concurso já passou
-            if (ultimoConcursoJogado < ultimoConcursoOficial) {
-                // Próximo concurso é o próximo após o último oficial
-                return ultimoConcursoOficial + 1;
-            } else if (ultimoConcursoJogado === ultimoConcursoOficial) {
-                // Ainda não saiu o resultado do próximo
-                return ultimoConcursoOficial + 1;
-            } else {
-                // Caso raro: jogamos um concurso futuro? retorna o próximo
-                return ultimoConcursoJogado + 1;
-            }
-        }
-    } catch (error) {
-        console.warn('Erro ao buscar próximo concurso oficial:', error);
-        // Fallback: calcular baseado no último concurso que temos cartão
-        const cartoesFiltrados = cartoes.filter(c => c.tipo === loteriaAtual);
-        if (cartoesFiltrados.length === 0) return '---';
-        const concursos = [...new Set(cartoesFiltrados.map(c => parseInt(c.concurso)))];
-        const ultimoConcursoJogado = Math.max(...concursos);
-        return ultimoConcursoJogado + 1;
-    }
-}
