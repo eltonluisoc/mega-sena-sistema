@@ -572,7 +572,7 @@ function compartilharWhatsApp() {
         return;
     }
     const { numeros, dataSorteio, premios } = ultimoResultadoDados;
-    const linha = '────────────────────';
+    const linha = '──────────';  // ← ALTERADO: 10 traços em vez de 20
     let loteriaNome = loteriaAtual === 'mega' ? 'MEGA-SENA' : (loteriaAtual === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA');
     
     let msg = `*🏆 RESULTADO - ${loteriaNome}* 🎲\n🏆 Rumo ao Grande Prêmio!\n${linha}\n📌 Concurso: ${ultimoResultadoConcurso}\n🎯 Números Sorteados:\n   ${numeros.join(' - ')}\n`;
