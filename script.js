@@ -661,7 +661,7 @@ async function carregarBolaoAtivo() {
                     // Formatar situação para exibição
                     const participantesFormatados = participantes.map(p => {
                         let situacao = 'pendente';
-                        let statusText = '⏳ PENDENTE';
+                        let statusText = '🔄 EM ANDAMENTO';
                         let bgColor = '#f59e0b';
                         
                         if (p.situacao === 'quitado' || p.situacao === 'pago') {
