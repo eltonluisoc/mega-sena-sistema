@@ -1205,3 +1205,150 @@ textarea.form-control {
         grid-template-columns: 1fr 1fr;
     }
 }
+
+/* ============ ESTILOS PROFISSIONAIS PARA STATUS DOS PARTICIPANTES ============ */
+
+/* Para status PAGO */
+.participante-status-card.pago {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    font-weight: bold;
+    padding: 5px 14px;
+    border-radius: 30px;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s ease;
+}
+
+.participante-status-card.pago::before {
+    content: "✅";
+    font-size: 11px;
+}
+
+.participante-status-card.pago:hover {
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.5);
+}
+
+/* Para status PENDENTE */
+.participante-status-card.pendente {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: white;
+    font-weight: bold;
+    padding: 5px 14px;
+    border-radius: 30px;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s ease;
+}
+
+.participante-status-card.pendente::before {
+    content: "⏳";
+    font-size: 11px;
+}
+
+.participante-status-card.pendente:hover {
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.5);
+}
+
+/* Para status QUITADO (para compatibilidade) */
+.participante-status-card.quitado {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    font-weight: bold;
+    padding: 5px 14px;
+    border-radius: 30px;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.participante-status-card.quitado::before {
+    content: "✅";
+    font-size: 11px;
+}
+
+/* Ajuste do card do participante */
+.participante-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 14px;
+    background: white;
+    border-radius: 14px;
+    transition: all 0.2s ease;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+}
+
+.participante-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 14px rgba(0,0,0,0.1);
+    border-color: #3b82f6;
+}
+
+.participante-nome {
+    font-weight: 600;
+    font-size: 13px;
+    color: #1e293b;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.participante-nome::before {
+    content: "👤";
+    font-size: 14px;
+}
+
+/* Grid de participantes */
+.participantes-lista {
+    margin-top: 16px;
+    background: #f8fafc;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    padding: 14px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+/* Responsivo */
+@media (max-width: 768px) {
+    .participantes-lista {
+        grid-template-columns: 1fr;
+        gap: 10px;
+        padding: 10px;
+    }
+    
+    .participante-card {
+        padding: 10px 12px;
+    }
+    
+    .participante-nome {
+        font-size: 12px;
+    }
+    
+    .participante-status-card.pago,
+    .participante-status-card.pendente,
+    .participante-status-card.quitado {
+        padding: 4px 12px;
+        font-size: 10px;
+    }
+}
