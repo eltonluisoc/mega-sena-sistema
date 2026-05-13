@@ -177,7 +177,13 @@ async function buscarProximoConcursoOficial() {
         }
         
         console.log(`🔍 Buscando último concurso oficial de ${loteriaAtual}...`);
-        const resp = await fetch(url);
+        
+        // Timeout de 5 segundos
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        
+        const resp = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
         
         if (resp.ok) {
             const dados = await resp.json();
@@ -185,6 +191,7 @@ async function buscarProximoConcursoOficial() {
             console.log(`📊 Último oficial: ${ultimoConcursoOficial}, Último jogado: ${ultimoConcursoJogado}`);
             return ultimoConcursoOficial + 1;
         } else {
+            console.warn('API não respondeu, usando fallback');
             return ultimoConcursoJogado + 1;
         }
     } catch (error) {
@@ -364,18 +371,30 @@ async function atualizarInfoConcursoAtual() {
         return;
     }
     
+    // Último concurso que temos cartão
     const concursos = [...new Set(cartoesFiltrados.map(c => parseInt(c.concurso)))];
     const concursoAtual = Math.max(...concursos);
     const totalCartoes = cartoesFiltrados.filter(c => c.concurso == concursoAtual).length;
     
-    if (document.getElementById('concursoAtualNumero')) document.getElementById('concursoAtualNumero').innerText = concursoAtual;
-    if (document.getElementById('totalCartoesInfo')) document.getElementById('totalCartoesInfo').innerHTML = `${totalCartoes} cartão${totalCartoes > 1 ? 'es' : ''}`;
+    // Atualizar concurso atual
+    if (document.getElementById('concursoAtualNumero')) {
+        document.getElementById('concursoAtualNumero').innerText = concursoAtual;
+    }
     
+    // Atualizar total de cartões com plural correto
+    if (document.getElementById('totalCartoesInfo')) {
+        const textoCartao = totalCartoes === 1 ? 'cartão' : 'cartões';
+        document.getElementById('totalCartoesInfo').innerHTML = `${totalCartoes} ${textoCartao}`;
+    }
+    
+    // Buscar próximo concurso oficial
     const proximoConcurso = await buscarProximoConcursoOficial();
     if (proximoConcurso && document.getElementById('proximoConcursoInfo')) {
         document.getElementById('proximoConcursoInfo').innerHTML = proximoConcurso;
     } else {
-        if (document.getElementById('proximoConcursoInfo')) document.getElementById('proximoConcursoInfo').innerHTML = '---';
+        if (document.getElementById('proximoConcursoInfo')) {
+            document.getElementById('proximoConcursoInfo').innerHTML = '---';
+        }
     }
 }
 
