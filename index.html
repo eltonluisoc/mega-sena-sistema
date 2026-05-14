@@ -268,5 +268,16 @@
             });
         }
     </script>
+    <script>
+    // Forçar recarregamento dos bolões especiais após 2 segundos
+    setTimeout(() => {
+        if (typeof carregarBolaoAtivo === 'function') {
+            console.log('🔧 Forçando recarregamento dos bolões...');
+            carregarBolaoAtivo();
+        } else {
+            console.log('❌ Função carregarBolaoAtivo não encontrada');
+        }
+    }, 2000);
+</script>
 </body>
 </html>

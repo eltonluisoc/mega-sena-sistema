@@ -1024,4 +1024,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     console.log('✅ Sistema carregado');
     showToast('🎲 Sistema Bolões Aleatórios carregado!', 'success');
+// Forçar recarregamento dos bolões especiais
+setTimeout(() => {
+    carregarBolaoAtivo();
+    carregarBolaoAberto();
+}, 1000);
 });
