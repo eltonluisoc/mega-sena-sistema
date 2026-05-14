@@ -676,30 +676,34 @@ async function carregarBolaoAtivo() {
             html += `
                 <div class="bolao-card">
                     <div class="bolao-header">
-                        <div class="bolao-nome">🎯 ${bolao.titulo}</div>
+                        <div class="bolao-nome">
+                            <span>🎯</span> ${bolao.titulo}
+                        </div>
                         <div class="bolao-status ${statusClass}">${statusText}</div>
                     </div>
                     <div class="bolao-body">
                         <div class="bolao-info">
-                            <div class="bolao-valor">💰 <span>R$ ${bolao.valorPorCota || 0},00</span> / cota</div>
+                            <div class="bolao-valor">💰 R$ ${bolao.valorPorCota || 0},00 <span style="font-size:12px;">/ cota</span></div>
                             ${dataTexto}
                         </div>
                         <div class="bolao-stats">
                             <div class="stat-item">
                                 <div class="stat-number quitado">${totalQuitados}</div>
-                                <div class="stat-label">✅ CONFIRMADOS</div>
+                                <div class="stat-label">CONFIRMADOS</div>
                             </div>
                             <div class="stat-item">
                                 <div class="stat-number andamento">${totalAndamento}</div>
-                                <div class="stat-label">⏳ PENDENTES</div>
+                                <div class="stat-label">PENDENTES</div>
                             </div>
                             <div class="stat-item">
                                 <div class="stat-number">${participantes.length}</div>
-                                <div class="stat-label">👥 TOTAL</div>
+                                <div class="stat-label">TOTAL</div>
                             </div>
                         </div>
-                        <button class="btn-ver-participantes" data-id="${bolao.id}">👁 VER LISTA DE PARTICIPANTES</button>
-                        <div id="participantes-${bolao.id}" style="display: none; margin-top: 12px;"></div>
+                        <button class="btn-ver-participantes" data-id="${bolao.id}">
+                            👁 VER LISTA DE PARTICIPANTES
+                        </button>
+                        <div id="participantes-${bolao.id}" style="display: none; margin-top: 16px;"></div>
                     </div>
                 </div>
             `;
@@ -741,7 +745,7 @@ async function carregarBolaoAtivo() {
                     participantesFormatados.forEach(p => {
                         listaHtml += `
                             <div class="participante-card">
-                                <span class="participante-nome">👤 ${p.nome}</span>
+                                <span class="participante-nome">${p.nome}</span>
                                 <span class="participante-status ${p.statusClass}">${p.statusText}</span>
                             </div>
                         `;

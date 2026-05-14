@@ -5,8 +5,8 @@
 }
 
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: linear-gradient(135deg, #3b82f6 0%, #10b981 100%);
     min-height: 100vh;
 }
 
@@ -20,7 +20,6 @@ body {
     align-items: center;
     flex-wrap: wrap;
     gap: 10px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
 
 .logo {
@@ -34,67 +33,33 @@ body {
     margin-left: 8px;
 }
 
-.stats {
-    background: rgba(255,255,255,0.1);
-    padding: 5px 12px;
-    border-radius: 20px;
-    font-size: 12px;
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-
-.btn-logout {
-    background: #ef4444;
-    color: white;
-    border: none;
-    padding: 5px 12px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: bold;
-    font-size: 12px;
-}
-
-/* ============ CONTAINER PRINCIPAL ============ */
+/* ============ CONTAINER ============ */
 .container {
-    max-width: 1400px;
+    max-width: 1200px;
     margin: 20px auto;
     padding: 0 15px;
 }
 
-/* ============ LAYOUT ADMIN ============ */
-.admin-layout {
-    display: grid;
-    grid-template-columns: 1fr 1.5fr;
-    gap: 20px;
-}
-
-.cadastro-panel, .lista-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
-
-/* ============ CARDS ============ */
+/* ============ CARDS GERAIS ============ */
 .card {
     background: white;
-    border-radius: 12px;
+    border-radius: 16px;
     overflow: hidden;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
 }
 
 .card-header {
-    padding: 12px 15px;
+    padding: 14px 18px;
     font-weight: bold;
     font-size: 16px;
     color: white;
 }
 
 .card-body {
-    padding: 15px;
+    padding: 16px;
 }
 
-.bg-purple { background: #8b5cf6; }
 .bg-blue { background: #3b82f6; }
 .bg-green { background: #10b981; }
 .bg-orange { background: #f59e0b; }
@@ -102,13 +67,6 @@ body {
 /* ============ FORMULÁRIOS ============ */
 .form-group {
     margin-bottom: 12px;
-}
-
-.form-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 15px;
-    margin-bottom: 15px;
 }
 
 label {
@@ -119,125 +77,30 @@ label {
     font-size: 13px;
 }
 
-.form-control {
+select, .form-control {
     width: 100%;
     padding: 10px;
     border: 1px solid #ddd;
-    border-radius: 8px;
+    border-radius: 10px;
     font-size: 14px;
 }
 
-.form-control:focus {
-    outline: none;
-    border-color: #667eea;
-}
-
-textarea.form-control {
-    font-family: 'Courier New', monospace;
-    resize: vertical;
-    font-size: 13px;
-}
-
-/* ============ BOTÕES ============ */
-.btn {
-    padding: 10px 16px;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: bold;
-    transition: all 0.3s;
-    font-size: 13px;
-}
-
-.btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-}
-
-.btn-primary { background: #3b82f6; color: white; }
-.btn-success { background: #10b981; color: white; }
-.btn-green { background: #059669; color: white; }
-.btn-gray { background: #64748b; color: white; }
-.btn-purple { background: #8b5cf6; color: white; }
-.btn-red { background: #ef4444; color: white; }
-.btn-large { width: 100%; padding: 12px; font-size: 15px; }
-
-.form-buttons {
-    display: flex;
-    gap: 10px;
-    margin-top: 15px;
-    flex-wrap: wrap;
-}
-
-/* ============ FILTROS ============ */
-.filtros {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 15px;
-    flex-wrap: wrap;
-    align-items: center;
-}
-
-.form-control-sm {
-    padding: 8px 10px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    flex: 1;
-    min-width: 120px;
-}
-
-.btn-sm {
-    padding: 8px 12px;
-    font-size: 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    border: none;
-    font-weight: bold;
-}
-
-.btn-blue { background: #3b82f6; color: white; }
-
-/* ============ LISTA DE CARTÕES ============ */
-.cartoes-grid {
-    max-height: 500px;
-    overflow-y: auto;
-}
-
-.cartao-item {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    padding: 10px;
-    margin-bottom: 10px;
-}
-
-.checkbox-cartao {
-    cursor: pointer;
-    flex-shrink: 0;
-}
-
-.btn-editar {
+button {
     background: #3b82f6;
     color: white;
     border: none;
-    border-radius: 6px;
-    cursor: pointer;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-size: 14px;
     font-weight: bold;
-    transition: all 0.3s;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: 100%;
 }
 
-.btn-editar:hover {
+button:hover {
     background: #2563eb;
     transform: translateY(-1px);
-}
-
-.dica {
-    background: #fef3c7;
-    color: #92400e;
-    padding: 8px 12px;
-    border-radius: 8px;
-    font-size: 12px;
-    margin: 12px 0;
 }
 
 /* ============ STATUS ============ */
@@ -246,7 +109,7 @@ textarea.form-control {
     padding: 10px;
     border-radius: 8px;
     text-align: center;
-    font-size: 13px;
+    font-size: 12px;
 }
 
 .status-success { background: #d1fae5; color: #065f46; }
@@ -255,54 +118,15 @@ textarea.form-control {
 
 .empty-state {
     text-align: center;
-    padding: 40px 20px;
+    padding: 40px;
     color: #94a3b8;
-    font-size: 14px;
+    font-size: 13px;
 }
 
 .loading {
     text-align: center;
     padding: 40px;
     color: #3b82f6;
-}
-
-/* ============ MODAL ============ */
-.modal {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.5);
-    z-index: 1000;
-    justify-content: center;
-    align-items: center;
-}
-
-.modal.show {
-    display: flex;
-}
-
-.modal-content {
-    background: white;
-    border-radius: 12px;
-    width: 90%;
-    max-width: 350px;
-    overflow: hidden;
-}
-
-.modal-header {
-    background: #3b82f6;
-    color: white;
-    padding: 15px;
-    font-weight: bold;
-    text-align: center;
-    font-size: 16px;
-}
-
-.modal-body {
-    padding: 20px;
 }
 
 /* ============ RODAPÉ ============ */
@@ -324,319 +148,166 @@ textarea.form-control {
     z-index: 9999;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    pointer-events: none;
+    gap: 8px;
 }
 
 .toast {
     background: #1e293b;
     color: white;
-    padding: 12px 24px;
+    padding: 10px 20px;
     border-radius: 8px;
-    font-size: 14px;
-    font-weight: 500;
+    font-size: 13px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    display: flex;
-    align-items: center;
-    gap: 10px;
     animation: slideUp 0.3s ease-out;
-    pointer-events: auto;
-    min-width: 200px;
-    max-width: 90vw;
-    justify-content: center;
 }
 
 .toast-success { background: #10b981; }
 .toast-error { background: #ef4444; }
 .toast-info { background: #3b82f6; }
-.toast-warning { background: #f59e0b; }
 
 @keyframes slideUp {
     from { opacity: 0; transform: translateY(20px); }
     to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes fadeOut {
-    from { opacity: 1; }
-    to { opacity: 0; visibility: hidden; }
-}
+/* ============ BOLÕES ESPECIAIS - DESIGN APPLE ============ */
 
-/* ============ BOTÕES DE LOTERIA ============ */
-.loteria-btn.quina { background: #b91c1c; }
-.loteria-btn.quina.active { background: #ef4444; box-shadow: 0 0 15px rgba(239,68,68,0.5); }
-.loteria-btn-admin.quina { background: #ef4444; color: white; }
-.loteria-btn-admin.quina.active { background: #dc2626; }
-.card-header.bg-red { background: #ef4444; }
-
-/* ============ ANIMAÇÃO CARD ABERTO ============ */
-@keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-    70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
-}
-
-#cardBolaoAberto .card {
-    animation: pulse 1.5s infinite;
-}
-
-/* ============ RESULTADOS UNIFICADOS ============ */
-.resultado-resumo {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
-    gap: 10px;
-    margin-bottom: 20px;
-    background: #f1f5f9;
-    padding: 15px;
-    border-radius: 12px;
-}
-
-.resultado-resumo-item {
-    text-align: center;
-    padding: 8px;
-    background: white;
-    border-radius: 10px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}
-
-.resultado-resumo-numero {
-    font-size: 24px;
-    font-weight: bold;
-}
-
-.resultado-resumo-label {
-    font-size: 10px;
-    color: #64748b;
-}
-
-.numeros-sorteados {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    justify-content: center;
-    margin: 15px 0;
-    background: #d1fae5;
-    padding: 12px;
-    border-radius: 12px;
-}
-
-.numero-sorteado-card {
-    background: #10b981;
-    color: white;
-    width: 45px;
-    height: 45px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    font-weight: bold;
-    font-size: 16px;
-}
-
-.cartao-item-unificado {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 12px;
-    margin-bottom: 12px;
-}
-
-.cartao-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    margin-bottom: 10px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid #e2e8f0;
-}
-
-.cartao-bolao {
-    font-weight: bold;
-    font-size: 13px;
-    color: #3b82f6;
-}
-
-.cartao-acertos {
-    background: #cbd5e1;
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-size: 11px;
-    font-weight: bold;
-    color: white;
-}
-
-.cartao-numeros {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    justify-content: center;
-}
-
-.numero-acertado {
-    background: #10b981;
-    color: white;
-    padding: 6px 10px;
-    border-radius: 8px;
-    font-family: monospace;
-    font-size: 12px;
-    font-weight: bold;
-    min-width: 35px;
-    text-align: center;
-}
-
-.numero-normal {
-    background: #e2e8f0;
-    color: #333;
-    padding: 6px 10px;
-    border-radius: 8px;
-    font-family: monospace;
-    font-size: 12px;
-    min-width: 35px;
-    text-align: center;
-}
-
-@media (max-width: 480px) {
-    .numero-sorteado-card { width: 35px; height: 35px; font-size: 14px; }
-    .numero-acertado, .numero-normal { padding: 4px 6px; font-size: 10px; min-width: 28px; }
-    .resultado-resumo-numero { font-size: 18px; }
-}
-
-/* ============ BOLÕES ESPECIAIS - DESIGN PROFISSIONAL ============ */
+/* Card do bolão */
 .bolao-card {
     background: #ffffff;
-    border-radius: 16px;
+    border-radius: 20px;
     margin-bottom: 16px;
     overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-    border: 1px solid #e2e8f0;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    border: 1px solid #e9ecef;
+    transition: all 0.2s ease;
 }
 
 .bolao-card:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
 }
 
+/* Cabeçalho - estilo Apple */
 .bolao-header {
-    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
     padding: 14px 18px;
+    background: #ffffff;
+    border-bottom: 1px solid #f0f0f0;
     display: flex;
     justify-content: space-between;
     align-items: center;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 8px;
 }
 
 .bolao-nome {
-    font-weight: bold;
-    font-size: 15px;
-    color: white;
+    font-size: 17px;
+    font-weight: 600;
+    color: #1c1c1e;
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
+/* Status badge */
 .bolao-status {
-    font-size: 11px;
-    font-weight: bold;
-    padding: 4px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 14px;
     border-radius: 30px;
-    color: white;
+    background: #f2f2f2;
+    color: #1c1c1e;
 }
 
 .bolao-status.aberto {
-    background: #10b981;
-    box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+    background: #e8f5e9;
+    color: #2e7d32;
 }
 
 .bolao-status.andamento {
-    background: #f59e0b;
+    background: #fff3e0;
+    color: #ed6c02;
 }
 
+/* Corpo do card */
 .bolao-body {
     padding: 16px 18px;
 }
 
+/* Linha de informações */
 .bolao-info {
     display: flex;
     justify-content: space-between;
     align-items: center;
     flex-wrap: wrap;
-    gap: 10px;
-    margin-bottom: 16px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid #e2e8f0;
-}
-
-.bolao-valor {
-    background: #d1fae5;
-    padding: 6px 14px;
-    border-radius: 30px;
-    font-size: 13px;
-    font-weight: bold;
-    color: #065f46;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.bolao-valor span {
-    font-size: 15px;
-}
-
-.bolao-data {
-    font-size: 12px;
-    color: #64748b;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.bolao-stats {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
     gap: 12px;
     margin-bottom: 16px;
 }
 
+.bolao-valor {
+    background: #e8f5e9;
+    padding: 6px 14px;
+    border-radius: 30px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #2e7d32;
+}
+
+.bolao-data {
+    font-size: 12px;
+    color: #8e8e93;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Estatísticas - 3 colunas estilo Apple */
+.bolao-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
 .stat-item {
-    background: #f8fafc;
-    border-radius: 12px;
-    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 14px;
+    padding: 10px 8px;
     text-align: center;
 }
 
 .stat-number {
     font-size: 22px;
-    font-weight: bold;
+    font-weight: 700;
+    color: #1c1c1e;
 }
 
 .stat-number.quitado {
-    color: #10b981;
+    color: #2e7d32;
 }
 
 .stat-number.andamento {
-    color: #f59e0b;
+    color: #ed6c02;
 }
 
 .stat-label {
     font-size: 10px;
-    color: #64748b;
+    font-weight: 500;
+    color: #8e8e93;
     margin-top: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
 }
 
+/* Botão ver participantes */
 .btn-ver-participantes {
     width: 100%;
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    background: #007aff;
     border: none;
-    border-radius: 40px;
-    padding: 10px 16px;
-    font-weight: bold;
-    font-size: 13px;
+    border-radius: 12px;
+    padding: 12px;
+    font-weight: 600;
+    font-size: 15px;
     color: white;
     cursor: pointer;
     display: flex;
@@ -647,169 +318,226 @@ textarea.form-control {
 }
 
 .btn-ver-participantes:hover {
-    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-    transform: scale(1.01);
+    background: #005fc1;
+    transform: scale(0.98);
 }
 
-/* LISTA DE PARTICIPANTES EM GRID 2 COLUNAS */
+/* LISTA DE PARTICIPANTES - GRID 2 COLUNAS */
 .participantes-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    margin-top: 12px;
+    gap: 10px;
+    margin-top: 16px;
 }
 
+/* Card do participante estilo Apple */
 .participante-card {
-    background: #f8fafc;
-    border-radius: 10px;
-    padding: 8px 10px;
+    background: #f8f9fa;
+    border-radius: 12px;
+    padding: 12px 14px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border: 1px solid #e2e8f0;
     transition: all 0.2s ease;
 }
 
 .participante-card:hover {
     background: #ffffff;
-    border-color: #cbd5e1;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .participante-nome {
     font-weight: 500;
-    font-size: 12px;
-    color: #1e293b;
+    font-size: 14px;
+    color: #1c1c1e;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: 65%;
 }
 
+/* Status badges */
 .participante-status {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 600;
-    padding: 4px 10px;
+    padding: 5px 12px;
     border-radius: 30px;
-    letter-spacing: 0.3px;
 }
 
 .participante-status.pago {
-    background: #dcfce7;
-    color: #166534;
-    border: 1px solid #bbf7d0;
+    background: #e8f5e9;
+    color: #2e7d32;
 }
 
 .participante-status.pendente {
-    background: #fef3c7;
-    color: #92400e;
-    border: 1px solid #fde68a;
+    background: #fff3e0;
+    color: #ed6c02;
 }
 
-/* ============ RESPONSIVIDADE GERAL ============ */
-@media (max-width: 900px) {
-    .admin-layout {
-        grid-template-columns: 1fr;
-    }
-    .form-row {
-        grid-template-columns: 1fr;
-        gap: 10px;
-    }
-    .top-bar {
-        flex-direction: column;
-        text-align: center;
-    }
-    .stats {
-        justify-content: center;
-    }
-    .container {
-        padding: 0 10px;
-        margin: 10px auto;
-    }
+/* ============ RESULTADOS ============ */
+.resultado-resumo {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+    gap: 10px;
+    margin-bottom: 20px;
+    background: #f8f9fa;
+    padding: 16px;
+    border-radius: 16px;
 }
 
+.resultado-resumo-item {
+    text-align: center;
+    padding: 8px;
+    background: white;
+    border-radius: 12px;
+}
+
+.resultado-resumo-numero {
+    font-size: 22px;
+    font-weight: bold;
+}
+
+.resultado-resumo-label {
+    font-size: 10px;
+    color: #8e8e93;
+}
+
+.numeros-sorteados {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin: 15px 0;
+    background: #e8f5e9;
+    padding: 16px;
+    border-radius: 20px;
+}
+
+.numero-sorteado-card {
+    background: #2e7d32;
+    color: white;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-weight: bold;
+    font-size: 16px;
+}
+
+/* ============ CARTÕES COM ACERTOS ============ */
+.cartao-item-unificado {
+    background: #f8f9fa;
+    border-radius: 16px;
+    padding: 14px;
+    margin-bottom: 12px;
+}
+
+.cartao-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.cartao-bolao {
+    font-weight: 600;
+    font-size: 13px;
+    color: #007aff;
+}
+
+.cartao-acertos {
+    background: #007aff;
+    padding: 4px 12px;
+    border-radius: 30px;
+    font-size: 11px;
+    font-weight: bold;
+    color: white;
+}
+
+.cartao-numeros {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+}
+
+.numero-acertado {
+    background: #2e7d32;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-family: monospace;
+    font-size: 14px;
+    font-weight: bold;
+    min-width: 45px;
+    text-align: center;
+}
+
+.numero-normal {
+    background: #e9ecef;
+    color: #495057;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-family: monospace;
+    font-size: 14px;
+    min-width: 45px;
+    text-align: center;
+}
+
+/* ============ RESPONSIVO ============ */
 @media (max-width: 768px) {
     .bolao-header {
-        padding: 10px 14px;
+        padding: 12px 14px;
     }
     .bolao-nome {
-        font-size: 13px;
+        font-size: 15px;
     }
     .bolao-status {
-        font-size: 9px;
-        padding: 3px 12px;
+        font-size: 10px;
+        padding: 4px 12px;
     }
     .bolao-body {
         padding: 12px 14px;
     }
     .bolao-valor {
-        font-size: 11px;
-        padding: 4px 10px;
+        font-size: 12px;
+        padding: 4px 12px;
     }
-    .bolao-valor span {
+    .stat-number {
+        font-size: 18px;
+    }
+    .btn-ver-participantes {
         font-size: 13px;
+        padding: 10px;
     }
-    .bolao-data {
-        font-size: 10px;
+    .participantes-grid {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    .participante-card {
+        padding: 10px 12px;
+    }
+    .numero-sorteado-card {
+        width: 40px;
+        height: 40px;
+        font-size: 14px;
+    }
+}
+
+@media (max-width: 480px) {
+    .bolao-stats {
+        gap: 8px;
     }
     .stat-number {
         font-size: 16px;
     }
     .stat-label {
-        font-size: 8px;
-    }
-    .btn-ver-participantes {
-        font-size: 11px;
-        padding: 8px 12px;
-    }
-    .participantes-grid {
-        gap: 6px;
-    }
-    .participante-card {
-        padding: 6px 8px;
+        font-size: 9px;
     }
     .participante-nome {
-        font-size: 10px;
-    }
-    .participante-status {
-        font-size: 9px;
-        padding: 3px 8px;
-    }
-    .cartao-item > div {
-        flex-direction: row !important;
-        align-items: flex-start !important;
-        flex-wrap: wrap;
-    }
-    .filtros {
-        flex-direction: column;
-        width: 100%;
-    }
-    .filtros select,
-    .filtros button {
-        width: 100%;
-        margin: 3px 0;
-    }
-}
-
-@media (max-width: 480px) {
-    .logo {
-        font-size: 18px;
-    }
-    .version {
-        font-size: 9px;
-    }
-    .stats {
-        font-size: 10px;
-        gap: 8px;
-    }
-    .btn-logout {
-        font-size: 10px;
-        padding: 4px 10px;
-    }
-    .card-header {
-        font-size: 13px;
-    }
-    .btn {
         font-size: 12px;
-        padding: 8px 12px;
     }
 }
