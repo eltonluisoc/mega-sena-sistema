@@ -14,151 +14,9 @@
     <meta name="apple-mobile-web-app-title" content="Bolões Aleatórios">
     
     <link rel="apple-touch-icon" href="/mega-sena-sistema/icon.png">
-
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #3b82f6 0%, #10b981 100%); min-height: 100vh; }
-        
-        .top-bar { background: #1e293b; color: white; padding: 15px 20px; text-align: center; }
-        .logo { font-size: 22px; font-weight: bold; }
-        .version { font-size: 11px; color: #94a3b8; margin-left: 8px; }
-        .subtitle { text-align: center; font-size: 12px; color: #f59e0b; margin-top: 5px; font-weight: bold; }
-        
-        .loteria-selector { display: flex; justify-content: center; gap: 15px; margin: 20px 0; flex-wrap: wrap; }
-        .loteria-btn { background: white; border: 2px solid #e2e8f0; border-radius: 16px; padding: 12px 20px; cursor: pointer; transition: all 0.3s ease; width: 110px; text-align: center; }
-        .loteria-btn .loteria-icon { font-size: 28px; display: block; }
-        .loteria-btn .loteria-nome { font-size: 14px; font-weight: bold; margin-top: 5px; color: #1e293b; }
-        .loteria-btn:hover { transform: translateY(-3px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-        .loteria-btn.active { background: #3b82f6; border-color: #3b82f6; }
-        .loteria-btn.active .loteria-nome { color: white; }
-        
-        .container { max-width: 1200px; margin: 20px auto; padding: 0 15px; }
-        .card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-bottom: 20px; }
-        .card-header { padding: 12px 15px; font-weight: bold; font-size: 16px; color: white; }
-        .card-body { padding: 15px; }
-        .bg-blue { background: #3b82f6; }
-        .bg-green { background: #10b981; }
-        .bg-orange { background: #f59e0b; }
-        
-        .form-group { margin-bottom: 12px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; color: #333; font-size: 13px; }
-        select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
-        button { background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; transition: all 0.3s; width: 100%; }
-        button:hover { background: #2563eb; transform: translateY(-1px); }
-        
-        .status { margin-top: 10px; padding: 8px; border-radius: 8px; text-align: center; font-size: 12px; }
-        .status-success { background: #d1fae5; color: #065f46; }
-        .status-error { background: #fee2e2; color: #991b1b; }
-        .status-info { background: #dbeafe; color: #1e40af; }
-        
-        .empty-state { text-align: center; padding: 30px; color: #94a3b8; font-size: 13px; }
-        .loading { text-align: center; padding: 30px; color: #3b82f6; }
-        
-        .footer { text-align: center; padding: 15px; color: #94a3b8; font-size: 11px; background: #1e293b; margin-top: 20px; }
-        
-        .resultado-resumo {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
-            gap: 10px;
-            margin-bottom: 20px;
-            background: #f1f5f9;
-            padding: 15px;
-            border-radius: 12px;
-        }
-        .resultado-resumo-item {
-            text-align: center;
-            padding: 8px;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        .resultado-resumo-numero { font-size: 24px; font-weight: bold; }
-        .resultado-resumo-label { font-size: 10px; color: #64748b; }
-        
-        .numeros-sorteados {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            justify-content: center;
-            margin: 15px 0;
-            background: #d1fae5;
-            padding: 12px;
-            border-radius: 12px;
-        }
-        .numero-sorteado-card {
-            background: #10b981;
-            color: white;
-            width: 45px;
-            height: 45px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-            font-weight: bold;
-            font-size: 16px;
-        }
-        
-        .cartao-item-unificado {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 12px;
-            margin-bottom: 12px;
-        }
-        .cartao-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            margin-bottom: 10px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid #e2e8f0;
-        }
-        .cartao-bolao { font-weight: bold; font-size: 13px; color: #3b82f6; }
-        .cartao-acertos { background: #cbd5e1; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; color: white; }
-        .cartao-numeros { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
-        .numero-acertado { background: #10b981; color: white; padding: 6px 10px; border-radius: 8px; font-family: monospace; font-size: 12px; font-weight: bold; min-width: 35px; text-align: center; }
-        .numero-normal { background: #e2e8f0; color: #333; padding: 6px 10px; border-radius: 8px; font-family: monospace; font-size: 12px; min-width: 35px; text-align: center; }
-        
-        @media (max-width: 480px) {
-            .numero-sorteado-card { width: 35px; height: 35px; font-size: 14px; }
-            .numero-acertado, .numero-normal { padding: 4px 6px; font-size: 10px; min-width: 28px; }
-            .resultado-resumo-numero { font-size: 18px; }
-        }
-        
-        .toast-container {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 9999;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            pointer-events: none;
-        }
-        .toast {
-            background: #1e293b;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 500;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            animation: slideUp 0.3s ease-out;
-            pointer-events: auto;
-        }
-        .toast-success { background: #10b981; }
-        .toast-error { background: #ef4444; }
-        .toast-info { background: #3b82f6; }
-        
-        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; visibility: hidden; } }
-        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(245,158,11,0.4); } 70% { box-shadow: 0 0 0 10px rgba(245,158,11,0); } 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0); } }
-    </style>
+    
+    <!-- CSS Externo -->
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="top-bar">
@@ -181,8 +39,6 @@
             <span class="loteria-nome">QUINA</span>
         </button>
     </div>
-
-    
 
     <div class="container">
         <!-- Card: Bolão Aberto (destaque) -->
@@ -267,17 +123,16 @@
                     .catch(error => console.log('❌ Service Worker falhou:', error));
             });
         }
+        
+        // Forçar recarregamento dos bolões especiais
+        setTimeout(() => {
+            if (typeof carregarBolaoAtivo === 'function') {
+                carregarBolaoAtivo();
+            }
+            if (typeof carregarBolaoAberto === 'function') {
+                carregarBolaoAberto();
+            }
+        }, 2000);
     </script>
-    <script>
-    // Forçar recarregamento dos bolões especiais após 2 segundos
-    setTimeout(() => {
-        if (typeof carregarBolaoAtivo === 'function') {
-            console.log('🔧 Forçando recarregamento dos bolões...');
-            carregarBolaoAtivo();
-        } else {
-            console.log('❌ Função carregarBolaoAtivo não encontrada');
-        }
-    }, 2000);
-</script>
 </body>
 </html>

@@ -10,16 +10,11 @@ body {
     min-height: 100vh;
 }
 
-/* ============ BARRA SUPERIOR ============ */
 .top-bar {
     background: #1e293b;
     color: white;
     padding: 15px 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 10px;
+    text-align: center;
 }
 
 .logo {
@@ -33,14 +28,59 @@ body {
     margin-left: 8px;
 }
 
-/* ============ CONTAINER ============ */
+.subtitle {
+    font-size: 12px;
+    color: #f59e0b;
+    margin-top: 5px;
+    font-weight: bold;
+}
+
+.loteria-selector {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin: 20px 0;
+    flex-wrap: wrap;
+}
+
+.loteria-btn {
+    background: white;
+    border: 2px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 12px 20px;
+    cursor: pointer;
+    width: 110px;
+    text-align: center;
+    transition: all 0.3s;
+}
+
+.loteria-btn .loteria-icon {
+    font-size: 28px;
+    display: block;
+}
+
+.loteria-btn .loteria-nome {
+    font-size: 14px;
+    font-weight: bold;
+    margin-top: 5px;
+    color: #1e293b;
+}
+
+.loteria-btn.active {
+    background: #3b82f6;
+    border-color: #3b82f6;
+}
+
+.loteria-btn.active .loteria-nome {
+    color: white;
+}
+
 .container {
     max-width: 1200px;
     margin: 20px auto;
     padding: 0 15px;
 }
 
-/* ============ CARDS GERAIS ============ */
 .card {
     background: white;
     border-radius: 16px;
@@ -60,11 +100,18 @@ body {
     padding: 16px;
 }
 
-.bg-blue { background: #3b82f6; }
-.bg-green { background: #10b981; }
-.bg-orange { background: #f59e0b; }
+.bg-blue {
+    background: #3b82f6;
+}
 
-/* ============ FORMULÁRIOS ============ */
+.bg-green {
+    background: #10b981;
+}
+
+.bg-orange {
+    background: #f59e0b;
+}
+
 .form-group {
     margin-bottom: 12px;
 }
@@ -77,7 +124,7 @@ label {
     font-size: 13px;
 }
 
-select, .form-control {
+select {
     width: 100%;
     padding: 10px;
     border: 1px solid #ddd;
@@ -94,27 +141,13 @@ button {
     font-size: 14px;
     font-weight: bold;
     cursor: pointer;
-    transition: all 0.2s;
     width: 100%;
+    transition: all 0.2s;
 }
 
 button:hover {
     background: #2563eb;
-    transform: translateY(-1px);
 }
-
-/* ============ STATUS ============ */
-.status {
-    margin-top: 10px;
-    padding: 10px;
-    border-radius: 8px;
-    text-align: center;
-    font-size: 12px;
-}
-
-.status-success { background: #d1fae5; color: #065f46; }
-.status-error { background: #fee2e2; color: #991b1b; }
-.status-info { background: #dbeafe; color: #1e40af; }
 
 .empty-state {
     text-align: center;
@@ -129,7 +162,6 @@ button:hover {
     color: #3b82f6;
 }
 
-/* ============ RODAPÉ ============ */
 .footer {
     background: #1e293b;
     color: #94a3b8;
@@ -139,56 +171,39 @@ button:hover {
     margin-top: 30px;
 }
 
-/* ============ TOAST ============ */
-.toast-container {
-    position: fixed;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 9999;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.toast {
-    background: #1e293b;
-    color: white;
-    padding: 10px 20px;
+.status {
+    margin-top: 10px;
+    padding: 10px;
     border-radius: 8px;
-    font-size: 13px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    animation: slideUp 0.3s ease-out;
+    text-align: center;
+    font-size: 12px;
 }
 
-.toast-success { background: #10b981; }
-.toast-error { background: #ef4444; }
-.toast-info { background: #3b82f6; }
+.status-success {
+    background: #d1fae5;
+    color: #065f46;
+}
 
-@keyframes slideUp {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
+.status-error {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.status-info {
+    background: #dbeafe;
+    color: #1e40af;
 }
 
 /* ============ BOLÕES ESPECIAIS - DESIGN APPLE ============ */
-
-/* Card do bolão */
 .bolao-card {
     background: #ffffff;
     border-radius: 20px;
     margin-bottom: 16px;
     overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
     border: 1px solid #e9ecef;
-    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
-.bolao-card:hover {
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
-    transform: translateY(-2px);
-}
-
-/* Cabeçalho - estilo Apple */
 .bolao-header {
     padding: 14px 18px;
     background: #ffffff;
@@ -197,7 +212,6 @@ button:hover {
     justify-content: space-between;
     align-items: center;
     flex-wrap: wrap;
-    gap: 8px;
 }
 
 .bolao-nome {
@@ -209,14 +223,11 @@ button:hover {
     gap: 8px;
 }
 
-/* Status badge */
 .bolao-status {
     font-size: 12px;
     font-weight: 600;
     padding: 5px 14px;
     border-radius: 30px;
-    background: #f2f2f2;
-    color: #1c1c1e;
 }
 
 .bolao-status.aberto {
@@ -229,12 +240,10 @@ button:hover {
     color: #ed6c02;
 }
 
-/* Corpo do card */
 .bolao-body {
     padding: 16px 18px;
 }
 
-/* Linha de informações */
 .bolao-info {
     display: flex;
     justify-content: space-between;
@@ -256,12 +265,8 @@ button:hover {
 .bolao-data {
     font-size: 12px;
     color: #8e8e93;
-    display: flex;
-    align-items: center;
-    gap: 4px;
 }
 
-/* Estatísticas - 3 colunas estilo Apple */
 .bolao-stats {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -272,14 +277,13 @@ button:hover {
 .stat-item {
     background: #f8f9fa;
     border-radius: 14px;
-    padding: 10px 8px;
+    padding: 10px;
     text-align: center;
 }
 
 .stat-number {
     font-size: 22px;
     font-weight: 700;
-    color: #1c1c1e;
 }
 
 .stat-number.quitado {
@@ -295,11 +299,8 @@ button:hover {
     font-weight: 500;
     color: #8e8e93;
     margin-top: 4px;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
 }
 
-/* Botão ver participantes */
 .btn-ver-participantes {
     width: 100%;
     background: #007aff;
@@ -314,15 +315,13 @@ button:hover {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    transition: all 0.2s ease;
 }
 
 .btn-ver-participantes:hover {
     background: #005fc1;
-    transform: scale(0.98);
 }
 
-/* LISTA DE PARTICIPANTES - GRID 2 COLUNAS */
+/* LISTA DE PARTICIPANTES */
 .participantes-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -330,7 +329,6 @@ button:hover {
     margin-top: 16px;
 }
 
-/* Card do participante estilo Apple */
 .participante-card {
     background: #f8f9fa;
     border-radius: 12px;
@@ -338,24 +336,14 @@ button:hover {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    transition: all 0.2s ease;
-}
-
-.participante-card:hover {
-    background: #ffffff;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .participante-nome {
     font-weight: 500;
     font-size: 14px;
     color: #1c1c1e;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
-/* Status badges */
 .participante-status {
     font-size: 11px;
     font-weight: 600;
@@ -373,7 +361,7 @@ button:hover {
     color: #ed6c02;
 }
 
-/* ============ RESULTADOS ============ */
+/* RESULTADOS */
 .resultado-resumo {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
@@ -425,7 +413,6 @@ button:hover {
     font-size: 16px;
 }
 
-/* ============ CARTÕES COM ACERTOS ============ */
 .cartao-item-unificado {
     background: #f8f9fa;
     border-radius: 16px;
@@ -487,7 +474,48 @@ button:hover {
     text-align: center;
 }
 
-/* ============ RESPONSIVO ============ */
+/* TOAST */
+.toast-container {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+}
+
+.toast {
+    background: #1e293b;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    animation: slideUp 0.3s ease-out;
+}
+
+.toast-success {
+    background: #10b981;
+}
+
+.toast-error {
+    background: #ef4444;
+}
+
+.toast-info {
+    background: #3b82f6;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* RESPONSIVO */
 @media (max-width: 768px) {
     .bolao-header {
         padding: 12px 14px;
@@ -502,10 +530,6 @@ button:hover {
     .bolao-body {
         padding: 12px 14px;
     }
-    .bolao-valor {
-        font-size: 12px;
-        padding: 4px 12px;
-    }
     .stat-number {
         font-size: 18px;
     }
@@ -517,27 +541,9 @@ button:hover {
         grid-template-columns: 1fr;
         gap: 8px;
     }
-    .participante-card {
-        padding: 10px 12px;
-    }
     .numero-sorteado-card {
         width: 40px;
         height: 40px;
         font-size: 14px;
-    }
-}
-
-@media (max-width: 480px) {
-    .bolao-stats {
-        gap: 8px;
-    }
-    .stat-number {
-        font-size: 16px;
-    }
-    .stat-label {
-        font-size: 9px;
-    }
-    .participante-nome {
-        font-size: 12px;
     }
 }
