@@ -94,7 +94,6 @@ body {
     padding: 15px;
 }
 
-/* Cores dos cabeçalhos */
 .bg-purple { background: #8b5cf6; }
 .bg-blue { background: #3b82f6; }
 .bg-green { background: #10b981; }
@@ -161,12 +160,7 @@ textarea.form-control {
 .btn-gray { background: #64748b; color: white; }
 .btn-purple { background: #8b5cf6; color: white; }
 .btn-red { background: #ef4444; color: white; }
-
-.btn-large {
-    width: 100%;
-    padding: 12px;
-    font-size: 15px;
-}
+.btn-large { width: 100%; padding: 12px; font-size: 15px; }
 
 .form-buttons {
     display: flex;
@@ -217,7 +211,6 @@ textarea.form-control {
     margin-bottom: 10px;
 }
 
-/* ============ CHECKBOX E BOTÃO EDITAR ============ */
 .checkbox-cartao {
     cursor: pointer;
     flex-shrink: 0;
@@ -238,7 +231,6 @@ textarea.form-control {
     transform: translateY(-1px);
 }
 
-/* ============ DICA ============ */
 .dica {
     background: #fef3c7;
     color: #92400e;
@@ -246,65 +238,6 @@ textarea.form-control {
     border-radius: 8px;
     font-size: 12px;
     margin: 12px 0;
-}
-
-/* ============ RESULTADOS ============ */
-.resultado-card {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    padding: 12px;
-    margin-bottom: 12px;
-}
-
-.resultado-header {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 10px;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-.resultado-bolao {
-    font-weight: bold;
-    color: #1e293b;
-}
-
-.acertos {
-    padding: 3px 10px;
-    border-radius: 20px;
-    font-size: 11px;
-    font-weight: bold;
-}
-
-.acertos-6 { background: #f59e0b; color: white; }
-.acertos-5 { background: #eab308; color: white; }
-.acertos-4 { background: #a855f7; color: white; }
-.acertos-0 { background: #cbd5e1; color: #475569; }
-
-.numeros {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
-}
-
-.numero {
-    background: #e2e8f0;
-    padding: 4px 8px;
-    border-radius: 5px;
-    font-family: monospace;
-    font-size: 12px;
-    font-weight: bold;
-}
-
-.numero-sorteado {
-    background: #10b981;
-    color: white;
-}
-
-.numero-normal {
-    background: #e2e8f0;
-    color: #333;
 }
 
 /* ============ STATUS ============ */
@@ -320,7 +253,6 @@ textarea.form-control {
 .status-error { background: #fee2e2; color: #991b1b; }
 .status-info { background: #dbeafe; color: #1e40af; }
 
-/* ============ EMPTY STATE ============ */
 .empty-state {
     text-align: center;
     padding: 40px 20px;
@@ -373,18 +305,6 @@ textarea.form-control {
     padding: 20px;
 }
 
-/* ============ NÚMEROS CONTAINER ============ */
-.numeros-container {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.numeros-container .form-control {
-    flex: 1;
-    min-width: 150px;
-}
-
 /* ============ RODAPÉ ============ */
 .footer {
     background: #1e293b;
@@ -395,226 +315,7 @@ textarea.form-control {
     margin-top: 30px;
 }
 
-/* ============ RESPONSIVO - TABLET (900px) ============ */
-@media (max-width: 900px) {
-    .admin-layout {
-        grid-template-columns: 1fr;
-    }
-    
-    .form-row {
-        grid-template-columns: 1fr;
-        gap: 10px;
-    }
-    
-    .top-bar {
-        flex-direction: column;
-        text-align: center;
-    }
-    
-    .stats {
-        justify-content: center;
-    }
-    
-    .filtros {
-        flex-wrap: wrap;
-    }
-    
-    .filtros button {
-        font-size: 11px;
-        padding: 6px 10px;
-    }
-    
-    .btn-sm {
-        font-size: 11px;
-        padding: 6px 10px;
-    }
-    
-    .card-header {
-        font-size: 14px;
-        padding: 10px 12px;
-    }
-    
-    .card-body {
-        padding: 12px;
-    }
-    
-    .form-buttons {
-        flex-direction: column;
-    }
-    
-    .form-buttons .btn {
-        width: 100%;
-    }
-    
-    .numeros-container {
-        flex-direction: column;
-    }
-    
-    .numeros-container button {
-        width: 100%;
-    }
-    
-    .container {
-        padding: 0 10px;
-        margin: 10px auto;
-    }
-}
-
-/* ============ RESPONSIVO - CELULAR PEQUENO (480px) ============ */
-@media (max-width: 480px) {
-    .logo {
-        font-size: 18px;
-    }
-    
-    .version {
-        font-size: 9px;
-    }
-    
-    .stats {
-        font-size: 10px;
-        gap: 8px;
-    }
-    
-    .btn-logout {
-        font-size: 10px;
-        padding: 4px 10px;
-    }
-    
-    .card-header {
-        font-size: 13px;
-    }
-    
-    .btn {
-        font-size: 12px;
-        padding: 8px 12px;
-    }
-    
-    .form-control {
-        font-size: 13px;
-        padding: 8px;
-    }
-    
-    .filtros .btn-sm {
-        font-size: 10px;
-        padding: 5px 8px;
-    }
-    
-    .form-control-sm {
-        font-size: 12px;
-        padding: 6px 8px;
-    }
-}
-
-/* ============ CORREÇÕES PARA CARTÕES NA LISTA (CELULAR) ============ */
-@media (max-width: 768px) {
-    .cartao-item > div {
-        flex-direction: row !important;
-        align-items: flex-start !important;
-        flex-wrap: wrap;
-    }
-    
-    .checkbox-cartao {
-        width: 26px !important;
-        height: 26px !important;
-        transform: scale(1);
-        margin-top: 8px;
-    }
-    
-    .cartao-item > div > div:nth-child(2) {
-        flex: 1;
-        min-width: 0;
-    }
-    
-    .btn-editar {
-        width: auto !important;
-        margin-top: 0;
-        padding: 6px 12px !important;
-        font-size: 12px !important;
-        text-align: center;
-        white-space: nowrap;
-    }
-    
-    .cartao-numeros {
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: wrap;
-        gap: 4px;
-        margin-top: 8px;
-        justify-content: flex-start;
-    }
-    
-    .cartao-numeros span {
-        font-size: 10px !important;
-        padding: 3px 6px !important;
-        display: inline-block;
-    }
-    
-    .filtros {
-        flex-direction: column;
-        width: 100%;
-    }
-    
-    .filtros select,
-    .filtros button {
-        width: 100%;
-        margin: 3px 0;
-    }
-    
-    .cartao-item strong {
-        font-size: 13px;
-    }
-    
-    .cartao-item .concurso-info {
-        font-size: 10px;
-    }
-}
-
-/* ============ TELA MUITO PEQUENA (menos de 360px) ============ */
-@media (max-width: 360px) {
-    .cartao-numeros span {
-        font-size: 11px !important;
-        padding: 4px 6px !important;
-    }
-    
-    .btn-editar {
-        font-size: 12px !important;
-        padding: 8px !important;
-    }
-    
-    .checkbox-cartao {
-        width: 22px !important;
-        height: 22px !important;
-    }
-}
-
-/* ============ GARANTIR NÚMEROS NA HORIZONTAL NO CELULAR ============ */
-@media (max-width: 768px) {
-    .cartao-numeros {
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: wrap !important;
-        gap: 5px !important;
-        justify-content: flex-start !important;
-    }
-    
-    .cartao-numeros span {
-        display: inline-block !important;
-        font-size: 11px !important;
-        padding: 4px 8px !important;
-        white-space: nowrap !important;
-    }
-    
-    .cartao-item > div {
-        flex-direction: row !important;
-        align-items: flex-start !important;
-    }
-    
-    .btn-editar {
-        white-space: nowrap !important;
-    }
-}
-
-/* ============ TOAST NOTIFICATIONS ============ */
+/* ============ TOAST ============ */
 .toast-container {
     position: fixed;
     bottom: 20px;
@@ -645,63 +346,29 @@ textarea.form-control {
     justify-content: center;
 }
 
-.toast-success {
-    background: #10b981;
-}
-
-.toast-error {
-    background: #ef4444;
-}
-
-.toast-info {
-    background: #3b82f6;
-}
-
-.toast-warning {
-    background: #f59e0b;
-}
+.toast-success { background: #10b981; }
+.toast-error { background: #ef4444; }
+.toast-info { background: #3b82f6; }
+.toast-warning { background: #f59e0b; }
 
 @keyframes slideUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes fadeOut {
-    from {
-        opacity: 1;
-    }
-    to {
-        opacity: 0;
-        visibility: hidden;
-    }
+    from { opacity: 1; }
+    to { opacity: 0; visibility: hidden; }
 }
 
-/* Cores para a Quina */
-.loteria-btn.quina {
-    background: #b91c1c;
-}
-.loteria-btn.quina.active {
-    background: #ef4444;
-    box-shadow: 0 0 15px rgba(239,68,68,0.5);
-}
-.loteria-btn-admin.quina {
-    background: #ef4444;
-    color: white;
-}
-.loteria-btn-admin.quina.active {
-    background: #dc2626;
-}
-.card-header.bg-red {
-    background: #ef4444;
-}
+/* ============ BOTÕES DE LOTERIA ============ */
+.loteria-btn.quina { background: #b91c1c; }
+.loteria-btn.quina.active { background: #ef4444; box-shadow: 0 0 15px rgba(239,68,68,0.5); }
+.loteria-btn-admin.quina { background: #ef4444; color: white; }
+.loteria-btn-admin.quina.active { background: #dc2626; }
+.card-header.bg-red { background: #ef4444; }
 
-/* Animação para o card de bolão aberto */
+/* ============ ANIMAÇÃO CARD ABERTO ============ */
 @keyframes pulse {
     0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
     70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
@@ -712,144 +379,7 @@ textarea.form-control {
     animation: pulse 1.5s infinite;
 }
 
-/* ============ RESPONSIVIDADE DA TABELA DE RESULTADOS ============ */
-.resultados-tabela {
-    overflow-x: auto;
-}
-
-.resultados-tabela table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 14px;
-}
-
-.resultados-tabela th,
-.resultados-tabela td {
-    padding: 10px;
-    text-align: center;
-    border-bottom: 1px solid #e2e8f0;
-}
-
-@media (max-width: 768px) {
-    .resultados-tabela table,
-    .resultados-tabela thead,
-    .resultados-tabela tbody,
-    .resultados-tabela tr,
-    .resultados-tabela th,
-    .resultados-tabela td {
-        display: block;
-    }
-    
-    .resultados-tabela thead {
-        display: none;
-    }
-    
-    .resultados-tabela tr {
-        margin-bottom: 15px;
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 12px;
-        background: #f8fafc;
-    }
-    
-    .resultados-tabela td {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 8px 0;
-        border-bottom: 1px solid #e2e8f0;
-        font-size: 13px;
-    }
-    
-    .resultados-tabela td:last-child {
-        border-bottom: none;
-    }
-    
-    .resultados-tabela td::before {
-        content: attr(data-label);
-        font-weight: bold;
-        color: #3b82f6;
-        margin-right: 10px;
-    }
-}
-
-/* Números sorteados em destaque */
-.numeros-sorteados {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    justify-content: center;
-    margin: 10px 0;
-}
-
-.numero-sorteado-card {
-    background: #10b981;
-    color: white;
-    width: 45px;
-    height: 45px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    font-weight: bold;
-    font-size: 16px;
-}
-
-@media (max-width: 480px) {
-    .numero-sorteado-card {
-        width: 35px;
-        height: 35px;
-        font-size: 14px;
-    }
-}
-
-/* Cards de desempenho no celular */
-.desempenho-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
-    gap: 10px;
-    margin: 15px 0;
-}
-
-.desempenho-item {
-    text-align: center;
-    padding: 10px;
-    background: #f1f5f9;
-    border-radius: 10px;
-}
-
-.desempenho-numero {
-    font-size: 24px;
-    font-weight: bold;
-}
-
-.desempenho-label {
-    font-size: 11px;
-    color: #64748b;
-}
-
-@media (max-width: 480px) {
-    .desempenho-numero {
-        font-size: 18px;
-    }
-    .desempenho-label {
-        font-size: 9px;
-    }
-}
-
-/* Estilo para a estratégia do bolão */
-.estrategia-textarea {
-    font-family: inherit;
-    resize: vertical;
-}
-
-.estrategia-textarea:focus {
-    outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 2px rgba(59,130,246,0.1);
-}
-
-/* ============ ESTILOS PARA RESULTADOS UNIFICADOS ============ */
+/* ============ RESULTADOS UNIFICADOS ============ */
 .resultado-resumo {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
@@ -876,6 +406,30 @@ textarea.form-control {
 .resultado-resumo-label {
     font-size: 10px;
     color: #64748b;
+}
+
+.numeros-sorteados {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin: 15px 0;
+    background: #d1fae5;
+    padding: 12px;
+    border-radius: 12px;
+}
+
+.numero-sorteado-card {
+    background: #10b981;
+    color: white;
+    width: 45px;
+    height: 45px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-weight: bold;
+    font-size: 16px;
 }
 
 .cartao-item-unificado {
@@ -908,6 +462,7 @@ textarea.form-control {
     border-radius: 20px;
     font-size: 11px;
     font-weight: bold;
+    color: white;
 }
 
 .cartao-numeros {
@@ -940,34 +495,31 @@ textarea.form-control {
     text-align: center;
 }
 
-/* ============ BOLÕES ESPECIAIS - DESIGN PROFISSIONAL ============ */
-.boloes-especiais-container {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
+@media (max-width: 480px) {
+    .numero-sorteado-card { width: 35px; height: 35px; font-size: 14px; }
+    .numero-acertado, .numero-normal { padding: 4px 6px; font-size: 10px; min-width: 28px; }
+    .resultado-resumo-numero { font-size: 18px; }
 }
 
+/* ============ BOLÕES ESPECIAIS - DESIGN PROFISSIONAL ============ */
 .bolao-card {
-    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-    border-radius: 20px;
+    background: #ffffff;
+    border-radius: 16px;
+    margin-bottom: 16px;
     overflow: hidden;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    border: 1px solid #e2e8f0;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
-    border: 1px solid rgba(59, 130, 246, 0.15);
 }
 
 .bolao-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .bolao-header {
-    padding: 16px 18px;
     background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-    border-bottom: 3px solid #3b82f6;
-}
-
-.bolao-titulo {
+    padding: 14px 18px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -976,9 +528,9 @@ textarea.form-control {
 }
 
 .bolao-nome {
-    font-size: 16px;
     font-weight: bold;
-    color: #ffffff;
+    font-size: 15px;
+    color: white;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -987,20 +539,18 @@ textarea.form-control {
 .bolao-status {
     font-size: 11px;
     font-weight: bold;
-    padding: 4px 12px;
+    padding: 4px 14px;
     border-radius: 30px;
-    background: rgba(255, 255, 255, 0.15);
+    color: white;
 }
 
 .bolao-status.aberto {
     background: #10b981;
-    color: white;
-    box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
 }
 
 .bolao-status.andamento {
     background: #f59e0b;
-    color: white;
 }
 
 .bolao-body {
@@ -1012,24 +562,26 @@ textarea.form-control {
     justify-content: space-between;
     align-items: center;
     flex-wrap: wrap;
-    gap: 12px;
+    gap: 10px;
     margin-bottom: 16px;
     padding-bottom: 12px;
-    border-bottom: 1px dashed #e2e8f0;
+    border-bottom: 1px solid #e2e8f0;
 }
 
 .bolao-valor {
     background: #d1fae5;
     padding: 6px 14px;
     border-radius: 30px;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: bold;
     color: #065f46;
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .bolao-valor span {
-    font-size: 16px;
-    font-weight: 800;
+    font-size: 15px;
 }
 
 .bolao-data {
@@ -1037,22 +589,21 @@ textarea.form-control {
     color: #64748b;
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
 }
 
 .bolao-stats {
-    display: flex;
-    justify-content: space-around;
-    gap: 15px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
     margin-bottom: 16px;
 }
 
 .stat-item {
-    flex: 1;
-    text-align: center;
-    padding: 10px;
-    background: #f1f5f9;
+    background: #f8fafc;
     border-radius: 12px;
+    padding: 10px;
+    text-align: center;
 }
 
 .stat-number {
@@ -1072,23 +623,27 @@ textarea.form-control {
     font-size: 10px;
     color: #64748b;
     margin-top: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
 }
 
 .btn-ver-participantes {
     width: 100%;
     background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-    color: white;
     border: none;
-    padding: 10px;
     border-radius: 40px;
+    padding: 10px 16px;
     font-weight: bold;
     font-size: 13px;
+    color: white;
     cursor: pointer;
-    transition: all 0.2s ease;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
+    transition: all 0.2s ease;
 }
 
 .btn-ver-participantes:hover {
@@ -1096,259 +651,165 @@ textarea.form-control {
     transform: scale(1.01);
 }
 
-/* ============ LISTA DE PARTICIPANTES EM GRID 2 COLUNAS ============ */
-.participantes-lista {
-    margin-top: 16px;
-    background: #f8fafc;
-    border-radius: 14px;
-    overflow: hidden;
-    border: 1px solid #e2e8f0;
-    padding: 12px;
+/* LISTA DE PARTICIPANTES EM GRID 2 COLUNAS */
+.participantes-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 10px;
+    gap: 8px;
+    margin-top: 12px;
 }
 
 .participante-card {
+    background: #f8fafc;
+    border-radius: 10px;
+    padding: 8px 10px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 12px;
-    background: white;
-    border-radius: 12px;
-    transition: all 0.2s ease;
     border: 1px solid #e2e8f0;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    transition: all 0.2s ease;
 }
 
 .participante-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-    border-color: #3b82f6;
+    background: #ffffff;
+    border-color: #cbd5e1;
 }
 
 .participante-nome {
-    font-weight: 600;
-    font-size: 13px;
+    font-weight: 500;
+    font-size: 12px;
     color: #1e293b;
-    display: flex;
-    align-items: center;
-    gap: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 65%;
 }
 
-.participante-nome::before {
-    content: "👤";
-    font-size: 14px;
-}
-
-.participante-status-card {
+.participante-status {
     font-size: 10px;
-    font-weight: bold;
-    padding: 4px 12px;
+    font-weight: 600;
+    padding: 4px 10px;
     border-radius: 30px;
-    transition: all 0.2s;
+    letter-spacing: 0.3px;
 }
 
-.participante-status-card.pago {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    color: white;
-    box-shadow: 0 2px 5px rgba(16, 185, 129, 0.3);
+.participante-status.pago {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #bbf7d0;
 }
 
-.participante-status-card.pendente {
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-    color: white;
-    box-shadow: 0 2px 5px rgba(245, 158, 11, 0.3);
+.participante-status.pendente {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fde68a;
 }
 
-/* Responsivo para celular: muda para 1 coluna */
-@media (max-width: 768px) {
-    .participantes-lista {
+/* ============ RESPONSIVIDADE GERAL ============ */
+@media (max-width: 900px) {
+    .admin-layout {
         grid-template-columns: 1fr;
-        gap: 8px;
-        padding: 10px;
     }
-    
-    .participante-card {
-        padding: 8px 12px;
+    .form-row {
+        grid-template-columns: 1fr;
+        gap: 10px;
     }
-    
-    .participante-nome {
-        font-size: 12px;
+    .top-bar {
+        flex-direction: column;
+        text-align: center;
     }
-    
-    .participante-status-card {
-        font-size: 9px;
-        padding: 3px 10px;
+    .stats {
+        justify-content: center;
     }
-    
+    .container {
+        padding: 0 10px;
+        margin: 10px auto;
+    }
+}
+
+@media (max-width: 768px) {
     .bolao-header {
-        padding: 12px 14px;
+        padding: 10px 14px;
     }
-    
+    .bolao-nome {
+        font-size: 13px;
+    }
+    .bolao-status {
+        font-size: 9px;
+        padding: 3px 12px;
+    }
     .bolao-body {
         padding: 12px 14px;
     }
-    
-    .bolao-nome {
-        font-size: 14px;
+    .bolao-valor {
+        font-size: 11px;
+        padding: 4px 10px;
     }
-    
+    .bolao-valor span {
+        font-size: 13px;
+    }
+    .bolao-data {
+        font-size: 10px;
+    }
     .stat-number {
+        font-size: 16px;
+    }
+    .stat-label {
+        font-size: 8px;
+    }
+    .btn-ver-participantes {
+        font-size: 11px;
+        padding: 8px 12px;
+    }
+    .participantes-grid {
+        gap: 6px;
+    }
+    .participante-card {
+        padding: 6px 8px;
+    }
+    .participante-nome {
+        font-size: 10px;
+    }
+    .participante-status {
+        font-size: 9px;
+        padding: 3px 8px;
+    }
+    .cartao-item > div {
+        flex-direction: row !important;
+        align-items: flex-start !important;
+        flex-wrap: wrap;
+    }
+    .filtros {
+        flex-direction: column;
+        width: 100%;
+    }
+    .filtros select,
+    .filtros button {
+        width: 100%;
+        margin: 3px 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .logo {
         font-size: 18px;
     }
-}
-
-/* Desktop: manter 2 colunas */
-@media (min-width: 769px) {
-    .participantes-lista {
-        grid-template-columns: 1fr 1fr;
+    .version {
+        font-size: 9px;
     }
-}
-
-/* ============ ESTILOS PROFISSIONAIS PARA STATUS DOS PARTICIPANTES ============ */
-
-/* Para status PAGO */
-.participante-status-card.pago {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    color: white;
-    font-weight: bold;
-    padding: 5px 14px;
-    border-radius: 30px;
-    font-size: 11px;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    transition: all 0.2s ease;
-}
-
-.participante-status-card.pago::before {
-    content: "✅";
-    font-size: 11px;
-}
-
-.participante-status-card.pago:hover {
-    transform: scale(1.02);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.5);
-}
-
-/* Para status PENDENTE */
-.participante-status-card.pendente {
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-    color: white;
-    font-weight: bold;
-    padding: 5px 14px;
-    border-radius: 30px;
-    font-size: 11px;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    transition: all 0.2s ease;
-}
-
-.participante-status-card.pendente::before {
-    content: "⏳";
-    font-size: 11px;
-}
-
-.participante-status-card.pendente:hover {
-    transform: scale(1.02);
-    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.5);
-}
-
-/* Para status QUITADO (para compatibilidade) */
-.participante-status-card.quitado {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    color: white;
-    font-weight: bold;
-    padding: 5px 14px;
-    border-radius: 30px;
-    font-size: 11px;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-}
-
-.participante-status-card.quitado::before {
-    content: "✅";
-    font-size: 11px;
-}
-
-/* Ajuste do card do participante */
-.participante-card {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 14px;
-    background: white;
-    border-radius: 14px;
-    transition: all 0.2s ease;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
-}
-
-.participante-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 14px rgba(0,0,0,0.1);
-    border-color: #3b82f6;
-}
-
-.participante-nome {
-    font-weight: 600;
-    font-size: 13px;
-    color: #1e293b;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.participante-nome::before {
-    content: "👤";
-    font-size: 14px;
-}
-
-/* Grid de participantes */
-.participantes-lista {
-    margin-top: 16px;
-    background: #f8fafc;
-    border-radius: 16px;
-    overflow: hidden;
-    border: 1px solid #e2e8f0;
-    padding: 14px;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-}
-
-/* Responsivo */
-@media (max-width: 768px) {
-    .participantes-lista {
-        grid-template-columns: 1fr;
-        gap: 10px;
-        padding: 10px;
-    }
-    
-    .participante-card {
-        padding: 10px 12px;
-    }
-    
-    .participante-nome {
-        font-size: 12px;
-    }
-    
-    .participante-status-card.pago,
-    .participante-status-card.pendente,
-    .participante-status-card.quitado {
-        padding: 4px 12px;
+    .stats {
         font-size: 10px;
+        gap: 8px;
+    }
+    .btn-logout {
+        font-size: 10px;
+        padding: 4px 10px;
+    }
+    .card-header {
+        font-size: 13px;
+    }
+    .btn {
+        font-size: 12px;
+        padding: 8px 12px;
     }
 }
