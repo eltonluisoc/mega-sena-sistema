@@ -155,30 +155,51 @@ function calcularChancesBolao(cartoesBolao, loteria) {
     const chanceAjustada = Math.round(totalCombinacoesPossiveis / totalCombinacoesCobertas);
     const vezesMelhor = Math.round(totalCombinacoesCobertas);
     
-    let nivel = '';
-    let corGradient = '';
-    let icone = '';
+    // ============================================
+    // SISTEMA DE 1 A 5 ESTRELAS
+    // ============================================
+    let estrelas = 0;
+    let estrelasHtml = '';
+    let classificacao = '';
     
-    if (totalCombinacoesCobertas >= 50000) {
-        nivel = 'NÍVEL LENDÁRIO';
-        corGradient = 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)';
-        icone = '🏆';
-    } else if (totalCombinacoesCobertas >= 10000) {
-        nivel = 'NÍVEL MEGA';
-        corGradient = 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)';
-        icone = '🎯';
+    if (totalCombinacoesCobertas >= 10000) {
+        estrelas = 5;
+        classificacao = 'EXCELENTE';
+    } else if (totalCombinacoesCobertas >= 5000) {
+        estrelas = 4;
+        classificacao = 'ÓTIMO';
     } else if (totalCombinacoesCobertas >= 1000) {
-        nivel = 'NÍVEL PROFISSIONAL';
-        corGradient = 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)';
-        icone = '⭐';
+        estrelas = 3;
+        classificacao = 'BOM';
     } else if (totalCombinacoesCobertas >= 100) {
-        nivel = 'NÍVEL ESTRATÉGICO';
-        corGradient = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
-        icone = '💪';
+        estrelas = 2;
+        classificacao = 'REGULAR';
     } else {
-        nivel = 'NÍVEL COMPETITIVO';
+        estrelas = 1;
+        classificacao = 'SIMPLES';
+    }
+    
+    // Gerar estrelas
+    for (let i = 1; i <= 5; i++) {
+        if (i <= estrelas) {
+            estrelasHtml += '★';
+        } else {
+            estrelasHtml += '☆';
+        }
+    }
+    
+    // Definir cor do gradiente baseada nas estrelas
+    let corGradient = '';
+    if (estrelas === 5) {
+        corGradient = 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)';
+    } else if (estrelas === 4) {
+        corGradient = 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)';
+    } else if (estrelas === 3) {
+        corGradient = 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)';
+    } else if (estrelas === 2) {
+        corGradient = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+    } else {
         corGradient = 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
-        icone = '🎲';
     }
     
     let mensagemExplicativa = '';
@@ -194,10 +215,13 @@ function calcularChancesBolao(cartoesBolao, loteria) {
         <div style="background: ${corGradient}; border-radius: 20px; padding: 18px 20px; margin-bottom: 20px; color: white;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                 <div style="display: flex; align-items: center; gap: 8px;">
-                    <span style="font-size: 28px;">${icone}</span>
-                    <span style="font-size: 14px; font-weight: 600; letter-spacing: 1px;">${nivel}</span>
+                    <span style="font-size: 28px;">🎲</span>
+                    <span style="font-size: 14px; font-weight: 600; letter-spacing: 1px;">POTENCIAL DO BOLÃO</span>
                 </div>
-                <div style="background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 30px; font-size: 11px;">${totalCartoes} CARTÕES</div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                    <span style="font-size: 18px; font-weight: bold;">${estrelasHtml}</span>
+                    <span style="font-size: 10px; margin-left: 4px;">(${classificacao})</span>
+                </div>
             </div>
             
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
@@ -212,14 +236,14 @@ function calcularChancesBolao(cartoesBolao, loteria) {
             </div>
             
             <div style="background: rgba(0,0,0,0.25); border-radius: 14px; padding: 14px; text-align: center;">
-                <div style="font-size: 11px; opacity: 0.8;">PROBABILIDADE DE ACERTAR A SENA</div>
+                <div style="font-size: 11px; opacity: 0.8;">PROBABILIDADE DE ACERTAR O PRÊMIO MÁXIMO</div>
                 <div style="font-size: 22px; font-weight: bold; margin: 4px 0;">1 em ${chanceAjustada.toLocaleString()}</div>
                 <div style="font-size: 11px;">vs 1 em ${totalCombinacoesPossiveis.toLocaleString()} (aposta simples)</div>
             </div>
             
             <div style="margin-top: 14px; font-size: 11px; text-align: center; opacity: 0.85; line-height: 1.4;">
                 ${mensagemExplicativa}<br>
-                🚀 ${vezesMelhor.toLocaleString()}x mais combinações que 1 aposta simples!
+                🚀 ${vezesMelhor.toLocaleString()}x mais combinações que uma aposta simples!
             </div>
         </div>
     `;
