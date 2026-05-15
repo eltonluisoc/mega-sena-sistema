@@ -721,7 +721,7 @@ async function carregarBolaoAtivo() {
                     
                     const participantesFormatados = participantes.map(p => {
                         let statusClass = 'pendente';
-                        let statusText = 'PENDENTE';
+                        let statusText = 'Em Andamento';
                         
                         if (p.situacao === 'quitado' || p.situacao === 'pago') {
                             statusClass = 'pago';
