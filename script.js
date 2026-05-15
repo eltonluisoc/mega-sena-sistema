@@ -563,8 +563,29 @@ async function conferirResultados() {
     
     html += `<div class="numeros-sorteados">${numerosSorteados.map(n => `<div class="numero-sorteado-card">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`;
     if (dataSorteio) {
-        html += `<div style="text-align:center; margin-bottom:15px; font-size:12px;">📅 Sorteio: ${new Date(dataSorteio).toLocaleDateString('pt-BR')}</div>`;
+        if (dataSorteio) {
+    // Tentar formatar a data corretamente
+    let dataFormatada = '';
+    try {
+        // Se for string no formato DD/MM/YYYY
+        if (typeof dataSorteio === 'string' && dataSorteio.includes('/')) {
+            const partes = dataSorteio.split('/');
+            if (partes.length === 3) {
+                dataFormatada = `${partes[0]}/${partes[1]}/${partes[2]}`;
+            }
+        } else {
+            const data = new Date(dataSorteio);
+            if (!isNaN(data.getTime())) {
+                dataFormatada = data.toLocaleDateString('pt-BR');
+            } else {
+                dataFormatada = dataSorteio;
+            }
+        }
+    } catch(e) {
+        dataFormatada = dataSorteio;
     }
+    html += `<div style="text-align:center; margin-bottom:15px; font-size:12px;">📅 Sorteio: ${dataFormatada}</div>`;
+}
     
     html += `<button id="btnWhatsAppResultado" style="background:#25D366; width:100%; padding:12px; border-radius:30px; margin-bottom:20px; font-weight:bold;">📱 COMPARTILHAR RESULTADO NO WHATSAPP</button>`;
     
