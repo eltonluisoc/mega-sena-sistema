@@ -105,7 +105,35 @@ function entrarGrupoWhatsApp() {
     showToast('📱 Abrindo grupo oficial do WhatsApp...', 'info');
 }
 
-function mostrarCartes(numerosSorteados = null) {
+// Função para calcular chances do bolão
+function calcularChancesBolao(cartoesBolao, loteria) {
+    const totalCartoes = cartoesBolao.length;
+    let chancesTexto = '';
+    
+    if (loteria === 'mega') {
+        // Mega-Sena: 1 chance em 50.063.860 por bilhete simples
+        const chanceIndividual = 50063860;
+        const chanceBolao = Math.round(chanceIndividual / totalCartoes);
+        const vezes = totalCartoes;
+        chancesTexto = `📊 Com ${totalCartoes} cartões, suas chances são ${vezes}x maiores que um bilhete simples! (1 em ${chanceBolao.toLocaleString()})`;
+    } else if (loteria === 'lotofacil') {
+        // Lotofácil: 1 chance em 3.268.760 por bilhete simples
+        const chanceIndividual = 3268760;
+        const chanceBolao = Math.round(chanceIndividual / totalCartoes);
+        const vezes = totalCartoes;
+        chancesTexto = `📊 Com ${totalCartoes} cartões, suas chances são ${vezes}x maiores que um bilhete simples! (1 em ${chanceBolao.toLocaleString()})`;
+    } else if (loteria === 'quina') {
+        // Quina: 1 chance em 24.040.016 por bilhete simples
+        const chanceIndividual = 24040016;
+        const chanceBolao = Math.round(chanceIndividual / totalCartoes);
+        const vezes = totalCartoes;
+        chancesTexto = `📊 Com ${totalCartoes} cartões, suas chances são ${vezes}x maiores que um bilhete simples! (1 em ${chanceBolao.toLocaleString()})`;
+    }
+    
+    return chancesTexto;
+}
+
+function mostrarCartoes(numerosSorteados = null) {
     const concurso = document.getElementById('concursoSelect').value;
     const container = document.getElementById('cartoesArea');
     
@@ -123,6 +151,9 @@ function mostrarCartes(numerosSorteados = null) {
         return;
     }
     
+    // Calcular chances do bolão
+    const chancesTexto = calcularChancesBolao(filtrados, loteriaAtual);
+    
     const porBolao = {};
     filtrados.forEach(c => {
         const b = c.bolao || 'Sem Bolão';
@@ -131,6 +162,13 @@ function mostrarCartes(numerosSorteados = null) {
     });
     
     let html = '';
+    
+    // Adicionar card de chances
+    html += `<div style="background: #e8f5e9; border-radius: 16px; padding: 12px 16px; margin-bottom: 16px; text-align: center;">
+                <div style="font-size: 14px; font-weight: 600; color: #2e7d32;">🎯 POTENCIAL DO BOLÃO</div>
+                <div style="font-size: 13px; color: #1b5e20; margin-top: 4px;">${chancesTexto}</div>
+            </div>`;
+    
     for (const [bolao, lista] of Object.entries(porBolao)) {
         html += `<div style="margin-bottom:20px"><div style="background:#3b82f6;color:white;padding:8px 12px;border-radius:8px;margin-bottom:10px;">🎯 ${bolao}</div>`;
         html += `<div style="display:flex;flex-direction:column;gap:10px;">`;
@@ -189,7 +227,7 @@ async function setLoteria(loteria) {
     if (statusDiv) statusDiv.innerHTML = '';
     
     atualizarSelectConcursos();
-    mostrarCartes();
+    mostrarCartoes();
     
     showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
 }
@@ -211,10 +249,8 @@ async function carregarDados() {
         atualizarPercentual(5, 'Iniciando...');
         atualizarPercentual(10, 'Buscando concursos...');
         
-        // Buscar todos os cartões para saber os concursos disponíveis
         const snap = await db.collection('cartoes').get();
         
-        // Agrupar por loteria e concurso
         const concursosPorLoteria = {
             mega: new Set(),
             lotofacil: new Set(),
@@ -236,7 +272,6 @@ async function carregarDados() {
         
         console.log('📋 Concursos disponíveis:', concursosDisponiveis);
         
-        // Carregar APENAS o último concurso de cada loteria
         atualizarPercentual(30, 'Carregando cartões...');
         cartoes = [];
         
@@ -265,7 +300,6 @@ async function carregarDados() {
             }
         }
         
-        // Carregar resultados
         atualizarPercentual(50, 'Carregando resultados...');
         try {
             const resMega = await db.collection('resultados_mega').get();
@@ -285,7 +319,6 @@ async function carregarDados() {
             resQuina.forEach(doc => { resultadosQuina[doc.id] = doc.data().numeros; });
         } catch (e) { resultadosQuina = {}; }
         
-        // Carregar bolões
         atualizarPercentual(85, 'Carregando bolões...');
         try {
             await carregarBolaoAtivo();
@@ -302,9 +335,8 @@ async function carregarDados() {
         atualizarSelectConcursos();
         dadosCarregados = true;
         
-        // Mostrar cartões do concurso atual
         setTimeout(() => {
-            mostrarCartes();
+            mostrarCartoes();
         }, 100);
         
     } catch (error) {
@@ -375,7 +407,7 @@ async function conferirResultados() {
     
     area.innerHTML = '<div class="loading">🔍 Processando...</div>';
     
-    // Buscar cartões do concurso específico (lazy loading)
+    // Buscar cartões do concurso específico
     const snapshot = await db.collection('cartoes')
         .where('tipo', '==', loteriaAtual)
         .where('concurso', '==', concurso)
@@ -402,12 +434,11 @@ async function conferirResultados() {
         return;
     }
     
-    // Atualizar cache local
-    const index = cartoes.findIndex(c => c.tipo === loteriaAtual && c.concurso == concurso);
-    if (index !== -1) {
-        cartoes.splice(index, 1);
-    }
-    cartoes.push(...cartoesConcurso);
+    // Atualizar cache local (sem duplicar)
+    const novosCartoes = cartoes.filter(c => !(c.tipo === loteriaAtual && c.concurso == concurso));
+    novosCartoes.push(...cartoesConcurso);
+    cartoes.length = 0;
+    cartoes.push(...novosCartoes);
     
     let resultados;
     if (loteriaAtual === 'mega') resultados = resultadosMega;
@@ -436,7 +467,8 @@ async function conferirResultados() {
         }
     }
     
-    mostrarCartes(numerosSorteados);
+    // Atualizar exibição dos cartões com acertos
+    mostrarCartoes(numerosSorteados);
     
     const cartoesComAcertos = cartoesConcurso.map(cartao => {
         const acertos = cartao.numeros.filter(n => numerosSorteados.includes(n)).length;
@@ -524,6 +556,7 @@ async function conferirResultados() {
     
     html += `<button id="btnWhatsAppResultado" style="background:#25D366; width:100%; padding:12px; border-radius:30px; margin-bottom:20px; font-weight:bold;">📱 COMPARTILHAR RESULTADO NO WHATSAPP</button>`;
     
+    // NÃO duplicar cartões aqui - eles já foram atualizados pelo mostrarCartoes
     area.innerHTML = html;
     
     const btnWhats = document.getElementById('btnWhatsAppResultado');
@@ -612,7 +645,7 @@ async function carregarBolaoAtivo() {
         for (const bolao of boloes) {
             const participantes = bolao.participantes || [];
             const totalQuitados = participantes.filter(p => p.situacao === 'quitado' || p.situacao === 'pago').length;
-            const totalAndamento = participantes.filter(p => p.situacao !== 'quitado' && p.situacao !== 'pago').length;
+            const totalEmAndamento = participantes.filter(p => p.situacao !== 'quitado' && p.situacao !== 'pago').length;
             const statusText = statusMap[bolao.id] === 'aberto' ? 'ABERTO' : 'EM ANDAMENTO';
             const statusClass = statusMap[bolao.id] === 'aberto' ? 'aberto' : 'andamento';
             
@@ -643,15 +676,15 @@ async function carregarBolaoAtivo() {
                         <div class="bolao-stats">
                             <div class="stat-item">
                                 <div class="stat-number quitado">${totalQuitados}</div>
-                                <div class="stat-label">CONFIRMADOS</div>
+                                <div class="stat-label">✅ QUITADOS</div>
                             </div>
                             <div class="stat-item">
-                                <div class="stat-number andamento">${totalAndamento}</div>
-                                <div class="stat-label">PENDENTES</div>
+                                <div class="stat-number andamento">${totalEmAndamento}</div>
+                                <div class="stat-label">⏳ EM ANDAMENTO</div>
                             </div>
                             <div class="stat-item">
                                 <div class="stat-number">${participantes.length}</div>
-                                <div class="stat-label">TOTAL</div>
+                                <div class="stat-label">👥 TOTAL</div>
                             </div>
                         </div>
                         <button class="btn-ver-participantes" data-id="${bolao.id}">
@@ -679,7 +712,7 @@ async function carregarBolaoAtivo() {
                         
                         if (p.situacao === 'quitado' || p.situacao === 'pago') {
                             statusClass = 'pago';
-                            statusText = 'PAGO';
+                            statusText = 'QUITADO';
                         }
                         
                         return {
@@ -958,8 +991,32 @@ async function buscarResultadoAutomatico() {
     }
 }
 
+// Forçar atualização de cache no iPhone
+function forcarAtualizacaoCache() {
+    if ('caches' in window) {
+        caches.keys().then(names => {
+            names.forEach(name => {
+                caches.delete(name);
+                console.log('Cache deletado:', name);
+            });
+        });
+    }
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+            registrations.forEach(reg => reg.unregister());
+            console.log('Service Worker removido');
+        });
+    }
+    localStorage.clear();
+    sessionStorage.clear();
+    console.log('✅ Cache forçado limpo');
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('📄 Inicializando sistema...');
+    
+    // Forçar atualização de cache para garantir versão mais recente
+    forcarAtualizacaoCache();
     
     await carregarConfiguracoes();
     await carregarDados();
@@ -968,7 +1025,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btnLotofacil').addEventListener('click', () => setLoteria('lotofacil'));
     document.getElementById('btnQuina').addEventListener('click', () => setLoteria('quina'));
     document.getElementById('concursoSelect').addEventListener('change', () => {
-        mostrarCartes();
+        mostrarCartoes();
     });
     document.getElementById('btnConferir').addEventListener('click', conferirResultados);
     document.getElementById('btnCompartilhar').addEventListener('click', compartilharSite);
