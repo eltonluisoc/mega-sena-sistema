@@ -155,9 +155,7 @@ function calcularChancesBolao(cartoesBolao, loteria) {
     const chanceAjustada = Math.round(totalCombinacoesPossiveis / totalCombinacoesCobertas);
     const vezesMelhor = Math.round(totalCombinacoesCobertas);
     
-    // ============================================
-    // SISTEMA DE 1 A 5 ESTRELAS
-    // ============================================
+    // Sistema de estrelas
     let estrelas = 0;
     let estrelasHtml = '';
     let classificacao = '';
@@ -179,7 +177,6 @@ function calcularChancesBolao(cartoesBolao, loteria) {
         classificacao = 'SIMPLES';
     }
     
-    // Gerar estrelas
     for (let i = 1; i <= 5; i++) {
         if (i <= estrelas) {
             estrelasHtml += '★';
@@ -188,7 +185,7 @@ function calcularChancesBolao(cartoesBolao, loteria) {
         }
     }
     
-    // Definir cor do gradiente baseada nas estrelas
+    // Cor do gradiente por estrelas
     let corGradient = '';
     if (estrelas === 5) {
         corGradient = 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)';
@@ -202,48 +199,41 @@ function calcularChancesBolao(cartoesBolao, loteria) {
         corGradient = 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
     }
     
-    let mensagemExplicativa = '';
-    if (loteria === 'mega') {
-        mensagemExplicativa = `🔢 ${totalCartoes} cartão(ões) cobrem ${totalCombinacoesCobertas.toLocaleString()} combinações de 6 números.`;
-    } else if (loteria === 'lotofacil') {
-        mensagemExplicativa = `🔢 ${totalCartoes} cartão(ões) cobrem ${totalCombinacoesCobertas.toLocaleString()} combinações de 15 números.`;
-    } else {
-        mensagemExplicativa = `🔢 ${totalCartoes} cartão(ões) cobrem ${totalCombinacoesCobertas.toLocaleString()} combinações de 5 números.`;
-    }
-    
+    // VERSÃO COMPACTA (MENOS ESPAÇO)
     return `
-        <div style="background: ${corGradient}; border-radius: 20px; padding: 18px 20px; margin-bottom: 20px; color: white;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <span style="font-size: 28px;">🎲</span>
-                    <span style="font-size: 14px; font-weight: 600; letter-spacing: 1px;">POTENCIAL DO BOLÃO</span>
+        <div style="background: ${corGradient}; border-radius: 16px; padding: 12px 16px; margin-bottom: 16px; color: white;">
+            <!-- Linha 1: Título + Estrelas -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-size: 18px;">🎲</span>
+                    <span style="font-size: 12px; font-weight: 600;">POTENCIAL</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 4px;">
-                    <span style="font-size: 18px; font-weight: bold;">${estrelasHtml}</span>
-                    <span style="font-size: 10px; margin-left: 4px;">(${classificacao})</span>
+                    <span style="font-size: 13px; font-weight: bold;">${estrelasHtml}</span>
+                    <span style="font-size: 9px;">(${classificacao})</span>
                 </div>
             </div>
             
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-                <div style="text-align: center;">
-                    <div style="font-size: 28px; font-weight: bold;">${numerosCobertos}/${numerosPossiveis}</div>
-                    <div style="font-size: 10px; opacity: 0.8;">NÚMEROS DISTINTOS</div>
+            <!-- Linha 2: Números Cobertos + Combinações -->
+            <div style="display: flex; justify-content: space-between; text-align: center; margin-bottom: 10px;">
+                <div style="flex: 1;">
+                    <div style="font-size: 18px; font-weight: bold;">${numerosCobertos}/${numerosPossiveis}</div>
+                    <div style="font-size: 8px; opacity: 0.8;">NÚMEROS</div>
                 </div>
-                <div style="text-align: center;">
-                    <div style="font-size: 28px; font-weight: bold;">${totalCombinacoesCobertas.toLocaleString()}</div>
-                    <div style="font-size: 10px; opacity: 0.8;">COMBINAÇÕES COBERTAS</div>
+                <div style="flex: 1; border-left: 1px solid rgba(255,255,255,0.2);">
+                    <div style="font-size: 18px; font-weight: bold;">${totalCombinacoesCobertas.toLocaleString()}</div>
+                    <div style="font-size: 8px; opacity: 0.8;">COMBINAÇÕES</div>
+                </div>
+                <div style="flex: 1; border-left: 1px solid rgba(255,255,255,0.2);">
+                    <div style="font-size: 18px; font-weight: bold;">${vezesMelhor.toLocaleString()}x</div>
+                    <div style="font-size: 8px; opacity: 0.8;">MELHOR</div>
                 </div>
             </div>
             
-            <div style="background: rgba(0,0,0,0.25); border-radius: 14px; padding: 14px; text-align: center;">
-                <div style="font-size: 11px; opacity: 0.8;">PROBABILIDADE DE ACERTAR O PRÊMIO MÁXIMO</div>
-                <div style="font-size: 22px; font-weight: bold; margin: 4px 0;">1 em ${chanceAjustada.toLocaleString()}</div>
-                <div style="font-size: 11px;">vs 1 em ${totalCombinacoesPossiveis.toLocaleString()} (aposta simples)</div>
-            </div>
-            
-            <div style="margin-top: 14px; font-size: 11px; text-align: center; opacity: 0.85; line-height: 1.4;">
-                ${mensagemExplicativa}<br>
-                🚀 ${vezesMelhor.toLocaleString()}x mais combinações que uma aposta simples!
+            <!-- Linha 3: Probabilidade -->
+            <div style="background: rgba(0,0,0,0.2); border-radius: 10px; padding: 8px; text-align: center;">
+                <div style="font-size: 10px; opacity: 0.8;">CHANCE DE ACERTAR</div>
+                <div style="font-size: 16px; font-weight: bold;">1 em ${chanceAjustada.toLocaleString()}</div>
             </div>
         </div>
     `;
