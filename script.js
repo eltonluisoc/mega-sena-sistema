@@ -152,7 +152,7 @@ function calcularChancesBolao(cartoesBolao, loteria) {
     }
     
     const numerosCobertos = numerosUtilizados.size;
-    const chanceAjustada = Math.round(totalCombinacoesPossiveis / totalCombinacoesCobertas);
+    const percentualCobertura = Math.round((numerosCobertos / numerosPossiveis) * 100);
     const vezesMelhor = Math.round(totalCombinacoesCobertas);
     
     // Sistema de estrelas
@@ -185,7 +185,7 @@ function calcularChancesBolao(cartoesBolao, loteria) {
         }
     }
     
-    // Cor do gradiente por estrelas
+    // Cor do gradiente
     let corGradient = '';
     if (estrelas === 5) {
         corGradient = 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)';
@@ -199,41 +199,45 @@ function calcularChancesBolao(cartoesBolao, loteria) {
         corGradient = 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
     }
     
-    // VERSÃO COMPACTA (MENOS ESPAÇO)
+    // MODELO A - EQUIVALÊNCIA VISUAL
     return `
-        <div style="background: ${corGradient}; border-radius: 16px; padding: 12px 16px; margin-bottom: 16px; color: white;">
-            <!-- Linha 1: Título + Estrelas -->
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <div style="background: ${corGradient}; border-radius: 16px; padding: 14px 16px; margin-bottom: 16px; color: white;">
+            <!-- Cabeçalho: Título + Estrelas -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                 <div style="display: flex; align-items: center; gap: 6px;">
                     <span style="font-size: 18px;">🎲</span>
-                    <span style="font-size: 12px; font-weight: 600;">POTENCIAL</span>
+                    <span style="font-size: 12px; font-weight: 600;">POTENCIAL DO BOLÃO</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 4px;">
-                    <span style="font-size: 13px; font-weight: bold;">${estrelasHtml}</span>
-                    <span style="font-size: 9px;">(${classificacao})</span>
+                    <span style="font-size: 13px; font-weight: bold; color: #fbbf24;">${estrelasHtml}</span>
+                    <span style="font-size: 9px; opacity: 0.9;">(${classificacao})</span>
                 </div>
             </div>
             
-            <!-- Linha 2: Números Cobertos + Combinações -->
-            <div style="display: flex; justify-content: space-between; text-align: center; margin-bottom: 10px;">
-                <div style="flex: 1;">
-                    <div style="font-size: 18px; font-weight: bold;">${numerosCobertos}/${numerosPossiveis}</div>
+            <!-- Mensagem principal - EQUIVALÊNCIA -->
+            <div style="text-align: center; margin-bottom: 12px;">
+                <div style="font-size: 20px; font-weight: bold; margin-bottom: 4px;">
+                    🚀 ${vezesMelhor.toLocaleString()} BILHETES!
+                </div>
+                <div style="font-size: 11px; opacity: 0.9;">
+                    Isso equivale a jogar ${vezesMelhor.toLocaleString()} bilhetes simples!
+                </div>
+            </div>
+            
+            <!-- Estatísticas resumidas -->
+            <div style="display: flex; justify-content: center; gap: 16px; text-align: center; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.15);">
+                <div>
+                    <div style="font-size: 16px; font-weight: bold;">${numerosCobertos}/${numerosPossiveis}</div>
                     <div style="font-size: 8px; opacity: 0.8;">NÚMEROS</div>
                 </div>
-                <div style="flex: 1; border-left: 1px solid rgba(255,255,255,0.2);">
-                    <div style="font-size: 18px; font-weight: bold;">${totalCombinacoesCobertas.toLocaleString()}</div>
-                    <div style="font-size: 8px; opacity: 0.8;">COMBINAÇÕES</div>
+                <div>
+                    <div style="font-size: 16px; font-weight: bold;">${percentualCobertura}%</div>
+                    <div style="font-size: 8px; opacity: 0.8;">DO UNIVERSO</div>
                 </div>
-                <div style="flex: 1; border-left: 1px solid rgba(255,255,255,0.2);">
-                    <div style="font-size: 18px; font-weight: bold;">${vezesMelhor.toLocaleString()}x</div>
-                    <div style="font-size: 8px; opacity: 0.8;">MELHOR</div>
+                <div>
+                    <div style="font-size: 16px; font-weight: bold;">${totalCartoes}</div>
+                    <div style="font-size: 8px; opacity: 0.8;">CARTÕES</div>
                 </div>
-            </div>
-            
-            <!-- Linha 3: Probabilidade -->
-            <div style="background: rgba(0,0,0,0.2); border-radius: 10px; padding: 8px; text-align: center;">
-                <div style="font-size: 10px; opacity: 0.8;">CHANCE DE ACERTAR</div>
-                <div style="font-size: 16px; font-weight: bold;">1 em ${chanceAjustada.toLocaleString()}</div>
             </div>
         </div>
     `;
