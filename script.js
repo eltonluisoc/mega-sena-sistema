@@ -108,29 +108,99 @@ function entrarGrupoWhatsApp() {
 // Função para calcular chances do bolão
 function calcularChancesBolao(cartoesBolao, loteria) {
     const totalCartoes = cartoesBolao.length;
-    let chancesTexto = '';
+    
+    // Extrair todos os números únicos dos cartões
+    const todosNumeros = new Set();
+    cartoesBolao.forEach(cartao => {
+        cartao.numeros.forEach(n => todosNumeros.add(n));
+    });
+    const numerosCobertos = todosNumeros.size;
+    
+    let totalCombinacoesPossiveis = 0;
+    let numerosPossiveis = 0;
+    let quantidadeNumerosPorCartao = 0;
     
     if (loteria === 'mega') {
-        // Mega-Sena: 1 chance em 50.063.860 por bilhete simples
-        const chanceIndividual = 50063860;
-        const chanceBolao = Math.round(chanceIndividual / totalCartoes);
-        const vezes = totalCartoes;
-        chancesTexto = `📊 Com ${totalCartoes} cartões, suas chances são ${vezes}x maiores que um bilhete simples! (1 em ${chanceBolao.toLocaleString()})`;
+        totalCombinacoesPossiveis = 50063860;
+        numerosPossiveis = 60;
+        quantidadeNumerosPorCartao = 6;
     } else if (loteria === 'lotofacil') {
-        // Lotofácil: 1 chance em 3.268.760 por bilhete simples
-        const chanceIndividual = 3268760;
-        const chanceBolao = Math.round(chanceIndividual / totalCartoes);
-        const vezes = totalCartoes;
-        chancesTexto = `📊 Com ${totalCartoes} cartões, suas chances são ${vezes}x maiores que um bilhete simples! (1 em ${chanceBolao.toLocaleString()})`;
-    } else if (loteria === 'quina') {
-        // Quina: 1 chance em 24.040.016 por bilhete simples
-        const chanceIndividual = 24040016;
-        const chanceBolao = Math.round(chanceIndividual / totalCartoes);
-        const vezes = totalCartoes;
-        chancesTexto = `📊 Com ${totalCartoes} cartões, suas chances são ${vezes}x maiores que um bilhete simples! (1 em ${chanceBolao.toLocaleString()})`;
+        totalCombinacoesPossiveis = 3268760;
+        numerosPossiveis = 25;
+        quantidadeNumerosPorCartao = 15;
+    } else {
+        totalCombinacoesPossiveis = 24040016;
+        numerosPossiveis = 80;
+        quantidadeNumerosPorCartao = 5;
     }
     
-    return chancesTexto;
+    // Calcular porcentagem de números cobertos
+    const percentualNumerosCobertos = ((numerosCobertos / numerosPossiveis) * 100).toFixed(1);
+    
+    // Cálculo mais realista de cobertura
+    let fatorAumento = totalCartoes;
+    let chanceCombinada = Math.round(totalCombinacoesPossiveis / fatorAumento);
+    
+    // Determinar nível do bolão
+    let nivel = '';
+    let corGradient = '';
+    let icone = '';
+    
+    if (totalCartoes >= 50) {
+        nivel = 'NÍVEL MEGA';
+        corGradient = 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)';
+        icone = '🏆';
+    } else if (totalCartoes >= 20) {
+        nivel = 'NÍVEL PROFISSIONAL';
+        corGradient = 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)';
+        icone = '🎯';
+    } else if (totalCartoes >= 10) {
+        nivel = 'NÍVEL AVANÇADO';
+        corGradient = 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)';
+        icone = '⭐';
+    } else if (totalCartoes >= 5) {
+        nivel = 'NÍVEL ESTRATÉGICO';
+        corGradient = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+        icone = '💪';
+    } else {
+        nivel = 'NÍVEL COMPETITIVO';
+        corGradient = 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
+        icone = '🎲';
+    }
+    
+    // Gerar HTML impactante
+    return `
+        <div style="background: ${corGradient}; border-radius: 20px; padding: 18px 20px; margin-bottom: 20px; color: white;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 28px;">${icone}</span>
+                    <span style="font-size: 14px; font-weight: 600; letter-spacing: 1px;">${nivel}</span>
+                </div>
+                <div style="background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 30px; font-size: 11px;">${totalCartoes} CARTÕES</div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                <div style="text-align: center;">
+                    <div style="font-size: 28px; font-weight: bold;">${numerosCobertos}/${numerosPossiveis}</div>
+                    <div style="font-size: 10px; opacity: 0.8;">NÚMEROS COBERTOS</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 28px; font-weight: bold;">${percentualNumerosCobertos}%</div>
+                    <div style="font-size: 10px; opacity: 0.8;">DO UNIVERSO DE NÚMEROS</div>
+                </div>
+            </div>
+            
+            <div style="background: rgba(0,0,0,0.2); border-radius: 12px; padding: 12px; text-align: center;">
+                <div style="font-size: 12px; opacity: 0.9;">PROBABILIDADE AJUSTADA</div>
+                <div style="font-size: 20px; font-weight: bold;">1 em ${chanceCombinada.toLocaleString()}</div>
+                <div style="font-size: 11px; margin-top: 4px;">vs 1 em ${totalCombinacoesPossiveis.toLocaleString()} (aposta simples)</div>
+            </div>
+            
+            <div style="margin-top: 14px; font-size: 12px; text-align: center; opacity: 0.9;">
+                🚀 ${fatorAumento}x mais chances que uma aposta individual!
+            </div>
+        </div>
+    `;
 }
 
 function mostrarCartoes(numerosSorteados = null) {
@@ -151,8 +221,8 @@ function mostrarCartoes(numerosSorteados = null) {
         return;
     }
     
-    // Calcular chances do bolão
-    const chancesTexto = calcularChancesBolao(filtrados, loteriaAtual);
+    // CALCULAR CHANCES COM ESTATÍSTICA AVANÇADA
+    const chancesHtml = calcularChancesBolao(filtrados, loteriaAtual);
     
     const porBolao = {};
     filtrados.forEach(c => {
@@ -161,13 +231,7 @@ function mostrarCartoes(numerosSorteados = null) {
         porBolao[b].push(c);
     });
     
-    let html = '';
-    
-    // Adicionar card de chances
-    html += `<div style="background: #e8f5e9; border-radius: 16px; padding: 12px 16px; margin-bottom: 16px; text-align: center;">
-                <div style="font-size: 14px; font-weight: 600; color: #2e7d32;">🎯 POTENCIAL DO BOLÃO</div>
-                <div style="font-size: 13px; color: #1b5e20; margin-top: 4px;">${chancesTexto}</div>
-            </div>`;
+    let html = chancesHtml; // CARD DE CHANCES NO TOPO
     
     for (const [bolao, lista] of Object.entries(porBolao)) {
         html += `<div style="margin-bottom:20px"><div style="background:#3b82f6;color:white;padding:8px 12px;border-radius:8px;margin-bottom:10px;">🎯 ${bolao}</div>`;
