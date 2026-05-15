@@ -574,3 +574,16 @@ button:hover {
     0% { background-position: 200% 0; }
     100% { background-position: -200% 0; }
 }
+/* FORÇAR GRID 2 COLUNAS NOS PARTICIPANTES */
+.participantes-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+    margin-top: 16px !important;
+}
+
+@media (max-width: 768px) {
+    .participantes-grid {
+        grid-template-columns: 1fr !important;
+    }
+}
