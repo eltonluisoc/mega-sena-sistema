@@ -553,23 +553,48 @@ async function conferirResultados() {
     let dataSorteio = null;
     
     if (resultados[concurso]) {
-        numerosSorteados = resultados[concurso];
-        console.log(`📋 Resultado encontrado para ${loteriaAtual} concurso ${concurso}`);
-    } else {
-        const busca = await buscarResultadoInterno(concurso, loteriaAtual);
-        if (busca) {
-            numerosSorteados = busca.numeros;
-            dataSorteio = busca.dataSorteio;
-            if (loteriaAtual === 'mega') resultadosMega[concurso] = numerosSorteados;
-            else if (loteriaAtual === 'lotofacil') resultadosLotofacil[concurso] = numerosSorteados;
-            else resultadosQuina[concurso] = numerosSorteados;
-            console.log(`📋 Resultado buscado da API para ${loteriaAtual} concurso ${concurso}`);
-        } else {
-            area.innerHTML = `<div class="empty-state">❌ Resultado não encontrado para ${loteriaAtual.toUpperCase()} concurso ${concurso}.</div>`;
-            showToast('❌ Resultado não encontrado', 'error');
-            return;
+    numerosSorteados = resultados[concurso];
+    console.log(`📋 Resultado encontrado para ${loteriaAtual} concurso ${concurso}`);
+} else {
+    const busca = await buscarResultadoInterno(concurso, loteriaAtual);
+    if (busca && busca.numeros) {
+        numerosSorteados = busca.numeros;
+        
+        // CORREÇÃO DA DATA
+        if (busca.dataSorteio) {
+            // Caso 1: Já é um objeto Date válido
+            if (busca.dataSorteio instanceof Date && !isNaN(busca.dataSorteio)) {
+                dataSorteio = busca.dataSorteio;
+            }
+            // Caso 2: String no formato DD/MM/YYYY
+            else if (typeof busca.dataSorteio === 'string' && busca.dataSorteio.includes('/')) {
+                dataSorteio = busca.dataSorteio;
+            }
+            // Caso 3: String ISO (YYYY-MM-DD)
+            else if (typeof busca.dataSorteio === 'string') {
+                const dataTest = new Date(busca.dataSorteio);
+                if (!isNaN(dataTest)) {
+                    dataSorteio = dataTest;
+                } else {
+                    dataSorteio = busca.dataSorteio;
+                }
+            }
+            // Caso 4: Fallback
+            else {
+                dataSorteio = busca.dataSorteio;
+            }
         }
+        
+        if (loteriaAtual === 'mega') resultadosMega[concurso] = numerosSorteados;
+        else if (loteriaAtual === 'lotofacil') resultadosLotofacil[concurso] = numerosSorteados;
+        else resultadosQuina[concurso] = numerosSorteados;
+        console.log(`📋 Resultado buscado da API para ${loteriaAtual} concurso ${concurso}`);
+    } else {
+        area.innerHTML = `<div class="empty-state">❌ Resultado não encontrado para ${loteriaAtual.toUpperCase()} concurso ${concurso}.</div>`;
+        showToast('❌ Resultado não encontrado', 'error');
+        return;
     }
+}
     
     // Atualizar exibição dos cartões com acertos
     mostrarCartoes(numerosSorteados);
