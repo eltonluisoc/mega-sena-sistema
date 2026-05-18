@@ -679,7 +679,45 @@ function compartilharWhatsApp() {
     let loteriaNome = loteriaAtual === 'mega' ? 'MEGA-SENA' : (loteriaAtual === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA');
     
     let msg = `*🏆 RESULTADO - ${loteriaNome}* 🎲\n🏆 Rumo ao Grande Prêmio!\n${linha}\n📌 Concurso: ${ultimoResultadoConcurso}\n🎯 Números Sorteados:\n   ${numeros.join(' - ')}\n`;
-    if (dataSorteio) msg += `📅 Sorteio: ${new Date(dataSorteio).toLocaleDateString('pt-BR')}\n`;
+    
+    // CORREÇÃO DA DATA - TRATAMENTO ROBUSTO
+    if (dataSorteio) {
+        let dataFormatada = '';
+        try {
+            // Verificar se é string no formato DD/MM/YYYY
+            if (typeof dataSorteio === 'string' && dataSorteio.includes('/')) {
+                const partes = dataSorteio.split('/');
+                if (partes.length === 3) {
+                    dataFormatada = `${partes[0]}/${partes[1]}/${partes[2]}`;
+                }
+            }
+            // Verificar se é objeto Date válido
+            else if (dataSorteio instanceof Date && !isNaN(dataSorteio)) {
+                dataFormatada = dataSorteio.toLocaleDateString('pt-BR');
+            }
+            // Verificar se é string ISO
+            else if (typeof dataSorteio === 'string' && dataSorteio.includes('-')) {
+                const dataObj = new Date(dataSorteio);
+                if (!isNaN(dataObj)) {
+                    dataFormatada = dataObj.toLocaleDateString('pt-BR');
+                } else {
+                    dataFormatada = dataSorteio;
+                }
+            }
+            // Fallback
+            else {
+                dataFormatada = dataSorteio;
+            }
+        } catch(e) {
+            console.warn('Erro ao formatar data:', e);
+            dataFormatada = dataSorteio;
+        }
+        
+        if (dataFormatada && dataFormatada !== 'Invalid Date') {
+            msg += `📅 Sorteio: ${dataFormatada}\n`;
+        }
+    }
+    
     msg += `${linha}\n📊 DESEMPENHO DO GRUPO:\n`;
     
     if (loteriaAtual === 'mega') {
@@ -706,7 +744,7 @@ function compartilharWhatsApp() {
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const whatsappUrl = isMobile ? `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}` : `https://web.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
     window.open(whatsappUrl, '_blank');
-    showToast('📱 Abrindo WhatsApp...', 'success');
+    showToast('📱 Abrindo WhatsApp...', 'info');
 }
 
 async function carregarBolaoAtivo() {
