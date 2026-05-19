@@ -194,7 +194,7 @@ button:hover {
     color: #1e40af;
 }
 
-/* ============ BOLÕES ESPECIAIS - DESIGN APPLE ============ */
+/* ============ BOLÕES ESPECIAIS ============ */
 .bolao-card {
     background: #ffffff;
     border-radius: 20px;
@@ -321,7 +321,7 @@ button:hover {
     background: #005fc1;
 }
 
-/* LISTA DE PARTICIPANTES */
+/* ============ PARTICIPANTES - GRID 2 COLUNAS (FUNCIONA EM DESKTOP E CELULAR) ============ */
 .participantes-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -361,7 +361,7 @@ button:hover {
     color: #ed6c02;
 }
 
-/* RESULTADOS */
+/* ============ RESULTADOS ============ */
 .resultado-resumo {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
@@ -474,7 +474,7 @@ button:hover {
     text-align: center;
 }
 
-/* TOAST */
+/* ============ TOAST ============ */
 .toast-container {
     position: fixed;
     bottom: 20px;
@@ -505,17 +505,27 @@ button:hover {
 }
 
 @keyframes slideUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
-/* RESPONSIVO */
+/* ============ SKELETON LOADING ============ */
+.loading-skeleton {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: loading 1.5s infinite;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    color: #94a3b8;
+}
+
+@keyframes loading {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* ============ RESPONSIVO - AJUSTES PARA CELULAR ============ */
 @media (max-width: 768px) {
     .bolao-header {
         padding: 12px 14px;
@@ -537,53 +547,36 @@ button:hover {
         font-size: 13px;
         padding: 10px;
     }
-    .participantes-grid {
-        grid-template-columns: 1fr;
-        gap: 8px;
-    }
     .numero-sorteado-card {
         width: 40px;
         height: 40px;
         font-size: 14px;
     }
-}
-/* FORÇAR GRID 2 COLUNAS */
-.participantes-grid {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr !important;
-    gap: 10px !important;
-}
-
-@media (max-width: 768px) {
+    
+    /* CELULAR: PARTICIPANTES CONTINUAM EM 2 COLUNAS (MAIS COMPACTO) */
     .participantes-grid {
-        grid-template-columns: 1fr !important;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    
+    .participante-card {
+        padding: 8px 10px;
+    }
+    
+    .participante-nome {
+        font-size: 12px;
+    }
+    
+    .participante-status {
+        font-size: 9px;
+        padding: 3px 8px;
     }
 }
-/* Skeleton loading */
-.loading-skeleton {
-    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-    background-size: 200% 100%;
-    animation: loading 1.5s infinite;
-    border-radius: 12px;
-    padding: 20px;
-    text-align: center;
-    color: #94a3b8;
-}
 
-@keyframes loading {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
-}
-/* FORÇAR GRID 2 COLUNAS NOS PARTICIPANTES */
-.participantes-grid {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr !important;
-    gap: 10px !important;
-    margin-top: 16px !important;
-}
-
-@media (max-width: 768px) {
+/* Celular muito pequeno (menos de 480px) - aí sim 1 coluna */
+@media (max-width: 480px) {
     .participantes-grid {
-        grid-template-columns: 1fr !important;
+        grid-template-columns: 1fr;
+        gap: 6px;
     }
 }
