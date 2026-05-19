@@ -1,4 +1,11 @@
 {
+  "name": "Bolões Aleatórios",
+  "short_name": "Bolões",
+  "description": "Sistema de bolões Lotéricos",
+  "start_url": "/mega-sena-sistema/",
+  "display": "standalone",
+  "theme_color": "#3b82f6",
+  "background_color": "#ffffff",
   "icons": [
     {
       "src": "/mega-sena-sistema/icon.png",
