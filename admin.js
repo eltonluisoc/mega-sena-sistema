@@ -163,6 +163,120 @@ async function carregarDadosAdmin() {
     }
 }
 
+// Carregar todas as reservas
+async function carregarReservas() {
+    try {
+        const snapshot = await db.collection('reservas_participantes').get();
+        const reservas = [];
+        let totalSaldo = 0;
+        
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            reservas.push({ id: doc.id, ...data });
+            totalSaldo += data.saldoReserva || 0;
+        });
+        
+        // Ordenar por saldo (maior primeiro)
+        reservas.sort((a, b) => (b.saldoReserva || 0) - (a.saldoReserva || 0));
+        
+        // Atualizar total
+        document.getElementById('totalReservas').innerHTML = `R$ ${totalSaldo.toFixed(2)}`;
+        
+        // Exibir lista
+        const container = document.getElementById('listaReservas');
+        
+        if (reservas.length === 0) {
+            container.innerHTML = '<div class="empty-state">📭 Nenhuma reserva encontrada</div>';
+            return;
+        }
+        
+        let html = '<div class="reservas-grid">';
+        for (const reserva of reservas) {
+            const dataAtualizacao = reserva.dataAtualizacao ? new Date(reserva.dataAtualizacao).toLocaleString('pt-BR') : '---';
+            const saldo = (reserva.saldoReserva || 0).toFixed(2);
+            const saldoClass = reserva.saldoReserva > 0 ? 'positivo' : (reserva.saldoReserva < 0 ? 'negativo' : 'zero');
+            
+            html += `
+                <div class="reserva-card">
+                    <div class="reserva-header">
+                        <div class="reserva-nome">👤 ${reserva.nome}</div>
+                        <div class="reserva-saldo ${saldoClass}">R$ ${saldo}</div>
+                    </div>
+                    <div class="reserva-info">
+                        <div>🆔 ID: ${reserva.participanteId || reserva.id.substring(0, 8)}</div>
+                        <div>📅 Atualizado: ${dataAtualizacao}</div>
+                    </div>
+                    <button class="btn-ver-historico" data-id="${reserva.id}" data-nome="${reserva.nome}" style="background: #64748b; width: auto; padding: 5px 12px; margin-top: 8px;">📜 VER HISTÓRICO</button>
+                    <div id="historico-${reserva.id}" style="display: none; margin-top: 10px; background: #f8fafc; border-radius: 8px; padding: 10px; font-size: 11px;"></div>
+                </div>
+            `;
+        }
+        html += '</div>';
+        container.innerHTML = html;
+        
+        // Eventos para botões de histórico
+        document.querySelectorAll('.btn-ver-historico').forEach(btn => {
+            btn.onclick = () => mostrarHistorico(btn.dataset.id, btn.dataset.nome);
+        });
+        
+    } catch (error) {
+        console.error('Erro ao carregar reservas:', error);
+        document.getElementById('listaReservas').innerHTML = '<div class="empty-state">❌ Erro ao carregar reservas</div>';
+    }
+}
+
+// Mostrar histórico de um participante
+async function mostrarHistorico(id, nome) {
+    const div = document.getElementById(`historico-${id}`);
+    
+    if (div.style.display === 'none') {
+        try {
+            const doc = await db.collection('reservas_participantes').doc(id).get();
+            const data = doc.data();
+            const historico = data.historico || [];
+            
+            if (historico.length === 0) {
+                div.innerHTML = '<div style="text-align: center; color: #666;">Nenhuma movimentação registrada</div>';
+            } else {
+                let html = '<div style="font-weight: bold; margin-bottom: 8px;">📋 MOVIMENTAÇÕES</div>';
+                html = '<div style="max-height: 200px; overflow-y: auto;">';
+                for (const item of historico.reverse()) {
+                    const data = new Date(item.data).toLocaleString('pt-BR');
+                    const tipoIcon = item.tipo === 'deposito' ? '💰 DEPÓSITO' : (item.tipo === 'saque' ? '💸 SAQUE' : '🎯 USO');
+                    const valorClass = item.tipo === 'deposito' ? 'text-success' : 'text-danger';
+                    html += `
+                        <div style="border-bottom: 1px solid #e2e8f0; padding: 6px 0; font-size: 11px;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>${tipoIcon}</span>
+                                <span class="${valorClass}">R$ ${item.valor.toFixed(2)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; color: #666;">
+                                <span>${data}</span>
+                                <span>Saldo: R$ ${item.saldoNovo.toFixed(2)}</span>
+                            </div>
+                            ${item.descricao ? `<div style="color: #666; font-size: 10px;">${item.descricao}</div>` : ''}
+                        </div>
+                    `;
+                }
+                html += '</div>';
+                div.innerHTML = html;
+            }
+            div.style.display = 'block';
+            btn.textContent = '🙈 OCULTAR HISTÓRICO';
+        } catch (error) {
+            div.innerHTML = '<div style="color: red;">Erro ao carregar histórico</div>';
+            div.style.display = 'block';
+        }
+    } else {
+        div.style.display = 'none';
+    }
+}
+
+// Chamar no carregamento do admin
+// Adicionar no DOMContentLoaded do admin.js:
+// carregarReservas();
+// document.getElementById('btnAtualizarReservas').onclick = () => carregarReservas();
+
 function atualizarDashboardAdmin() {
     const cartoesFiltrados = cartoes.filter(c => c.tipo === loteriaAdmin);
     const resultados = loteriaAdmin === 'mega' ? resultadosMega : loteriaAdmin === 'lotofacil' ? resultadosLotofacil : resultadosQuina;
