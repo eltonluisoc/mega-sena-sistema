@@ -876,16 +876,18 @@ async function carregarBolaoAtivo() {
                     const participantesFormatados = participantes.map(p => {
                         let statusClass = 'pendente';
                         let statusText = 'EM ANDAMENTO';
+                        let quantidadeCotas = p.quantidadeCotas || 1;  // ← PADRÃO 1 COTA
                         
                         if (p.situacao === 'quitado' || p.situacao === 'pago') {
                             statusClass = 'pago';
-                            statusText = 'QUITADO';
+                            statusText = 'PAGO';
                         }
                         
                         return {
                             nome: p.nome,
                             statusClass: statusClass,
-                            statusText: statusText
+                            statusText: statusText,
+                            quantidadeCotas: quantidadeCotas
                         };
                     });
                     
@@ -898,11 +900,14 @@ async function carregarBolaoAtivo() {
                     let listaHtml = '<div class="participantes-grid">';
                     participantesFormatados.forEach(p => {
                         listaHtml += `
-                            <div class="participante-card">
-                                <span class="participante-nome">${p.nome}</span>
-                                <span class="participante-status ${p.statusClass}">${p.statusText}</span>
-                            </div>
-                        `;
+                    <div class="participante-card">
+                        <div style="display: flex; flex-direction: column; gap: 2px;">
+                            <span class="participante-nome">${p.nome}</span>
+                            <span style="font-size: 9px; color: #64748b;">🎟️ ${p.quantidadeCotas} cota${p.quantidadeCotas > 1 ? 's' : ''}</span>
+                        </div>
+                        <span class="participante-status ${p.statusClass}">${p.statusText}</span>
+                    </div>
+                `;
                     });
                     listaHtml += '</div>';
                     
