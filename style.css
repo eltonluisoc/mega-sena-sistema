@@ -580,3 +580,68 @@ button:hover {
         gap: 6px;
     }
 }
+
+/* Reservas */
+.reservas-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 15px;
+}
+
+.reserva-card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 14px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    transition: all 0.2s;
+}
+
+.reserva-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    transform: translateY(-2px);
+}
+
+.reserva-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.reserva-nome {
+    font-weight: bold;
+    font-size: 14px;
+    color: #1e293b;
+}
+
+.reserva-saldo {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.reserva-saldo.positivo {
+    color: #10b981;
+}
+
+.reserva-saldo.negativo {
+    color: #ef4444;
+}
+
+.reserva-saldo.zero {
+    color: #64748b;
+}
+
+.reserva-info {
+    font-size: 11px;
+    color: #64748b;
+    margin-bottom: 8px;
+}
+
+@media (max-width: 640px) {
+    .reservas-grid {
+        grid-template-columns: 1fr;
+    }
+}
