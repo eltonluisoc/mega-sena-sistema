@@ -412,6 +412,20 @@
                 </div>
             </div>
 
+                <!-- Card: Reservas dos Participantes -->
+                <div class="card">
+                    <div class="card-header bg-purple">💰 RESERVAS DOS PARTICIPANTES</div>
+                    <div class="card-body">
+                        <div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                            <div><strong>💵 TOTAL EM RESERVAS:</strong> <span id="totalReservas" style="font-size: 24px; color: #10b981;">R$ 0,00</span></div>
+                            <button id="btnAtualizarReservas" class="btn btn-sm" style="background: #3b82f6; width: auto;">🔄 ATUALIZAR</button>
+                        </div>
+                    <div id="listaReservas" style="max-height: 400px; overflow-y: auto;">
+                <div class="empty-state">Carregando reservas...</div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Coluna direita - Lista de cartões -->
             <div class="lista-panel">
                 <div class="card">
