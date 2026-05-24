@@ -1170,7 +1170,6 @@ async function carregarParticipantesAdmin(bolaoId) {
             return;
         }
         
-        // Formatar participantes
         const participantesFormatados = participantes.map(p => {
             let statusClass = 'pago';
             let statusText = 'PAGO';
@@ -1193,30 +1192,33 @@ async function carregarParticipantesAdmin(bolaoId) {
             };
         });
         
-        // Ordenar: pagos primeiro
         participantesFormatados.sort((a, b) => {
             if (a.statusClass === 'pago' && b.statusClass !== 'pago') return -1;
             if (a.statusClass !== 'pago' && b.statusClass === 'pago') return 1;
             return 0;
         });
         
-        let html = `<div style="margin-bottom: 15px; padding: 10px; background: #f1f5f9; border-radius: 12px;">
-                        <strong>📊 TOTAL:</strong> ${participantes.length} participantes
-                        | <strong>💰 VALOR POR COTA:</strong> R$ ${valorPorCota.toFixed(2)}
+        let html = `<div style="margin-bottom: 15px; padding: 10px; background: #f1f5f9; border-radius: 12px; display: flex; justify-content: space-between; flex-wrap: wrap;">
+                        <span><strong>📊 TOTAL:</strong> ${participantes.length} participantes</span>
+                        <span><strong>💰 VALOR POR COTA:</strong> R$ ${valorPorCota.toFixed(2)}</span>
                     </div>`;
         html += '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">';
         
         participantesFormatados.forEach(p => {
             const totalEsperado = p.valorPorCota * p.quantidadeCotas;
             html += `
-                <div style="background: #f8fafc; border-radius: 12px; padding: 12px; border: 1px solid #e2e8f0;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                        <strong>${p.nome}</strong>
-                        <span style="background: ${p.statusClass === 'pago' ? '#10b981' : '#f59e0b'}; color: white; font-size: 10px; padding: 3px 10px; border-radius: 30px;">${p.statusText}</span>
+                <div style="background: #ffffff; border-radius: 12px; padding: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0;">
+                        <strong style="font-size: 14px;">${p.nome}</strong>
+                        <span style="background: ${p.statusClass === 'pago' ? '#10b981' : '#f59e0b'}; color: white; font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 30px;">${p.statusText}</span>
                     </div>
-                    <div style="font-size: 11px; color: #64748b;">
-                        📞 ${p.telefone} | 🎟️ ${p.quantidadeCotas} cota(s)<br>
-                        💵 Pago: R$ ${p.valorPago.toFixed(2)} | Total: R$ ${totalEsperado.toFixed(2)}
+                    <div style="display: flex; justify-content: space-between; font-size: 12px; color: #475569;">
+                        <span>📞 ${p.telefone}</span>
+                        <span>🎟️ ${p.quantidadeCotas} cota${p.quantidadeCotas > 1 ? 's' : ''}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 12px; color: #475569; margin-top: 6px;">
+                        <span>💵 Pago: <strong style="color: #10b981;">R$ ${p.valorPago.toFixed(2)}</strong></span>
+                        <span>Total: R$ ${totalEsperado.toFixed(2)}</span>
                     </div>
                 </div>
             `;
