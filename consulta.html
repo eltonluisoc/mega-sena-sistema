@@ -203,61 +203,63 @@
                 
                 console.log('🔍 Buscando bolões para:', nome, 'telefone:', telefoneNormalizado);
                 
+                // ============================================
+                // BUSCAR STATUS DO CONFIG_BOLOES/ATIVOS
+                // ============================================
+                const configDoc = await db.collection('config_boloes').doc('ativos').get();
+                const statusMap = configDoc.exists ? configDoc.data().status || {} : {};
+                console.log('📋 Status Map do config_boloes:', statusMap);
+                
                 // Buscar todos os bolões
-const boloesSnapshot = await db.collection('participantes').get();
-const boloes = [];
-boloesSnapshot.forEach(doc => {
-    boloes.push({ id: doc.id, ...doc.data() });
-});
+                const boloesSnapshot = await db.collection('participantes').get();
+                const boloes = [];
+                boloesSnapshot.forEach(doc => {
+                    boloes.push({ id: doc.id, ...doc.data() });
+                });
+                
+                console.log(`📋 Total de bolões encontrados: ${boloes.length}`);
+                
+                // Separar bolões
+                const participa = [];
+                const naoParticipa = [];
+                const encerrados = [];
 
-// Buscar status atualizados do config_boloes
-const configDoc = await db.collection('config_boloes').doc('ativos').get();
-const statusMap = configDoc.exists ? configDoc.data().status || {} : {};
-
-console.log(`📋 Total de bolões encontrados: ${boloes.length}`);
-console.log('📋 Status Map:', statusMap);
-
-// Separar bolões
-const participa = [];
-const naoParticipa = [];
-const encerrados = [];
-
-for (const bolao of boloes) {
-    const participantes = bolao.participantes || [];
-    
-    // USAR O STATUS DO STATUS_MAP (do config_boloes)
-    const statusBolao = statusMap[bolao.id] || 'andamento';
-    
-    console.log(`🔍 Bolão: ${bolao.titulo} - Status: ${statusBolao}`);
-    
-    // NORMALIZAR TELEFONE PARA COMPARAÇÃO
-    const encontrado = participantes.find(p => {
-        const telefoneParticipante = p.telefone ? normalizarTelefone(p.telefone) : '';
-        return telefoneParticipante === telefoneNormalizado;
-    });
-    
-    if (encontrado) {
-        console.log(`✅ Participa do bolão: ${bolao.titulo} (${statusBolao})`);
-        participa.push({
-            ...bolao,
-            meuStatus: encontrado.situacao,
-            minhasCotas: encontrado.quantidadeCotas || 1,
-            meuValorPago: encontrado.valorPago,
-            meuNome: encontrado.nome
-        });
-    } else if (statusBolao === 'aberto') {
-        console.log(`🔵 Não participa do bolão ABERTO: ${bolao.titulo}`);
-        naoParticipa.push(bolao);
-    } else if (statusBolao === 'encerrado') {
-        console.log(`🔴 Bolão ENCERRADO: ${bolao.titulo}`);
-        encerrados.push(bolao);
-    } else {
-        console.log(`🟡 Bolão EM ANDAMENTO (não participa): ${bolao.titulo}`);
-    }
-}
+                for (const bolao of boloes) {
+                    const participantes = bolao.participantes || [];
+                    
+                    // USAR O STATUS DO STATUS_MAP (do config_boloes)
+                    const statusBolao = statusMap[bolao.id] || 'andamento';
+                    
+                    console.log(`🔍 Bolão: ${bolao.titulo} - Status do config: ${statusBolao}`);
+                    
+                    // NORMALIZAR TELEFONE PARA COMPARAÇÃO
+                    const encontrado = participantes.find(p => {
+                        const telefoneParticipante = p.telefone ? normalizarTelefone(p.telefone) : '';
+                        return telefoneParticipante === telefoneNormalizado;
+                    });
+                    
+                    if (encontrado) {
+                        console.log(`✅ Participa do bolão: ${bolao.titulo} (${statusBolao})`);
+                        participa.push({
+                            ...bolao,
+                            meuStatus: encontrado.situacao,
+                            minhasCotas: encontrado.quantidadeCotas || 1,
+                            meuValorPago: encontrado.valorPago,
+                            meuNome: encontrado.nome
+                        });
+                    } else if (statusBolao === 'aberto') {
+                        console.log(`🔵 Não participa do bolão ABERTO: ${bolao.titulo}`);
+                        naoParticipa.push(bolao);
+                    } else if (statusBolao === 'encerrado') {
+                        console.log(`🔴 Bolão ENCERRADO: ${bolao.titulo}`);
+                        encerrados.push(bolao);
+                    } else {
+                        console.log(`🟡 Bolão EM ANDAMENTO (não participa): ${bolao.titulo}`);
+                    }
+                }
 
                 // ============================================
-                // REMOVER DUPLICADOS NA EXIBIÇÃO (sem alterar o Firebase)
+                // REMOVER DUPLICADOS NA EXIBIÇÃO
                 // ============================================
                 const participaUnicos = [];
                 const idsVistos = new Set();
@@ -291,14 +293,16 @@ for (const bolao of boloes) {
                     </div>
                 `;
                 
-                // Bolões que participa (USANDO participaUnicos)
+                // Bolões que participa
                 if (participaUnicos.length > 0) {
                     html += `<h3 style="margin-bottom: 12px;">✅ BOLÕES QUE VOCÊ PARTICIPA</h3>`;
                     for (const bolao of participaUnicos) {
                         const statusText = (bolao.meuStatus === 'quitado' || bolao.meuStatus === 'pago') ? 'PAGO' : 'EM ANDAMENTO';
                         const statusClass = (bolao.meuStatus === 'quitado' || bolao.meuStatus === 'pago') ? 'status-pago' : 'status-pendente';
-                        const statusBolaoClass = bolao.status === 'aberto' ? 'status-aberto' : 'status-andamento';
-                        const statusBolaoText = bolao.status === 'aberto' ? 'ABERTO' : 'EM ANDAMENTO';
+                        // USAR O STATUS DO STATUS_MAP
+                        const statusBolaoReal = statusMap[bolao.id] || 'andamento';
+                        const statusBolaoClass = statusBolaoReal === 'aberto' ? 'status-aberto' : 'status-andamento';
+                        const statusBolaoText = statusBolaoReal === 'aberto' ? 'ABERTO' : 'EM ANDAMENTO';
                         
                         html += `
                             <div class="bolao-item">
@@ -318,7 +322,7 @@ for (const bolao of boloes) {
                     html += `<div class="bolao-item" style="text-align:center;">📭 Você ainda não participa de nenhum bolão.</div>`;
                 }
                 
-                // Bolões abertos que não participa (USANDO naoParticipaUnicos)
+                // Bolões abertos que não participa
                 if (naoParticipaUnicos.length > 0) {
                     html += `<h3 style="margin-top: 24px; margin-bottom: 12px;">🔵 BOLÕES ABERTOS PARA PARTICIPAR</h3>`;
                     for (const bolao of naoParticipaUnicos) {
@@ -336,7 +340,6 @@ for (const bolao of boloes) {
                     }
                 }
                 
-                // Bolões encerrados (apenas informação)
                 if (encerrados.length > 0 && participaUnicos.length === 0 && naoParticipaUnicos.length === 0) {
                     html += `<div class="aviso" style="margin-top: 16px;">📭 No momento não há bolões abertos para participar.</div>`;
                 }
