@@ -213,47 +213,66 @@
                 console.log(`📋 Total de bolões encontrados: ${boloes.length}`);
                 
                 // Separar bolões
-const participa = [];
-const naoParticipa = [];
-const encerrados = [];
+                const participa = [];
+                const naoParticipa = [];
+                const encerrados = [];
 
-for (const bolao of boloes) {
-    const participantes = bolao.participantes || [];
-    const statusBolao = bolao.status || 'andamento';
-    
-    // NORMALIZAR TELEFONE PARA COMPARAÇÃO
-    const encontrado = participantes.find(p => {
-        const telefoneParticipante = p.telefone ? normalizarTelefone(p.telefone) : '';
-        return telefoneParticipante === telefoneNormalizado;
-    });
-    
-    if (encontrado) {
-        console.log(`✅ Participa do bolão: ${bolao.titulo} (${statusBolao})`);
-        participa.push({
-            ...bolao,
-            meuStatus: encontrado.situacao,
-            minhasCotas: encontrado.quantidadeCotas || 1,
-            meuValorPago: encontrado.valorPago,
-            meuNome: encontrado.nome
-        });
-    } else if (statusBolao === 'aberto') {
-        console.log(`🔵 Não participa do bolão ABERTO: ${bolao.titulo}`);
-        naoParticipa.push(bolao);
-    } else if (statusBolao === 'encerrado') {
-        console.log(`🔴 Bolão ENCERRADO: ${bolao.titulo}`);
-        encerrados.push(bolao);
-    } else {
-        console.log(`🟡 Bolão EM ANDAMENTO (não participa): ${bolao.titulo}`);
-    }
-}
+                for (const bolao of boloes) {
+                    const participantes = bolao.participantes || [];
+                    const statusBolao = bolao.status || 'andamento';
+                    
+                    // NORMALIZAR TELEFONE PARA COMPARAÇÃO
+                    const encontrado = participantes.find(p => {
+                        const telefoneParticipante = p.telefone ? normalizarTelefone(p.telefone) : '';
+                        return telefoneParticipante === telefoneNormalizado;
+                    });
+                    
+                    if (encontrado) {
+                        console.log(`✅ Participa do bolão: ${bolao.titulo} (${statusBolao})`);
+                        participa.push({
+                            ...bolao,
+                            meuStatus: encontrado.situacao,
+                            minhasCotas: encontrado.quantidadeCotas || 1,
+                            meuValorPago: encontrado.valorPago,
+                            meuNome: encontrado.nome
+                        });
+                    } else if (statusBolao === 'aberto') {
+                        console.log(`🔵 Não participa do bolão ABERTO: ${bolao.titulo}`);
+                        naoParticipa.push(bolao);
+                    } else if (statusBolao === 'encerrado') {
+                        console.log(`🔴 Bolão ENCERRADO: ${bolao.titulo}`);
+                        encerrados.push(bolao);
+                    } else {
+                        console.log(`🟡 Bolão EM ANDAMENTO (não participa): ${bolao.titulo}`);
+                    }
+                }
 
-// ============================================
-// ORDENAR BOLÕES EM ORDEM ALFABÉTICA
-// ============================================
-participa.sort((a, b) => a.titulo.localeCompare(b.titulo));
-naoParticipa.sort((a, b) => a.titulo.localeCompare(b.titulo));
-                
-                console.log(`📊 Resumo: Participa=${participa.length}, Abertos=${naoParticipa.length}, Encerrados=${encerrados.length}`);
+                // ============================================
+                // REMOVER DUPLICADOS NA EXIBIÇÃO (sem alterar o Firebase)
+                // ============================================
+                const participaUnicos = [];
+                const idsVistos = new Set();
+                for (const bolao of participa) {
+                    if (!idsVistos.has(bolao.id)) {
+                        idsVistos.add(bolao.id);
+                        participaUnicos.push(bolao);
+                    }
+                }
+
+                const naoParticipaUnicos = [];
+                const idsVistosNao = new Set();
+                for (const bolao of naoParticipa) {
+                    if (!idsVistosNao.has(bolao.id)) {
+                        idsVistosNao.add(bolao.id);
+                        naoParticipaUnicos.push(bolao);
+                    }
+                }
+
+                // ORDENAR BOLÕES EM ORDEM ALFABÉTICA
+                participaUnicos.sort((a, b) => a.titulo.localeCompare(b.titulo));
+                naoParticipaUnicos.sort((a, b) => a.titulo.localeCompare(b.titulo));
+
+                console.log(`📊 Resumo: Participa=${participaUnicos.length}, Abertos=${naoParticipaUnicos.length}, Encerrados=${encerrados.length}`);
                 
                 // Montar HTML
                 let html = `
@@ -263,10 +282,10 @@ naoParticipa.sort((a, b) => a.titulo.localeCompare(b.titulo));
                     </div>
                 `;
                 
-                // Bolões que participa
-                if (participa.length > 0) {
+                // Bolões que participa (USANDO participaUnicos)
+                if (participaUnicos.length > 0) {
                     html += `<h3 style="margin-bottom: 12px;">✅ BOLÕES QUE VOCÊ PARTICIPA</h3>`;
-                    for (const bolao of participa) {
+                    for (const bolao of participaUnicos) {
                         const statusText = (bolao.meuStatus === 'quitado' || bolao.meuStatus === 'pago') ? 'PAGO' : 'EM ANDAMENTO';
                         const statusClass = (bolao.meuStatus === 'quitado' || bolao.meuStatus === 'pago') ? 'status-pago' : 'status-pendente';
                         const statusBolaoClass = bolao.status === 'aberto' ? 'status-aberto' : 'status-andamento';
@@ -290,10 +309,10 @@ naoParticipa.sort((a, b) => a.titulo.localeCompare(b.titulo));
                     html += `<div class="bolao-item" style="text-align:center;">📭 Você ainda não participa de nenhum bolão.</div>`;
                 }
                 
-                // Bolões abertos que não participa
-                if (naoParticipa.length > 0) {
+                // Bolões abertos que não participa (USANDO naoParticipaUnicos)
+                if (naoParticipaUnicos.length > 0) {
                     html += `<h3 style="margin-top: 24px; margin-bottom: 12px;">🔵 BOLÕES ABERTOS PARA PARTICIPAR</h3>`;
-                    for (const bolao of naoParticipa) {
+                    for (const bolao of naoParticipaUnicos) {
                         html += `
                             <div class="bolao-item">
                                 <div class="bolao-titulo">
@@ -309,7 +328,7 @@ naoParticipa.sort((a, b) => a.titulo.localeCompare(b.titulo));
                 }
                 
                 // Bolões encerrados (apenas informação)
-                if (encerrados.length > 0 && participa.length === 0 && naoParticipa.length === 0) {
+                if (encerrados.length > 0 && participaUnicos.length === 0 && naoParticipaUnicos.length === 0) {
                     html += `<div class="aviso" style="margin-top: 16px;">📭 No momento não há bolões abertos para participar.</div>`;
                 }
                 
