@@ -112,6 +112,10 @@ body {
     background: #f59e0b;
 }
 
+.bg-purple {
+    background: #8b5cf6;
+}
+
 .form-group {
     margin-bottom: 12px;
 }
@@ -124,7 +128,7 @@ label {
     font-size: 13px;
 }
 
-select {
+select, .form-control {
     width: 100%;
     padding: 10px;
     border: 1px solid #ddd;
@@ -326,7 +330,7 @@ button:hover {
     background: #005fc1;
 }
 
-/* ============ PARTICIPANTES - GRID 2 COLUNAS (FUNCIONA EM DESKTOP E CELULAR) ============ */
+/* PARTICIPANTES - GRID 2 COLUNAS */
 .participantes-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -366,7 +370,7 @@ button:hover {
     color: #ed6c02;
 }
 
-/* ============ RESULTADOS ============ */
+/* RESULTADOS */
 .resultado-resumo {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
@@ -479,7 +483,7 @@ button:hover {
     text-align: center;
 }
 
-/* ============ TOAST ============ */
+/* TOAST */
 .toast-container {
     position: fixed;
     bottom: 20px;
@@ -514,7 +518,7 @@ button:hover {
     to { opacity: 1; transform: translateY(0); }
 }
 
-/* ============ SKELETON LOADING ============ */
+/* SKELETON LOADING */
 .loading-skeleton {
     background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
     background-size: 200% 100%;
@@ -530,38 +534,262 @@ button:hover {
     100% { background-position: -200% 0; }
 }
 
-/* ============ RESPONSIVO - AJUSTES PARA CELULAR ============ */
+/* TOKENS */
+.tokens-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 15px;
+}
+
+.token-card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 14px;
+    border: 1px solid #e2e8f0;
+    transition: all 0.2s;
+}
+
+.token-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 11px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-sm:hover {
+    transform: scale(1.02);
+}
+
+/* ============ ADMIN - DASHBOARD ============ */
+.dashboard-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: space-between;
+}
+
+.dashboard-card {
+    flex: 1;
+    text-align: center;
+    background: #f8fafc;
+    padding: 12px;
+    border-radius: 12px;
+    min-width: 80px;
+}
+
+.dashboard-number {
+    font-size: 24px;
+    font-weight: bold;
+}
+
+/* ============ RESPONSIVO ADMIN (CELULAR) ============ */
 @media (max-width: 768px) {
-    .bolao-header {
-        padding: 12px 14px;
+    .container {
+        padding: 0 10px;
     }
-    .bolao-nome {
-        font-size: 15px;
+    
+    .admin-layout {
+        flex-direction: column;
+        gap: 15px;
     }
-    .bolao-status {
-        font-size: 10px;
-        padding: 4px 12px;
+    
+    .card {
+        width: 100%;
+        margin-bottom: 15px;
+        overflow-x: auto;
     }
-    .bolao-body {
-        padding: 12px 14px;
+    
+    .card-header {
+        font-size: 14px;
+        padding: 10px 12px;
     }
-    .stat-number {
-        font-size: 18px;
+    
+    .card-body {
+        padding: 12px;
     }
-    .btn-ver-participantes {
-        font-size: 13px;
+    
+    .form-row {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .form-group {
+        width: 100%;
+    }
+    
+    .btn, .btn-primary, .btn-success, .btn-danger {
+        width: 100%;
+        margin-bottom: 8px;
+        text-align: center;
+    }
+    
+    .form-buttons {
+        flex-direction: column;
+    }
+    
+    .filtros {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .filtros select, .filtros button {
+        width: 100%;
+    }
+    
+    .dashboard-cards {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+    
+    .dashboard-card {
         padding: 10px;
     }
+    
+    .dashboard-number {
+        font-size: 20px;
+    }
+    
+    .cartoes-grid {
+        max-height: none;
+    }
+    
+    .cartao-item {
+        padding: 10px;
+    }
+    
+    .cartao-item > div {
+        flex-direction: column !important;
+        gap: 10px;
+    }
+    
+    .cartao-item .btn-editar,
+    .cartao-item .btn-duplicar {
+        width: 100%;
+        margin-top: 5px;
+    }
+    
+    .checkbox-bolao {
+        width: 20px !important;
+        height: 20px !important;
+    }
+    
+    .tokens-grid {
+        grid-template-columns: 1fr !important;
+    }
+    
+    .token-card {
+        padding: 12px;
+    }
+    
+    .token-card .btn-copiar-link,
+    .token-card .btn-revogar-token {
+        width: 100%;
+        margin-bottom: 5px;
+    }
+    
+    .token-card > div:last-child {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .btn-sm {
+        width: 100%;
+        text-align: center;
+    }
+    
+    select, .form-control {
+        font-size: 14px;
+        padding: 8px;
+    }
+    
+    .top-bar {
+        flex-direction: column;
+        text-align: center;
+        gap: 8px;
+    }
+    
+    .stats {
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    
+    .btn-logout {
+        width: auto;
+        margin-top: 5px;
+    }
+    
+    .modal-content {
+        width: 90%;
+        margin: 0 auto;
+    }
+    
+    #listaBoloes > div {
+        padding: 10px;
+    }
+    
+    #listaBoloes .status-select,
+    #listaBoloes .data-limite-input {
+        width: 100%;
+        margin-bottom: 5px;
+    }
+    
+    #listaBoloes > div > div:nth-child(2) {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .estrategia-textarea {
+        font-size: 12px;
+    }
+    
+    /* Bolões especiais no celular */
+    .participantes-grid {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    
     .numero-sorteado-card {
         width: 40px;
         height: 40px;
         font-size: 14px;
     }
-    
-    /* CELULAR: PARTICIPANTES CONTINUAM EM 2 COLUNAS (MAIS COMPACTO) */
-    .participantes-grid {
-        grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 480px) {
+    .dashboard-cards {
+        grid-template-columns: 1fr;
         gap: 8px;
+    }
+    
+    .dashboard-number {
+        font-size: 18px;
+    }
+    
+    .card-header {
+        font-size: 13px;
+    }
+    
+    .logo {
+        font-size: 18px;
+    }
+    
+    .version {
+        font-size: 9px;
+    }
+    
+    .bolao-nome {
+        font-size: 15px;
+    }
+    
+    .stat-number {
+        font-size: 18px;
     }
     
     .participante-card {
@@ -570,19 +798,6 @@ button:hover {
     
     .participante-nome {
         font-size: 12px;
-    }
-    
-    .participante-status {
-        font-size: 9px;
-        padding: 3px 8px;
-    }
-}
-
-/* Celular muito pequeno (menos de 480px) - aí sim 1 coluna */
-@media (max-width: 480px) {
-    .participantes-grid {
-        grid-template-columns: 1fr;
-        gap: 6px;
     }
 }
 
@@ -643,41 +858,4 @@ button:hover {
     font-size: 11px;
     color: #64748b;
     margin-bottom: 8px;
-}
-
-@media (max-width: 640px) {
-    .reservas-grid {
-        grid-template-columns: 1fr;
-    }
-}
-/* Tokens - Grid e Cards */
-.tokens-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 15px;
-}
-
-.token-card {
-    background: #ffffff;
-    border-radius: 16px;
-    padding: 14px;
-    border: 1px solid #e2e8f0;
-    transition: all 0.2s;
-}
-
-.token-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-}
-
-.btn-sm {
-    padding: 6px 12px;
-    font-size: 11px;
-    border-radius: 20px;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.btn-sm:hover {
-    transform: scale(1.02);
 }
