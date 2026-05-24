@@ -288,33 +288,30 @@ async function mostrarHistorico(id, nome) {
 }
 
 function atualizarDashboardAdmin() {
-    // Total de cartões filtrados pela loteria atual
-    const cartoesFiltrados = cartoes.filter(c => c.tipo === loteriaAdmin);
-    const concursos = [...new Set(cartoesFiltrados.map(c => c.concurso))];
+    // Contar bolões por status
+    let abertos = 0;
+    let andamento = 0;
+    let encerrados = 0;
     
-    // TOTAL DE BOLÕES (da collection participantes)
-    const totalBoloes = boloes ? boloes.length : 0;
+    if (boloes && boloes.length > 0) {
+        for (const bolao of boloes) {
+            const status = bolao.status || 'andamento';
+            if (status === 'aberto') abertos++;
+            else if (status === 'andamento') andamento++;
+            else if (status === 'encerrado') encerrados++;
+        }
+    }
     
-    // Total de resultados da loteria atual
-    let totalResultados = 0;
-    if (loteriaAdmin === 'mega') totalResultados = Object.keys(resultadosMega).length;
-    else if (loteriaAdmin === 'lotofacil') totalResultados = Object.keys(resultadosLotofacil).length;
-    else totalResultados = Object.keys(resultadosQuina).length;
+    // Atualizar os cards
+    const abertosEl = document.getElementById('dashboardAbertos');
+    const andamentoEl = document.getElementById('dashboardAndamento');
+    const encerradosEl = document.getElementById('dashboardEncerrados');
     
-    // Atualizar os elementos do dashboard
-    const totalCartoesEl = document.getElementById('dashboardTotalCartoes');
-    const totalConcursosEl = document.getElementById('dashboardTotalConcursos');
-    const totalBoloesEl = document.getElementById('dashboardTotalBoloes');
-    const totalResultadosEl = document.getElementById('dashboardResultados');
+    if (abertosEl) abertosEl.innerHTML = abertos;
+    if (andamentoEl) andamentoEl.innerHTML = andamento;
+    if (encerradosEl) encerradosEl.innerHTML = encerrados;
     
-    if (totalCartoesEl) totalCartoesEl.innerHTML = cartoesFiltrados.length;
-    if (totalConcursosEl) totalConcursosEl.innerHTML = concursos.length;
-    if (totalBoloesEl) totalBoloesEl.innerHTML = totalBoloes;
-    if (totalResultadosEl) totalResultadosEl.innerHTML = totalResultados;
-    
-    // Atualizar também o total na barra superior
-    const totalCartoesTop = document.getElementById('totalCartoes');
-    if (totalCartoesTop) totalCartoesTop.innerHTML = cartoesFiltrados.length + ' cartões';
+    console.log(`📊 Dashboard: Abertos=${abertos}, Andamento=${andamento}, Encerrados=${encerrados}`);
 }
 
 function exibirCartoesAdmin() {
