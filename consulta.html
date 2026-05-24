@@ -204,48 +204,57 @@
                 console.log('🔍 Buscando bolões para:', nome, 'telefone:', telefoneNormalizado);
                 
                 // Buscar todos os bolões
-                const boloesSnapshot = await db.collection('participantes').get();
-                const boloes = [];
-                boloesSnapshot.forEach(doc => {
-                    boloes.push({ id: doc.id, ...doc.data() });
-                });
-                
-                console.log(`📋 Total de bolões encontrados: ${boloes.length}`);
-                
-                // Separar bolões
-                const participa = [];
-                const naoParticipa = [];
-                const encerrados = [];
+const boloesSnapshot = await db.collection('participantes').get();
+const boloes = [];
+boloesSnapshot.forEach(doc => {
+    boloes.push({ id: doc.id, ...doc.data() });
+});
 
-                for (const bolao of boloes) {
-                    const participantes = bolao.participantes || [];
-                    const statusBolao = bolao.status || 'andamento';
-                    
-                    // NORMALIZAR TELEFONE PARA COMPARAÇÃO
-                    const encontrado = participantes.find(p => {
-                        const telefoneParticipante = p.telefone ? normalizarTelefone(p.telefone) : '';
-                        return telefoneParticipante === telefoneNormalizado;
-                    });
-                    
-                    if (encontrado) {
-                        console.log(`✅ Participa do bolão: ${bolao.titulo} (${statusBolao})`);
-                        participa.push({
-                            ...bolao,
-                            meuStatus: encontrado.situacao,
-                            minhasCotas: encontrado.quantidadeCotas || 1,
-                            meuValorPago: encontrado.valorPago,
-                            meuNome: encontrado.nome
-                        });
-                    } else if (statusBolao === 'aberto') {
-                        console.log(`🔵 Não participa do bolão ABERTO: ${bolao.titulo}`);
-                        naoParticipa.push(bolao);
-                    } else if (statusBolao === 'encerrado') {
-                        console.log(`🔴 Bolão ENCERRADO: ${bolao.titulo}`);
-                        encerrados.push(bolao);
-                    } else {
-                        console.log(`🟡 Bolão EM ANDAMENTO (não participa): ${bolao.titulo}`);
-                    }
-                }
+// Buscar status atualizados do config_boloes
+const configDoc = await db.collection('config_boloes').doc('ativos').get();
+const statusMap = configDoc.exists ? configDoc.data().status || {} : {};
+
+console.log(`📋 Total de bolões encontrados: ${boloes.length}`);
+console.log('📋 Status Map:', statusMap);
+
+// Separar bolões
+const participa = [];
+const naoParticipa = [];
+const encerrados = [];
+
+for (const bolao of boloes) {
+    const participantes = bolao.participantes || [];
+    
+    // USAR O STATUS DO STATUS_MAP (do config_boloes)
+    const statusBolao = statusMap[bolao.id] || 'andamento';
+    
+    console.log(`🔍 Bolão: ${bolao.titulo} - Status: ${statusBolao}`);
+    
+    // NORMALIZAR TELEFONE PARA COMPARAÇÃO
+    const encontrado = participantes.find(p => {
+        const telefoneParticipante = p.telefone ? normalizarTelefone(p.telefone) : '';
+        return telefoneParticipante === telefoneNormalizado;
+    });
+    
+    if (encontrado) {
+        console.log(`✅ Participa do bolão: ${bolao.titulo} (${statusBolao})`);
+        participa.push({
+            ...bolao,
+            meuStatus: encontrado.situacao,
+            minhasCotas: encontrado.quantidadeCotas || 1,
+            meuValorPago: encontrado.valorPago,
+            meuNome: encontrado.nome
+        });
+    } else if (statusBolao === 'aberto') {
+        console.log(`🔵 Não participa do bolão ABERTO: ${bolao.titulo}`);
+        naoParticipa.push(bolao);
+    } else if (statusBolao === 'encerrado') {
+        console.log(`🔴 Bolão ENCERRADO: ${bolao.titulo}`);
+        encerrados.push(bolao);
+    } else {
+        console.log(`🟡 Bolão EM ANDAMENTO (não participa): ${bolao.titulo}`);
+    }
+}
 
                 // ============================================
                 // REMOVER DUPLICADOS NA EXIBIÇÃO (sem alterar o Firebase)
