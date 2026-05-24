@@ -23,7 +23,6 @@
             overflow-x: hidden;
         }
 
-        /* Barra superior */
         .top-bar {
             background: #1e293b;
             color: white;
@@ -73,14 +72,12 @@
             font-size: 12px;
         }
 
-        /* Container principal */
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 12px;
         }
 
-        /* Cards */
         .card {
             background: white;
             border-radius: 16px;
@@ -94,32 +91,52 @@
             font-weight: bold;
             font-size: 15px;
             color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .card-header .toggle-icon {
+            font-size: 18px;
+            transition: transform 0.2s;
+        }
+
+        .card-header.collapsed .toggle-icon {
+            transform: rotate(-90deg);
         }
 
         .card-body {
             padding: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .card-body.collapsed {
+            display: none;
         }
 
         .bg-blue { background: #3b82f6; }
         .bg-green { background: #10b981; }
         .bg-orange { background: #f59e0b; }
         .bg-purple { background: #8b5cf6; }
-        .bg-red { background: #ef4444; }
         .bg-slate { background: #64748b; }
 
-        /* Formulários */
         .form-group {
             margin-bottom: 14px;
         }
+        
         .form-row {
             display: flex;
             gap: 12px;
             flex-wrap: wrap;
         }
+        
         .form-row .form-group {
             flex: 1;
             min-width: 140px;
         }
+        
         label {
             display: block;
             margin-bottom: 5px;
@@ -127,6 +144,7 @@
             color: #1e293b;
             font-size: 12px;
         }
+        
         .form-control, select, input, textarea {
             width: 100%;
             padding: 10px 12px;
@@ -137,13 +155,13 @@
             background: #f8fafc;
             transition: all 0.2s;
         }
+        
         .form-control:focus, select:focus, input:focus, textarea:focus {
             outline: none;
             border-color: #3b82f6;
             box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
         }
 
-        /* Botões */
         .btn {
             padding: 10px 16px;
             border: none;
@@ -154,6 +172,7 @@
             font-size: 13px;
             text-align: center;
         }
+        
         .btn-primary { background: #3b82f6; color: white; }
         .btn-success { background: #10b981; color: white; }
         .btn-warning { background: #f59e0b; color: white; }
@@ -167,12 +186,12 @@
             filter: brightness(1.05);
         }
 
-        /* Botões de loteria */
         .loteria-selector-admin {
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
         }
+        
         .loteria-btn-admin {
             flex: 1;
             padding: 10px 8px;
@@ -184,6 +203,7 @@
             font-size: 13px;
             text-align: center;
         }
+        
         .loteria-btn-admin.mega { background: #8b5cf6; color: white; }
         .loteria-btn-admin.lotofacil { background: #10b981; color: white; }
         .loteria-btn-admin.quina { background: #ef4444; color: white; }
@@ -193,13 +213,13 @@
             box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
         }
 
-        /* Dashboard cards */
         .dashboard-cards {
             display: flex;
             flex-wrap: wrap;
             gap: 12px;
             justify-content: space-between;
         }
+        
         .dashboard-card {
             flex: 1;
             text-align: center;
@@ -208,28 +228,29 @@
             border-radius: 12px;
             min-width: 80px;
         }
+        
         .dashboard-number {
             font-size: 24px;
             font-weight: bold;
         }
 
-        /* Filtros */
         .filtros {
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
             margin-bottom: 15px;
         }
+        
         .filtros select, .filtros button {
             flex: 1;
             min-width: 100px;
         }
 
-        /* Lista de cartões */
         .cartoes-grid {
-            max-height: 400px;
+            max-height: 500px;
             overflow-y: auto;
         }
+        
         .cartao-item {
             background: #f8fafc;
             border: 1px solid #e2e8f0;
@@ -237,21 +258,7 @@
             padding: 12px;
             margin-bottom: 10px;
         }
-        .cartao-numeros {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            margin-top: 8px;
-        }
-        .numero {
-            background: #e2e8f0;
-            padding: 5px 10px;
-            border-radius: 8px;
-            font-family: monospace;
-            font-size: 12px;
-        }
 
-        /* Modal */
         .modal {
             display: none;
             position: fixed;
@@ -264,7 +271,9 @@
             justify-content: center;
             align-items: center;
         }
+        
         .modal.show { display: flex; }
+        
         .modal-content {
             background: white;
             border-radius: 20px;
@@ -272,6 +281,7 @@
             max-width: 350px;
             overflow: hidden;
         }
+        
         .modal-header {
             background: #3b82f6;
             color: white;
@@ -279,9 +289,9 @@
             font-weight: bold;
             text-align: center;
         }
+        
         .modal-body { padding: 20px; }
 
-        /* Footer */
         .footer {
             text-align: center;
             padding: 15px;
@@ -291,26 +301,22 @@
             margin-top: 20px;
         }
 
-        /* ========== RESPONSIVIDADE CELULAR ========== */
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #94a3b8;
+            font-size: 13px;
+        }
+
+        /* Responsivo */
         @media (max-width: 768px) {
             .container { padding: 10px; }
-            .admin-layout { display: flex; flex-direction: column; gap: 12px; }
             .form-row { flex-direction: column; gap: 10px; }
             .form-row .form-group { min-width: 100%; }
             .dashboard-cards { flex-wrap: wrap; }
             .dashboard-card { min-width: calc(50% - 6px); }
             .filtros { flex-direction: column; }
             .filtros select, .filtros button { width: 100%; }
-            .form-buttons { display: flex; flex-direction: column; gap: 8px; }
-            .form-buttons button { width: 100%; }
-            .btn { padding: 12px; font-size: 14px; }
-            .card-header { font-size: 14px; padding: 10px 14px; }
-            .card-body { padding: 12px; }
-            .checkbox-cartao { width: 22px; height: 22px; }
-            .btn-editar, .btn-duplicar { width: 100%; margin-top: 8px; }
-            .cartao-item > div { flex-direction: column; align-items: flex-start !important; }
-            .loteria-selector-admin { flex-direction: row; }
-            .loteria-btn-admin { padding: 10px; font-size: 12px; }
             .top-bar { flex-direction: column; text-align: center; }
             .stats { justify-content: center; }
         }
@@ -319,7 +325,6 @@
             .logo { font-size: 16px; }
             .stat { font-size: 10px; padding: 3px 8px; }
             .dashboard-number { font-size: 20px; }
-            .dashboard-card { padding: 8px; }
         }
     </style>
 </head>
@@ -333,193 +338,67 @@
     </div>
 
     <div class="container">
-        <div class="admin-layout">
-            <!-- Coluna esquerda -->
-            <div class="cadastro-panel">
-                <!-- Seletor de Loteria -->
-                <div class="card">
-                    <div class="card-header bg-blue">🎲 SELECIONAR LOTERIA</div>
-                    <div class="card-body">
-                        <div class="loteria-selector-admin">
-                            <button id="adminBtnMega" class="loteria-btn-admin mega active">🎯 MEGA</button>
-                            <button id="adminBtnLotofacil" class="loteria-btn-admin lotofacil">🌟 LOTOFÁCIL</button>
-                            <button id="adminBtnQuina" class="loteria-btn-admin quina">🎯 QUINA</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Dashboard Resumo -->
-                <div class="card">
-                    <div class="card-header bg-blue">📊 DASHBOARD RESUMO</div>
-                    <div class="card-body">
-                        <div class="dashboard-cards">
-                            <div class="dashboard-card" style="background: #f0fdf4;">
-                                <div class="dashboard-number" style="color: #059669;" id="dashboardTotalCartoes">0</div>
-                                <div>Cartões</div>
-                            </div>
-                            <div class="dashboard-card" style="background: #dbeafe;">
-                                <div class="dashboard-number" style="color: #3b82f6;" id="dashboardTotalConcursos">0</div>
-                                <div>Concursos</div>
-                            </div>
-                            <div class="dashboard-card" style="background: #fef3c7;">
-                                <div class="dashboard-number" style="color: #f59e0b;" id="dashboardTotalBoloes">0</div>
-                                <div>Bolões</div>
-                            </div>
-                            <div class="dashboard-card" style="background: #f3e8ff;">
-                                <div class="dashboard-number" style="color: #a855f7;" id="dashboardResultados">0</div>
-                                <div>Resultados</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Cadastro -->
-                <div class="card">
-                    <div class="card-header bg-green" id="cadastroHeader">📝 CADASTRAR CARTÕES - MEGA</div>
-                    <div class="card-body">
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>📌 Concurso</label>
-                                <input type="number" id="concurso" class="form-control" placeholder="Ex: 2700">
-                            </div>
-                            <div class="form-group">
-                                <label>👥 Bolão</label>
-                                <input type="text" id="bolao" class="form-control" placeholder="Ex: Família">
-                            </div>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>🎯 Tipo</label>
-                                <select id="tipoCartao" class="form-control">
-                                    <option value="exclusivo">👥 Grupo Exclusivo</option>
-                                    <option value="cota">🎟️ Cota de Bolão</option>
-                                </select>
-                            </div>
-                            <div class="form-group"><!-- espaço --></div>
-                        </div>
-                        <div class="form-group">
-                            <label id="labelNumeros">🔢 Números (um por linha)</label>
-                            <textarea id="numerosCartoes" rows="6" class="form-control" placeholder="12 15 23 34 45 56&#10;05 10 15 20 25 30"></textarea>
-                        </div>
-                        <div class="dica" style="background:#fef3c7; padding:10px; border-radius:10px; font-size:12px; margin-bottom:12px;">
-                            💡 MEGA: 6 números | LOTOFÁCIL: 15 | QUINA: 5 a 15
-                        </div>
-                        <div class="form-buttons" style="display: flex; gap: 10px;">
-                            <button id="btnAdicionar" class="btn btn-success btn-block">➕ ADICIONAR</button>
-                            <button id="btnLimpar" class="btn btn-secondary">🗑️ LIMPAR</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Coluna direita - Lista de cartões -->
-            <div class="lista-panel">
-                <div class="card">
-                    <div class="card-header bg-orange" id="listaHeader">📋 CARTÕES CADASTRADOS - MEGA</div>
-                    <div class="card-body">
-                        <div class="filtros">
-                            <select id="filtroConcurso" class="form-control">
-                                <option value="todos">Todos os concursos</option>
-                            </select>
-                            <select id="ordenarPor" class="form-control">
-                                <option value="concurso_desc">📌 Concurso (mais novo)</option>
-                                <option value="concurso_asc">📌 Concurso (mais antigo)</option>
-                                <option value="bolao">👥 Bolão (A-Z)</option>
-                                <option value="data">📅 Data (mais recente)</option>
-                            </select>
-                            <button id="btnRecarregar" class="btn btn-primary">🔄 RECARREGAR</button>
-                        </div>
-                        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
-                            <button id="btnImportarExcel" class="btn btn-secondary btn-sm" style="flex:1;">📥 IMPORTAR</button>
-                            <button id="btnExportarExcel" class="btn btn-success btn-sm" style="flex:1;">📊 EXPORTAR</button>
-                            <button id="btnExcluirSelecionados" class="btn btn-danger btn-sm" style="flex:1;">🗑️ EXCLUIR</button>
-                        </div>
-                        <div id="cartoesLista" class="cartoes-grid">
-                            <div class="empty-state" style="text-align:center; padding:40px; color:#94a3b8;">Nenhum cartão cadastrado</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Card: Reservas dos Participantes -->
+        
+        <!-- ============================================ -->
+        <!-- SEÇÃO 1: CONFIGURAÇÃO GERAL + SELETOR DE LOTERIA -->
+        <!-- ============================================ -->
         <div class="card">
-            <div class="card-header bg-purple">💰 RESERVAS DOS PARTICIPANTES</div>
+            <div class="card-header bg-slate" onclick="toggleCard(this)">
+                ⚙️ CONFIGURAÇÃO GERAL
+                <span class="toggle-icon">▼</span>
+            </div>
             <div class="card-body">
-                <div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-                    <div><strong>💵 TOTAL EM RESERVAS:</strong> <span id="totalReservas" style="font-size: 24px; color: #10b981;">R$ 0,00</span></div>
-                    <button id="btnAtualizarReservas" class="btn btn-sm" style="background: #3b82f6; width: auto;">🔄 ATUALIZAR</button>
+                <div class="loteria-selector-admin">
+                    <button id="adminBtnMega" class="loteria-btn-admin mega active">🎯 MEGA</button>
+                    <button id="adminBtnLotofacil" class="loteria-btn-admin lotofacil">🌟 LOTOFÁCIL</button>
+                    <button id="adminBtnQuina" class="loteria-btn-admin quina">🎯 QUINA</button>
                 </div>
-                <div id="listaReservas" style="max-height: 400px; overflow-y: auto;">
-                    <div class="empty-state">Carregando reservas...</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Card: Lista de Participantes -->
-<div class="card">
-    <div class="card-header bg-purple">👥 PARTICIPANTES DOS BOLÕES</div>
-    <div class="card-body">
-        <div style="margin-bottom: 15px;">
-            <select id="bolaoSelectParticipantes" class="form-control">
-                <option value="">Selecione um bolão</option>
-            </select>
-        </div>
-        <div id="listaParticipantesAdmin" style="max-height: 500px; overflow-y: auto;">
-            <div class="empty-state">Selecione um bolão para ver os participantes</div>
-        </div>
-    </div>
-</div>
-
-        <!-- Gerenciar Bolões -->
-        <div class="card">
-            <div class="card-header bg-purple">📋 GERENCIAR BOLÕES</div>
-            <div class="card-body">
-                <div id="listaBoloes" style="max-height: 400px; overflow-y: auto;">
-                    <div class="empty-state" style="text-align:center; padding:30px;">Carregando bolões...</div>
-                </div>
-                <button id="btnSalvarSelecao" class="btn btn-primary btn-block" style="margin-top: 15px;">💾 SALVAR CONFIGURAÇÕES</button>
-            </div>
-        </div>
-
-        <!-- Card: Gerenciar Tokens de Acesso -->
-        <div class="card">
-            <div class="card-header bg-purple">🔑 TOKENS DE ACESSO DOS PARTICIPANTES</div>
-            <div class="card-body">
-                <div style="margin-bottom: 20px;">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>👤 Nome do Participante</label>
-                            <input type="text" id="tokenNome" class="form-control" placeholder="Ex: José Eduardo">
-                        </div>
-                        <div class="form-group">
-                            <label>📞 Telefone (com DDD)</label>
-                            <input type="text" id="tokenTelefone" class="form-control" placeholder="61999999999">
-                        </div>
-                    </div>
-                    <button id="btnGerarToken" class="btn btn-primary">🔑 GERAR TOKEN</button>
-                </div>
-                <div id="listaTokens" style="max-height: 400px; overflow-y: auto;">
-                    <div class="empty-state">Nenhum token gerado</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Configuração Geral (recolhível) -->
-        <div class="card">
-            <button class="collapsible" id="btnConfigGeral" style="width:100%; background:#f1f5f9; border:none; padding:14px; text-align:left; font-weight:bold; border-radius:12px; cursor:pointer;">💳 CONFIGURAÇÃO GERAL</button>
-            <div class="collapse-content" style="display:none; padding-top:12px;">
-                <div class="form-group">
+                <div style="margin-top: 15px;">
                     <label>🔑 Chave PIX (para todos os bolões)</label>
                     <input type="text" id="pixConfig" class="form-control" placeholder="Ex: 61998507770 ou email">
+                    <button id="btnSalvarPix" class="btn btn-success btn-block" style="margin-top: 10px;">💾 SALVAR PIX</button>
                 </div>
-                <button id="btnSalvarPix" class="btn btn-success btn-block">💾 SALVAR PIX</button>
             </div>
         </div>
 
-        <!-- Adicionar Participante Rápido -->
+        <!-- ============================================ -->
+        <!-- SEÇÃO 2: DASHBOARD RESUMO -->
+        <!-- ============================================ -->
         <div class="card">
-            <div class="card-header bg-warning" style="background:#f59e0b;">⚡ ADICIONAR PARTICIPANTE RÁPIDO</div>
+            <div class="card-header bg-blue" onclick="toggleCard(this)">
+                📊 DASHBOARD RESUMO
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="card-body">
+                <div class="dashboard-cards">
+                    <div class="dashboard-card" style="background: #f0fdf4;">
+                        <div class="dashboard-number" style="color: #059669;" id="dashboardTotalCartoes">0</div>
+                        <div>Cartões</div>
+                    </div>
+                    <div class="dashboard-card" style="background: #dbeafe;">
+                        <div class="dashboard-number" style="color: #3b82f6;" id="dashboardTotalConcursos">0</div>
+                        <div>Concursos</div>
+                    </div>
+                    <div class="dashboard-card" style="background: #fef3c7;">
+                        <div class="dashboard-number" style="color: #f59e0b;" id="dashboardTotalBoloes">0</div>
+                        <div>Bolões</div>
+                    </div>
+                    <div class="dashboard-card" style="background: #f3e8ff;">
+                        <div class="dashboard-number" style="color: #a855f7;" id="dashboardResultados">0</div>
+                        <div>Resultados</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- SEÇÃO 3: CADASTRO RÁPIDO -->
+        <!-- ============================================ -->
+        <div class="card">
+            <div class="card-header bg-orange" onclick="toggleCard(this)">
+                ⚡ ADICIONAR PARTICIPANTE RÁPIDO
+                <span class="toggle-icon">▼</span>
+            </div>
             <div class="card-body">
                 <div class="form-row">
                     <div class="form-group">
@@ -553,6 +432,161 @@
                 </div>
             </div>
         </div>
+
+        <!-- ============================================ -->
+        <!-- SEÇÃO 4: GERENCIAR BOLÕES -->
+        <!-- ============================================ -->
+        <div class="card">
+            <div class="card-header bg-purple" onclick="toggleCard(this)">
+                📋 GERENCIAR BOLÕES
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="card-body">
+                <div id="listaBoloes" style="max-height: 400px; overflow-y: auto;">
+                    <div class="empty-state">Carregando bolões...</div>
+                </div>
+                <button id="btnSalvarSelecao" class="btn btn-primary btn-block" style="margin-top: 15px;">💾 SALVAR CONFIGURAÇÕES</button>
+            </div>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- SEÇÃO 5: TOKENS DE ACESSO -->
+        <!-- ============================================ -->
+        <div class="card">
+            <div class="card-header bg-purple" onclick="toggleCard(this)">
+                🔑 TOKENS DE ACESSO
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="card-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>👤 Nome do Participante</label>
+                        <input type="text" id="tokenNome" class="form-control" placeholder="Ex: José Eduardo">
+                    </div>
+                    <div class="form-group">
+                        <label>📞 Telefone (com DDD)</label>
+                        <input type="text" id="tokenTelefone" class="form-control" placeholder="61999999999">
+                    </div>
+                </div>
+                <button id="btnGerarToken" class="btn btn-primary">🔑 GERAR TOKEN</button>
+                <div id="listaTokens" style="max-height: 300px; overflow-y: auto; margin-top: 15px;">
+                    <div class="empty-state">Nenhum token gerado</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- SEÇÃO 6: PARTICIPANTES POR BOLÃO -->
+        <!-- ============================================ -->
+        <div class="card">
+            <div class="card-header bg-purple" onclick="toggleCard(this)">
+                👥 PARTICIPANTES POR BOLÃO
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="card-body">
+                <select id="bolaoSelectParticipantes" class="form-control" style="margin-bottom: 15px;">
+                    <option value="">Selecione um bolão</option>
+                </select>
+                <div id="listaParticipantesAdmin" style="max-height: 500px; overflow-y: auto;">
+                    <div class="empty-state">Selecione um bolão para ver os participantes</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- SEÇÃO 7: CADASTRO DE CARTÕES -->
+        <!-- ============================================ -->
+        <div class="card">
+            <div class="card-header bg-green" onclick="toggleCard(this)">
+                📝 CADASTRO DE CARTÕES
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="card-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>📌 Concurso</label>
+                        <input type="number" id="concurso" class="form-control" placeholder="Ex: 2700">
+                    </div>
+                    <div class="form-group">
+                        <label>👥 Bolão</label>
+                        <input type="text" id="bolao" class="form-control" placeholder="Ex: Família">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>🎯 Tipo</label>
+                        <select id="tipoCartao" class="form-control">
+                            <option value="exclusivo">👥 Grupo Exclusivo</option>
+                            <option value="cota">🎟️ Cota de Bolão</option>
+                        </select>
+                    </div>
+                    <div class="form-group"></div>
+                </div>
+                <div class="form-group">
+                    <label id="labelNumeros">🔢 Números (um por linha)</label>
+                    <textarea id="numerosCartoes" rows="6" class="form-control" placeholder="12 15 23 34 45 56&#10;05 10 15 20 25 30"></textarea>
+                </div>
+                <div class="dica" style="background:#fef3c7; padding:10px; border-radius:10px; font-size:12px; margin-bottom:12px;">
+                    💡 MEGA: 6 números | LOTOFÁCIL: 15 | QUINA: 5 a 15
+                </div>
+                <div class="form-buttons" style="display: flex; gap: 10px;">
+                    <button id="btnAdicionar" class="btn btn-success btn-block">➕ ADICIONAR</button>
+                    <button id="btnLimpar" class="btn btn-secondary">🗑️ LIMPAR</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- SEÇÃO 8: LISTA DE CARTÕES CADASTRADOS -->
+        <!-- ============================================ -->
+        <div class="card">
+            <div class="card-header bg-orange" onclick="toggleCard(this)">
+                📋 CARTÕES CADASTRADOS
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="card-body">
+                <div class="filtros">
+                    <select id="filtroConcurso" class="form-control">
+                        <option value="todos">Todos os concursos</option>
+                    </select>
+                    <select id="ordenarPor" class="form-control">
+                        <option value="concurso_desc">📌 Concurso (mais novo)</option>
+                        <option value="concurso_asc">📌 Concurso (mais antigo)</option>
+                        <option value="bolao">👥 Bolão (A-Z)</option>
+                        <option value="data">📅 Data (mais recente)</option>
+                    </select>
+                    <button id="btnRecarregar" class="btn btn-primary">🔄 RECARREGAR</button>
+                </div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
+                    <button id="btnImportarExcel" class="btn btn-secondary btn-sm" style="flex:1;">📥 IMPORTAR</button>
+                    <button id="btnExportarExcel" class="btn btn-success btn-sm" style="flex:1;">📊 EXPORTAR</button>
+                    <button id="btnExcluirSelecionados" class="btn btn-danger btn-sm" style="flex:1;">🗑️ EXCLUIR</button>
+                </div>
+                <div id="cartoesLista" class="cartoes-grid">
+                    <div class="empty-state">Nenhum cartão cadastrado</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- SEÇÃO 9: RESERVAS DOS PARTICIPANTES -->
+        <!-- ============================================ -->
+        <div class="card">
+            <div class="card-header bg-purple" onclick="toggleCard(this)">
+                💰 RESERVAS DOS PARTICIPANTES
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="card-body">
+                <div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div><strong>💵 TOTAL EM RESERVAS:</strong> <span id="totalReservas" style="font-size: 24px; color: #10b981;">R$ 0,00</span></div>
+                    <button id="btnAtualizarReservas" class="btn btn-sm" style="background: #3b82f6; width: auto;">🔄 ATUALIZAR</button>
+                </div>
+                <div id="listaReservas" style="max-height: 400px; overflow-y: auto;">
+                    <div class="empty-state">Nenhuma reserva encontrada</div>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <!-- Modal de autenticação -->
@@ -577,5 +611,32 @@
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
     <script src="firebase-config.js"></script>
     <script src="admin.js"></script>
+    
+    <script>
+        // Função para expandir/recolher cards
+        function toggleCard(header) {
+            const card = header.closest('.card');
+            const body = card.querySelector('.card-body');
+            const icon = header.querySelector('.toggle-icon');
+            
+            if (body.classList.contains('collapsed')) {
+                body.classList.remove('collapsed');
+                icon.style.transform = 'rotate(0deg)';
+                header.classList.remove('collapsed');
+            } else {
+                body.classList.add('collapsed');
+                icon.style.transform = 'rotate(-90deg)';
+                header.classList.add('collapsed');
+            }
+        }
+        
+        // Inicializar todos os cards como expandidos (sem salvar estado)
+        document.querySelectorAll('.card-body').forEach(body => {
+            body.classList.remove('collapsed');
+        });
+        document.querySelectorAll('.toggle-icon').forEach(icon => {
+            icon.style.transform = 'rotate(0deg)';
+        });
+    </script>
 </body>
 </html>
