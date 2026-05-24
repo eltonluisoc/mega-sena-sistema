@@ -1098,6 +1098,138 @@ if (btnGerarToken) {
     });
 }
 
+// ============================================
+// FUNÇÕES PARA EXIBIR PARTICIPANTES NO ADMIN
+// ============================================
+
+async function carregarBoloesSelectParticipantes() {
+    const select = document.getElementById('bolaoSelectParticipantes');
+    if (!select) return;
+    
+    try {
+        const snapshot = await db.collection('participantes').get();
+        const boloes = [];
+        snapshot.forEach(doc => {
+            boloes.push({ id: doc.id, ...doc.data() });
+        });
+        
+        select.innerHTML = '<option value="">Selecione um bolão</option>';
+        for (const bolao of boloes) {
+            const option = document.createElement('option');
+            option.value = bolao.id;
+            option.textContent = `${bolao.titulo} (${bolao.loteria || '?'}) - ${bolao.participantes?.length || 0} participantes`;
+            select.appendChild(option);
+        }
+        
+        // Evento ao selecionar um bolão
+        select.onchange = () => {
+            const id = select.value;
+            if (id) {
+                carregarParticipantesAdmin(id);
+            } else {
+                document.getElementById('listaParticipantesAdmin').innerHTML = '<div class="empty-state">Selecione um bolão para ver os participantes</div>';
+            }
+        };
+        
+    } catch (error) {
+        console.error('Erro ao carregar bolões:', error);
+    }
+}
+
+async function carregarParticipantesAdmin(bolaoId) {
+    const container = document.getElementById('listaParticipantesAdmin');
+    if (!container) return;
+    
+    container.innerHTML = '<div class="loading">🔍 Carregando participantes...</div>';
+    
+    try {
+        const doc = await db.collection('participantes').doc(bolaoId).get();
+        if (!doc.exists) {
+            container.innerHTML = '<div class="empty-state">Bolão não encontrado</div>';
+            return;
+        }
+        
+        const bolao = doc.data();
+        const participantes = bolao.participantes || [];
+        const valorPorCota = bolao.valorPorCota || 0;
+        
+        if (participantes.length === 0) {
+            container.innerHTML = '<div class="empty-state">Nenhum participante neste bolão</div>';
+            return;
+        }
+        
+        // Formatar participantes
+        const participantesFormatados = participantes.map(p => {
+            let statusClass = 'pago';
+            let statusText = 'PAGO';
+            let quantidadeCotas = p.quantidadeCotas || 1;
+            let valorPago = p.valorPago || 0;
+            
+            // Calcular parcelas pagas
+            let parcelasPagas = 0;
+            if (valorPorCota > 0) {
+                parcelasPagas = Math.floor(valorPago / valorPorCota);
+            }
+            parcelasPagas = Math.min(parcelasPagas, quantidadeCotas);
+            
+            if (p.situacao !== 'quitado' && p.situacao !== 'pago') {
+                statusClass = 'pendente';
+                statusText = 'EM ANDAMENTO';
+            }
+            
+            return {
+                nome: p.nome,
+                telefone: p.telefone || '---',
+                statusClass: statusClass,
+                statusText: statusText,
+                quantidadeCotas: quantidadeCotas,
+                parcelasPagas: parcelasPagas,
+                valorPago: valorPago,
+                dataCadastro: p.dataCadastro || '---'
+            };
+        });
+        
+        // Ordenar: pagos primeiro
+        participantesFormatados.sort((a, b) => {
+            if (a.statusClass === 'pago' && b.statusClass !== 'pago') return -1;
+            if (a.statusClass !== 'pago' && b.statusClass === 'pago') return 1;
+            return 0;
+        });
+        
+        // Montar HTML
+        let html = `<div style="margin-bottom: 15px;">
+                        <strong>📊 TOTAL:</strong> ${participantes.length} participantes
+                        | <strong>💰 VALOR POR COTA:</strong> R$ ${valorPorCota.toFixed(2)}
+                    </div>`;
+        html += '<div class="participantes-grid-admin" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">';
+        
+        participantesFormatados.forEach(p => {
+            const parcelas = `${p.parcelasPagas}/${p.quantidadeCotas}`;
+            html += `
+                <div class="participante-card-admin" style="background: #f8fafc; border-radius: 12px; padding: 12px; border: 1px solid #e2e8f0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+                        <strong>${p.nome}</strong>
+                        <span class="participante-status ${p.statusClass}" style="font-size: 10px; padding: 3px 10px; border-radius: 30px;">${p.statusText}</span>
+                    </div>
+                    <div style="font-size: 11px; color: #64748b; margin-top: 5px;">
+                        📞 ${p.telefone} | 🎟️ ${p.quantidadeCotas} cota(s) | 📦 Parcelas: ${parcelas} | 💵 R$ ${p.valorPago.toFixed(2)}
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+        
+        container.innerHTML = html;
+        
+    } catch (error) {
+        console.error('Erro ao carregar participantes:', error);
+        container.innerHTML = '<div class="empty-state">❌ Erro ao carregar participantes</div>';
+    }
+}
+
+// Chamar no DOMContentLoaded do admin.js:
+// carregarBoloesSelectParticipantes();
+
 // ============ INICIALIZAÇÃO ============
 document.addEventListener('DOMContentLoaded', () => {
     verificarAutenticacao();
