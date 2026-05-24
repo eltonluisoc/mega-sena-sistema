@@ -155,7 +155,6 @@ function calcularChancesBolao(cartoesBolao, loteria) {
     const percentualCobertura = Math.round((numerosCobertos / numerosPossiveis) * 100);
     const vezesMelhor = Math.round(totalCombinacoesCobertas);
     
-    // Sistema de estrelas
     let estrelas = 0;
     let estrelasHtml = '';
     let classificacao = '';
@@ -185,7 +184,6 @@ function calcularChancesBolao(cartoesBolao, loteria) {
         }
     }
     
-    // Cor do gradiente
     let corGradient = '';
     if (estrelas === 5) {
         corGradient = 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)';
@@ -199,10 +197,8 @@ function calcularChancesBolao(cartoesBolao, loteria) {
         corGradient = 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
     }
     
-    // MODELO A - EQUIVALÊNCIA VISUAL
     return `
         <div style="background: ${corGradient}; border-radius: 16px; padding: 14px 16px; margin-bottom: 16px; color: white;">
-            <!-- Cabeçalho: Título + Estrelas -->
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                 <div style="display: flex; align-items: center; gap: 6px;">
                     <span style="font-size: 18px;">🎲</span>
@@ -214,7 +210,6 @@ function calcularChancesBolao(cartoesBolao, loteria) {
                 </div>
             </div>
             
-            <!-- Mensagem principal - EQUIVALÊNCIA -->
             <div style="text-align: center; margin-bottom: 12px;">
                 <div style="font-size: 20px; font-weight: bold; margin-bottom: 4px;">
                     🚀 ${vezesMelhor.toLocaleString()} BILHETES!
@@ -224,7 +219,6 @@ function calcularChancesBolao(cartoesBolao, loteria) {
                 </div>
             </div>
             
-            <!-- Estatísticas resumidas -->
             <div style="display: flex; justify-content: center; gap: 16px; text-align: center; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.15);">
                 <div>
                     <div style="font-size: 16px; font-weight: bold;">${numerosCobertos}/${numerosPossiveis}</div>
@@ -261,7 +255,6 @@ function mostrarCartoes(numerosSorteados = null) {
         return;
     }
     
-    // CALCULAR CHANCES COM ESTATÍSTICA AVANÇADA
     const chancesHtml = calcularChancesBolao(filtrados, loteriaAtual);
     
     const porBolao = {};
@@ -271,7 +264,7 @@ function mostrarCartoes(numerosSorteados = null) {
         porBolao[b].push(c);
     });
     
-    let html = chancesHtml; // CARD DE CHANCES NO TOPO
+    let html = chancesHtml;
     
     for (const [bolao, lista] of Object.entries(porBolao)) {
         html += `<div style="margin-bottom:20px"><div style="background:#3b82f6;color:white;padding:8px 12px;border-radius:8px;margin-bottom:10px;">🎯 ${bolao}</div>`;
@@ -511,7 +504,6 @@ async function conferirResultados() {
     
     area.innerHTML = '<div class="loading">🔍 Processando...</div>';
     
-    // Buscar cartões do concurso específico
     const snapshot = await db.collection('cartoes')
         .where('tipo', '==', loteriaAtual)
         .where('concurso', '==', concurso)
@@ -538,7 +530,6 @@ async function conferirResultados() {
         return;
     }
     
-    // Atualizar cache local (sem duplicar)
     const novosCartoes = cartoes.filter(c => !(c.tipo === loteriaAtual && c.concurso == concurso));
     novosCartoes.push(...cartoesConcurso);
     cartoes.length = 0;
@@ -553,50 +544,41 @@ async function conferirResultados() {
     let dataSorteio = null;
     
     if (resultados[concurso]) {
-    numerosSorteados = resultados[concurso];
-    console.log(`📋 Resultado encontrado para ${loteriaAtual} concurso ${concurso}`);
-} else {
-    const busca = await buscarResultadoInterno(concurso, loteriaAtual);
-    if (busca && busca.numeros) {
-        numerosSorteados = busca.numeros;
-        
-        // CORREÇÃO DA DATA
-        if (busca.dataSorteio) {
-            // Caso 1: Já é um objeto Date válido
-            if (busca.dataSorteio instanceof Date && !isNaN(busca.dataSorteio)) {
-                dataSorteio = busca.dataSorteio;
-            }
-            // Caso 2: String no formato DD/MM/YYYY
-            else if (typeof busca.dataSorteio === 'string' && busca.dataSorteio.includes('/')) {
-                dataSorteio = busca.dataSorteio;
-            }
-            // Caso 3: String ISO (YYYY-MM-DD)
-            else if (typeof busca.dataSorteio === 'string') {
-                const dataTest = new Date(busca.dataSorteio);
-                if (!isNaN(dataTest)) {
-                    dataSorteio = dataTest;
+        numerosSorteados = resultados[concurso];
+        console.log(`📋 Resultado encontrado para ${loteriaAtual} concurso ${concurso}`);
+    } else {
+        const busca = await buscarResultadoInterno(concurso, loteriaAtual);
+        if (busca && busca.numeros) {
+            numerosSorteados = busca.numeros;
+            
+            if (busca.dataSorteio) {
+                if (busca.dataSorteio instanceof Date && !isNaN(busca.dataSorteio)) {
+                    dataSorteio = busca.dataSorteio;
+                } else if (typeof busca.dataSorteio === 'string' && busca.dataSorteio.includes('/')) {
+                    dataSorteio = busca.dataSorteio;
+                } else if (typeof busca.dataSorteio === 'string') {
+                    const dataTest = new Date(busca.dataSorteio);
+                    if (!isNaN(dataTest)) {
+                        dataSorteio = dataTest;
+                    } else {
+                        dataSorteio = busca.dataSorteio;
+                    }
                 } else {
                     dataSorteio = busca.dataSorteio;
                 }
             }
-            // Caso 4: Fallback
-            else {
-                dataSorteio = busca.dataSorteio;
-            }
+            
+            if (loteriaAtual === 'mega') resultadosMega[concurso] = numerosSorteados;
+            else if (loteriaAtual === 'lotofacil') resultadosLotofacil[concurso] = numerosSorteados;
+            else resultadosQuina[concurso] = numerosSorteados;
+            console.log(`📋 Resultado buscado da API para ${loteriaAtual} concurso ${concurso}`);
+        } else {
+            area.innerHTML = `<div class="empty-state">❌ Resultado não encontrado para ${loteriaAtual.toUpperCase()} concurso ${concurso}.</div>`;
+            showToast('❌ Resultado não encontrado', 'error');
+            return;
         }
-        
-        if (loteriaAtual === 'mega') resultadosMega[concurso] = numerosSorteados;
-        else if (loteriaAtual === 'lotofacil') resultadosLotofacil[concurso] = numerosSorteados;
-        else resultadosQuina[concurso] = numerosSorteados;
-        console.log(`📋 Resultado buscado da API para ${loteriaAtual} concurso ${concurso}`);
-    } else {
-        area.innerHTML = `<div class="empty-state">❌ Resultado não encontrado para ${loteriaAtual.toUpperCase()} concurso ${concurso}.</div>`;
-        showToast('❌ Resultado não encontrado', 'error');
-        return;
     }
-}
     
-    // Atualizar exibição dos cartões com acertos
     mostrarCartoes(numerosSorteados);
     
     const cartoesComAcertos = cartoesConcurso.map(cartao => {
@@ -685,7 +667,6 @@ async function conferirResultados() {
     
     html += `<button id="btnWhatsAppResultado" style="background:#25D366; width:100%; padding:12px; border-radius:30px; margin-bottom:20px; font-weight:bold;">📱 COMPARTILHAR RESULTADO NO WHATSAPP</button>`;
     
-    // NÃO duplicar cartões aqui - eles já foram atualizados pelo mostrarCartoes
     area.innerHTML = html;
     
     const btnWhats = document.getElementById('btnWhatsAppResultado');
@@ -705,36 +686,27 @@ function compartilharWhatsApp() {
     
     let msg = `*🏆 RESULTADO - ${loteriaNome}* 🎲\n🏆 Rumo ao Grande Prêmio!\n${linha}\n📌 Concurso: ${ultimoResultadoConcurso}\n🎯 Números Sorteados:\n   ${numeros.join(' - ')}\n`;
     
-    // CORREÇÃO DA DATA - TRATAMENTO ROBUSTO
     if (dataSorteio) {
         let dataFormatada = '';
         try {
-            // Verificar se é string no formato DD/MM/YYYY
             if (typeof dataSorteio === 'string' && dataSorteio.includes('/')) {
                 const partes = dataSorteio.split('/');
                 if (partes.length === 3) {
                     dataFormatada = `${partes[0]}/${partes[1]}/${partes[2]}`;
                 }
-            }
-            // Verificar se é objeto Date válido
-            else if (dataSorteio instanceof Date && !isNaN(dataSorteio)) {
+            } else if (dataSorteio instanceof Date && !isNaN(dataSorteio)) {
                 dataFormatada = dataSorteio.toLocaleDateString('pt-BR');
-            }
-            // Verificar se é string ISO
-            else if (typeof dataSorteio === 'string' && dataSorteio.includes('-')) {
+            } else if (typeof dataSorteio === 'string' && dataSorteio.includes('-')) {
                 const dataObj = new Date(dataSorteio);
                 if (!isNaN(dataObj)) {
                     dataFormatada = dataObj.toLocaleDateString('pt-BR');
                 } else {
                     dataFormatada = dataSorteio;
                 }
-            }
-            // Fallback
-            else {
+            } else {
                 dataFormatada = dataSorteio;
             }
         } catch(e) {
-            console.warn('Erro ao formatar data:', e);
             dataFormatada = dataSorteio;
         }
         
@@ -794,14 +766,18 @@ async function carregarBolaoAtivo() {
             return;
         }
         
-        const promessas = idsSelecionados.map(id => db.collection('participantes').doc(id).get());
-        const resultados = await Promise.all(promessas);
-        const boloes = [];
-        resultados.forEach(doc => {
-            if (doc.exists) boloes.push({ id: doc.id, ...doc.data() });
-        });
+        // FILTRO CORRETO: apenas ABERTO e EM ANDAMENTO (ENCERRADO fica de fora)
+        const boloesAtivos = [];
+        for (const id of idsSelecionados) {
+            if (statusMap[id] === 'aberto' || statusMap[id] === 'andamento') {
+                const doc = await db.collection('participantes').doc(id).get();
+                if (doc.exists) {
+                    boloesAtivos.push({ id: id, data: doc.data() });
+                }
+            }
+        }
         
-        if (boloes.length === 0) {
+        if (boloesAtivos.length === 0) {
             card.style.display = 'none';
             return;
         }
@@ -809,8 +785,8 @@ async function carregarBolaoAtivo() {
         card.style.display = 'block';
         let html = '';
         
-        for (const bolao of boloes) {
-            const participantes = bolao.participantes || [];
+        for (const bolao of boloesAtivos) {
+            const participantes = bolao.data.participantes || [];
             const totalQuitados = participantes.filter(p => p.situacao === 'quitado' || p.situacao === 'pago').length;
             const totalEmAndamento = participantes.filter(p => p.situacao !== 'quitado' && p.situacao !== 'pago').length;
             const statusText = statusMap[bolao.id] === 'aberto' ? 'ABERTO' : 'EM ANDAMENTO';
@@ -831,13 +807,13 @@ async function carregarBolaoAtivo() {
                 <div class="bolao-card">
                     <div class="bolao-header">
                         <div class="bolao-nome">
-                            <span>🎯</span> ${bolao.titulo}
+                            <span>🎯</span> ${bolao.data.titulo}
                         </div>
                         <div class="bolao-status ${statusClass}">${statusText}</div>
                     </div>
                     <div class="bolao-body">
                         <div class="bolao-info">
-                            <div class="bolao-valor">💰 R$ ${bolao.valorPorCota || 0},00 <span style="font-size:12px;">/ cota</span></div>
+                            <div class="bolao-valor">💰 R$ ${bolao.data.valorPorCota || 0},00 <span style="font-size:12px;">/ cota</span></div>
                             ${dataTexto}
                         </div>
                         <div class="bolao-stats">
@@ -870,13 +846,13 @@ async function carregarBolaoAtivo() {
                 const div = document.getElementById(`participantes-${id}`);
                 
                 if (div.style.display === 'none') {
-                    const bolao = boloes.find(b => b.id === id);
-                    const participantes = bolao.participantes || [];
+                    const bolaoData = boloesAtivos.find(b => b.id === id);
+                    const participantes = bolaoData.data.participantes || [];
                     
                     const participantesFormatados = participantes.map(p => {
                         let statusClass = 'pendente';
                         let statusText = 'EM ANDAMENTO';
-                        let quantidadeCotas = p.quantidadeCotas || 1;  // ← PADRÃO 1 COTA
+                        let quantidadeCotas = p.quantidadeCotas || 1;
                         
                         if (p.situacao === 'quitado' || p.situacao === 'pago') {
                             statusClass = 'pago';
@@ -900,14 +876,14 @@ async function carregarBolaoAtivo() {
                     let listaHtml = '<div class="participantes-grid">';
                     participantesFormatados.forEach(p => {
                         listaHtml += `
-                    <div class="participante-card">
-                        <div style="display: flex; flex-direction: column; gap: 2px;">
-                            <span class="participante-nome">${p.nome}</span>
-                            <span style="font-size: 9px; color: #64748b;">🎟️ ${p.quantidadeCotas} cota${p.quantidadeCotas > 1 ? 's' : ''}</span>
-                        </div>
-                        <span class="participante-status ${p.statusClass}">${p.statusText}</span>
-                    </div>
-                `;
+                            <div class="participante-card">
+                                <div style="display: flex; flex-direction: column; gap: 2px;">
+                                    <span class="participante-nome">${p.nome}</span>
+                                    <span style="font-size: 9px; color: #64748b;">🎟️ ${p.quantidadeCotas} cota${p.quantidadeCotas > 1 ? 's' : ''}</span>
+                                </div>
+                                <span class="participante-status ${p.statusClass}">${p.statusText}</span>
+                            </div>
+                        `;
                     });
                     listaHtml += '</div>';
                     
@@ -1163,7 +1139,6 @@ async function buscarResultadoAutomatico() {
     }
 }
 
-// Forçar atualização de cache no iPhone
 function forcarAtualizacaoCache() {
     if ('caches' in window) {
         caches.keys().then(names => {
@@ -1187,7 +1162,6 @@ function forcarAtualizacaoCache() {
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('📄 Inicializando sistema...');
     
-    // Forçar atualização de cache para garantir versão mais recente
     forcarAtualizacaoCache();
     
     await carregarConfiguracoes();
