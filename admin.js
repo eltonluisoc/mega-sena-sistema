@@ -288,30 +288,51 @@ async function mostrarHistorico(id, nome) {
 }
 
 function atualizarDashboardAdmin() {
-    // Contar bolões por status
+    // Contar bolões por status (lendo do config_boloes/ativos)
     let abertos = 0;
     let andamento = 0;
     let encerrados = 0;
     
-    if (boloes && boloes.length > 0) {
-        for (const bolao of boloes) {
-            const status = bolao.status || 'andamento';
-            if (status === 'aberto') abertos++;
-            else if (status === 'andamento') andamento++;
-            else if (status === 'encerrado') encerrados++;
+    // Buscar os status do config_boloes/ativos
+    db.collection('config_boloes').doc('ativos').get().then(configDoc => {
+        if (configDoc.exists) {
+            const dados = configDoc.data();
+            const statusMap = dados.status || {};
+            
+            // Contar por status
+            for (const id in statusMap) {
+                const status = statusMap[id];
+                if (status === 'aberto') abertos++;
+                else if (status === 'andamento') andamento++;
+                else if (status === 'encerrado') encerrados++;
+            }
         }
-    }
-    
-    // Atualizar os cards
-    const abertosEl = document.getElementById('dashboardAbertos');
-    const andamentoEl = document.getElementById('dashboardAndamento');
-    const encerradosEl = document.getElementById('dashboardEncerrados');
-    
-    if (abertosEl) abertosEl.innerHTML = abertos;
-    if (andamentoEl) andamentoEl.innerHTML = andamento;
-    if (encerradosEl) encerradosEl.innerHTML = encerrados;
-    
-    console.log(`📊 Dashboard: Abertos=${abertos}, Andamento=${andamento}, Encerrados=${encerrados}`);
+        
+        // Se não houver configuração, tentar ler dos bolões diretamente
+        if (abertos === 0 && andamento === 0 && encerrados === 0) {
+            if (boloes && boloes.length > 0) {
+                for (const bolao of boloes) {
+                    const status = bolao.status || 'andamento';
+                    if (status === 'aberto') abertos++;
+                    else if (status === 'andamento') andamento++;
+                    else if (status === 'encerrado') encerrados++;
+                }
+            }
+        }
+        
+        // Atualizar os cards
+        const abertosEl = document.getElementById('dashboardAbertos');
+        const andamentoEl = document.getElementById('dashboardAndamento');
+        const encerradosEl = document.getElementById('dashboardEncerrados');
+        
+        if (abertosEl) abertosEl.innerHTML = abertos;
+        if (andamentoEl) andamentoEl.innerHTML = andamento;
+        if (encerradosEl) encerradosEl.innerHTML = encerrados;
+        
+        console.log(`📊 Dashboard: Abertos=${abertos}, Andamento=${andamento}, Encerrados=${encerrados}`);
+    }).catch(error => {
+        console.error('Erro ao carregar status dos bolões:', error);
+    });
 }
 
 function exibirCartoesAdmin() {
