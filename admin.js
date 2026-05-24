@@ -5,6 +5,7 @@ let resultadosLotofacil = {};
 let resultadosQuina = {};
 let loteriaAdmin = 'mega';
 let cartoesFiltrados = [];
+let boloes = []; // ← NOVO: variável global para armazenar bolões
 
 function showToast(message, type = 'info') {
     let container = document.querySelector('.toast-container');
@@ -103,13 +104,27 @@ async function salvarPixConfig() {
 
 async function carregarDadosAdmin() {
     try {
+        // 1. Carregar cartões
         const snapshot = await db.collection('cartoes').get();
         cartoes = [];
         snapshot.forEach(doc => {
             cartoes.push({ id: doc.id, ...doc.data() });
         });
         
-        // Carregar resultados Mega
+        // 2. Carregar bolões (participantes)
+        try {
+            const snapshotParticipantes = await db.collection('participantes').get();
+            boloes = [];
+            snapshotParticipantes.forEach(doc => {
+                boloes.push({ id: doc.id, ...doc.data() });
+            });
+            console.log(`✅ ${boloes.length} bolões carregados`);
+        } catch (e) {
+            console.log('⚠️ Nenhum bolão encontrado:', e);
+            boloes = [];
+        }
+        
+        // 3. Carregar resultados Mega
         try {
             const resMega = await db.collection('resultados_mega').get();
             resultadosMega = {};
@@ -122,7 +137,7 @@ async function carregarDadosAdmin() {
             resultadosMega = {};
         }
         
-        // Carregar resultados Lotofácil
+        // 4. Carregar resultados Lotofácil
         try {
             const resLoto = await db.collection('resultados_lotofacil').get();
             resultadosLotofacil = {};
@@ -135,7 +150,7 @@ async function carregarDadosAdmin() {
             resultadosLotofacil = {};
         }
         
-        // Carregar resultados Quina
+        // 5. Carregar resultados Quina
         try {
             const resQuina = await db.collection('resultados_quina').get();
             resultadosQuina = {};
@@ -272,26 +287,34 @@ async function mostrarHistorico(id, nome) {
     }
 }
 
-// Chamar no carregamento do admin
-// Adicionar no DOMContentLoaded do admin.js:
-// carregarReservas();
-// document.getElementById('btnAtualizarReservas').onclick = () => carregarReservas();
-
 function atualizarDashboardAdmin() {
+    // Total de cartões filtrados pela loteria atual
     const cartoesFiltrados = cartoes.filter(c => c.tipo === loteriaAdmin);
-    const resultados = loteriaAdmin === 'mega' ? resultadosMega : loteriaAdmin === 'lotofacil' ? resultadosLotofacil : resultadosQuina;
     const concursos = [...new Set(cartoesFiltrados.map(c => c.concurso))];
-    const boloes = [...new Set(cartoesFiltrados.map(c => c.bolao || 'Sem Bolão'))];
     
-    const totalCartoes = document.getElementById('dashboardTotalCartoes');
-    const totalConcursos = document.getElementById('dashboardTotalConcursos');
-    const totalBoloes = document.getElementById('dashboardTotalBoloes');
-    const totalResultados = document.getElementById('dashboardResultados');
+    // TOTAL DE BOLÕES (da collection participantes)
+    const totalBoloes = boloes ? boloes.length : 0;
     
-    if (totalCartoes) totalCartoes.innerHTML = cartoesFiltrados.length;
-    if (totalConcursos) totalConcursos.innerHTML = concursos.length;
-    if (totalBoloes) totalBoloes.innerHTML = boloes.length;
-    if (totalResultados) totalResultados.innerHTML = Object.keys(resultados).length;
+    // Total de resultados da loteria atual
+    let totalResultados = 0;
+    if (loteriaAdmin === 'mega') totalResultados = Object.keys(resultadosMega).length;
+    else if (loteriaAdmin === 'lotofacil') totalResultados = Object.keys(resultadosLotofacil).length;
+    else totalResultados = Object.keys(resultadosQuina).length;
+    
+    // Atualizar os elementos do dashboard
+    const totalCartoesEl = document.getElementById('dashboardTotalCartoes');
+    const totalConcursosEl = document.getElementById('dashboardTotalConcursos');
+    const totalBoloesEl = document.getElementById('dashboardTotalBoloes');
+    const totalResultadosEl = document.getElementById('dashboardResultados');
+    
+    if (totalCartoesEl) totalCartoesEl.innerHTML = cartoesFiltrados.length;
+    if (totalConcursosEl) totalConcursosEl.innerHTML = concursos.length;
+    if (totalBoloesEl) totalBoloesEl.innerHTML = totalBoloes;
+    if (totalResultadosEl) totalResultadosEl.innerHTML = totalResultados;
+    
+    // Atualizar também o total na barra superior
+    const totalCartoesTop = document.getElementById('totalCartoes');
+    if (totalCartoesTop) totalCartoesTop.innerHTML = cartoesFiltrados.length + ' cartões';
 }
 
 function exibirCartoesAdmin() {
@@ -423,7 +446,6 @@ async function excluirSelecionados() {
         return; 
     }
     
-    // Modal de confirmação personalizado
     const confirmar = confirm(`⚠️ ATENÇÃO!\n\nDeseja excluir ${selecionados.length} cartão(ões)?\n\nEsta ação NÃO pode ser desfeita!`);
     
     if (!confirmar) {
@@ -497,11 +519,9 @@ function importarExcel() {
                 const numeros = linha.match(/\d+/g).map(Number);
                 if (numeros.length < minNumeros) continue;
 
-                // Validar números únicos
                 const numerosUnicos = [...new Set(numeros)];
                 if (numerosUnicos.length !== numeros.length) continue;
 
-                // Validar range
                 const maxValor = loteriaAdmin === 'mega' ? 60 : (loteriaAdmin === 'lotofacil' ? 25 : 80);
                 if (numeros.some(n => n < 1 || n > maxValor)) continue;
 
@@ -579,19 +599,16 @@ async function adicionarCartoes() {
     const maxValor = loteriaAdmin === 'mega' ? 60 : (loteriaAdmin === 'lotofacil' ? 25 : 80);
     
     for (const linha of linhas) {
-    if (!linha.trim()) continue;
-    
-    // Extrair números
-    const numeros = linha.match(/\d+/g).map(Number);
-    
-    // Validar quantidade mínima
+        if (!linha.trim()) continue;
+        
+        const numeros = linha.match(/\d+/g).map(Number);
+        
         if (numeros.length < minNumeros) { 
             console.warn(`❌ Linha ignorada: apenas ${numeros.length} números (mínimo ${minNumeros})`);
             erros++; 
             continue; 
         }
         
-        // Validar números únicos (sem duplicados)
         const numerosUnicos = [...new Set(numeros)];
         if (numerosUnicos.length !== numeros.length) { 
             console.warn(`❌ Linha ignorada: contém números duplicados`);
@@ -599,14 +616,12 @@ async function adicionarCartoes() {
             continue; 
         }
         
-        // Validar range (1 até maxValor)
         if (numeros.some(n => n < 1 || n > maxValor)) { 
             console.warn(`❌ Linha ignorada: números fora do range (1-${maxValor})`);
             erros++; 
             continue; 
         }
         
-        // Ordenar números
         numeros.sort((a,b) => a-b);
         
         try {
@@ -670,7 +685,7 @@ async function carregarBoloesParaGerenciar() {
         let statusMap = {};
         let dataLimiteMap = {};
         let destaqueMap = {};
-        let estrategiaMap = {};  // ← DECLARADO
+        let estrategiaMap = {};
 
         try {
             const configDoc = await db.collection('config_boloes').doc('ativos').get();
@@ -679,7 +694,7 @@ async function carregarBoloesParaGerenciar() {
                 statusMap = configDoc.data().status || {};
                 dataLimiteMap = configDoc.data().dataLimite || {};
                 destaqueMap = configDoc.data().destaque || {};
-                estrategiaMap = configDoc.data().estrategia || {};  // ← CARREGADO
+                estrategiaMap = configDoc.data().estrategia || {};
             }
         } catch (e) {
             console.log('Erro ao carregar seleção:', e);
@@ -756,7 +771,6 @@ async function salvarConfigBoloes() {
         destaqueMap[cb.dataset.id] = true;
     });
     
-    // NOVO: coletar estratégias
     const estrategiaMap = {};
     document.querySelectorAll('.estrategia-textarea').forEach(textarea => {
         const valor = textarea.value.trim();
@@ -771,7 +785,7 @@ async function salvarConfigBoloes() {
             status: statusMap,
             dataLimite: dataLimiteMap,
             destaque: destaqueMap,
-            estrategia: estrategiaMap  // ← NOVO
+            estrategia: estrategiaMap
         });
         showToast(`✅ ${idsSelecionados.length} bolão(ões) selecionado(s)`, 'success');
     } catch (error) {
@@ -876,12 +890,10 @@ if (btnConfig && collapseContent) {
 // FUNÇÕES PARA GERENCIAR TOKENS DE ACESSO
 // ============================================
 
-// Gerar token aleatório
 function gerarTokenUnico() {
     return Math.random().toString(36).substring(2, 18) + Math.random().toString(36).substring(2, 8);
 }
 
-// Salvar token no Firebase
 async function salvarToken(participanteId, nome, telefone) {
     const token = gerarTokenUnico();
     const link = `${window.location.origin}/mega-sena-sistema/consulta.html?token=${token}`;
@@ -898,7 +910,6 @@ async function salvarToken(participanteId, nome, telefone) {
     
     showToast(`✅ Token gerado!`, 'success');
     
-    // Mostrar link para copiar
     const resultado = confirm(`Link gerado:\n\n${link}\n\nClique em OK para copiar o link`);
     if (resultado) {
         navigator.clipboard.writeText(link);
@@ -908,7 +919,6 @@ async function salvarToken(participanteId, nome, telefone) {
     carregarTokens();
 }
 
-// Carregar todos os tokens ativos
 async function carregarTokens() {
     try {
         const snapshot = await db.collection('participantes_tokens').where('ativo', '==', true).get();
@@ -952,7 +962,6 @@ async function carregarTokens() {
         html += '</div>';
         container.innerHTML = html;
         
-        // Eventos dos botões
         document.querySelectorAll('.btn-copiar-link').forEach(btn => {
             btn.onclick = () => {
                 navigator.clipboard.writeText(btn.dataset.link);
@@ -980,7 +989,6 @@ async function carregarTokens() {
     }
 }
 
-// Evento do botão gerar token
 const btnGerarToken = document.getElementById('btnGerarToken');
 if (btnGerarToken) {
     btnGerarToken.addEventListener('click', async () => {
@@ -999,10 +1007,6 @@ if (btnGerarToken) {
         document.getElementById('tokenTelefone').value = '';
     });
 }
-
-// Chamar carregarTokens quando o admin iniciar
-// Adicione esta linha dentro do DOMContentLoaded do admin.js:
-// carregarTokens();
 
 // ============ INICIALIZAÇÃO ============
 document.addEventListener('DOMContentLoaded', () => {
@@ -1050,4 +1054,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
     carregarBoloesParaGerenciar();
     carregarBoloesNoSelectRapido();
+    
+    // Carregar tokens
+    carregarTokens();
+    
+    // Carregar reservas
+    carregarReservas();
+    const btnAtualizarReservas = document.getElementById('btnAtualizarReservas');
+    if (btnAtualizarReservas) btnAtualizarReservas.onclick = () => carregarReservas();
 });
