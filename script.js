@@ -948,7 +948,7 @@ async function carregarBolaoAberto() {
         
         let boloesAbertos = [];
         for (const id of idsSelecionados) {
-            if (statusMap[id] === 'aberto') {
+            if (statusMap[id] === 'aberto' || statusMap[id] === 'andamento') {
                 const doc = await db.collection('participantes').doc(id).get();
                 if (doc.exists) boloesAbertos.push({ id: id, data: doc.data() });
             }

@@ -704,6 +704,7 @@ async function carregarBoloesParaGerenciar() {
             <select class="status-select" data-id="${bolao.id}" style="padding: 4px 8px; border-radius: 6px;">
                 <option value="aberto" ${status === 'aberto' ? 'selected' : ''}>🟢 ABERTO</option>
                 <option value="andamento" ${status === 'andamento' ? 'selected' : ''}>🟡 EM ANDAMENTO</option>
+                <option value="encerrado" ${status === 'encerrado' ? 'selected' : ''}>🔴 ENCERRADO</option>
             </select>
             <label style="font-size: 12px;">Data limite:</label>
             <input type="date" class="data-limite-input" data-id="${bolao.id}" value="${dataLimiteMap[bolao.id] || ''}" style="padding: 4px 8px; border-radius: 6px;">
