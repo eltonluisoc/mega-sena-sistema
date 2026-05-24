@@ -1121,24 +1121,36 @@ async function carregarBoloesSelectParticipantes() {
             select.appendChild(option);
         }
         
-        // Evento ao selecionar um bolão
-        select.onchange = () => {
-            const id = select.value;
-            if (id) {
-                carregarParticipantesAdmin(id);
-            } else {
-                document.getElementById('listaParticipantesAdmin').innerHTML = '<div class="empty-state">Selecione um bolão para ver os participantes</div>';
-            }
-        };
+        // CORREÇÃO: Usar addEventListener em vez de onchange
+        select.removeEventListener('change', handleSelectChange);
+        select.addEventListener('change', handleSelectChange);
+        
+        console.log(`✅ ${boloes.length} bolões carregados no select`);
         
     } catch (error) {
         console.error('Erro ao carregar bolões:', error);
     }
 }
 
+// Função separada para o evento change
+function handleSelectChange(event) {
+    const id = event.target.value;
+    console.log('📌 Bolão selecionado:', id);
+    if (id) {
+        carregarParticipantesAdmin(id);
+    } else {
+        document.getElementById('listaParticipantesAdmin').innerHTML = '<div class="empty-state">Selecione um bolão para ver os participantes</div>';
+    }
+}
+
 async function carregarParticipantesAdmin(bolaoId) {
     const container = document.getElementById('listaParticipantesAdmin');
     if (!container) return;
+    
+    if (!bolaoId) {
+        container.innerHTML = '<div class="empty-state">Selecione um bolão para ver os participantes</div>';
+        return;
+    }
     
     container.innerHTML = '<div class="loading">🔍 Carregando participantes...</div>';
     
@@ -1165,7 +1177,6 @@ async function carregarParticipantesAdmin(bolaoId) {
             let quantidadeCotas = p.quantidadeCotas || 1;
             let valorPago = p.valorPago || 0;
             
-            // Calcular parcelas pagas
             let parcelasPagas = 0;
             if (valorPorCota > 0) {
                 parcelasPagas = Math.floor(valorPago / valorPorCota);
@@ -1189,14 +1200,12 @@ async function carregarParticipantesAdmin(bolaoId) {
             };
         });
         
-        // Ordenar: pagos primeiro
         participantesFormatados.sort((a, b) => {
             if (a.statusClass === 'pago' && b.statusClass !== 'pago') return -1;
             if (a.statusClass !== 'pago' && b.statusClass === 'pago') return 1;
             return 0;
         });
         
-        // Montar HTML
         let html = `<div style="margin-bottom: 15px;">
                         <strong>📊 TOTAL:</strong> ${participantes.length} participantes
                         | <strong>💰 VALOR POR COTA:</strong> R$ ${valorPorCota.toFixed(2)}
@@ -1276,6 +1285,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     carregarBoloesParaGerenciar();
     carregarBoloesNoSelectRapido();
+    carregarBoloesSelectParticipantes();
     
     // Carregar tokens
     carregarTokens();
