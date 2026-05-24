@@ -1177,11 +1177,17 @@ async function carregarParticipantesAdmin(bolaoId) {
             let quantidadeCotas = p.quantidadeCotas || 1;
             let valorPago = p.valorPago || 0;
             
+            // Calcular parcelas pagas corretamente
             let parcelasPagas = 0;
-            if (valorPorCota > 0) {
-                parcelasPagas = Math.floor(valorPago / valorPorCota);
+            let totalEsperado = valorPorCota * quantidadeCotas;
+            
+            if (totalEsperado > 0 && valorPago > 0) {
+                // Cálculo proporcional: (valorPago / totalEsperado) * quantidadeCotas
+                parcelasPagas = Math.round((valorPago / totalEsperado) * quantidadeCotas);
             }
+            // Garantir limites
             parcelasPagas = Math.min(parcelasPagas, quantidadeCotas);
+            parcelasPagas = Math.max(parcelasPagas, 0);
             
             if (p.situacao !== 'quitado' && p.situacao !== 'pago') {
                 statusClass = 'pendente';
@@ -1196,17 +1202,18 @@ async function carregarParticipantesAdmin(bolaoId) {
                 quantidadeCotas: quantidadeCotas,
                 parcelasPagas: parcelasPagas,
                 valorPago: valorPago,
-                dataCadastro: p.dataCadastro || '---'
+                totalEsperado: totalEsperado
             };
         });
         
+        // Ordenar: pagos primeiro
         participantesFormatados.sort((a, b) => {
             if (a.statusClass === 'pago' && b.statusClass !== 'pago') return -1;
             if (a.statusClass !== 'pago' && b.statusClass === 'pago') return 1;
             return 0;
         });
         
-        let html = `<div style="margin-bottom: 15px;">
+        let html = `<div style="margin-bottom: 15px; padding: 10px; background: #f1f5f9; border-radius: 12px;">
                         <strong>📊 TOTAL:</strong> ${participantes.length} participantes
                         | <strong>💰 VALOR POR COTA:</strong> R$ ${valorPorCota.toFixed(2)}
                     </div>`;
@@ -1214,14 +1221,17 @@ async function carregarParticipantesAdmin(bolaoId) {
         
         participantesFormatados.forEach(p => {
             const parcelas = `${p.parcelasPagas}/${p.quantidadeCotas}`;
+            const corStatus = p.statusClass === 'pago' ? '#10b981' : '#f59e0b';
             html += `
                 <div class="participante-card-admin" style="background: #f8fafc; border-radius: 12px; padding: 12px; border: 1px solid #e2e8f0;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
-                        <strong>${p.nome}</strong>
-                        <span class="participante-status ${p.statusClass}" style="font-size: 10px; padding: 3px 10px; border-radius: 30px;">${p.statusText}</span>
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 8px;">
+                        <strong style="font-size: 14px;">${p.nome}</strong>
+                        <span style="background: ${corStatus}; color: white; font-size: 10px; padding: 3px 10px; border-radius: 30px;">${p.statusText}</span>
                     </div>
-                    <div style="font-size: 11px; color: #64748b; margin-top: 5px;">
-                        📞 ${p.telefone} | 🎟️ ${p.quantidadeCotas} cota(s) | 📦 Parcelas: ${parcelas} | 💵 R$ ${p.valorPago.toFixed(2)}
+                    <div style="font-size: 11px; color: #64748b; line-height: 1.5;">
+                        📞 ${p.telefone}<br>
+                        🎟️ ${p.quantidadeCotas} cota(s) | 📦 Parcelas: ${parcelas}<br>
+                        💵 Pago: R$ ${p.valorPago.toFixed(2)} | Total: R$ ${p.totalEsperado.toFixed(2)}
                     </div>
                 </div>
             `;
