@@ -349,29 +349,29 @@
                 </div>
 
                 <!-- Dashboard Resumo -->
-                <div class="card">
-                    <div class="card-header bg-blue">📊 DASHBOARD RESUMO</div>
-                    <div class="card-body">
-                        <div class="dashboard-cards">
-                            <div class="dashboard-card" style="background: #f0fdf4;">
-                                <div class="dashboard-number" style="color: #059669;" id="dashboardTotalCartoes">0</div>
-                                <div>Cartões</div>
-                            </div>
-                            <div class="dashboard-card" style="background: #dbeafe;">
-                                <div class="dashboard-number" style="color: #3b82f6;" id="dashboardTotalConcursos">0</div>
-                                <div>Concursos</div>
-                            </div>
-                            <div class="dashboard-card" style="background: #fef3c7;">
-                                <div class="dashboard-number" style="color: #f59e0b;" id="dashboardTotalBoloes">0</div>
-                                <div>Bolões</div>
-                            </div>
-                            <div class="dashboard-card" style="background: #f3e8ff;">
-                                <div class="dashboard-number" style="color: #a855f7;" id="dashboardResultados">0</div>
-                                <div>Resultados</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+<div class="card">
+    <div class="card-header bg-blue">📊 DASHBOARD RESUMO</div>
+    <div class="card-body">
+        <div class="dashboard-cards">
+            <div class="dashboard-card" style="background: #f0fdf4;">
+                <div class="dashboard-number" style="color: #059669;" id="dashboardTotalCartoes">0</div>
+                <div>Cartões</div>
+            </div>
+            <div class="dashboard-card" style="background: #dbeafe;">
+                <div class="dashboard-number" style="color: #3b82f6;" id="dashboardTotalConcursos">0</div>
+                <div>Concursos</div>
+            </div>
+            <div class="dashboard-card" style="background: #fef3c7;">
+                <div class="dashboard-number" style="color: #f59e0b;" id="dashboardTotalBoloes">0</div>
+                <div>Bolões</div>
+            </div>
+            <div class="dashboard-card" style="background: #f3e8ff;">
+                <div class="dashboard-number" style="color: #a855f7;" id="dashboardResultados">0</div>
+                <div>Resultados</div>
+            </div>
+        </div>
+    </div>
+</div>
 
                 <!-- Cadastro -->
                 <div class="card">
@@ -565,3 +565,216 @@
     
 </body>
 </html>
+/* ============ RESPONSIVIDADE DO ADMIN ============ */
+
+/* Ajustes gerais para celular */
+@media (max-width: 768px) {
+    /* Container principal */
+    .container {
+        padding: 0 10px;
+    }
+    
+    /* Layout admin em coluna única */
+    .admin-layout {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    /* Cards ocupam 100% da largura */
+    .card {
+        width: 100%;
+        margin-bottom: 15px;
+    }
+    
+    /* Cabeçalho dos cards */
+    .card-header {
+        font-size: 14px;
+        padding: 10px 12px;
+    }
+    
+    /* Corpo dos cards */
+    .card-body {
+        padding: 12px;
+    }
+    
+    /* Formulários em coluna */
+    .form-row {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .form-group {
+        width: 100%;
+    }
+    
+    /* Botões ocupam largura total */
+    .btn, .btn-primary, .btn-success, .btn-danger {
+        width: 100%;
+        margin-bottom: 8px;
+        text-align: center;
+    }
+    
+    .form-buttons {
+        flex-direction: column;
+    }
+    
+    /* Filtros em coluna */
+    .filtros {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .filtros select, .filtros button {
+        width: 100%;
+    }
+    
+    /* Dashboard cards (4 blocos) */
+    .dashboard-cards {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+    
+    .dashboard-card {
+        padding: 10px;
+    }
+    
+    .dashboard-number {
+        font-size: 20px;
+    }
+    
+    /* Lista de cartões */
+    .cartoes-grid {
+        max-height: none;
+    }
+    
+    .cartao-item {
+        padding: 10px;
+    }
+    
+    .cartao-item > div {
+        flex-direction: column !important;
+        gap: 10px;
+    }
+    
+    .cartao-item .btn-editar,
+    .cartao-item .btn-duplicar {
+        width: 100%;
+        margin-top: 5px;
+    }
+    
+    /* Lista de bolões (gerenciar) */
+    .checkbox-bolao {
+        width: 20px !important;
+        height: 20px !important;
+    }
+    
+    /* Tokens grid */
+    .tokens-grid {
+        grid-template-columns: 1fr !important;
+    }
+    
+    .token-card {
+        padding: 12px;
+    }
+    
+    .token-card .btn-copiar-link,
+    .token-card .btn-revogar-token {
+        width: 100%;
+        margin-bottom: 5px;
+    }
+    
+    .token-card > div:last-child {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    /* Botões de ação */
+    .btn-sm {
+        width: 100%;
+        text-align: center;
+    }
+    
+    /* Tabela de resultados (admin) */
+    .resultado-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    /* Selects */
+    select, .form-control {
+        font-size: 14px;
+        padding: 8px;
+    }
+    
+    /* Barra superior do admin */
+    .top-bar {
+        flex-direction: column;
+        text-align: center;
+        gap: 8px;
+    }
+    
+    .stats {
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    
+    .btn-logout {
+        width: auto;
+        margin-top: 5px;
+    }
+    
+    /* Modal de autenticação */
+    .modal-content {
+        width: 90%;
+        margin: 0 auto;
+    }
+    
+    /* Gerenciar bolões */
+    #listaBoloes > div {
+        padding: 10px;
+    }
+    
+    #listaBoloes .status-select,
+    #listaBoloes .data-limite-input {
+        width: 100%;
+        margin-bottom: 5px;
+    }
+    
+    #listaBoloes > div > div:nth-child(2) {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    /* Seção de estratégia */
+    .estrategia-textarea {
+        font-size: 12px;
+    }
+}
+
+/* Ajustes para telas muito pequenas (até 480px) */
+@media (max-width: 480px) {
+    .dashboard-cards {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    
+    .dashboard-number {
+        font-size: 18px;
+    }
+    
+    .card-header {
+        font-size: 13px;
+    }
+    
+    .logo {
+        font-size: 18px;
+    }
+    
+    .version {
+        font-size: 9px;
+    }
+}
