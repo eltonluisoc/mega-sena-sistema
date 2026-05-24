@@ -716,6 +716,13 @@ async function conferirResultados() {
     ultimoResultadoConcurso = concurso;
     ultimoResultadoDados = { numeros: numerosSorteados, dataSorteio, premios };
 
+    // SALVAR NO LOCALSTORAGE PARA PERSISTIR
+    localStorage.setItem('ultimoResultado', JSON.stringify({
+        concurso: ultimoResultadoConcurso,
+        dados: ultimoResultadoDados,
+        loteria: loteriaAtual
+    }));
+
     // Salvar no localStorage para persistir
     localStorage.setItem('ultimoResultado', JSON.stringify({
         concurso: ultimoResultadoConcurso,
@@ -889,6 +896,25 @@ async function carregarBolaoAtivo() {
             card.style.display = 'none';
             return;
         }
+        
+        // ============================================
+        // ORDENAÇÃO: ABERTO primeiro, depois EM ANDAMENTO, ambos em ordem alfabética
+        // ============================================
+        boloesAtivos.sort((a, b) => {
+            const statusA = statusMap[a.id] || 'andamento';
+            const statusB = statusMap[b.id] || 'andamento';
+            const tituloA = (a.data.titulo || '').toLowerCase();
+            const tituloB = (b.data.titulo || '').toLowerCase();
+            
+            // Primeiro: ABERTO vem antes de EM ANDAMENTO
+            if (statusA === 'aberto' && statusB !== 'aberto') return -1;
+            if (statusA !== 'aberto' && statusB === 'aberto') return 1;
+            
+            // Segundo: ordenar por título alfabeticamente
+            if (tituloA < tituloB) return -1;
+            if (tituloA > tituloB) return 1;
+            return 0;
+        });
         
         card.style.display = 'block';
         let html = '';
