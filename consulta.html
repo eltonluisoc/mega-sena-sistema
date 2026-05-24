@@ -213,39 +213,45 @@
                 console.log(`📋 Total de bolões encontrados: ${boloes.length}`);
                 
                 // Separar bolões
-                const participa = [];
-                const naoParticipa = [];
-                const encerrados = [];
-                
-                for (const bolao of boloes) {
-                    const participantes = bolao.participantes || [];
-                    const statusBolao = bolao.status || 'andamento';
-                    
-                    // NORMALIZAR TELEFONE PARA COMPARAÇÃO
-                    const encontrado = participantes.find(p => {
-                        const telefoneParticipante = p.telefone ? normalizarTelefone(p.telefone) : '';
-                        return telefoneParticipante === telefoneNormalizado;
-                    });
-                    
-                    if (encontrado) {
-                        console.log(`✅ Participa do bolão: ${bolao.titulo} (${statusBolao})`);
-                        participa.push({
-                            ...bolao,
-                            meuStatus: encontrado.situacao,
-                            minhasCotas: encontrado.quantidadeCotas || 1,
-                            meuValorPago: encontrado.valorPago,
-                            meuNome: encontrado.nome
-                        });
-                    } else if (statusBolao === 'aberto') {
-                        console.log(`🔵 Não participa do bolão ABERTO: ${bolao.titulo}`);
-                        naoParticipa.push(bolao);
-                    } else if (statusBolao === 'encerrado') {
-                        console.log(`🔴 Bolão ENCERRADO: ${bolao.titulo}`);
-                        encerrados.push(bolao);
-                    } else {
-                        console.log(`🟡 Bolão EM ANDAMENTO (não participa): ${bolao.titulo}`);
-                    }
-                }
+const participa = [];
+const naoParticipa = [];
+const encerrados = [];
+
+for (const bolao of boloes) {
+    const participantes = bolao.participantes || [];
+    const statusBolao = bolao.status || 'andamento';
+    
+    // NORMALIZAR TELEFONE PARA COMPARAÇÃO
+    const encontrado = participantes.find(p => {
+        const telefoneParticipante = p.telefone ? normalizarTelefone(p.telefone) : '';
+        return telefoneParticipante === telefoneNormalizado;
+    });
+    
+    if (encontrado) {
+        console.log(`✅ Participa do bolão: ${bolao.titulo} (${statusBolao})`);
+        participa.push({
+            ...bolao,
+            meuStatus: encontrado.situacao,
+            minhasCotas: encontrado.quantidadeCotas || 1,
+            meuValorPago: encontrado.valorPago,
+            meuNome: encontrado.nome
+        });
+    } else if (statusBolao === 'aberto') {
+        console.log(`🔵 Não participa do bolão ABERTO: ${bolao.titulo}`);
+        naoParticipa.push(bolao);
+    } else if (statusBolao === 'encerrado') {
+        console.log(`🔴 Bolão ENCERRADO: ${bolao.titulo}`);
+        encerrados.push(bolao);
+    } else {
+        console.log(`🟡 Bolão EM ANDAMENTO (não participa): ${bolao.titulo}`);
+    }
+}
+
+// ============================================
+// ORDENAR BOLÕES EM ORDEM ALFABÉTICA
+// ============================================
+participa.sort((a, b) => a.titulo.localeCompare(b.titulo));
+naoParticipa.sort((a, b) => a.titulo.localeCompare(b.titulo));
                 
                 console.log(`📊 Resumo: Participa=${participa.length}, Abertos=${naoParticipa.length}, Encerrados=${encerrados.length}`);
                 
