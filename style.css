@@ -751,7 +751,7 @@ button:hover {
     
     /* Bolões especiais no celular */
     .participantes-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr 1fr;  /* ← MUDAR DE 1fr para 1fr 1fr */
         gap: 8px;
     }
     
