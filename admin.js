@@ -871,6 +871,138 @@ if (btnConfig && collapseContent) {
     });
 }
 
+// ============================================
+// FUNÇÕES PARA GERENCIAR TOKENS DE ACESSO
+// ============================================
+
+// Gerar token aleatório
+function gerarTokenUnico() {
+    return Math.random().toString(36).substring(2, 18) + Math.random().toString(36).substring(2, 8);
+}
+
+// Salvar token no Firebase
+async function salvarToken(participanteId, nome, telefone) {
+    const token = gerarTokenUnico();
+    const link = `${window.location.origin}/mega-sena-sistema/consulta.html?token=${token}`;
+    
+    await db.collection('participantes_tokens').doc(token).set({
+        participanteId: participanteId,
+        nome: nome,
+        telefone: telefone,
+        token: token,
+        ativo: true,
+        dataCriacao: new Date().toISOString(),
+        admin: true
+    });
+    
+    showToast(`✅ Token gerado!`, 'success');
+    
+    // Mostrar link para copiar
+    const resultado = confirm(`Link gerado:\n\n${link}\n\nClique em OK para copiar o link`);
+    if (resultado) {
+        navigator.clipboard.writeText(link);
+        showToast('📋 Link copiado para a área de transferência!', 'success');
+    }
+    
+    carregarTokens();
+}
+
+// Carregar todos os tokens ativos
+async function carregarTokens() {
+    try {
+        const snapshot = await db.collection('participantes_tokens').where('ativo', '==', true).get();
+        const tokens = [];
+        snapshot.forEach(doc => {
+            tokens.push({ id: doc.id, ...doc.data() });
+        });
+        
+        const container = document.getElementById('listaTokens');
+        if (!container) return;
+        
+        if (tokens.length === 0) {
+            container.innerHTML = '<div class="empty-state">🔑 Nenhum token ativo. Gere o primeiro acima.</div>';
+            return;
+        }
+        
+        let html = '<div class="tokens-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px;">';
+        
+        for (const token of tokens) {
+            const link = `${window.location.origin}/mega-sena-sistema/consulta.html?token=${token.token}`;
+            const dataCriacao = token.dataCriacao ? new Date(token.dataCriacao).toLocaleDateString('pt-BR') : '---';
+            
+            html += `
+                <div class="token-card" style="background: #ffffff; border-radius: 16px; padding: 14px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <strong style="font-size: 15px;">👤 ${token.nome}</strong>
+                        <span style="background: #d1fae5; color: #065f46; padding: 2px 10px; border-radius: 30px; font-size: 10px;">✅ ATIVO</span>
+                    </div>
+                    <div style="font-size: 12px; color: #64748b; margin-bottom: 8px;">📞 ${token.telefone}</div>
+                    <div style="font-size: 10px; color: #64748b; margin-bottom: 10px;">📅 Criado em: ${dataCriacao}</div>
+                    <div style="background: #f8fafc; padding: 8px; border-radius: 8px; margin-bottom: 10px;">
+                        <code style="font-size: 9px; word-break: break-all;">${link}</code>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn-copiar-link btn-sm" data-link="${link}" style="background: #3b82f6; border: none; padding: 6px 12px; border-radius: 20px; color: white; cursor: pointer; font-size: 11px;">📋 COPIAR LINK</button>
+                        <button class="btn-revogar-token btn-sm" data-token="${token.token}" style="background: #ef4444; border: none; padding: 6px 12px; border-radius: 20px; color: white; cursor: pointer; font-size: 11px;">❌ REVOGAR</button>
+                    </div>
+                </div>
+            `;
+        }
+        html += '</div>';
+        container.innerHTML = html;
+        
+        // Eventos dos botões
+        document.querySelectorAll('.btn-copiar-link').forEach(btn => {
+            btn.onclick = () => {
+                navigator.clipboard.writeText(btn.dataset.link);
+                showToast('📋 Link copiado!', 'success');
+            };
+        });
+        
+        document.querySelectorAll('.btn-revogar-token').forEach(btn => {
+            btn.onclick = async () => {
+                if (confirm('REVOGAR este token? O participante perderá o acesso imediatamente.')) {
+                    await db.collection('participantes_tokens').doc(btn.dataset.token).update({ 
+                        ativo: false,
+                        admin: true
+                    });
+                    showToast('❌ Token revogado!', 'info');
+                    carregarTokens();
+                }
+            };
+        });
+        
+    } catch (error) {
+        console.error('Erro ao carregar tokens:', error);
+        const container = document.getElementById('listaTokens');
+        if (container) container.innerHTML = '<div class="empty-state">❌ Erro ao carregar tokens</div>';
+    }
+}
+
+// Evento do botão gerar token
+const btnGerarToken = document.getElementById('btnGerarToken');
+if (btnGerarToken) {
+    btnGerarToken.addEventListener('click', async () => {
+        const nome = document.getElementById('tokenNome').value.trim();
+        const telefone = document.getElementById('tokenTelefone').value.trim();
+        
+        if (!nome || !telefone) {
+            showToast('⚠️ Preencha nome e telefone', 'warning');
+            return;
+        }
+        
+        const participanteId = `${nome.replace(/\s/g, '_')}_${telefone}`;
+        await salvarToken(participanteId, nome, telefone);
+        
+        document.getElementById('tokenNome').value = '';
+        document.getElementById('tokenTelefone').value = '';
+    });
+}
+
+// Chamar carregarTokens quando o admin iniciar
+// Adicione esta linha dentro do DOMContentLoaded do admin.js:
+// carregarTokens();
+
 // ============ INICIALIZAÇÃO ============
 document.addEventListener('DOMContentLoaded', () => {
     verificarAutenticacao();

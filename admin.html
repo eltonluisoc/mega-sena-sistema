@@ -467,6 +467,29 @@
             </div>
         </div>
 
+        <!-- Card: Gerenciar Tokens de Acesso -->
+        <div class="card">
+            <div class="card-header bg-purple">🔑 TOKENS DE ACESSO DOS PARTICIPANTES</div>
+            <div class="card-body">
+                <div style="margin-bottom: 20px;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>👤 Nome do Participante</label>
+                            <input type="text" id="tokenNome" class="form-control" placeholder="Ex: José Eduardo">
+                        </div>
+                        <div class="form-group">
+                            <label>📞 Telefone (com DDD)</label>
+                            <input type="text" id="tokenTelefone" class="form-control" placeholder="61999999999">
+                        </div>
+                    </div>
+                    <button id="btnGerarToken" class="btn btn-primary">🔑 GERAR TOKEN</button>
+                </div>
+                <div id="listaTokens" style="max-height: 400px; overflow-y: auto;">
+                    <div class="empty-state">Nenhum token gerado</div>
+                </div>
+            </div>
+        </div>
+
         <!-- Configuração Geral (recolhível) -->
         <div class="card">
             <button class="collapsible" id="btnConfigGeral" style="width:100%; background:#f1f5f9; border:none; padding:14px; text-align:left; font-weight:bold; border-radius:12px; cursor:pointer;">💳 CONFIGURAÇÃO GERAL</button>

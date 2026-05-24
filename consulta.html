@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Bolões Aleatórios - Meus Bolões</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body { 
+            background: linear-gradient(135deg, #3b82f6 0%, #10b981 100%); 
+            min-height: 100vh; 
+            padding: 20px; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+        .consulta-container { 
+            max-width: 800px; 
+            margin: 0 auto; 
+        }
+        .resultado-card { 
+            background: white; 
+            border-radius: 20px; 
+            padding: 20px; 
+            margin-bottom: 20px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
+        }
+        .bolao-item { 
+            background: #f8fafc; 
+            border-radius: 16px; 
+            padding: 16px; 
+            margin-bottom: 12px; 
+            border: 1px solid #e2e8f0; 
+        }
+        .bolao-titulo { 
+            font-weight: bold; 
+            font-size: 16px; 
+            color: #1e293b; 
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .bolao-status { 
+            font-size: 11px; 
+            font-weight: bold; 
+            padding: 3px 10px; 
+            border-radius: 30px; 
+            display: inline-block; 
+        }
+        .status-aberto { background: #10b981; color: white; }
+        .status-andamento { background: #f59e0b; color: white; }
+        .btn-participar { 
+            background: #10b981; 
+            color: white; 
+            border: none; 
+            padding: 8px 16px; 
+            border-radius: 30px; 
+            cursor: pointer; 
+            font-weight: bold; 
+            width: auto; 
+            margin-top: 10px; 
+        }
+        .aviso { 
+            background: #dbeafe; 
+            padding: 12px; 
+            border-radius: 12px; 
+            font-size: 12px; 
+            color: #1e40af; 
+            margin-top: 16px; 
+            text-align: center; 
+        }
+        .loading { text-align: center; padding: 40px; color: #3b82f6; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .header h1 { color: white; font-size: 24px; margin: 0; }
+        .sub { color: rgba(255,255,255,0.8); font-size: 14px; margin-top: 5px; }
+        .btn-voltar {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 30px;
+            cursor: pointer;
+            margin-top: 10px;
+            font-size: 13px;
+        }
+        .token-info {
+            background: #f1f5f9;
+            padding: 10px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .participante-nome {
+            font-size: 18px;
+            font-weight: bold;
+            color: #1e293b;
+        }
+        .participante-telefone {
+            font-size: 13px;
+            color: #64748b;
+        }
+        .cotas-info {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 5px;
+        }
+        .status-pago {
+            background: #10b981;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 30px;
+            font-size: 11px;
+            display: inline-block;
+        }
+        .status-pendente {
+            background: #f59e0b;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 30px;
+            font-size: 11px;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <div class="consulta-container">
+        <div class="header">
+            <h1>🎲 MEUS BOLÕES</h1>
+            <div class="sub">Acompanhe sua participação</div>
+        </div>
+        <div id="conteudo" class="resultado-card">
+            <div class="loading">🔍 Carregando suas informações...</div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script>
+        // Obter token da URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+
+        async function carregarDados() {
+            const container = document.getElementById('conteudo');
+            
+            if (!token) {
+                container.innerHTML = `
+                    <div style="text-align:center;">
+                        <h3>⚠️ Link inválido</h3>
+                        <p>Entre em contato com o administrador para receber seu link de acesso pessoal.</p>
+                        <button class="btn-voltar" onclick="window.location.href='index.html'">🏠 VOLTAR PARA O SITE</button>
+                    </div>
+                `;
+                return;
+            }
+            
+            try {
+                // Verificar token
+                const tokenDoc = await db.collection('participantes_tokens').doc(token).get();
+                
+                if (!tokenDoc.exists || tokenDoc.data().ativo !== true) {
+                    container.innerHTML = `
+                        <div style="text-align:center;">
+                            <h3>🔒 Acesso expirado ou revogado</h3>
+                            <p>Seu link de acesso foi desativado. Entre em contato com o administrador para reativar.</p>
+                            <button class="btn-voltar" onclick="window.location.href='index.html'">🏠 VOLTAR PARA O SITE</button>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                const participante = tokenDoc.data();
+                const telefone = participante.telefone;
+                const nome = participante.nome;
+                
+                // Buscar todos os bolões
+                const boloesSnapshot = await db.collection('participantes').get();
+                const boloes = [];
+                boloesSnapshot.forEach(doc => {
+                    boloes.push({ id: doc.id, ...doc.data() });
+                });
+                
+                // Separar bolões
+                const participa = [];
+                const naoParticipa = [];
+                
+                for (const bolao of boloes) {
+                    const participantes = bolao.participantes || [];
+                    const encontrado = participantes.find(p => p.telefone === telefone);
+                    const statusBolao = bolao.status || 'andamento';
+                    
+                    if (encontrado) {
+                        participa.push({
+                            ...bolao,
+                            meuStatus: encontrado.situacao,
+                            minhasCotas: encontrado.quantidadeCotas || 1,
+                            meuValorPago: encontrado.valorPago,
+                            meuNome: encontrado.nome
+                        });
+                    } else if (statusBolao === 'aberto') {
+                        naoParticipa.push(bolao);
+                    }
+                }
+                
+                // Montar HTML
+                let html = `
+                    <div class="token-info">
+                        <div class="participante-nome">👤 ${nome}</div>
+                        <div class="participante-telefone">📞 ${telefone}</div>
+                    </div>
+                `;
+                
+                // Bolões que participa
+                if (participa.length > 0) {
+                    html += `<h3 style="margin-bottom: 12px;">✅ BOLÕES QUE VOCÊ PARTICIPA</h3>`;
+                    for (const bolao of participa) {
+                        const statusText = (bolao.meuStatus === 'quitado' || bolao.meuStatus === 'pago') ? 'PAGO' : 'EM ANDAMENTO';
+                        const statusClass = (bolao.meuStatus === 'quitado' || bolao.meuStatus === 'pago') ? 'status-pago' : 'status-pendente';
+                        const statusBolaoClass = bolao.status === 'aberto' ? 'status-aberto' : 'status-andamento';
+                        const statusBolaoText = bolao.status === 'aberto' ? 'ABERTO' : 'EM ANDAMENTO';
+                        
+                        html += `
+                            <div class="bolao-item">
+                                <div class="bolao-titulo">
+                                    <span>🎯 ${bolao.titulo}</span>
+                                    <span class="bolao-status ${statusBolaoClass}">${statusBolaoText}</span>
+                                </div>
+                                <div style="font-size: 13px; margin-top: 5px;">💰 R$ ${bolao.valorPorCota || 0},00 / cota</div>
+                                <div class="cotas-info">🎟️ ${bolao.minhasCotas} cota(s) | 💵 R$ ${bolao.meuValorPago || 0},00</div>
+                                <div style="margin-top: 8px;">
+                                    <span class="${statusClass}">${statusText}</span>
+                                </div>
+                            </div>
+                        `;
+                    }
+                } else {
+                    html += `<div class="bolao-item" style="text-align:center;">📭 Você ainda não participa de nenhum bolão.</div>`;
+                }
+                
+                // Bolões abertos que não participa
+                if (naoParticipa.length > 0) {
+                    html += `<h3 style="margin-top: 24px; margin-bottom: 12px;">🔵 BOLÕES ABERTOS PARA PARTICIPAR</h3>`;
+                    for (const bolao of naoParticipa) {
+                        html += `
+                            <div class="bolao-item">
+                                <div class="bolao-titulo">
+                                    <span>🎯 ${bolao.titulo}</span>
+                                    <span class="bolao-status status-aberto">ABERTO</span>
+                                </div>
+                                <div style="font-size: 13px; margin-top: 5px;">💰 R$ ${bolao.valorPorCota || 0},00 / cota</div>
+                                <div style="font-size: 12px; color: #64748b; margin-top: 4px;">📅 Concurso ${bolao.concurso || '---'}</div>
+                                <button class="btn-participar" data-bolao="${bolao.titulo.replace(/['"]/g, '&quot;')}" data-telefone="${telefone}" data-nome="${nome}">📝 QUERO PARTICIPAR</button>
+                            </div>
+                        `;
+                    }
+                } else {
+                    html += `<div class="bolao-item" style="text-align:center;">🎉 Todos os bolões abertos você já participa!</div>`;
+                }
+                
+                html += `<div class="aviso">⚠️ Bolões com status "EM ANDAMENTO" já ocorreram e não aceitam novas inscrições.</div>`;
+                html += `<div style="text-align: center; margin-top: 16px;">
+                            <button class="btn-voltar" onclick="window.location.href='index.html'">🏠 VOLTAR PARA O SITE</button>
+                        </div>`;
+                
+                container.innerHTML = html;
+                
+                // Eventos dos botões "QUERO PARTICIPAR"
+                document.querySelectorAll('.btn-participar').forEach(btn => {
+                    btn.onclick = () => {
+                        const bolaoTitulo = btn.dataset.bolao;
+                        const telefoneUser = btn.dataset.telefone;
+                        const nomeUser = btn.dataset.nome;
+                        const msg = `Olá! Gostaria de participar do bolão "${bolaoTitulo}". Meu nome: ${nomeUser}, Telefone: ${telefoneUser}`;
+                        window.open(`https://wa.me/5561998507770?text=${encodeURIComponent(msg)}`, '_blank');
+                    };
+                });
+                
+            } catch (error) {
+                console.error('Erro:', error);
+                container.innerHTML = `
+                    <div style="text-align:center;">
+                        <h3>❌ Erro ao carregar dados</h3>
+                        <p>Tente novamente mais tarde.</p>
+                        <button class="btn-voltar" onclick="window.location.href='index.html'">🏠 VOLTAR PARA O SITE</button>
+                    </div>
+                `;
+            }
+        }
+        
+        carregarDados();
+    </script>
+</body>
+</html>
