@@ -345,6 +345,84 @@ async function setLoteria(loteria) {
     
     showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
 }
+// Exibir resultado salvo sem precisar conferir novamente
+async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
+    const area = document.getElementById('resultadosArea');
+    if (!area) return;
+    
+    const cartoesConcurso = cartoes.filter(c => c.tipo === loteria && c.concurso == concurso);
+    if (cartoesConcurso.length === 0) return;
+    
+    const cartoesComAcertos = cartoesConcurso.map(cartao => {
+        const acertos = cartao.numeros.filter(n => numerosSorteados.includes(n)).length;
+        return { ...cartao, acertos };
+    }).sort((a, b) => b.acertos - a.acertos);
+    
+    // Calcular premiações
+    let premios = {};
+    if (loteria === 'mega') {
+        premios = {
+            sena: cartoesComAcertos.filter(r => r.acertos >= 6).length,
+            quina: cartoesComAcertos.filter(r => r.acertos === 5).length,
+            quadra: cartoesComAcertos.filter(r => r.acertos === 4).length,
+            terno: cartoesComAcertos.filter(r => r.acertos === 3).length,
+            duque: cartoesComAcertos.filter(r => r.acertos === 2).length
+        };
+    } else if (loteria === 'lotofacil') {
+        premios = {
+            pontos15: cartoesComAcertos.filter(r => r.acertos >= 15).length,
+            pontos14: cartoesComAcertos.filter(r => r.acertos === 14).length,
+            pontos13: cartoesComAcertos.filter(r => r.acertos === 13).length,
+            pontos12: cartoesComAcertos.filter(r => r.acertos === 12).length,
+            pontos11: cartoesComAcertos.filter(r => r.acertos === 11).length
+        };
+    } else {
+        premios = {
+            quina: cartoesComAcertos.filter(r => r.acertos >= 5).length,
+            quadra: cartoesComAcertos.filter(r => r.acertos === 4).length,
+            terno: cartoesComAcertos.filter(r => r.acertos === 3).length,
+            duque: cartoesComAcertos.filter(r => r.acertos === 2).length
+        };
+    }
+    
+    // Montar HTML do resumo
+    let html = `<div class="resultado-resumo">`;
+    if (loteria === 'mega') {
+        html += `
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#f59e0b">${premios.sena}</div><div class="resultado-resumo-label">SENA</div></div>
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#eab308">${premios.quina}</div><div class="resultado-resumo-label">QUINA</div></div>
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#a855f7">${premios.quadra}</div><div class="resultado-resumo-label">QUADRA</div></div>
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#3b82f6">${premios.terno}</div><div class="resultado-resumo-label">TERNO</div></div>
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#64748b">${premios.duque}</div><div class="resultado-resumo-label">DUQUE</div></div>`;
+    } else if (loteria === 'lotofacil') {
+        html += `
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#f59e0b">${premios.pontos15}</div><div class="resultado-resumo-label">15 PTS</div></div>
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#eab308">${premios.pontos14}</div><div class="resultado-resumo-label">14 PTS</div></div>
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#a855f7">${premios.pontos13}</div><div class="resultado-resumo-label">13 PTS</div></div>
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#3b82f6">${premios.pontos12}</div><div class="resultado-resumo-label">12 PTS</div></div>
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#64748b">${premios.pontos11}</div><div class="resultado-resumo-label">11 PTS</div></div>`;
+    } else {
+        html += `
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#f59e0b">${premios.quina}</div><div class="resultado-resumo-label">QUINA</div></div>
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#eab308">${premios.quadra}</div><div class="resultado-resumo-label">QUADRA</div></div>
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#a855f7">${premios.terno}</div><div class="resultado-resumo-label">TERNO</div></div>
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#3b82f6">${premios.duque}</div><div class="resultado-resumo-label">DUQUE</div></div>`;
+    }
+    html += `<div class="resultado-resumo-item"><div class="resultado-resumo-numero">${cartoesComAcertos.length}</div><div class="resultado-resumo-label">CARTÕES</div></div>`;
+    html += `</div>`;
+    
+    html += `<div class="numeros-sorteados">${numerosSorteados.map(n => `<div class="numero-sorteado-card">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`;
+    html += `<div class="aviso-conferido" style="background: #d1fae5; padding: 8px; border-radius: 12px; text-align: center; font-size: 12px; color: #065f46; margin-top: 10px;">
+                ✅ Resultado já conferido anteriormente
+            </div>`;
+    html += `<button id="btnWhatsAppResultado" style="background:#25D366; width:100%; padding:12px; border-radius:30px; margin-bottom:20px; font-weight:bold;">📱 COMPARTILHAR RESULTADO NO WHATSAPP</button>`;
+    
+    area.innerHTML = html;
+    
+    const btnWhats = document.getElementById('btnWhatsAppResultado');
+    if (btnWhats) btnWhats.addEventListener('click', compartilharWhatsApp);
+}
+
 
 async function carregarDados() {
     console.log('🔄 Carregando dados (modo rápido)...');
@@ -454,22 +532,22 @@ async function carregarDados() {
         }, 100);
         
         // ============================================
-        // CARREGAR ÚLTIMO RESULTADO SALVO DO LOCALSTORAGE
+        // VERIFICAR SE O CONCURSO ATUAL JÁ FOI CONFERIDO NO FIREBASE
         // ============================================
-        const ultimoResultadoSalvo = localStorage.getItem('ultimoResultado');
-        if (ultimoResultadoSalvo) {
-            try {
-                const salvo = JSON.parse(ultimoResultadoSalvo);
-                if (salvo.loteria === loteriaAtual) {
-                    ultimoResultadoConcurso = salvo.concurso;
-                    ultimoResultadoDados = salvo.dados;
-                    // Re-exibir o resultado salvo
-                    setTimeout(() => {
-                        mostrarResultadoSalvo(salvo.concurso, salvo.dados);
-                    }, 500);
+        const selectConcurso = document.getElementById('concursoSelect');
+        const concursoAtual = selectConcurso ? selectConcurso.value : null;
+        
+        if (concursoAtual && dadosCarregados) {
+            const resultadoConferido = await verificarResultadoConferido(loteriaAtual, concursoAtual);
+            if (resultadoConferido) {
+                console.log(`🎯 Resultado já conferido para ${loteriaAtual} concurso ${concursoAtual}`);
+                // Mostrar os resultados salvos
+                mostrarCartes(resultadoConferido);
+                // Atualizar área de resultados
+                const area = document.getElementById('resultadosArea');
+                if (area) {
+                    await exibirResultadoSalvo(loteriaAtual, concursoAtual, resultadoConferido);
                 }
-            } catch(e) { 
-                console.log('Erro ao carregar resultado salvo:', e); 
             }
         }
         
@@ -644,10 +722,24 @@ async function conferirResultados() {
     let numerosSorteados = null;
     let dataSorteio = null;
     
-    if (resultados[concurso]) {
+    // PRIMEIRO: VERIFICAR NO FIREBASE SE JÁ FOI CONFERIDO
+    const resultadoConferido = await verificarResultadoConferido(loteriaAtual, concurso);
+    
+    if (resultadoConferido) {
+        numerosSorteados = resultadoConferido;
+        console.log(`📋 Resultado já conferido anteriormente para ${loteriaAtual} concurso ${concurso}`);
+        
+        // Buscar data do sorteio do resultado salvo
+        const conferidoDoc = await db.collection('resultados_conferidos').doc(`${loteriaAtual}_${concurso}`).get();
+        if (conferidoDoc.exists && conferidoDoc.data().dataSorteio) {
+            dataSorteio = conferidoDoc.data().dataSorteio;
+        }
+    } 
+    else if (resultados[concurso]) {
         numerosSorteados = resultados[concurso];
         console.log(`📋 Resultado encontrado para ${loteriaAtual} concurso ${concurso}`);
-    } else {
+    } 
+    else {
         const busca = await buscarResultadoInterno(concurso, loteriaAtual);
         if (busca && busca.numeros) {
             numerosSorteados = busca.numeros;
@@ -678,6 +770,13 @@ async function conferirResultados() {
             showToast('❌ Resultado não encontrado', 'error');
             return;
         }
+    }
+    
+    // SE AINDA NÃO TEM RESULTADO, NÃO CONTINUA
+    if (!numerosSorteados) {
+        area.innerHTML = `<div class="empty-state">❌ Resultado não encontrado para ${loteriaAtual.toUpperCase()} concurso ${concurso}.</div>`;
+        showToast('❌ Resultado não encontrado', 'error');
+        return;
     }
     
     mostrarCartoes(numerosSorteados);
@@ -715,20 +814,11 @@ async function conferirResultados() {
     
     ultimoResultadoConcurso = concurso;
     ultimoResultadoDados = { numeros: numerosSorteados, dataSorteio, premios };
-
-    // SALVAR NO LOCALSTORAGE PARA PERSISTIR
-    localStorage.setItem('ultimoResultado', JSON.stringify({
-        concurso: ultimoResultadoConcurso,
-        dados: ultimoResultadoDados,
-        loteria: loteriaAtual
-    }));
-
-    // Salvar no localStorage para persistir
-    localStorage.setItem('ultimoResultado', JSON.stringify({
-        concurso: ultimoResultadoConcurso,
-        dados: ultimoResultadoDados,
-        loteria: loteriaAtual
-    }));
+    
+    // SALVAR NO FIREBASE (se não foi salvo ainda)
+    if (!resultadoConferido) {
+        await salvarResultadoConferido(loteriaAtual, concurso, numerosSorteados, dataSorteio);
+    }
     
     let html = '';
     
@@ -778,6 +868,13 @@ async function conferirResultados() {
             dataFormatada = dataSorteio;
         }
         html += `<div style="text-align:center; margin-bottom:15px; font-size:12px;">📅 Sorteio: ${dataFormatada}</div>`;
+    }
+    
+    // Adicionar badge de "já conferido" se for o caso
+    if (resultadoConferido) {
+        html += `<div class="aviso-conferido" style="background: #d1fae5; padding: 8px; border-radius: 12px; text-align: center; font-size: 12px; color: #065f46; margin-top: 10px;">
+                    ✅ Resultado já conferido anteriormente (salvo em ${new Date().toLocaleDateString('pt-BR')})
+                </div>`;
     }
     
     html += `<button id="btnWhatsAppResultado" style="background:#25D366; width:100%; padding:12px; border-radius:30px; margin-bottom:20px; font-weight:bold;">📱 COMPARTILHAR RESULTADO NO WHATSAPP</button>`;
@@ -1036,6 +1133,42 @@ async function carregarBolaoAtivo() {
         card.style.display = 'none';
     }
 }
+
+// Salvar resultado conferido no Firebase
+async function salvarResultadoConferido(loteria, concurso, numeros, dataSorteio = null) {
+    try {
+        const docId = `${loteria}_${concurso}`;
+        await db.collection('resultados_conferidos').doc(docId).set({
+            loteria: loteria,
+            concurso: concurso,
+            numeros: numeros,
+            dataConferencia: new Date().toISOString(),
+            dataSorteio: dataSorteio,
+            conferido: true,
+            admin: true
+        });
+        console.log(`✅ Resultado do ${loteria} concurso ${concurso} salvo no Firebase como conferido`);
+    } catch (error) {
+        console.error('Erro ao salvar resultado conferido:', error);
+    }
+}
+// Verificar se o resultado já foi conferido
+async function verificarResultadoConferido(loteria, concurso) {
+    try {
+        const docId = `${loteria}_${concurso}`;
+        const doc = await db.collection('resultados_conferidos').doc(docId).get();
+        
+        if (doc.exists && doc.data().conferido === true) {
+            console.log(`📋 Resultado do ${loteria} concurso ${concurso} já foi conferido anteriormente`);
+            return doc.data().numeros;
+        }
+        return null;
+    } catch (error) {
+        console.error('Erro ao verificar resultado conferido:', error);
+        return null;
+    }
+}
+
 
 async function carregarBolaoAberto() {
     const card = document.getElementById('cardBolaoAberto');
