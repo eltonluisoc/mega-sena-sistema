@@ -137,12 +137,37 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <script src="firebase-config.js"></script>
     <script>
-        // Obter token da URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const token = urlParams.get('token');
+        // ============================================
+        // FUNÇÃO PARA FORMATAR TELEFONE
+        // ============================================
+        function formatarTelefone(telefone) {
+            if (!telefone) return '';
+            const numeros = telefone.replace(/\D/g, '');
+            if (numeros.length === 11) {
+                return `${numeros.substring(0, 2)}-${numeros.substring(2)}`;
+            } else if (numeros.length === 10) {
+                return `${numeros.substring(0, 2)}-${numeros.substring(2)}`;
+            }
+            return numeros;
+        }
 
+        // ============================================
+        // FUNÇÃO PARA NORMALIZAR TELEFONE (APENAS NÚMEROS)
+        // ============================================
+        function normalizarTelefone(telefone) {
+            if (!telefone) return '';
+            return telefone.replace(/\D/g, '');
+        }
+
+        // ============================================
+        // CARREGAR DADOS DO PARTICIPANTE
+        // ============================================
         async function carregarDados() {
             const container = document.getElementById('conteudo');
+            
+            // Obter token da URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const token = urlParams.get('token');
             
             if (!token) {
                 container.innerHTML = `
@@ -171,8 +196,12 @@
                 }
                 
                 const participante = tokenDoc.data();
-                const telefone = participante.telefone;
-                const nome = participante.nome;
+                const telefoneOriginal = participante.telefone || '';
+                const telefoneNormalizado = normalizarTelefone(telefoneOriginal);
+                const nome = participante.nome || 'Participante';
+                const telefoneFormatado = formatarTelefone(telefoneOriginal);
+                
+                console.log('🔍 Buscando bolões para:', nome, 'telefone:', telefoneNormalizado);
                 
                 // Buscar todos os bolões
                 const boloesSnapshot = await db.collection('participantes').get();
@@ -181,16 +210,25 @@
                     boloes.push({ id: doc.id, ...doc.data() });
                 });
                 
+                console.log(`📋 Total de bolões encontrados: ${boloes.length}`);
+                
                 // Separar bolões
                 const participa = [];
                 const naoParticipa = [];
+                const encerrados = [];
                 
                 for (const bolao of boloes) {
                     const participantes = bolao.participantes || [];
-                    const encontrado = participantes.find(p => p.telefone === telefone);
                     const statusBolao = bolao.status || 'andamento';
                     
+                    // NORMALIZAR TELEFONE PARA COMPARAÇÃO
+                    const encontrado = participantes.find(p => {
+                        const telefoneParticipante = p.telefone ? normalizarTelefone(p.telefone) : '';
+                        return telefoneParticipante === telefoneNormalizado;
+                    });
+                    
                     if (encontrado) {
+                        console.log(`✅ Participa do bolão: ${bolao.titulo} (${statusBolao})`);
                         participa.push({
                             ...bolao,
                             meuStatus: encontrado.situacao,
@@ -199,15 +237,23 @@
                             meuNome: encontrado.nome
                         });
                     } else if (statusBolao === 'aberto') {
+                        console.log(`🔵 Não participa do bolão ABERTO: ${bolao.titulo}`);
                         naoParticipa.push(bolao);
+                    } else if (statusBolao === 'encerrado') {
+                        console.log(`🔴 Bolão ENCERRADO: ${bolao.titulo}`);
+                        encerrados.push(bolao);
+                    } else {
+                        console.log(`🟡 Bolão EM ANDAMENTO (não participa): ${bolao.titulo}`);
                     }
                 }
+                
+                console.log(`📊 Resumo: Participa=${participa.length}, Abertos=${naoParticipa.length}, Encerrados=${encerrados.length}`);
                 
                 // Montar HTML
                 let html = `
                     <div class="token-info">
                         <div class="participante-nome">👤 ${nome}</div>
-                        <div class="participante-telefone">📞 ${telefone}</div>
+                        <div class="participante-telefone">📞 ${telefoneFormatado}</div>
                     </div>
                 `;
                 
@@ -250,12 +296,15 @@
                                 </div>
                                 <div style="font-size: 13px; margin-top: 5px;">💰 R$ ${bolao.valorPorCota || 0},00 / cota</div>
                                 <div style="font-size: 12px; color: #64748b; margin-top: 4px;">📅 Concurso ${bolao.concurso || '---'}</div>
-                                <button class="btn-participar" data-bolao="${bolao.titulo.replace(/['"]/g, '&quot;')}" data-telefone="${telefone}" data-nome="${nome}">📝 QUERO PARTICIPAR</button>
+                                <button class="btn-participar" data-bolao="${bolao.titulo.replace(/['"]/g, '&quot;')}" data-telefone="${telefoneOriginal}" data-nome="${nome}">📝 QUERO PARTICIPAR</button>
                             </div>
                         `;
                     }
-                } else {
-                    html += `<div class="bolao-item" style="text-align:center;">🎉 Todos os bolões abertos você já participa!</div>`;
+                }
+                
+                // Bolões encerrados (apenas informação)
+                if (encerrados.length > 0 && participa.length === 0 && naoParticipa.length === 0) {
+                    html += `<div class="aviso" style="margin-top: 16px;">📭 No momento não há bolões abertos para participar.</div>`;
                 }
                 
                 html += `<div class="aviso">⚠️ Bolões com status "EM ANDAMENTO" já ocorreram e não aceitam novas inscrições.</div>`;
@@ -271,7 +320,8 @@
                         const bolaoTitulo = btn.dataset.bolao;
                         const telefoneUser = btn.dataset.telefone;
                         const nomeUser = btn.dataset.nome;
-                        const msg = `Olá! Gostaria de participar do bolão "${bolaoTitulo}". Meu nome: ${nomeUser}, Telefone: ${telefoneUser}`;
+                        const telefoneLimpo = normalizarTelefone(telefoneUser);
+                        const msg = `Olá! Gostaria de participar do bolão "${bolaoTitulo}". Meu nome: ${nomeUser}, Telefone: ${telefoneLimpo}`;
                         window.open(`https://wa.me/5561998507770?text=${encodeURIComponent(msg)}`, '_blank');
                     };
                 });
@@ -288,6 +338,7 @@
             }
         }
         
+        // Iniciar
         carregarDados();
     </script>
 </body>

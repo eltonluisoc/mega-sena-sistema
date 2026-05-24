@@ -974,25 +974,29 @@ async function salvarToken(participanteId, nome, telefone) {
     const token = gerarTokenUnico();
     const link = `${window.location.origin}/mega-sena-sistema/consulta.html?token=${token}`;
     
+    // Salvar telefone apenas com números (sem formatação)
+    const telefoneNumeros = telefone.replace(/\D/g, '');
+    
     await db.collection('participantes_tokens').doc(token).set({
         participanteId: participanteId,
         nome: nome,
-        telefone: telefone,
+        telefone: telefoneNumeros,
         token: token,
         ativo: true,
         dataCriacao: new Date().toISOString(),
         admin: true
     });
     
-    showToast(`✅ Token gerado!`, 'success');
+    showToast(`✅ Token gerado para ${nome}!`, 'success');
     
-    const resultado = confirm(`Link gerado:\n\n${link}\n\nClique em OK para copiar o link`);
-    if (resultado) {
-        navigator.clipboard.writeText(link);
-        showToast('📋 Link copiado para a área de transferência!', 'success');
-    }
-    
+    // ATUALIZAR A LISTA IMEDIATAMENTE (sem popup)
     carregarTokens();
+    
+    // Rolar para a lista de tokens
+    const listaTokens = document.getElementById('listaTokens');
+    if (listaTokens) {
+        listaTokens.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
 }
 
 // Calcular parcelas pagas de um participante
@@ -1037,7 +1041,7 @@ async function carregarTokens() {
                         <strong style="font-size: 15px;">👤 ${token.nome}</strong>
                         <span style="background: #d1fae5; color: #065f46; padding: 2px 10px; border-radius: 30px; font-size: 10px;">✅ ATIVO</span>
                     </div>
-                    <div style="font-size: 12px; color: #64748b; margin-bottom: 8px;">📞 ${token.telefone}</div>
+                    <div style="font-size: 12px; color: #64748b; margin-bottom: 8px;">📞 ${formatarTelefone(token.telefone)}</div>
                     <div style="font-size: 10px; color: #64748b; margin-bottom: 10px;">📅 Criado em: ${dataCriacao}</div>
                     <div style="background: #f8fafc; padding: 8px; border-radius: 8px; margin-bottom: 10px;">
                         <code style="font-size: 9px; word-break: break-all;">${link}</code>
@@ -1096,6 +1100,17 @@ if (btnGerarToken) {
         document.getElementById('tokenNome').value = '';
         document.getElementById('tokenTelefone').value = '';
     });
+}
+
+// Formatar telefone para exibição
+function formatarTelefone(telefone) {
+    const numeros = telefone.replace(/\D/g, '');
+    if (numeros.length === 11) {
+        return `${numeros.substring(0, 2)}-${numeros.substring(2)}`;
+    } else if (numeros.length === 10) {
+        return `${numeros.substring(0, 2)}-${numeros.substring(2)}`;
+    }
+    return numeros;
 }
 
 // ============================================
