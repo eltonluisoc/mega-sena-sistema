@@ -731,6 +731,7 @@ async function carregarBoloesParaGerenciar() {
             <span style="font-size: 11px; color: #666;">${bolao.participantes?.length || 0} participantes | ${bolao.loteria || '?'}</span>
             <label style="font-size: 11px; margin-left: auto;">⭐ DESTAQUE:</label>
             <input type="checkbox" class="checkbox-destaque" data-id="${bolao.id}" ${destaqueMap[bolao.id] ? 'checked' : ''} style="width: 18px; height: 18px;">
+            <button class="btn-excluir-bolao" data-id="${bolao.id}" data-titulo="${bolao.titulo}" style="background: #ef4444; color: white; border: none; padding: 4px 12px; border-radius: 20px; cursor: pointer; font-size: 11px;">🗑️ EXCLUIR</button>
         </div>
         <div style="margin-left: 35px; margin-top: 8px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
             <label style="font-size: 12px;">Status:</label>
@@ -744,13 +745,21 @@ async function carregarBoloesParaGerenciar() {
         </div>
         <div style="margin-left: 35px; margin-top: 8px;">
             <label style="font-size: 12px;">📝 Estratégia do Bolão (opcional):</label>
-            <textarea class="estrategia-textarea" data-id="${bolao.id}" rows="2" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 12px; margin-top: 4px;" placeholder="Ex: 60 números distribuídos em 10 cartões, cobrindo 30% das combinações possíveis...">${estrategiaMap[bolao.id] || ''}</textarea>
+            <textarea class="estrategia-textarea" data-id="${bolao.id}" rows="2" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 12px; margin-top: 4px;" placeholder="Ex: 60 números distribuídos em 10 cartões...">${estrategiaMap[bolao.id] || ''}</textarea>
         </div>
     </div>
 `;
         }
         
         container.innerHTML = html;
+        // Eventos dos botões excluir
+document.querySelectorAll('.btn-excluir-bolao').forEach(btn => {
+    btn.onclick = () => {
+        const bolaoId = btn.dataset.id;
+        const bolaoTitulo = btn.dataset.titulo;
+        excluirBolao(bolaoId, bolaoTitulo);
+    };
+});
         
         document.querySelectorAll('.status-select').forEach(select => {
             select.addEventListener('change', () => salvarConfigBoloes());
@@ -845,6 +854,59 @@ async function carregarBoloesParaGerenciar() {
         container.innerHTML = '<div class="empty-state">Erro ao carregar bolões.</div>';
     }
 }
+
+// Excluir bolão
+async function excluirBolao(bolaoId, bolaoTitulo) {
+    if (!confirm(`⚠️ ATENÇÃO!\n\nDeseja excluir o bolão "${bolaoTitulo}"?\n\nEsta ação NÃO pode ser desfeita e irá remover:\n- Todos os participantes\n- Todas as configurações\n\nConfirmar exclusão?`)) {
+        return;
+    }
+    
+    try {
+        // 1. Remover da collection 'participantes'
+        await db.collection('participantes').doc(bolaoId).delete();
+        
+        // 2. Remover do config_boloes/ativos (status, dataLimite, destaque, estrategia)
+        const configRef = db.collection('config_boloes').doc('ativos');
+        const configDoc = await configRef.get();
+        
+        if (configDoc.exists) {
+            const dados = configDoc.data();
+            const statusMap = dados.status || {};
+            const dataLimiteMap = dados.dataLimite || {};
+            const destaqueMap = dados.destaque || {};
+            const estrategiaMap = dados.estrategia || {};
+            
+            delete statusMap[bolaoId];
+            delete dataLimiteMap[bolaoId];
+            delete destaqueMap[bolaoId];
+            delete estrategiaMap[bolaoId];
+            
+            // Remover também do array ids
+            let ids = dados.ids || [];
+            ids = ids.filter(id => id !== bolaoId);
+            
+            await configRef.update({
+                ids: ids,
+                status: statusMap,
+                dataLimite: dataLimiteMap,
+                destaque: destaqueMap,
+                estrategia: estrategiaMap,
+                admin: true
+            });
+        }
+        
+        showToast(`✅ Bolão "${bolaoTitulo}" excluído com sucesso!`, 'success');
+        
+        // Recarregar as listas
+        carregarDadosAdmin();
+        carregarBoloesParaGerenciar();
+        
+    } catch (error) {
+        console.error('Erro ao excluir bolão:', error);
+        showToast('❌ Erro ao excluir bolão', 'error');
+    }
+}
+
 
 async function salvarConfigBoloes() {
     const checkboxes = document.querySelectorAll('.checkbox-bolao:checked');
