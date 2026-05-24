@@ -694,6 +694,11 @@ async function carregarBoloesParaGerenciar() {
             boloes.push({ id: doc.id, ...doc.data() });
         });
         
+        // ============================================
+        // ORDENAR BOLÕES POR TÍTULO (ORDEM ALFABÉTICA)
+        // ============================================
+        boloes.sort((a, b) => a.titulo.localeCompare(b.titulo));
+        
         if (boloes.length === 0) {
             container.innerHTML = '<div class="empty-state">Nenhum bolão encontrado. Envie pelo desktop.</div>';
             return;
