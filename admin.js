@@ -744,6 +744,82 @@ async function carregarBoloesParaGerenciar() {
             textarea.addEventListener('change', () => salvarConfigBoloes());
         });
         
+        // ============================================
+        // EVENTO PARA VER LISTA DE PARTICIPANTES (COM PARCELAS)
+        // ============================================
+        document.querySelectorAll('.btn-ver-participantes').forEach(btn => {
+            btn.onclick = async () => {
+                const id = btn.dataset.id;
+                const div = document.getElementById(`participantes-${id}`);
+                
+                if (div.style.display === 'none') {
+                    const bolaoDoc = await db.collection('participantes').doc(id).get();
+                    const bolao = bolaoDoc.data();
+                    const participantes = bolao.participantes || [];
+                    const valorPorCota = bolao.valorPorCota || 0;
+                    
+                    // Formatando participantes
+                    const participantesFormatados = participantes.map(p => {
+                        let statusClass = 'pago';
+                        let statusText = 'PAGO';
+                        let quantidadeCotas = p.quantidadeCotas || 1;
+                        let valorPago = p.valorPago || 0;
+                        
+                        // Calcular parcelas pagas
+                        let parcelasPagas = 0;
+                        if (valorPorCota > 0) {
+                            parcelasPagas = Math.floor(valorPago / valorPorCota);
+                        }
+                        parcelasPagas = Math.min(parcelasPagas, quantidadeCotas);
+                        
+                        // Se NÃO está quitado, é EM ANDAMENTO
+                        if (p.situacao !== 'quitado' && p.situacao !== 'pago') {
+                            statusClass = 'pendente';
+                            statusText = 'EM ANDAMENTO';
+                        }
+                        
+                        return {
+                            nome: p.nome,
+                            statusClass: statusClass,
+                            statusText: statusText,
+                            quantidadeCotas: quantidadeCotas,
+                            parcelasPagas: parcelasPagas
+                        };
+                    });
+                    
+                    // Ordenar: pagos primeiro
+                    participantesFormatados.sort((a, b) => {
+                        if (a.statusClass === 'pago' && b.statusClass !== 'pago') return -1;
+                        if (a.statusClass !== 'pago' && b.statusClass === 'pago') return 1;
+                        return 0;
+                    });
+                    
+                    // Montar HTML com parcelas
+                    let listaHtml = '<div class="participantes-grid">';
+                    participantesFormatados.forEach(p => {
+                        const parcelas = `${p.parcelasPagas}/${p.quantidadeCotas}`;
+                        listaHtml += `
+                            <div class="participante-card">
+                                <div style="display: flex; flex-direction: column; gap: 2px;">
+                                    <span class="participante-nome">${p.nome}</span>
+                                    <span style="font-size: 9px; color: #64748b;">🎟️ ${p.quantidadeCotas} cota${p.quantidadeCotas > 1 ? 's' : ''} | 📦 Parcelas: ${parcelas}</span>
+                                </div>
+                                <span class="participante-status ${p.statusClass}">${p.statusText}</span>
+                            </div>
+                        `;
+                    });
+                    listaHtml += '</div>';
+                    
+                    div.innerHTML = listaHtml;
+                    div.style.display = 'block';
+                    btn.textContent = '🙈 OCULTAR LISTA';
+                } else {
+                    div.style.display = 'none';
+                    btn.textContent = '👁 VER LISTA DE PARTICIPANTES';
+                }
+            };
+        });
+        
         console.log(`✅ ${boloes.length} bolões carregados`);
         
     } catch (error) {
@@ -918,6 +994,20 @@ async function salvarToken(participanteId, nome, telefone) {
     
     carregarTokens();
 }
+
+// Calcular parcelas pagas de um participante
+function calcularParcelasPagas(participante, valorTotalPorCota) {
+    const valorPago = participante.valorPago || 0;
+    const valorPorCota = valorTotalPorCota || 0;
+    
+    if (valorPorCota === 0) return 'N/A';
+    
+    const parcelasPagas = Math.floor(valorPago / valorPorCota);
+    const parcelasTotal = participante.quantidadeCotas || 1;
+    
+    return `${parcelasPagas}/${parcelasTotal}`;
+}
+
 
 async function carregarTokens() {
     try {
