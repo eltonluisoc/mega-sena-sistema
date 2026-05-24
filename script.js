@@ -8,6 +8,23 @@ let ultimoResultadoDados = null;
 let pixGeral = '';
 let cacheResultadosBuscados = {};
 let dadosCarregados = false;
+let resultadoSalvo = null;
+
+function carregarResultadoSalvo() {
+    const salvo = localStorage.getItem('ultimoResultado');
+    if (salvo) {
+        try {
+            resultadoSalvo = JSON.parse(salvo);
+            console.log('📦 Resultado carregado do cache:', resultadoSalvo.concurso);
+        } catch(e) {}
+    }
+}
+
+function salvarResultado(resultado) {
+    localStorage.setItem('ultimoResultado', JSON.stringify(resultado));
+    resultadoSalvo = resultado;
+    console.log('💾 Resultado salvo no cache:', resultado.concurso);
+}
 
 function showToast(message, type = 'info') {
     let container = document.querySelector('.toast-container');
@@ -436,6 +453,26 @@ async function carregarDados() {
             mostrarCartoes();
         }, 100);
         
+        // ============================================
+        // CARREGAR ÚLTIMO RESULTADO SALVO DO LOCALSTORAGE
+        // ============================================
+        const ultimoResultadoSalvo = localStorage.getItem('ultimoResultado');
+        if (ultimoResultadoSalvo) {
+            try {
+                const salvo = JSON.parse(ultimoResultadoSalvo);
+                if (salvo.loteria === loteriaAtual) {
+                    ultimoResultadoConcurso = salvo.concurso;
+                    ultimoResultadoDados = salvo.dados;
+                    // Re-exibir o resultado salvo
+                    setTimeout(() => {
+                        mostrarResultadoSalvo(salvo.concurso, salvo.dados);
+                    }, 500);
+                }
+            } catch(e) { 
+                console.log('Erro ao carregar resultado salvo:', e); 
+            }
+        }
+        
     } catch (error) {
         console.error('Erro ao carregar dados:', error);
         showToast('❌ Erro ao carregar dados. Recarregue a página.', 'error');
@@ -443,6 +480,70 @@ async function carregarDados() {
         dadosCarregados = true;
     }
 }
+
+function mostrarResultadoSalvo(concurso, dados) {
+    const area = document.getElementById('resultadosArea');
+    if (!area) return;
+    
+    const { numeros, dataSorteio, premios } = dados;
+    
+    let html = '';
+    
+    html += `<div class="resultado-resumo">`;
+    if (loteriaAtual === 'mega') {
+        html += `
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#f59e0b">${premios.sena}</div><div class="resultado-resumo-label">SENA</div></div>
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#eab308">${premios.quina}</div><div class="resultado-resumo-label">QUINA</div></div>
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#a855f7">${premios.quadra}</div><div class="resultado-resumo-label">QUADRA</div></div>
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#3b82f6">${premios.terno}</div><div class="resultado-resumo-label">TERNO</div></div>
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#64748b">${premios.duque}</div><div class="resultado-resumo-label">DUQUE</div></div>`;
+    } else if (loteriaAtual === 'lotofacil') {
+        html += `
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#f59e0b">${premios.pontos15}</div><div class="resultado-resumo-label">15 PTS</div></div>
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#eab308">${premios.pontos14}</div><div class="resultado-resumo-label">14 PTS</div></div>
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#a855f7">${premios.pontos13}</div><div class="resultado-resumo-label">13 PTS</div></div>
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#3b82f6">${premios.pontos12}</div><div class="resultado-resumo-label">12 PTS</div></div>
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#64748b">${premios.pontos11}</div><div class="resultado-resumo-label">11 PTS</div></div>`;
+    } else {
+        html += `
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#f59e0b">${premios.quina}</div><div class="resultado-resumo-label">QUINA</div></div>
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#eab308">${premios.quadra}</div><div class="resultado-resumo-label">QUADRA</div></div>
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#a855f7">${premios.terno}</div><div class="resultado-resumo-label">TERNO</div></div>
+            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#3b82f6">${premios.duque}</div><div class="resultado-resumo-label">DUQUE</div></div>`;
+    }
+    html += `<div class="resultado-resumo-item"><div class="resultado-resumo-numero">${premios.sena + premios.quina + premios.quadra + premios.terno + premios.duque || cartoesComAcertos?.length || 0}</div><div class="resultado-resumo-label">CARTÕES</div></div>`;
+    html += `</div>`;
+    
+    html += `<div class="numeros-sorteados">${numeros.map(n => `<div class="numero-sorteado-card">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`;
+    if (dataSorteio) {
+        let dataFormatada = '';
+        try {
+            if (typeof dataSorteio === 'string' && dataSorteio.includes('/')) {
+                dataFormatada = dataSorteio;
+            } else {
+                const data = new Date(dataSorteio);
+                if (!isNaN(data.getTime())) {
+                    dataFormatada = data.toLocaleDateString('pt-BR');
+                } else {
+                    dataFormatada = dataSorteio;
+                }
+            }
+        } catch(e) {
+            dataFormatada = dataSorteio;
+        }
+        html += `<div style="text-align:center; margin-bottom:15px; font-size:12px;">📅 Sorteio: ${dataFormatada}</div>`;
+    }
+    
+    html += `<button id="btnWhatsAppResultado" style="background:#25D366; width:100%; padding:12px; border-radius:30px; margin-bottom:20px; font-weight:bold;">📱 COMPARTILHAR RESULTADO NO WHATSAPP</button>`;
+    
+    area.innerHTML = html;
+    
+    const btnWhats = document.getElementById('btnWhatsAppResultado');
+    if (btnWhats) btnWhats.addEventListener('click', compartilharWhatsApp);
+    
+    showToast('🏆 Resultado carregado da última conferência!', 'success');
+}
+
 
 function atualizarSelectConcursos() {
     const concursosDisponiveis = window.concursosDisponiveis || {};
@@ -614,6 +715,13 @@ async function conferirResultados() {
     
     ultimoResultadoConcurso = concurso;
     ultimoResultadoDados = { numeros: numerosSorteados, dataSorteio, premios };
+
+    // Salvar no localStorage para persistir
+    localStorage.setItem('ultimoResultado', JSON.stringify({
+        concurso: ultimoResultadoConcurso,
+        dados: ultimoResultadoDados,
+        loteria: loteriaAtual
+    }));
     
     let html = '';
     
@@ -1182,8 +1290,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('✅ Sistema carregado');
     showToast('🎲 Sistema Bolões Aleatórios carregado!', 'success');
     
-    setTimeout(() => {
-        carregarBolaoAtivo();
-        carregarBolaoAberto();
-    }, 1000);
+    
 });
