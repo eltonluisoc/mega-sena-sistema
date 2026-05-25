@@ -470,7 +470,6 @@ async function carregarDados() {
     console.log('🔄 Carregando dados (ultra rápido)...');
     dadosCarregados = false;
     
-    // Mostrar skeleton imediatamente
     const cartoesArea = document.getElementById('cartoesArea');
     if (cartoesArea) {
         cartoesArea.innerHTML = '<div class="loading-skeleton">🔄 Carregando...</div>';
@@ -489,51 +488,44 @@ async function carregarDados() {
         atualizarPercentual(5, 'Iniciando...');
         
         // ============================================
-        // 1. BUSCAR APENAS OS NÚMEROS DOS CONCURSOS (SEM CARTÕES)
+        // 1. BUSCAR TODOS OS CARTÕES (APENAS PARA CONCURSOS)
         // ============================================
         atualizarPercentual(10, 'Buscando concursos...');
         
-        const concursosSnapshot = await db.collection('cartoes').select('concurso', 'tipo').get();
+        const concursosSnapshot = await db.collection('cartoes').get();
         
-        // Agrupar últimos concursos por loteria
         const ultimosConcursos = {
             mega: null,
             lotofacil: null,
             quina: null
         };
         
-        // Agrupar todos os concursos disponíveis
         const concursosMap = { mega: [], lotofacil: [], quina: [] };
         
         concursosSnapshot.forEach(doc => {
             const d = doc.data();
             if (d && d.concurso && d.tipo) {
                 const concursoNum = parseInt(d.concurso);
-                // Último concurso
                 if (!ultimosConcursos[d.tipo] || concursoNum > ultimosConcursos[d.tipo]) {
                     ultimosConcursos[d.tipo] = concursoNum;
                 }
-                // Lista de concursos
                 if (!concursosMap[d.tipo].includes(concursoNum)) {
                     concursosMap[d.tipo].push(concursoNum);
                 }
             }
         });
         
-        // Ordenar concursos decrescente
         for (const loteria of ['mega', 'lotofacil', 'quina']) {
             concursosMap[loteria].sort((a, b) => b - a);
         }
         
         console.log('📋 Últimos concursos:', ultimosConcursos);
-        console.log('📋 Concursos disponíveis:', concursosMap);
         
-        // Salvar para uso global
         window.ultimosConcursos = ultimosConcursos;
         window.concursosDisponiveis = concursosMap;
         
         // ============================================
-        // 2. CARREGAR CARTÕES APENAS DO ÚLTIMO CONCURSO DA LOTERIA ATUAL
+        // 2. CARREGAR CARTÕES APENAS DO ÚLTIMO CONCURSO
         // ============================================
         atualizarPercentual(30, 'Carregando cartões...');
         cartoes = [];
@@ -563,7 +555,7 @@ async function carregarDados() {
         }
         
         // ============================================
-        // 3. CARREGAR RESULTADOS (APENAS DO ÚLTIMO CONCURSO DE CADA LOTERIA)
+        // 3. CARREGAR RESULTADOS
         // ============================================
         atualizarPercentual(50, 'Carregando resultados...');
         
@@ -585,10 +577,10 @@ async function carregarDados() {
             resultadosDocs.forEach(doc => {
                 if (doc.exists) {
                     const data = doc.data();
-                    const loteria = doc.id.split('_')[1];
-                    if (loteria === 'mega') resultadosMega[doc.id] = data.numeros;
-                    else if (loteria === 'lotofacil') resultadosLotofacil[doc.id] = data.numeros;
-                    else if (loteria === 'quina') resultadosQuina[doc.id] = data.numeros;
+                    const path = doc.ref.path;
+                    if (path.includes('resultados_mega')) resultadosMega[doc.id] = data.numeros;
+                    else if (path.includes('resultados_lotofacil')) resultadosLotofacil[doc.id] = data.numeros;
+                    else if (path.includes('resultados_quina')) resultadosQuina[doc.id] = data.numeros;
                 }
             });
         } catch (e) {
@@ -605,7 +597,7 @@ async function carregarDados() {
         } catch (e) { console.warn('Erro ao carregar bolões:', e); }
         
         // ============================================
-        // 5. ATUALIZAR SELECT DE CONCURSOS
+        // 5. ATUALIZAR SELECT
         // ============================================
         atualizarPercentual(90, 'Atualizando lista...');
         
@@ -630,12 +622,10 @@ async function carregarDados() {
         
         dadosCarregados = true;
         
-        // Mostrar cartões do concurso atual
         setTimeout(() => {
-            mostrarCartoes();
+            mostrarCartes();
         }, 100);
         
-        // Buscar resultado automaticamente
         setTimeout(() => {
             buscarResultadoAutomatico();
         }, 300);
