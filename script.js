@@ -701,6 +701,47 @@ async function carregarDados() {
             buscarResultadoAutomatico();
         }, 300);
         
+        // ============================================
+        // 6. VERIFICAR SE O CONCURSO ATUAL JÁ FOI CONFERIDO
+        // ============================================
+        const selectConcurso = document.getElementById('concursoSelect');
+        const concursoAtual = selectConcurso ? selectConcurso.value : null;
+        
+        if (concursoAtual && dadosCarregados) {
+            try {
+                const resultadoConferido = await verificarResultadoConferido(loteriaAtual, concursoAtual);
+                if (resultadoConferido) {
+                    console.log(`🎯 Resultado já conferido para ${loteriaAtual} concurso ${concursoAtual}`);
+                    
+                    // Mostrar cartões com acertos
+                    if (typeof mostrarCartoes === 'function') {
+                        mostrarCartoes(resultadoConferido);
+                    } else if (typeof mostrarCartes === 'function') {
+                        mostrarCartes(resultadoConferido);
+                    }
+                    
+                    // Exibir resultado salvo
+                    const area = document.getElementById('resultadosArea');
+                    if (area) {
+                        area.innerHTML = `<div class="loading">🔍 Carregando resultado salvo...</div>`;
+                        if (typeof exibirResultadoSalvo === 'function') {
+                            await exibirResultadoSalvo(loteriaAtual, concursoAtual, resultadoConferido);
+                        } else {
+                            // Fallback: mostrar resultado simples
+                            area.innerHTML = `
+                                <div style="background:#d1fae5; padding:15px; border-radius:12px; text-align:center;">
+                                    <strong>✅ RESULTADO DO CONCURSO ${concursoAtual}</strong><br>
+                                    🎯 Números: ${resultadoConferido.join(' - ')}
+                                </div>
+                            `;
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn('Erro ao verificar resultado conferido:', error);
+            }
+        }
+        
     } catch (error) {
         console.error('Erro ao carregar dados:', error);
         showToast('❌ Erro ao carregar dados. Recarregue a página.', 'error');
