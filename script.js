@@ -383,7 +383,7 @@ async function setLoteria(loteria) {
     atualizarSelectConcursos();
     
     // Buscar e mostrar cartões do novo concurso
-    await mostrarCartes();
+    await mostrarCartoes();
     
     showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
 }
