@@ -389,10 +389,11 @@ async function setLoteria(loteria) {
 }
 // Exibir resultado salvo sem precisar conferir novamente
 async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
+    console.log('📢 exibirResultadoSalvo executando para:', loteria, concurso);
     const area = document.getElementById('resultadosArea');
     if (!area) return;
     
-    // Buscar os cartões deste concurso
+    // Buscar cartões
     const snapshot = await db.collection('cartoes')
         .where('tipo', '==', loteria)
         .where('concurso', '==', concurso)
@@ -403,134 +404,78 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         const d = doc.data();
         if (d && d.numeros) {
             cartoesConcurso.push({
-                id: doc.id,
-                concurso: d.concurso,
-                bolao: d.bolao || 'Sem Bolão',
                 numeros: d.numeros,
-                tipo: d.tipo,
+                bolao: d.bolao || 'Sem Bolão',
                 tipoParticipacao: d.tipoParticipacao || 'exclusivo'
             });
         }
     });
     
-    if (cartoesConcurso.length === 0) return;
+    console.log(`📊 Encontrados ${cartoesConcurso.length} cartões`);
     
-    // ============================================
-    // CALCULAR E ORDENAR ACERTOS (DO MAIOR PARA O MENOR)
-    // ============================================
-    const cartoesComAcertos = cartoesConcurso.map(cartao => {
-        const acertos = cartao.numeros.filter(n => numerosSorteados.includes(n)).length;
-        return { ...cartao, acertos };
-    }).sort((a, b) => b.acertos - a.acertos);
-    
-    console.log('📊 Cartões ordenados:', cartoesComAcertos.map(c => c.acertos));
+    // Ordenar por acertos
+    const cartoesOrdenados = cartoesConcurso.map(c => ({
+        ...c,
+        acertos: c.numeros.filter(n => numerosSorteados.includes(n)).length
+    })).sort((a, b) => b.acertos - a.acertos);
     
     // Calcular premiações
-    let premios = {};
+    let premios = { sena:0, quina:0, quadra:0, terno:0, duque:0 };
     if (loteria === 'mega') {
         premios = {
-            sena: cartoesComAcertos.filter(r => r.acertos >= 6).length,
-            quina: cartoesComAcertos.filter(r => r.acertos === 5).length,
-            quadra: cartoesComAcertos.filter(r => r.acertos === 4).length,
-            terno: cartoesComAcertos.filter(r => r.acertos === 3).length,
-            duque: cartoesComAcertos.filter(r => r.acertos === 2).length
-        };
-    } else if (loteria === 'lotofacil') {
-        premios = {
-            pontos15: cartoesComAcertos.filter(r => r.acertos >= 15).length,
-            pontos14: cartoesComAcertos.filter(r => r.acertos === 14).length,
-            pontos13: cartoesComAcertos.filter(r => r.acertos === 13).length,
-            pontos12: cartoesComAcertos.filter(r => r.acertos === 12).length,
-            pontos11: cartoesComAcertos.filter(r => r.acertos === 11).length
-        };
-    } else {
-        premios = {
-            quina: cartoesComAcertos.filter(r => r.acertos >= 5).length,
-            quadra: cartoesComAcertos.filter(r => r.acertos === 4).length,
-            terno: cartoesComAcertos.filter(r => r.acertos === 3).length,
-            duque: cartoesComAcertos.filter(r => r.acertos === 2).length
+            sena: cartoesOrdenados.filter(r => r.acertos >= 6).length,
+            quina: cartoesOrdenados.filter(r => r.acertos === 5).length,
+            quadra: cartoesOrdenados.filter(r => r.acertos === 4).length,
+            terno: cartoesOrdenados.filter(r => r.acertos === 3).length,
+            duque: cartoesOrdenados.filter(r => r.acertos === 2).length
         };
     }
     
     // Montar HTML do resumo
-    let html = '';
+    let html = `<div class="resultado-resumo">
+        <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#f59e0b">${premios.sena}</div><div class="resultado-resumo-label">SENA</div></div>
+        <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#eab308">${premios.quina}</div><div class="resultado-resumo-label">QUINA</div></div>
+        <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#a855f7">${premios.quadra}</div><div class="resultado-resumo-label">QUADRA</div></div>
+        <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#3b82f6">${premios.terno}</div><div class="resultado-resumo-label">TERNO</div></div>
+        <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#64748b">${premios.duque}</div><div class="resultado-resumo-label">DUQUE</div></div>
+        <div class="resultado-resumo-item"><div class="resultado-resumo-numero">${cartoesOrdenados.length}</div><div class="resultado-resumo-label">CARTÕES</div></div>
+    </div>`;
     
-    html += `<div class="resultado-resumo">`;
-    if (loteria === 'mega') {
-        html += `
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#f59e0b">${premios.sena}</div><div class="resultado-resumo-label">SENA</div></div>
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#eab308">${premios.quina}</div><div class="resultado-resumo-label">QUINA</div></div>
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#a855f7">${premios.quadra}</div><div class="resultado-resumo-label">QUADRA</div></div>
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#3b82f6">${premios.terno}</div><div class="resultado-resumo-label">TERNO</div></div>
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#64748b">${premios.duque}</div><div class="resultado-resumo-label">DUQUE</div></div>`;
-    } else if (loteria === 'lotofacil') {
-        html += `
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#f59e0b">${premios.pontos15}</div><div class="resultado-resumo-label">15 PTS</div></div>
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#eab308">${premios.pontos14}</div><div class="resultado-resumo-label">14 PTS</div></div>
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#a855f7">${premios.pontos13}</div><div class="resultado-resumo-label">13 PTS</div></div>
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#3b82f6">${premios.pontos12}</div><div class="resultado-resumo-label">12 PTS</div></div>
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#64748b">${premios.pontos11}</div><div class="resultado-resumo-label">11 PTS</div></div>`;
-    } else {
-        html += `
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#f59e0b">${premios.quina}</div><div class="resultado-resumo-label">QUINA</div></div>
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#eab308">${premios.quadra}</div><div class="resultado-resumo-label">QUADRA</div></div>
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#a855f7">${premios.terno}</div><div class="resultado-resumo-label">TERNO</div></div>
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#3b82f6">${premios.duque}</div><div class="resultado-resumo-label">DUQUE</div></div>`;
-    }
-    html += `<div class="resultado-resumo-item"><div class="resultado-resumo-numero">${cartoesComAcertos.length}</div><div class="resultado-resumo-label">CARTÕES</div></div>`;
-    html += `</div>`;
-    
+    // Números sorteados
     html += `<div class="numeros-sorteados">${numerosSorteados.map(n => `<div class="numero-sorteado-card">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`;
-    html += `<div class="aviso-conferido" style="background: #d1fae5; padding: 8px; border-radius: 12px; text-align: center; font-size: 12px; color: #065f46; margin-top: 10px;">
-                ✅ Resultado já conferido anteriormente
-            </div>`;
+    
+    // Botão compartilhar
     html += `<button id="btnWhatsAppResultado" style="background:#25D366; width:100%; padding:12px; border-radius:30px; margin-bottom:20px; font-weight:bold;">📱 COMPARTILHAR RESULTADO NO WHATSAPP</button>`;
     
     // ============================================
-    // MONTAR CARTÕES JÁ ORDENADOS (SEM AGRUPAR POR BOLÃO PARA GARANTIR ORDEM)
+    // ADICIONAR CARTÕES ORDENADOS
     // ============================================
-    // Opção 1: Mostrar todos os cartões em ordem, sem agrupar por bolão
-    html += `<div style="margin-top: 20px;"><div style="background:#3b82f6;color:white;padding:8px 12px;border-radius:8px;margin-bottom:12px;">🎯 CARTÕES (ordenados por acertos)</div>`;
-    
-    for (const cartao of cartoesComAcertos) {
+    for (const cartao of cartoesOrdenados) {
         let corAcertos;
-        if (loteria === 'mega') {
-            if (cartao.acertos >= 6) corAcertos = '#f59e0b';
-            else if (cartao.acertos === 5) corAcertos = '#eab308';
-            else if (cartao.acertos === 4) corAcertos = '#a855f7';
-            else if (cartao.acertos === 3) corAcertos = '#3b82f6';
-            else corAcertos = '#cbd5e1';
-        } else if (loteria === 'lotofacil') {
-            if (cartao.acertos >= 15) corAcertos = '#f59e0b';
-            else if (cartao.acertos === 14) corAcertos = '#eab308';
-            else if (cartao.acertos === 13) corAcertos = '#a855f7';
-            else if (cartao.acertos === 12) corAcertos = '#3b82f6';
-            else corAcertos = '#cbd5e1';
-        } else {
-            if (cartao.acertos >= 5) corAcertos = '#f59e0b';
-            else if (cartao.acertos === 4) corAcertos = '#eab308';
-            else if (cartao.acertos === 3) corAcertos = '#a855f7';
-            else corAcertos = '#cbd5e1';
-        }
+        if (cartao.acertos >= 6) corAcertos = '#f59e0b';
+        else if (cartao.acertos === 5) corAcertos = '#eab308';
+        else if (cartao.acertos === 4) corAcertos = '#a855f7';
+        else if (cartao.acertos === 3) corAcertos = '#3b82f6';
+        else corAcertos = '#cbd5e1';
         
         const tipoParticipacao = cartao.tipoParticipacao === 'cota' ? '🎟️ Cota' : '👥 Exclusivo';
         
-        html += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px;margin-bottom:12px;">
-                    <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+        html += `<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px; margin-bottom:12px;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:8px; flex-wrap:wrap;">
                         <span style="font-weight:bold;">${cartao.bolao} - ${tipoParticipacao}</span>
-                        <span style="background:${corAcertos};color:white;padding:4px 12px;border-radius:20px;font-size:12px;">${cartao.acertos} acertos</span>
+                        <span style="background:${corAcertos}; color:white; padding:4px 12px; border-radius:20px; font-size:12px;">${cartao.acertos} acertos</span>
                     </div>
-                    <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;">
+                    <div style="display:flex; flex-wrap:wrap; gap:6px; justify-content:center;">
                         ${cartao.numeros.map(n => {
                             const acertou = numerosSorteados.includes(n);
-                            return `<span style="background:${acertou ? '#10b981' : '#e2e8f0'};color:${acertou ? 'white' : '#333'};padding:6px 10px;border-radius:8px;font-family:monospace;font-size:12px;font-weight:${acertou ? 'bold' : 'normal'};min-width:35px;text-align:center;">${n.toString().padStart(2,'0')}</span>`;
+                            return `<span style="background:${acertou ? '#10b981' : '#e2e8f0'}; color:${acertou ? 'white' : '#333'}; padding:6px 10px; border-radius:8px; font-family:monospace; font-size:12px; min-width:35px; text-align:center;">${n.toString().padStart(2,'0')}</span>`;
                         }).join('')}
                     </div>
                 </div>`;
     }
-    html += `</div>`;
     
     area.innerHTML = html;
+    console.log(`✅ Exibidos ${cartoesOrdenados.length} cartões ordenados por acertos`);
     
     const btnWhats = document.getElementById('btnWhatsAppResultado');
     if (btnWhats) btnWhats.addEventListener('click', compartilharWhatsApp);
