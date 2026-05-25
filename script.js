@@ -254,7 +254,7 @@ function calcularChancesBolao(cartoesBolao, loteria) {
     `;
 }
 
-function mostrarCartoes(numerosSorteados = null) {
+async function mostrarCartoes(numerosSorteados = null) {
     const concurso = document.getElementById('concursoSelect').value;
     const container = document.getElementById('cartoesArea');
     
@@ -265,48 +265,86 @@ function mostrarCartoes(numerosSorteados = null) {
         return;
     }
     
-    const filtrados = cartoes.filter(c => c.tipo === loteriaAtual && c.concurso == concurso);
+    // Mostrar loading rápido
+    container.innerHTML = '<div class="loading-skeleton">🔄 Carregando cartões do concurso...</div>';
     
-    if (filtrados.length === 0) {
-        container.innerHTML = `<div class="empty-state">📋 Nenhum cartão da ${loteriaAtual.toUpperCase()} para o concurso ${concurso}</div>`;
-        return;
-    }
-    
-    const chancesHtml = calcularChancesBolao(filtrados, loteriaAtual);
-    
-    const porBolao = {};
-    filtrados.forEach(c => {
-        const b = c.bolao || 'Sem Bolão';
-        if (!porBolao[b]) porBolao[b] = [];
-        porBolao[b].push(c);
-    });
-    
-    let html = chancesHtml;
-    
-    for (const [bolao, lista] of Object.entries(porBolao)) {
-        html += `<div style="margin-bottom:20px"><div style="background:#3b82f6;color:white;padding:8px 12px;border-radius:8px;margin-bottom:10px;">🎯 ${bolao}</div>`;
-        html += `<div style="display:flex;flex-direction:column;gap:10px;">`;
+    // Buscar APENAS os cartões deste concurso específico
+    try {
+        const snapshot = await db.collection('cartoes')
+            .where('tipo', '==', loteriaAtual)
+            .where('concurso', '==', concurso)
+            .get();
         
-        for (const cartao of lista) {
-            const tipoParticipacao = cartao.tipoParticipacao === 'cota' ? '🎟️ Cota' : '👥 Exclusivo';
-            const acertosCount = numerosSorteados ? cartao.numeros.filter(n => numerosSorteados.includes(n)).length : 0;
-            
-            const numsHtml = cartao.numeros.map(n => {
-                const acertou = numerosSorteados ? numerosSorteados.includes(n) : false;
-                return `<span style="background:${acertou ? '#10b981' : '#e2e8f0'};color:${acertou ? 'white' : '#333'};padding:6px 10px;border-radius:8px;font-family:monospace;font-size:12px;font-weight:${acertou ? 'bold' : 'normal'};min-width:35px;text-align:center;">${n.toString().padStart(2,'0')}</span>`;
-            }).join('');
-            
-            html += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px;">
-                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-                            <span style="font-weight:bold;font-size:12px;">${tipoParticipacao}</span>
-                            ${numerosSorteados ? `<span style="background:#cbd5e1;padding:4px 10px;border-radius:20px;font-size:11px;">${acertosCount} acertos</span>` : ''}
-                        </div>
-                        <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;">${numsHtml}</div>
-                    </div>`;
+        const filtrados = [];
+        snapshot.forEach(doc => {
+            const d = doc.data();
+            if (d && d.numeros) {
+                filtrados.push({
+                    id: doc.id,
+                    concurso: d.concurso,
+                    bolao: d.bolao || 'Sem Bolão',
+                    numeros: d.numeros,
+                    tipo: d.tipo,
+                    tipoParticipacao: d.tipoParticipacao || 'exclusivo'
+                });
+            }
+        });
+        
+        console.log(`📊 Encontrados ${filtrados.length} cartões para ${loteriaAtual} concurso ${concurso}`);
+        
+        if (filtrados.length === 0) {
+            container.innerHTML = `<div class="empty-state">📋 Nenhum cartão da ${loteriaAtual.toUpperCase()} para o concurso ${concurso}</div>`;
+            return;
         }
-        html += `</div></div>`;
+        
+        // Atualizar cache local
+        const index = cartoes.findIndex(c => c.tipo === loteriaAtual && c.concurso == concurso);
+        if (index !== -1) {
+            cartoes.splice(index, 1);
+        }
+        cartoes.push(...filtrados);
+        
+        // Calcular chances do bolão
+        const chancesHtml = calcularChancesBolao(filtrados, loteriaAtual);
+        
+        const porBolao = {};
+        filtrados.forEach(c => {
+            const b = c.bolao || 'Sem Bolão';
+            if (!porBolao[b]) porBolao[b] = [];
+            porBolao[b].push(c);
+        });
+        
+        let html = chancesHtml;
+        
+        for (const [bolao, lista] of Object.entries(porBolao)) {
+            html += `<div style="margin-bottom:20px"><div style="background:#3b82f6;color:white;padding:8px 12px;border-radius:8px;margin-bottom:10px;">🎯 ${bolao}</div>`;
+            html += `<div style="display:flex;flex-direction:column;gap:10px;">`;
+            
+            for (const cartao of lista) {
+                const tipoParticipacao = cartao.tipoParticipacao === 'cota' ? '🎟️ Cota' : '👥 Exclusivo';
+                const acertosCount = numerosSorteados ? cartao.numeros.filter(n => numerosSorteados.includes(n)).length : 0;
+                
+                const numsHtml = cartao.numeros.map(n => {
+                    const acertou = numerosSorteados ? numerosSorteados.includes(n) : false;
+                    return `<span style="background:${acertou ? '#10b981' : '#e2e8f0'};color:${acertou ? 'white' : '#333'};padding:6px 10px;border-radius:8px;font-family:monospace;font-size:12px;font-weight:${acertou ? 'bold' : 'normal'};min-width:35px;text-align:center;">${n.toString().padStart(2,'0')}</span>`;
+                }).join('');
+                
+                html += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px;">
+                            <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                                <span style="font-weight:bold;font-size:12px;">${tipoParticipacao}</span>
+                                ${numerosSorteados ? `<span style="background:#cbd5e1;padding:4px 10px;border-radius:20px;font-size:11px;">${acertosCount} acertos</span>` : ''}
+                            </div>
+                            <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;">${numsHtml}</div>
+                        </div>`;
+            }
+            html += `</div></div>`;
+        }
+        container.innerHTML = html;
+        
+    } catch (error) {
+        console.error('Erro ao carregar cartões:', error);
+        container.innerHTML = `<div class="empty-state">❌ Erro ao carregar cartões do concurso ${concurso}</div>`;
     }
-    container.innerHTML = html;
 }
 
 async function setLoteria(loteria) {
@@ -334,14 +372,18 @@ async function setLoteria(loteria) {
         document.getElementById('cardHeaderConferencia').innerHTML = '🎯 CONFERIR RESULTADOS - QUINA';
     }
     
+    // Limpar área de resultados
     const resultadosArea = document.getElementById('resultadosArea');
     if (resultadosArea) resultadosArea.innerHTML = '<div class="empty-state">🔍 Clique em "Conferir Resultados" para ver os acertos</div>';
     
     const statusDiv = document.getElementById('statusBusca');
     if (statusDiv) statusDiv.innerHTML = '';
     
+    // Atualizar select usando os dados já carregados
     atualizarSelectConcursos();
-    mostrarCartoes();
+    
+    // Buscar e mostrar cartões do novo concurso
+    await mostrarCartes();
     
     showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
 }
@@ -425,8 +467,14 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
 
 
 async function carregarDados() {
-    console.log('🔄 Carregando dados (modo rápido)...');
+    console.log('🔄 Carregando dados (ultra rápido)...');
     dadosCarregados = false;
+    
+    // Mostrar skeleton imediatamente
+    const cartoesArea = document.getElementById('cartoesArea');
+    if (cartoesArea) {
+        cartoesArea.innerHTML = '<div class="loading-skeleton">🔄 Carregando...</div>';
+    }
     
     const loadingDiv = document.getElementById('loadingIndicator');
     const loadingPercent = document.getElementById('loadingPercent');
@@ -439,83 +487,140 @@ async function carregarDados() {
     
     try {
         atualizarPercentual(5, 'Iniciando...');
+        
+        // ============================================
+        // 1. BUSCAR APENAS OS NÚMEROS DOS CONCURSOS (SEM CARTÕES)
+        // ============================================
         atualizarPercentual(10, 'Buscando concursos...');
         
-        const snap = await db.collection('cartoes').get();
+        const concursosSnapshot = await db.collection('cartoes').select('concurso', 'tipo').get();
         
-        const concursosPorLoteria = {
-            mega: new Set(),
-            lotofacil: new Set(),
-            quina: new Set()
+        // Agrupar últimos concursos por loteria
+        const ultimosConcursos = {
+            mega: null,
+            lotofacil: null,
+            quina: null
         };
         
-        snap.forEach(doc => {
+        // Agrupar todos os concursos disponíveis
+        const concursosMap = { mega: [], lotofacil: [], quina: [] };
+        
+        concursosSnapshot.forEach(doc => {
             const d = doc.data();
             if (d && d.concurso && d.tipo) {
-                concursosPorLoteria[d.tipo].add(d.concurso);
+                const concursoNum = parseInt(d.concurso);
+                // Último concurso
+                if (!ultimosConcursos[d.tipo] || concursoNum > ultimosConcursos[d.tipo]) {
+                    ultimosConcursos[d.tipo] = concursoNum;
+                }
+                // Lista de concursos
+                if (!concursosMap[d.tipo].includes(concursoNum)) {
+                    concursosMap[d.tipo].push(concursoNum);
+                }
             }
         });
         
-        const concursosDisponiveis = {
-            mega: Array.from(concursosPorLoteria.mega).sort((a,b) => b - a),
-            lotofacil: Array.from(concursosPorLoteria.lotofacil).sort((a,b) => b - a),
-            quina: Array.from(concursosPorLoteria.quina).sort((a,b) => b - a)
-        };
+        // Ordenar concursos decrescente
+        for (const loteria of ['mega', 'lotofacil', 'quina']) {
+            concursosMap[loteria].sort((a, b) => b - a);
+        }
         
-        console.log('📋 Concursos disponíveis:', concursosDisponiveis);
+        console.log('📋 Últimos concursos:', ultimosConcursos);
+        console.log('📋 Concursos disponíveis:', concursosMap);
         
+        // Salvar para uso global
+        window.ultimosConcursos = ultimosConcursos;
+        window.concursosDisponiveis = concursosMap;
+        
+        // ============================================
+        // 2. CARREGAR CARTÕES APENAS DO ÚLTIMO CONCURSO DA LOTERIA ATUAL
+        // ============================================
         atualizarPercentual(30, 'Carregando cartões...');
         cartoes = [];
         
-        for (const loteria of ['mega', 'lotofacil', 'quina']) {
-            const ultimoConcurso = concursosDisponiveis[loteria][0];
-            if (ultimoConcurso) {
-                const cartoesLoteria = await db.collection('cartoes')
-                    .where('tipo', '==', loteria)
-                    .where('concurso', '==', ultimoConcurso)
-                    .get();
-                
-                cartoesLoteria.forEach(doc => {
-                    const d = doc.data();
-                    if (d && d.numeros) {
-                        cartoes.push({
-                            id: doc.id,
-                            concurso: d.concurso || '0',
-                            bolao: d.bolao || 'Sem Bolão',
-                            numeros: d.numeros,
-                            tipo: d.tipo || loteria,
-                            tipoParticipacao: d.tipoParticipacao || 'exclusivo'
-                        });
-                    }
-                });
-                console.log(`📋 ${loteria}: ${cartoesLoteria.size} cartões do concurso ${ultimoConcurso}`);
-            }
+        const ultimoConcursoAtual = ultimosConcursos[loteriaAtual];
+        if (ultimoConcursoAtual) {
+            const cartoesSnapshot = await db.collection('cartoes')
+                .where('tipo', '==', loteriaAtual)
+                .where('concurso', '==', ultimoConcursoAtual.toString())
+                .limit(100)
+                .get();
+            
+            cartoesSnapshot.forEach(doc => {
+                const d = doc.data();
+                if (d && d.numeros) {
+                    cartoes.push({
+                        id: doc.id,
+                        concurso: d.concurso,
+                        bolao: d.bolao || 'Sem Bolão',
+                        numeros: d.numeros,
+                        tipo: d.tipo,
+                        tipoParticipacao: d.tipoParticipacao || 'exclusivo'
+                    });
+                }
+            });
+            console.log(`📋 ${loteriaAtual}: ${cartoes.length} cartões do concurso ${ultimoConcursoAtual}`);
         }
         
+        // ============================================
+        // 3. CARREGAR RESULTADOS (APENAS DO ÚLTIMO CONCURSO DE CADA LOTERIA)
+        // ============================================
         atualizarPercentual(50, 'Carregando resultados...');
+        
         try {
-            const resMega = await db.collection('resultados_mega').get();
+            const resultadosPromises = [];
+            for (const [loteria, concurso] of Object.entries(ultimosConcursos)) {
+                if (concurso) {
+                    resultadosPromises.push(
+                        db.collection(`resultados_${loteria}`).doc(concurso.toString()).get()
+                    );
+                }
+            }
+            const resultadosDocs = await Promise.all(resultadosPromises);
+            
             resultadosMega = {};
-            resMega.forEach(doc => { resultadosMega[doc.id] = doc.data().numeros; });
-        } catch (e) { resultadosMega = {}; }
-        
-        try {
-            const resLoto = await db.collection('resultados_lotofacil').get();
             resultadosLotofacil = {};
-            resLoto.forEach(doc => { resultadosLotofacil[doc.id] = doc.data().numeros; });
-        } catch (e) { resultadosLotofacil = {}; }
-        
-        try {
-            const resQuina = await db.collection('resultados_quina').get();
             resultadosQuina = {};
-            resQuina.forEach(doc => { resultadosQuina[doc.id] = doc.data().numeros; });
-        } catch (e) { resultadosQuina = {}; }
+            
+            resultadosDocs.forEach(doc => {
+                if (doc.exists) {
+                    const data = doc.data();
+                    const loteria = doc.id.split('_')[1];
+                    if (loteria === 'mega') resultadosMega[doc.id] = data.numeros;
+                    else if (loteria === 'lotofacil') resultadosLotofacil[doc.id] = data.numeros;
+                    else if (loteria === 'quina') resultadosQuina[doc.id] = data.numeros;
+                }
+            });
+        } catch (e) {
+            console.warn('Erro ao carregar resultados:', e);
+        }
         
-        atualizarPercentual(85, 'Carregando bolões...');
+        // ============================================
+        // 4. CARREGAR BOLÕES
+        // ============================================
+        atualizarPercentual(70, 'Carregando bolões...');
         try {
             await carregarBolaoAtivo();
             await carregarBolaoAberto();
         } catch (e) { console.warn('Erro ao carregar bolões:', e); }
+        
+        // ============================================
+        // 5. ATUALIZAR SELECT DE CONCURSOS
+        // ============================================
+        atualizarPercentual(90, 'Atualizando lista...');
+        
+        const select = document.getElementById('concursoSelect');
+        if (select) {
+            const concursos = concursosMap[loteriaAtual] || [];
+            let html = '<option value="">Selecione um concurso</option>';
+            concursos.forEach(con => {
+                html += `<option value="${con}">Concurso ${con}</option>`;
+            });
+            select.innerHTML = html;
+            if (concursos.length > 0) {
+                select.value = concursos[0];
+            }
+        }
         
         atualizarPercentual(100, 'Concluído!');
         
@@ -523,33 +628,17 @@ async function carregarDados() {
             if (loadingDiv) loadingDiv.style.display = 'none';
         }, 500);
         
-        window.concursosDisponiveis = concursosDisponiveis;
-        atualizarSelectConcursos();
         dadosCarregados = true;
         
+        // Mostrar cartões do concurso atual
         setTimeout(() => {
             mostrarCartoes();
         }, 100);
         
-        // ============================================
-        // VERIFICAR SE O CONCURSO ATUAL JÁ FOI CONFERIDO NO FIREBASE
-        // ============================================
-        const selectConcurso = document.getElementById('concursoSelect');
-        const concursoAtual = selectConcurso ? selectConcurso.value : null;
-        
-        if (concursoAtual && dadosCarregados) {
-            const resultadoConferido = await verificarResultadoConferido(loteriaAtual, concursoAtual);
-            if (resultadoConferido) {
-                console.log(`🎯 Resultado já conferido para ${loteriaAtual} concurso ${concursoAtual}`);
-                // Mostrar os resultados salvos
-                mostrarCartes(resultadoConferido);
-                // Atualizar área de resultados
-                const area = document.getElementById('resultadosArea');
-                if (area) {
-                    await exibirResultadoSalvo(loteriaAtual, concursoAtual, resultadoConferido);
-                }
-            }
-        }
+        // Buscar resultado automaticamente
+        setTimeout(() => {
+            buscarResultadoAutomatico();
+        }, 300);
         
     } catch (error) {
         console.error('Erro ao carregar dados:', error);
