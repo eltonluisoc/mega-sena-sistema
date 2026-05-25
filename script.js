@@ -623,7 +623,7 @@ async function carregarDados() {
         dadosCarregados = true;
         
         setTimeout(() => {
-            mostrarCartes();
+            mostrarCartoes();  // ✅ CORRETO
         }, 100);
         
         setTimeout(() => {
