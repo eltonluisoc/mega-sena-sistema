@@ -638,7 +638,7 @@ async function carregarDados() {
         dadosCarregados = true;
         
         // ============================================
-        // 6. VERIFICAR E EXIBIR RESULTADO CONFERIDO
+        // VERIFICAR E EXIBIR RESULTADO CONFERIDO
         // ============================================
         const concursoAtual = select ? select.value : null;
         
@@ -647,6 +647,14 @@ async function carregarDados() {
             const resultadoConferido = await verificarResultadoConferido(loteriaAtual, concursoAtual);
             if (resultadoConferido) {
                 console.log('🎯 Resultado conferido encontrado! Exibindo...');
+                
+                // LIMPAR O CARREGAMENTO DOS CARTÕES
+                const cartoesArea = document.getElementById('cartoesArea');
+                if (cartoesArea) {
+                    cartoesArea.innerHTML = '';
+                    console.log('✅ cartoesArea limpo');
+                }
+                
                 const area = document.getElementById('resultadosArea');
                 if (area) {
                     await exibirResultadoSalvo(loteriaAtual, concursoAtual, resultadoConferido);
