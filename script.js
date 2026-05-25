@@ -416,12 +416,14 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
     if (cartoesConcurso.length === 0) return;
     
     // ============================================
-    // ORDENAR CARTÕES POR ACERTOS (DO MAIOR PARA O MENOR)
+    // CALCULAR E ORDENAR ACERTOS (DO MAIOR PARA O MENOR)
     // ============================================
     const cartoesComAcertos = cartoesConcurso.map(cartao => {
         const acertos = cartao.numeros.filter(n => numerosSorteados.includes(n)).length;
         return { ...cartao, acertos };
     }).sort((a, b) => b.acertos - a.acertos);
+    
+    console.log('📊 Cartões ordenados:', cartoesComAcertos.map(c => c.acertos));
     
     // Calcular premiações
     let premios = {};
@@ -450,7 +452,7 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         };
     }
     
-    // Montar HTML com ordenação correta
+    // Montar HTML do resumo
     let html = '';
     
     html += `<div class="resultado-resumo">`;
@@ -485,56 +487,48 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
     html += `<button id="btnWhatsAppResultado" style="background:#25D366; width:100%; padding:12px; border-radius:30px; margin-bottom:20px; font-weight:bold;">📱 COMPARTILHAR RESULTADO NO WHATSAPP</button>`;
     
     // ============================================
-    // ADICIONAR CARTÕES ORDENADOS POR ACERTOS
+    // MONTAR CARTÕES JÁ ORDENADOS (SEM AGRUPAR POR BOLÃO PARA GARANTIR ORDEM)
     // ============================================
-    const porBolao = {};
-    cartoesComAcertos.forEach(c => {
-        const b = c.bolao || 'Sem Bolão';
-        if (!porBolao[b]) porBolao[b] = [];
-        porBolao[b].push(c);
-    });
+    // Opção 1: Mostrar todos os cartões em ordem, sem agrupar por bolão
+    html += `<div style="margin-top: 20px;"><div style="background:#3b82f6;color:white;padding:8px 12px;border-radius:8px;margin-bottom:12px;">🎯 CARTÕES (ordenados por acertos)</div>`;
     
-    for (const [bolao, lista] of Object.entries(porBolao)) {
-        html += `<div style="margin-top: 20px;"><div style="background:#3b82f6;color:white;padding:8px 12px;border-radius:8px;margin-bottom:12px;">🎯 ${bolao}</div>`;
-        
-        for (const cartao of lista) {
-            let corAcertos;
-            if (loteria === 'mega') {
-                if (cartao.acertos >= 6) corAcertos = '#f59e0b';
-                else if (cartao.acertos === 5) corAcertos = '#eab308';
-                else if (cartao.acertos === 4) corAcertos = '#a855f7';
-                else if (cartao.acertos === 3) corAcertos = '#3b82f6';
-                else corAcertos = '#cbd5e1';
-            } else if (loteria === 'lotofacil') {
-                if (cartao.acertos >= 15) corAcertos = '#f59e0b';
-                else if (cartao.acertos === 14) corAcertos = '#eab308';
-                else if (cartao.acertos === 13) corAcertos = '#a855f7';
-                else if (cartao.acertos === 12) corAcertos = '#3b82f6';
-                else corAcertos = '#cbd5e1';
-            } else {
-                if (cartao.acertos >= 5) corAcertos = '#f59e0b';
-                else if (cartao.acertos === 4) corAcertos = '#eab308';
-                else if (cartao.acertos === 3) corAcertos = '#a855f7';
-                else corAcertos = '#cbd5e1';
-            }
-            
-            const tipoParticipacao = cartao.tipoParticipacao === 'cota' ? '🎟️ Cota' : '👥 Exclusivo';
-            
-            html += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px;margin-bottom:12px;">
-                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-                            <span style="font-weight:bold;">${tipoParticipacao}</span>
-                            <span style="background:${corAcertos};color:white;padding:4px 12px;border-radius:20px;font-size:12px;">${cartao.acertos} acertos</span>
-                        </div>
-                        <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;">
-                            ${cartao.numeros.map(n => {
-                                const acertou = numerosSorteados.includes(n);
-                                return `<span style="background:${acertou ? '#10b981' : '#e2e8f0'};color:${acertou ? 'white' : '#333'};padding:6px 10px;border-radius:8px;font-family:monospace;font-size:12px;font-weight:${acertou ? 'bold' : 'normal'};min-width:35px;text-align:center;">${n.toString().padStart(2,'0')}</span>`;
-                            }).join('')}
-                        </div>
-                    </div>`;
+    for (const cartao of cartoesComAcertos) {
+        let corAcertos;
+        if (loteria === 'mega') {
+            if (cartao.acertos >= 6) corAcertos = '#f59e0b';
+            else if (cartao.acertos === 5) corAcertos = '#eab308';
+            else if (cartao.acertos === 4) corAcertos = '#a855f7';
+            else if (cartao.acertos === 3) corAcertos = '#3b82f6';
+            else corAcertos = '#cbd5e1';
+        } else if (loteria === 'lotofacil') {
+            if (cartao.acertos >= 15) corAcertos = '#f59e0b';
+            else if (cartao.acertos === 14) corAcertos = '#eab308';
+            else if (cartao.acertos === 13) corAcertos = '#a855f7';
+            else if (cartao.acertos === 12) corAcertos = '#3b82f6';
+            else corAcertos = '#cbd5e1';
+        } else {
+            if (cartao.acertos >= 5) corAcertos = '#f59e0b';
+            else if (cartao.acertos === 4) corAcertos = '#eab308';
+            else if (cartao.acertos === 3) corAcertos = '#a855f7';
+            else corAcertos = '#cbd5e1';
         }
-        html += `</div>`;
+        
+        const tipoParticipacao = cartao.tipoParticipacao === 'cota' ? '🎟️ Cota' : '👥 Exclusivo';
+        
+        html += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px;margin-bottom:12px;">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                        <span style="font-weight:bold;">${cartao.bolao} - ${tipoParticipacao}</span>
+                        <span style="background:${corAcertos};color:white;padding:4px 12px;border-radius:20px;font-size:12px;">${cartao.acertos} acertos</span>
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;">
+                        ${cartao.numeros.map(n => {
+                            const acertou = numerosSorteados.includes(n);
+                            return `<span style="background:${acertou ? '#10b981' : '#e2e8f0'};color:${acertou ? 'white' : '#333'};padding:6px 10px;border-radius:8px;font-family:monospace;font-size:12px;font-weight:${acertou ? 'bold' : 'normal'};min-width:35px;text-align:center;">${n.toString().padStart(2,'0')}</span>`;
+                        }).join('')}
+                    </div>
+                </div>`;
     }
+    html += `</div>`;
     
     area.innerHTML = html;
     
@@ -940,7 +934,7 @@ async function conferirResultados() {
     const cartoesComAcertos = cartoesConcurso.map(cartao => {
         const acertos = cartao.numeros.filter(n => numerosSorteados.includes(n)).length;
         return { ...cartao, acertos };
-    }).sort((a, b) => b.acertos - a.acertos);
+    }).sort((a, b) => b.acertos - a.acertos);  // ← DEVE TER ESTA LINHA
     
     let premios = {};
     if (loteriaAtual === 'mega') {
