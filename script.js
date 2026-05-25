@@ -715,8 +715,19 @@ async function carregarDados() {
         window.concursosDisponiveis = concursosMap;
         atualizarSelectConcursos();
         
-        setTimeout(() => {
-            mostrarCartoes();
+        setTimeout(async () => {
+            const selectAtual = document.getElementById('concursoSelect');
+            const concurso = selectAtual ? selectAtual.value : null;
+            if (concurso) {
+                const jaConferido = await verificarResultadoConferido(loteriaAtual, concurso);
+                if (!jaConferido) {
+                    mostrarCartoes();
+                } else {
+                    console.log('✅ Resultado já conferido, NÃO chamando mostrarCartoes para não sobrescrever');
+                }
+            } else {
+                mostrarCartoes();
+            }
         }, 100);
         
         // ============================================
