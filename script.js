@@ -693,6 +693,26 @@ async function carregarDados() {
         
         dadosCarregados = true;
         
+        // ============================================
+        // VERIFICAR E EXIBIR RESULTADO CONFERIDO
+        // ============================================
+        const selectConcurso = document.getElementById('concursoSelect');
+        const concursoAtual = selectConcurso ? selectConcurso.value : null;
+        
+        if (concursoAtual && dadosCarregados) {
+            console.log('🔍 Verificando resultado conferido para:', loteriaAtual, concursoAtual);
+            const resultadoConferido = await verificarResultadoConferido(loteriaAtual, concursoAtual);
+            if (resultadoConferido) {
+                console.log('🎯 Resultado conferido encontrado! Exibindo...');
+                const area = document.getElementById('resultadosArea');
+                if (area) {
+                    await exibirResultadoSalvo(loteriaAtual, concursoAtual, resultadoConferido);
+                }
+            } else {
+                console.log('❌ Nenhum resultado conferido para este concurso');
+            }
+        }
+        
         setTimeout(() => {
             mostrarCartoes();  // ✅ CORRETO
         }, 100);
