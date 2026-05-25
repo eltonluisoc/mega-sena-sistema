@@ -558,7 +558,9 @@ async function carregarDados() {
     try {
         atualizarPercentual(5, 'Iniciando...');
         
+        // ============================================
         // 1. BUSCAR TODOS OS CARTÕES (APENAS PARA CONCURSOS)
+        // ============================================
         atualizarPercentual(10, 'Buscando concursos...');
         
         const concursosSnapshot = await db.collection('cartoes').get();
@@ -593,7 +595,9 @@ async function carregarDados() {
         window.ultimosConcursos = ultimosConcursos;
         window.concursosDisponiveis = concursosMap;
         
+        // ============================================
         // 2. CARREGAR CARTÕES APENAS DO ÚLTIMO CONCURSO
+        // ============================================
         atualizarPercentual(30, 'Carregando cartões...');
         cartoes = [];
         
@@ -621,7 +625,9 @@ async function carregarDados() {
             console.log(`📋 ${loteriaAtual}: ${cartoes.length} cartões do concurso ${ultimoConcursoAtual}`);
         }
         
+        // ============================================
         // 3. CARREGAR RESULTADOS
+        // ============================================
         atualizarPercentual(50, 'Carregando resultados...');
         
         try {
@@ -652,14 +658,18 @@ async function carregarDados() {
             console.warn('Erro ao carregar resultados:', e);
         }
         
+        // ============================================
         // 4. CARREGAR BOLÕES
+        // ============================================
         atualizarPercentual(70, 'Carregando bolões...');
         try {
             await carregarBolaoAtivo();
             await carregarBolaoAberto();
         } catch (e) { console.warn('Erro ao carregar bolões:', e); }
         
+        // ============================================
         // 5. ATUALIZAR SELECT
+        // ============================================
         atualizarPercentual(90, 'Atualizando lista...');
         
         const select = document.getElementById('concursoSelect');
@@ -679,7 +689,9 @@ async function carregarDados() {
         
         dadosCarregados = true;
         
-        // 6. VERIFICAR SE O CONCURSO ATUAL JÁ FOI CONFERIDO
+        // ============================================
+        // 6. VERIFICAR E EXIBIR RESULTADO CONFERIDO
+        // ============================================
         const concursoAtual = select ? select.value : null;
         
         if (concursoAtual && dadosCarregados) {
@@ -707,9 +719,22 @@ async function carregarDados() {
             mostrarCartoes();
         }, 100);
         
-        setTimeout(() => {
-            buscarResultadoAutomatico();
-        }, 300);
+        // ============================================
+        // 7. BUSCAR RESULTADO AUTOMATICAMENTE (APENAS SE NÃO TIVER CONFERIDO)
+        // ============================================
+        setTimeout(async () => {
+            const selectAtual = document.getElementById('concursoSelect');
+            const concurso = selectAtual ? selectAtual.value : null;
+            if (concurso) {
+                const jaConferido = await verificarResultadoConferido(loteriaAtual, concurso);
+                if (!jaConferido) {
+                    console.log('🔍 Buscando resultado automaticamente...');
+                    buscarResultadoAutomatico();
+                } else {
+                    console.log('✅ Resultado já conferido, não buscando automaticamente');
+                }
+            }
+        }, 500);
         
     } catch (error) {
         console.error('Erro ao carregar dados:', error);
