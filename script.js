@@ -389,7 +389,7 @@ async function setLoteria(loteria) {
 }
 // Exibir resultado salvo sem precisar conferir novamente
 async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
-    console.log('📢 exibirResultadoSalvo executando para:', loteria, concurso);
+    console.log('📢 exibirResultadoSalvo executando (versão bonita)...');
     const area = document.getElementById('resultadosArea');
     if (!area) return;
     
@@ -411,8 +411,6 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         }
     });
     
-    console.log(`📊 Encontrados ${cartoesConcurso.length} cartões`);
-    
     // Ordenar por acertos
     const cartoesOrdenados = cartoesConcurso.map(c => ({
         ...c,
@@ -431,7 +429,7 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         };
     }
     
-    // Montar HTML do resumo
+    // Montar HTML com ESTILO BONITO
     let html = `<div class="resultado-resumo">
         <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#f59e0b">${premios.sena}</div><div class="resultado-resumo-label">SENA</div></div>
         <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#eab308">${premios.quina}</div><div class="resultado-resumo-label">QUINA</div></div>
@@ -441,41 +439,46 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         <div class="resultado-resumo-item"><div class="resultado-resumo-numero">${cartoesOrdenados.length}</div><div class="resultado-resumo-label">CARTÕES</div></div>
     </div>`;
     
-    // Números sorteados
+    // Números sorteados (estilo bonito)
     html += `<div class="numeros-sorteados">${numerosSorteados.map(n => `<div class="numero-sorteado-card">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`;
     
     // Botão compartilhar
     html += `<button id="btnWhatsAppResultado" style="background:#25D366; width:100%; padding:12px; border-radius:30px; margin-bottom:20px; font-weight:bold;">📱 COMPARTILHAR RESULTADO NO WHATSAPP</button>`;
     
-    // ============================================
-    // ADICIONAR CARTÕES ORDENADOS
-    // ============================================
+    // CARTÕES COM ESTILO BONITO
     for (const cartao of cartoesOrdenados) {
         let corAcertos;
-        if (cartao.acertos >= 6) corAcertos = '#f59e0b';
-        else if (cartao.acertos === 5) corAcertos = '#eab308';
-        else if (cartao.acertos === 4) corAcertos = '#a855f7';
-        else if (cartao.acertos === 3) corAcertos = '#3b82f6';
-        else corAcertos = '#cbd5e1';
+        if (loteria === 'mega') {
+            if (cartao.acertos >= 6) corAcertos = '#f59e0b';
+            else if (cartao.acertos === 5) corAcertos = '#eab308';
+            else if (cartao.acertos === 4) corAcertos = '#a855f7';
+            else if (cartao.acertos === 3) corAcertos = '#3b82f6';
+            else corAcertos = '#cbd5e1';
+        } else {
+            if (cartao.acertos >= 5) corAcertos = '#f59e0b';
+            else if (cartao.acertos === 4) corAcertos = '#eab308';
+            else if (cartao.acertos === 3) corAcertos = '#a855f7';
+            else corAcertos = '#cbd5e1';
+        }
         
         const tipoParticipacao = cartao.tipoParticipacao === 'cota' ? '🎟️ Cota' : '👥 Exclusivo';
         
-        html += `<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px; margin-bottom:12px;">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:8px; flex-wrap:wrap;">
-                        <span style="font-weight:bold;">${cartao.bolao} - ${tipoParticipacao}</span>
-                        <span style="background:${corAcertos}; color:white; padding:4px 12px; border-radius:20px; font-size:12px;">${cartao.acertos} acertos</span>
+        html += `<div class="cartao-item-unificado">
+                    <div class="cartao-header">
+                        <span class="cartao-bolao">${cartao.bolao} - ${tipoParticipacao}</span>
+                        <span class="cartao-acertos" style="background:${corAcertos};">${cartao.acertos} acertos</span>
                     </div>
-                    <div style="display:flex; flex-wrap:wrap; gap:6px; justify-content:center;">
+                    <div class="cartao-numeros">
                         ${cartao.numeros.map(n => {
                             const acertou = numerosSorteados.includes(n);
-                            return `<span style="background:${acertou ? '#10b981' : '#e2e8f0'}; color:${acertou ? 'white' : '#333'}; padding:6px 10px; border-radius:8px; font-family:monospace; font-size:12px; min-width:35px; text-align:center;">${n.toString().padStart(2,'0')}</span>`;
+                            return `<span class="${acertou ? 'numero-acertado' : 'numero-normal'}">${n.toString().padStart(2,'0')}</span>`;
                         }).join('')}
                     </div>
                 </div>`;
     }
     
     area.innerHTML = html;
-    console.log(`✅ Exibidos ${cartoesOrdenados.length} cartões ordenados por acertos`);
+    console.log(`✅ Versão BONITA executada com ${cartoesOrdenados.length} cartões`);
     
     const btnWhats = document.getElementById('btnWhatsAppResultado');
     if (btnWhats) btnWhats.addEventListener('click', compartilharWhatsApp);
