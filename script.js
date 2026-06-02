@@ -1258,12 +1258,15 @@ async function carregarBolaoAberto() {
         const estrategiaMap = dados.estrategia || {};
         
         let boloesAbertos = [];
-        for (const id of idsSelecionados) {
-            if (statusMap[id] === 'aberto' || statusMap[id] === 'andamento') {
-                const doc = await db.collection('participantes').doc(id).get();
-                if (doc.exists) boloesAbertos.push({ id: id, data: doc.data() });
-            }
+        // Dentro de carregarBolaoAberto()
+for (const id of idsSelecionados) {
+    if (statusMap[id] === 'aberto') {  // ← DEVE SER APENAS 'aberto'
+        const doc = await db.collection('participantes').doc(id).get();
+        if (doc.exists) {
+            boloesAbertos.push({ id: id, data: doc.data() });
         }
+    }
+}
         
         if (boloesAbertos.length === 0) {
             card.style.display = 'none';
