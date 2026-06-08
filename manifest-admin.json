@@ -1,0 +1,17 @@
+{
+  "name": "Admin - Bolões Aleatórios",
+  "short_name": "Admin Bolões",
+  "description": "Painel administrativo do sistema de bolões",
+  "start_url": "/mega-sena-sistema/admin.html",
+  "display": "standalone",
+  "theme_color": "#3b82f6",
+  "background_color": "#ffffff",
+  "icons": [
+    {
+      "src": "/mega-sena-sistema/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
