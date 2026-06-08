@@ -330,7 +330,7 @@ button:hover {
     background: #005fc1;
 }
 
-/* PARTICIPANTES - GRID 2 COLUNAS */
+/* PARTICIPANTES - GRID 2 COLUNAS (Desktop e Celular) */
 .participantes-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -749,10 +749,10 @@ button:hover {
         font-size: 12px;
     }
     
-    /* Bolões especiais no celular */
+    /* PARTICIPANTES - 2 COLUNAS NO CELULAR (CORRIGIDO) */
     .participantes-grid {
-        grid-template-columns: 1fr 1fr;  /* ← MUDAR DE 1fr para 1fr 1fr */
-        gap: 8px;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 8px !important;
     }
     
     .numero-sorteado-card {
@@ -798,6 +798,11 @@ button:hover {
     
     .participante-nome {
         font-size: 12px;
+    }
+    
+    /* Telas muito pequenas: 1 coluna (opcional) */
+    .participantes-grid {
+        grid-template-columns: 1fr !important;
     }
 }
 
@@ -858,4 +863,78 @@ button:hover {
     font-size: 11px;
     color: #64748b;
     margin-bottom: 8px;
+}
+/* Garantir que o admin ocupe 100% da largura da tela */
+.admin-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+/* Ajustar cards no celular */
+@media (max-width: 768px) {
+    .container {
+        padding: 0 10px !important;
+        width: 100% !important;
+        overflow-x: hidden !important;
+    }
+    
+    .card {
+        width: 100% !important;
+        margin: 0 0 16px 0 !important;
+    }
+    
+    .card-body {
+        padding: 12px !important;
+    }
+    
+    /* Ajustar tabelas e grids */
+    .dashboard-cards, .tokens-grid, .cartoes-grid {
+        grid-template-columns: 1fr !important;
+    }
+    
+    /* Botões em linha ficam empilhados */
+    .form-buttons, .filtros {
+        flex-direction: column !important;
+    }
+    
+    .form-buttons button, .filtros select, .filtros button {
+        width: 100% !important;
+        margin: 4px 0 !important;
+    }
+}
+/* ============ CORREÇÃO EXTRA PARA ADMIN NO CELULAR ============ */
+@media (max-width: 768px) {
+    /* Garantir que o modal não ultrapasse */
+    .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.8);
+        z-index: 10000;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    
+    .modal-content {
+        width: 90%;
+        max-width: 350px;
+        margin: 0 auto;
+    }
+    
+    /* Garantir que nenhum elemento ultrapasse */
+    * {
+        max-width: 100%;
+    }
+    
+    /* Ajustar tabelas e containers com overflow */
+    .card-body {
+        overflow-x: auto;
+    }
 }
