@@ -2,7 +2,7 @@ name: Bot Telegram - Verificar Loterias Acumuladas
 
 on:
   schedule:
-    - cron: '0 8,20 * * *'  # Roda às 8h e 20h (horário de Brasília)
+    - cron: '0 8,22 * * *'  # Roda às 8h e 20h (horário de Brasília)
   workflow_dispatch:  # Permite rodar manualmente
 
 jobs:
