@@ -871,7 +871,7 @@ async function conferirResultados() {
     }
     
     // ATUALIZAR OS CARTÕES NA ÁREA CORRETA (SEM DUPLICAR)
-    mostrarCartes(numerosSorteados);
+    mostrarCartoes(numerosSorteados);
     
     const cartoesComAcertos = cartoesConcurso.map(cartao => {
         const acertos = cartao.numeros.filter(n => numerosSorteados.includes(n)).length;
