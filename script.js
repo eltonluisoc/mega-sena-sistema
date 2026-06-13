@@ -615,7 +615,9 @@ async function mostrarCartoes(numerosSorteados = null) {
     // Verificar se já tem resultado conferido para este concurso
     const jaConferido = await verificarResultadoConferido(loteriaAtual, concurso);
     if (jaConferido) {
-        console.log('✅ Resultado já conferido, não mostrando cartões separados');
+        console.log('✅ Resultado já conferido, exibindo resultado salvo com marcação');
+        // USA A FUNÇÃO QUE JÁ MARCA OS NÚMEROS CORRETAMENTE
+        await exibirResultadoSalvo(loteriaAtual, concurso, jaConferido);
         return;
     }
     
