@@ -1105,8 +1105,30 @@ async function carregarBolaoAtivo() {
         
         for (const bolao of boloesAtivos) {
             const participantes = bolao.data.participantes || [];
-            const totalQuitados = participantes.filter(p => p.situacao === 'quitado' || p.situacao === 'pago').length;
-            const totalEmAndamento = participantes.filter(p => p.situacao !== 'quitado' && p.situacao !== 'pago').length;
+            
+            // ===== NOVO: CALCULAR PESSOAS E COTAS =====
+            // Pessoas QUITADAS (que pagaram)
+            const pessoasQuitadas = participantes.filter(p => p.situacao === 'quitado' || p.situacao === 'pago');
+            const totalPessoasQuitadas = pessoasQuitadas.length;
+            
+            // Pessoas EM ANDAMENTO (que não pagaram)
+            const pessoasEmAndamento = participantes.filter(p => p.situacao !== 'quitado' && p.situacao !== 'pago');
+            const totalPessoasEmAndamento = pessoasEmAndamento.length;
+            
+            // Total de PESSOAS
+            const totalPessoas = participantes.length;
+            
+            // ===== COTAS =====
+            // Total de COTAS quitadas (soma das quantidades de quem pagou)
+            const totalCotasQuitadas = pessoasQuitadas.reduce((acc, p) => acc + (p.quantidadeCotas || 1), 0);
+            
+            // Total de COTAS em andamento (soma das quantidades de quem não pagou)
+            const totalCotasEmAndamento = pessoasEmAndamento.reduce((acc, p) => acc + (p.quantidadeCotas || 1), 0);
+            
+            // Total de COTAS (geral)
+            const totalCotas = participantes.reduce((acc, p) => acc + (p.quantidadeCotas || 1), 0);
+            // ===========================================
+            
             const statusText = statusMap[bolao.id] === 'aberto' ? 'ABERTO' : 'EM ANDAMENTO';
             const statusClass = statusMap[bolao.id] === 'aberto' ? 'aberto' : 'andamento';
             
@@ -1134,20 +1156,41 @@ async function carregarBolaoAtivo() {
                             <div class="bolao-valor">💰 R$ ${bolao.data.valorPorCota || 0},00 <span style="font-size:12px;">/ cota</span></div>
                             ${dataTexto}
                         </div>
-                        <div class="bolao-stats">
+                        
+                        <!-- ESTATÍSTICAS DE PESSOAS -->
+                        <div style="margin-top: 8px; font-size: 12px; font-weight: bold; color: #475569;">👥 PESSOAS</div>
+                        <div class="bolao-stats" style="margin-top: 4px;">
                             <div class="stat-item">
-                                <div class="stat-number quitado">${totalQuitados}</div>
+                                <div class="stat-number quitado">${totalPessoasQuitadas}</div>
                                 <div class="stat-label">✅ QUITADOS</div>
                             </div>
                             <div class="stat-item">
-                                <div class="stat-number andamento">${totalEmAndamento}</div>
+                                <div class="stat-number andamento">${totalPessoasEmAndamento}</div>
                                 <div class="stat-label">⏳ EM ANDAMENTO</div>
                             </div>
                             <div class="stat-item">
-                                <div class="stat-number">${participantes.length}</div>
+                                <div class="stat-number">${totalPessoas}</div>
                                 <div class="stat-label">👥 TOTAL</div>
                             </div>
                         </div>
+                        
+                        <!-- ESTATÍSTICAS DE COTAS -->
+                        <div style="margin-top: 12px; font-size: 12px; font-weight: bold; color: #475569;">🎟️ COTAS</div>
+                        <div class="bolao-stats" style="margin-top: 4px;">
+                            <div class="stat-item">
+                                <div class="stat-number quitado" style="color: #10b981;">${totalCotasQuitadas}</div>
+                                <div class="stat-label">✅ QUITADAS</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-number andamento" style="color: #f59e0b;">${totalCotasEmAndamento}</div>
+                                <div class="stat-label">⏳ EM ANDAMENTO</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-number" style="color: #3b82f6;">${totalCotas}</div>
+                                <div class="stat-label">🎟️ TOTAL</div>
+                            </div>
+                        </div>
+                        
                         <button class="btn-ver-participantes" data-id="${bolao.id}">
                             👁 VER LISTA DE PARTICIPANTES
                         </button>
