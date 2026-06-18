@@ -395,40 +395,177 @@ function exibirCartoesAdmin() {
 }
 
 async function editarCartao(id) {
-    const doc = await db.collection('cartoes').doc(id).get();
-    const cartao = doc.data();
-    const maxNumeros = loteriaAdmin === 'mega' ? 6 : (loteriaAdmin === 'lotofacil' ? 15 : 5);
-    const maxValor = loteriaAdmin === 'mega' ? 60 : (loteriaAdmin === 'lotofacil' ? 25 : 80);
-    
-    const novosNumeros = prompt(`Editar números (separados por espaço):\nAtuais: ${cartao.numeros.join(', ')}\n${loteriaAdmin === 'mega' ? 'MEGA: 6 números (1-60)' : loteriaAdmin === 'lotofacil' ? 'LOTOFÁCIL: 15 números (1-25)' : 'QUINA: mínimo 5 números (1-80)'}`, cartao.numeros.join(' '));
-    if (!novosNumeros) return;
-    
-    const numeros = novosNumeros.match(/\d+/g).map(Number);
-    if (numeros.length < maxNumeros) { showToast(`❌ Mínimo ${maxNumeros} números!`, 'error'); return; }
-    if (numeros.some(n => n < 1 || n > maxValor)) { showToast(`❌ Números devem estar entre 1 e ${maxValor}!`, 'error'); return; }
-    numeros.sort((a,b) => a-b);
-    
-    const tipoAtual = cartao.tipoParticipacao || 'exclusivo';
-    const novoTipo = prompt(`Editar tipo de participação:\nAtual: ${tipoAtual === 'cota' ? '🎟️ Cota de Bolão' : '👥 Grupo Exclusivo'}\n\nDigite 1 para Grupo Exclusivo\nDigite 2 para Cota de Bolão`, tipoAtual === 'cota' ? '2' : '1');
-    
-    let tipoParticipacao = 'exclusivo';
-    if (novoTipo === '2') {
-        tipoParticipacao = 'cota';
-    } else if (novoTipo === '1') {
-        tipoParticipacao = 'exclusivo';
-    } else {
-        tipoParticipacao = tipoAtual;
+    try {
+        const doc = await db.collection('cartoes').doc(id).get();
+        if (!doc.exists) {
+            showToast('❌ Cartão não encontrado', 'error');
+            return;
+        }
+        
+        const cartao = doc.data();
+        const loteria = cartao.tipo || loteriaAdmin;
+        
+        // Definir regras da loteria
+        const regras = {
+            mega: { min: 6, max: 60, label: 'MEGA-SENA' },
+            lotofacil: { min: 15, max: 25, label: 'LOTOFÁCIL' },
+            quina: { min: 5, max: 80, label: 'QUINA' }
+        };
+        
+        const regra = regras[loteria] || regras.mega;
+        
+        // Criar modal de edição
+        let modal = document.getElementById('modalEditarCartao');
+        if (modal) modal.remove();
+        
+        modal = document.createElement('div');
+        modal.id = 'modalEditarCartao';
+        modal.style.cssText = `
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); z-index: 10000;
+            display: flex; justify-content: center; align-items: center;
+            padding: 20px;
+        `;
+        
+        const numerosAtuais = (cartao.numeros || []).join(' ');
+        const concursoAtual = cartao.concurso || '';
+        const bolaoAtual = cartao.bolao || '';
+        const tipoAtual = cartao.tipoParticipacao || 'exclusivo';
+        
+        modal.innerHTML = `
+            <div style="background: white; border-radius: 20px; max-width: 500px; width: 100%; padding: 25px; max-height: 90vh; overflow-y: auto;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="margin: 0; font-size: 18px;">✏️ EDITAR CARTÃO</h3>
+                    <button id="fecharModalEditar" style="background: none; border: none; font-size: 24px; cursor: pointer;">✕</button>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 5px; color: #1e293b;">🎯 LOTERIA</label>
+                    <select id="editarLoteria" style="width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #e2e8f0; font-size: 14px; background: #f8fafc;">
+                        <option value="mega" ${loteria === 'mega' ? 'selected' : ''}>MEGA-SENA</option>
+                        <option value="lotofacil" ${loteria === 'lotofacil' ? 'selected' : ''}>LOTOFÁCIL</option>
+                        <option value="quina" ${loteria === 'quina' ? 'selected' : ''}>QUINA</option>
+                    </select>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 5px; color: #1e293b;">📌 CONCURSO</label>
+                    <input type="number" id="editarConcurso" value="${concursoAtual}" style="width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #e2e8f0; font-size: 14px;" placeholder="Ex: 2700">
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 5px; color: #1e293b;">👥 BOLÃO</label>
+                    <input type="text" id="editarBolao" value="${bolaoAtual}" style="width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #e2e8f0; font-size: 14px;" placeholder="Ex: Quina de São João 2026">
+                    <div style="font-size: 11px; color: #64748b; margin-top: 4px;">💡 Nome do bolão para identificar no índice</div>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 5px; color: #1e293b;">🔢 NÚMEROS (separados por espaço)</label>
+                    <input type="text" id="editarNumeros" value="${numerosAtuais}" style="width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #e2e8f0; font-size: 14px;" placeholder="Ex: 12 15 23 34 45 56">
+                    <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
+                        💡 ${regra.label}: mínimo ${regra.min} números (1-${regra.max})
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 5px; color: #1e293b;">🎟️ TIPO DE PARTICIPAÇÃO</label>
+                    <select id="editarTipoParticipacao" style="width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #e2e8f0; font-size: 14px; background: #f8fafc;">
+                        <option value="exclusivo" ${tipoAtual === 'exclusivo' ? 'selected' : ''}>👥 Grupo Exclusivo</option>
+                        <option value="cota" ${tipoAtual === 'cota' ? 'selected' : ''}>🎟️ Cota de Bolão</option>
+                    </select>
+                </div>
+                
+                <button id="salvarEdicao" style="width: 100%; padding: 14px; background: #3b82f6; color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 16px; cursor: pointer;">
+                    💾 SALVAR ALTERAÇÕES
+                </button>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Fechar modal
+        document.getElementById('fecharModalEditar').onclick = () => modal.remove();
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+        
+        // Salvar edição
+        document.getElementById('salvarEdicao').onclick = async () => {
+            const novaLoteria = document.getElementById('editarLoteria').value;
+            const novoConcurso = document.getElementById('editarConcurso').value.trim();
+            const novoBolao = document.getElementById('editarBolao').value.trim() || 'Sem Bolão';
+            const numerosTexto = document.getElementById('editarNumeros').value.trim();
+            const novoTipo = document.getElementById('editarTipoParticipacao').value;
+            
+            // VALIDAÇÕES
+            if (!novoConcurso) {
+                showToast('⚠️ Informe o concurso!', 'warning');
+                return;
+            }
+            
+            if (!numerosTexto) {
+                showToast('⚠️ Informe os números!', 'warning');
+                return;
+            }
+            
+            const numeros = numerosTexto.match(/\d+/g).map(Number);
+            const regraAtual = regras[novaLoteria] || regras.mega;
+            
+            if (numeros.length < regraAtual.min) {
+                showToast(`❌ ${regraAtual.label}: mínimo ${regraAtual.min} números!`, 'error');
+                return;
+            }
+            
+            if (numeros.some(n => n < 1 || n > regraAtual.max)) {
+                showToast(`❌ Números devem estar entre 1 e ${regraAtual.max}!`, 'error');
+                return;
+            }
+            
+            // Verificar duplicados
+            const numerosUnicos = [...new Set(numeros)];
+            if (numerosUnicos.length !== numeros.length) {
+                showToast('❌ Números duplicados! Remova repetidos.', 'error');
+                return;
+            }
+            
+            numeros.sort((a, b) => a - b);
+            
+            // Se mudou a loteria, verificar se o documento existe na nova collection
+            try {
+                // ATUALIZAR O CARTÃO
+                await db.collection('cartoes').doc(id).update({
+                    tipo: novaLoteria,
+                    concurso: novoConcurso,
+                    bolao: novoBolao,
+                    numeros: numeros,
+                    totalNumeros: numeros.length,
+                    tipoParticipacao: novoTipo,
+                    admin: true,
+                    dataAtualizacao: new Date().toISOString()
+                });
+                
+                showToast('✅ Cartão atualizado com sucesso!', 'success');
+                modal.remove();
+                carregarDadosAdmin();
+                
+            } catch (error) {
+                console.error('Erro ao atualizar:', error);
+                showToast('❌ Erro ao atualizar cartão: ' + error.message, 'error');
+            }
+        };
+        
+        // Atualizar dica ao mudar loteria
+        document.getElementById('editarLoteria').onchange = function() {
+            const loteriaSelecionada = this.value;
+            const regraAtual = regras[loteriaSelecionada] || regras.mega;
+            const dica = document.querySelector('#modalEditarCartao .form-group small');
+            if (dica) {
+                dica.textContent = `💡 ${regraAtual.label}: mínimo ${regraAtual.min} números (1-${regraAtual.max})`;
+            }
+        };
+        
+    } catch (error) {
+        console.error('Erro ao abrir edição:', error);
+        showToast('❌ Erro ao carregar cartão para edição', 'error');
     }
-    
-    await db.collection('cartoes').doc(id).update({ 
-        numeros, 
-        totalNumeros: numeros.length, 
-        tipoParticipacao: tipoParticipacao,
-        admin: true, 
-        dataAtualizacao: new Date().toISOString() 
-    });
-    showToast('✅ Cartão atualizado!', 'success');
-    carregarDadosAdmin();
 }
 
 async function duplicarCartao(id) {
