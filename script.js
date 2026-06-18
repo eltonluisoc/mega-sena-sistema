@@ -1,4 +1,17 @@
-// ========== FUNÇÕES DE LOADING ÚNICO ==========
+let cartoes = [];
+let resultadosMega = {};
+let resultadosLotofacil = {};
+let resultadosQuina = {};
+let loteriaAtual = 'mega';
+let ultimoResultadoConcurso = null;
+let ultimoResultadoDados = null;
+let pixGeral = '';
+let cacheResultadosBuscados = {};
+let dadosCarregados = false;
+let resultadoSalvo = null;
+let loadingActive = false;  // ← VARIÁVEL ADICIONADA
+// 
+// // ========== FUNÇÕES DE LOADING ÚNICO ==========
 function showLoading(mensagem = 'Carregando...') {
     if (loadingActive) return;
     loadingActive = true;
