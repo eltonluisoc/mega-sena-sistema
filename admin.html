@@ -386,109 +386,7 @@
         </div>
 
         <!-- ============================================ -->
-        <!-- SEÇÃO 3: CADASTRO RÁPIDO -->
-        <!-- ============================================ -->
-        <div class="card">
-            <div class="card-header bg-orange" onclick="toggleCard(this)">
-                ⚡ ADICIONAR PARTICIPANTE RÁPIDO
-                <span class="toggle-icon">▼</span>
-            </div>
-            <div class="card-body">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>👤 Nome</label>
-                        <input type="text" id="rapidoNome" class="form-control" placeholder="Ex: João Silva">
-                    </div>
-                    <div class="form-group">
-                        <label>🎯 Bolão</label>
-                        <select id="rapidoBolaoSelect" class="form-control">
-                            <option value="">Selecione</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>💰 Valor Pago</label>
-                        <input type="number" id="rapidoValor" class="form-control" placeholder="Ex: 50">
-                    </div>
-                    <div class="form-group">
-                        <label>🎲 Loteria</label>
-                        <select id="rapidoLoteria" class="form-control">
-                            <option value="mega">MEGA-SENA</option>
-                            <option value="lotofacil">LOTOFÁCIL</option>
-                            <option value="quina">QUINA</option>
-                        </select>
-                    </div>
-                </div>
-                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                    <button id="btnAdicionarRapido" class="btn btn-warning" style="flex:1;">⚡ ADICIONAR</button>
-                    <button id="btnGerarWhatsApp" class="btn btn-success" style="flex:1;">📱 GERAR LISTA</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- ============================================ -->
-        <!-- SEÇÃO 4: GERENCIAR BOLÕES -->
-        <!-- ============================================ -->
-        <div class="card">
-            <div class="card-header bg-purple" onclick="toggleCard(this)">
-                📋 GERENCIAR BOLÕES
-                <span class="toggle-icon">▼</span>
-            </div>
-            <div class="card-body">
-                <div id="listaBoloes" style="max-height: 400px; overflow-y: auto;">
-                    <div class="empty-state">Carregando bolões...</div>
-                </div>
-                <button id="btnSalvarSelecao" class="btn btn-primary btn-block" style="margin-top: 15px;">💾 SALVAR CONFIGURAÇÕES</button>
-            </div>
-        </div>
-
-        <!-- ============================================ -->
-        <!-- SEÇÃO 5: TOKENS DE ACESSO -->
-        <!-- ============================================ -->
-        <div class="card">
-            <div class="card-header bg-purple" onclick="toggleCard(this)">
-                🔑 TOKENS DE ACESSO
-                <span class="toggle-icon">▼</span>
-            </div>
-            <div class="card-body">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>👤 Nome do Participante</label>
-                        <input type="text" id="tokenNome" class="form-control" placeholder="Ex: José Eduardo">
-                    </div>
-                    <div class="form-group">
-                        <label>📞 Telefone (com DDD)</label>
-                        <input type="text" id="tokenTelefone" class="form-control" placeholder="61999999999">
-                    </div>
-                </div>
-                <button id="btnGerarToken" class="btn btn-primary">🔑 GERAR TOKEN</button>
-                <div id="listaTokens" style="max-height: 300px; overflow-y: auto; margin-top: 15px;">
-                    <div class="empty-state">Nenhum token gerado</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ============================================ -->
-        <!-- SEÇÃO 6: PARTICIPANTES POR BOLÃO -->
-        <!-- ============================================ -->
-        <div class="card">
-            <div class="card-header bg-purple" onclick="toggleCard(this)">
-                👥 PARTICIPANTES POR BOLÃO
-                <span class="toggle-icon">▼</span>
-            </div>
-            <div class="card-body">
-                <select id="bolaoSelectParticipantes" class="form-control" style="margin-bottom: 15px;">
-                    <option value="">Selecione um bolão</option>
-                </select>
-                <div id="listaParticipantesAdmin" style="max-height: 500px; overflow-y: auto;">
-                    <div class="empty-state">Selecione um bolão para ver os participantes</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ============================================ -->
-        <!-- SEÇÃO 7: CADASTRO E LISTA DE CARTÕES (UNIFICADA) -->
+        <!-- SEÇÃO 3: CADASTRO E LISTA DE CARTÕES (UNIFICADA) -->
         <!-- ============================================ -->
         <div class="card">
             <div class="card-header bg-green" onclick="toggleCard(this)">
@@ -496,7 +394,7 @@
                 <span class="toggle-icon">▼</span>
             </div>
             <div class="card-body">
-                <!-- SELETOR DE LOTERIA (AGORA AQUI) -->
+                <!-- SELETOR DE LOTERIA -->
                 <div style="margin-bottom: 20px; padding: 12px; background: #f1f5f9; border-radius: 12px;">
                     <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 8px; color: #1e293b;">🎯 SELECIONAR LOTERIA:</label>
                     <div class="loteria-selector-admin" style="display: flex; gap: 8px;">
@@ -572,6 +470,108 @@
                     <div id="cartoesLista" class="cartoes-grid" style="max-height: 500px; overflow-y: auto;">
                         <div class="empty-state">Nenhum cartão cadastrado</div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- SEÇÃO 4: CADASTRO RÁPIDO -->
+        <!-- ============================================ -->
+        <div class="card">
+            <div class="card-header bg-orange" onclick="toggleCard(this)">
+                ⚡ ADICIONAR PARTICIPANTE RÁPIDO
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="card-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>👤 Nome</label>
+                        <input type="text" id="rapidoNome" class="form-control" placeholder="Ex: João Silva">
+                    </div>
+                    <div class="form-group">
+                        <label>🎯 Bolão</label>
+                        <select id="rapidoBolaoSelect" class="form-control">
+                            <option value="">Selecione</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>💰 Valor Pago</label>
+                        <input type="number" id="rapidoValor" class="form-control" placeholder="Ex: 50">
+                    </div>
+                    <div class="form-group">
+                        <label>🎲 Loteria</label>
+                        <select id="rapidoLoteria" class="form-control">
+                            <option value="mega">MEGA-SENA</option>
+                            <option value="lotofacil">LOTOFÁCIL</option>
+                            <option value="quina">QUINA</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button id="btnAdicionarRapido" class="btn btn-warning" style="flex:1;">⚡ ADICIONAR</button>
+                    <button id="btnGerarWhatsApp" class="btn btn-success" style="flex:1;">📱 GERAR LISTA</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- SEÇÃO 5: GERENCIAR BOLÕES -->
+        <!-- ============================================ -->
+        <div class="card">
+            <div class="card-header bg-purple" onclick="toggleCard(this)">
+                📋 GERENCIAR BOLÕES
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="card-body">
+                <div id="listaBoloes" style="max-height: 400px; overflow-y: auto;">
+                    <div class="empty-state">Carregando bolões...</div>
+                </div>
+                <button id="btnSalvarSelecao" class="btn btn-primary btn-block" style="margin-top: 15px;">💾 SALVAR CONFIGURAÇÕES</button>
+            </div>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- SEÇÃO 6: TOKENS DE ACESSO -->
+        <!-- ============================================ -->
+        <div class="card">
+            <div class="card-header bg-purple" onclick="toggleCard(this)">
+                🔑 TOKENS DE ACESSO
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="card-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>👤 Nome do Participante</label>
+                        <input type="text" id="tokenNome" class="form-control" placeholder="Ex: José Eduardo">
+                    </div>
+                    <div class="form-group">
+                        <label>📞 Telefone (com DDD)</label>
+                        <input type="text" id="tokenTelefone" class="form-control" placeholder="61999999999">
+                    </div>
+                </div>
+                <button id="btnGerarToken" class="btn btn-primary">🔑 GERAR TOKEN</button>
+                <div id="listaTokens" style="max-height: 300px; overflow-y: auto; margin-top: 15px;">
+                    <div class="empty-state">Nenhum token gerado</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- SEÇÃO 7: PARTICIPANTES POR BOLÃO -->
+        <!-- ============================================ -->
+        <div class="card">
+            <div class="card-header bg-purple" onclick="toggleCard(this)">
+                👥 PARTICIPANTES POR BOLÃO
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="card-body">
+                <select id="bolaoSelectParticipantes" class="form-control" style="margin-bottom: 15px;">
+                    <option value="">Selecione um bolão</option>
+                </select>
+                <div id="listaParticipantesAdmin" style="max-height: 500px; overflow-y: auto;">
+                    <div class="empty-state">Selecione um bolão para ver os participantes</div>
                 </div>
             </div>
         </div>
