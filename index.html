@@ -51,33 +51,40 @@
         </div>
 
         <!-- Card ÚNICO: Seleção e Conferência -->
-        <div class="card">
-            <div class="card-header bg-blue" id="cardHeaderConferencia">🎯 CONFERIR RESULTADOS - MEGA</div>
-            <div class="card-body">
-                <div class="form-group">
-                    <label>📌 CONCURSO:</label>
-                    <select id="concursoSelect">
-                        <option value="">Carregando concursos...</option>
-                    </select>
-                </div>
-                
-                <!-- Área de cartões -->
-                <div id="cartoesArea">
-                    <div class="empty-state">📋 Selecione um concurso para ver os cartões</div>
-                </div>
-                
-                <div id="loadingIndicator" style="display: none; text-align: center; padding: 10px; color: #3b82f6;">
-                    <div>🔄 Carregando dados...</div>
-                    <div id="loadingPercent" style="font-size: 12px; font-weight: bold; margin-top: 5px;">0%</div>
-                </div>
-                
-                <button id="btnConferir" style="margin-bottom: 15px;">🎲 CONFERIR RESULTADOS</button>
-                
-                <div id="resultadosArea">
-                    <div class="empty-state">🔍 Clique em "Conferir Resultados" para ver os acertos</div>
-                </div>
-            </div>
+<div class="card">
+    <div class="card-header bg-blue" id="cardHeaderConferencia">🎯 CONFERIR RESULTADOS - MEGA</div>
+    <div class="card-body">
+        <div class="form-group">
+            <label>📌 CONCURSO:</label>
+            <select id="concursoSelect">
+                <option value="">Carregando concursos...</option>
+            </select>
         </div>
+        
+        <div class="form-group">
+            <label>👥 BOLÃO:</label>
+            <select id="bolaoSelect">
+                <option value="todos">Todos os bolões</option>
+            </select>
+        </div>
+        
+        <!-- Área de cartões -->
+        <div id="cartoesArea">
+            <div class="empty-state">📋 Selecione um concurso para ver os cartões</div>
+        </div>
+        
+        <div id="loadingIndicator" style="display: none; text-align: center; padding: 10px; color: #3b82f6;">
+            <div>🔄 Carregando dados...</div>
+            <div id="loadingPercent" style="font-size: 12px; font-weight: bold; margin-top: 5px;">0%</div>
+        </div>
+        
+        <button id="btnConferir" style="margin-bottom: 15px;">🎲 CONFERIR RESULTADOS</button>
+        
+        <div id="resultadosArea">
+            <div class="empty-state">🔍 Clique em "Conferir Resultados" para ver os acertos</div>
+        </div>
+    </div>
+</div>
 
         <!-- Card: Bolões Especiais -->
         <div class="card" id="cardBolaoAtivo" style="display: none;">
