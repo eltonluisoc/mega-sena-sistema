@@ -685,7 +685,17 @@ async function carregarDados() {
         }
         
         dadosCarregados = true;
-        atualizarSelectBoloes();
+        
+        // ATUALIZAR SELECT DE BOLÕES (assíncrono)
+        await atualizarSelectBoloesAsync();
+        
+        // SELECIONAR AUTOMATICAMENTE O ÚLTIMO BOLÃO
+        const bolaoSelect = document.getElementById('bolaoSelect');
+        if (bolaoSelect && bolaoSelect.options.length > 1) {
+            const ultimoIndice = bolaoSelect.options.length - 1;
+            bolaoSelect.selectedIndex = ultimoIndice;
+            console.log(`✅ Bolão selecionado automaticamente: ${bolaoSelect.value}`);
+        }
         
         const concursoAtual = select ? select.value : null;
         
@@ -780,6 +790,51 @@ function atualizarSelectBoloes() {
     select.innerHTML = html;
 }
 
+// ========== ATUALIZAR SELECT DE BOLÕES (VERSÃO ASSÍNCRONA) ==========
+async function atualizarSelectBoloesAsync() {
+    const select = document.getElementById('bolaoSelect');
+    if (!select) return;
+    
+    const concurso = document.getElementById('concursoSelect').value;
+    if (!concurso) {
+        select.innerHTML = '<option value="todos">Todos os bolões</option>';
+        return;
+    }
+    
+    try {
+        // Buscar cartões deste concurso para extrair os bolões
+        const snapshot = await db.collection('cartoes')
+            .where('tipo', '==', loteriaAtual)
+            .where('concurso', '==', concurso)
+            .get();
+        
+        const boloesSet = new Set();
+        snapshot.forEach(doc => {
+            const d = doc.data();
+            if (d && d.bolao) {
+                boloesSet.add(d.bolao);
+            }
+        });
+        
+        const boloesLista = Array.from(boloesSet);
+        let html = '<option value="todos">Todos os bolões</option>';
+        for (const bolao of boloesLista) {
+            html += `<option value="${bolao}">${bolao}</option>`;
+        }
+        select.innerHTML = html;
+        console.log(`✅ ${boloesLista.length} bolões carregados para ${loteriaAtual} concurso ${concurso}`);
+        
+        // Se tiver bolões, seleciona o último (mais recente)
+        if (boloesLista.length > 0) {
+            select.value = boloesLista[boloesLista.length - 1];
+        }
+        
+    } catch (error) {
+        console.error('Erro ao buscar bolões:', error);
+        select.innerHTML = '<option value="todos">Todos os bolões</option>';
+    }
+}
+
 function atualizarSelectConcursos() {
     const concursosDisponiveis = window.concursosDisponiveis || {};
     const concursos = concursosDisponiveis[loteriaAtual] || [];
@@ -831,12 +886,27 @@ async function setLoteria(loteria) {
     }
     
     limparEstadoCompleto();
+    
+    // 1. ATUALIZAR O SELECT DE CONCURSOS
     atualizarSelectConcursos();
     
+    // 2. PEGAR O PRIMEIRO CONCURSO (MAIS RECENTE)
     const select = document.getElementById('concursoSelect');
     const concursoAtual = select ? select.value : null;
     
     if (concursoAtual) {
+        // 3. ATUALIZAR O SELECT DE BOLÕES para este concurso
+        await atualizarSelectBoloesAsync();
+        
+        // 4. SELECIONAR O ÚLTIMO BOLÃO AUTOMATICAMENTE
+        const bolaoSelect = document.getElementById('bolaoSelect');
+        if (bolaoSelect && bolaoSelect.options.length > 1) {
+            const ultimoIndice = bolaoSelect.options.length - 1;
+            bolaoSelect.selectedIndex = ultimoIndice;
+            console.log(`✅ Bolão selecionado automaticamente: ${bolaoSelect.value}`);
+        }
+        
+        // 5. VERIFICAR RESULTADO CONFERIDO E EXIBIR
         const resultadoConferido = await verificarResultadoConferido(loteriaAtual, concursoAtual);
         if (resultadoConferido) {
             await exibirResultadoSalvo(loteriaAtual, concursoAtual, resultadoConferido);
@@ -1660,36 +1730,45 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // CHANGE do select com limpeza completa
     document.getElementById('concursoSelect').addEventListener('change', async () => {
-        console.log('🔄 Concurso alterado, limpando estado...');
-        limparEstadoCompleto();
+    console.log('🔄 Concurso alterado, limpando estado...');
+    limparEstadoCompleto();
+    
+    const concurso = document.getElementById('concursoSelect').value;
+    if (concurso) {
+        // ATUALIZAR SELECT DE BOLÕES (assíncrono)
+        await atualizarSelectBoloesAsync();
         
-        const concurso = document.getElementById('concursoSelect').value;
-        if (concurso) {
-            atualizarSelectBoloes();
-            
-            const resultadoConferido = await verificarResultadoConferido(loteriaAtual, concurso);
-            if (resultadoConferido) {
-                console.log('✅ Resultado já conferido para este concurso, exibindo direto');
-                await exibirResultadoSalvo(loteriaAtual, concurso, resultadoConferido);
-            } else {
-                console.log('📋 Nenhum resultado conferido, mostrando cartões');
-                await mostrarCartoes();
-            }
-        } else {
-            const cartoesArea = document.getElementById('cartoesArea');
-            if (cartoesArea) {
-                cartoesArea.innerHTML = '<div class="empty-state">📋 Selecione um concurso para ver os cartões</div>';
-            }
-            const resultadosArea = document.getElementById('resultadosArea');
-            if (resultadosArea) {
-                resultadosArea.innerHTML = '<div class="empty-state">🔍 Clique em "Conferir Resultados" para ver os acertos</div>';
-            }
-            const bolaoSelect = document.getElementById('bolaoSelect');
-            if (bolaoSelect) {
-                bolaoSelect.innerHTML = '<option value="todos">Todos os bolões</option>';
-            }
+        // Selecionar automaticamente o último bolão
+        const bolaoSelect = document.getElementById('bolaoSelect');
+        if (bolaoSelect && bolaoSelect.options.length > 1) {
+            const ultimoIndice = bolaoSelect.options.length - 1;
+            bolaoSelect.selectedIndex = ultimoIndice;
         }
-    });
+        
+        // Verificar se já tem resultado conferido para este novo concurso
+        const resultadoConferido = await verificarResultadoConferido(loteriaAtual, concurso);
+        if (resultadoConferido) {
+            console.log('✅ Resultado já conferido para este concurso, exibindo direto');
+            await exibirResultadoSalvo(loteriaAtual, concurso, resultadoConferido);
+        } else {
+            console.log('📋 Nenhum resultado conferido, mostrando cartões');
+            await mostrarCartoes();
+        }
+    } else {
+        const cartoesArea = document.getElementById('cartoesArea');
+        if (cartoesArea) {
+            cartoesArea.innerHTML = '<div class="empty-state">📋 Selecione um concurso para ver os cartões</div>';
+        }
+        const resultadosArea = document.getElementById('resultadosArea');
+        if (resultadosArea) {
+            resultadosArea.innerHTML = '<div class="empty-state">🔍 Clique em "Conferir Resultados" para ver os acertos</div>';
+        }
+        const bolaoSelect = document.getElementById('bolaoSelect');
+        if (bolaoSelect) {
+            bolaoSelect.innerHTML = '<option value="todos">Todos os bolões</option>';
+        }
+    }
+});
     
     // Listener para o select de bolões
     document.getElementById('bolaoSelect').addEventListener('change', async () => {
