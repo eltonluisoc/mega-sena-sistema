@@ -766,6 +766,7 @@ async function carregarBoloesParaGerenciar() {
                         <label style="font-size: 11px; margin-left: auto;">⭐ DESTAQUE:</label>
                         <input type="checkbox" class="checkbox-destaque" data-id="${bolao.id}" ${destaqueMap[bolao.id] ? 'checked' : ''} style="width: 18px; height: 18px;">
                         <button class="btn-excluir-bolao" data-id="${bolao.id}" data-titulo="${bolao.titulo}" style="background: #ef4444; color: white; border: none; padding: 4px 12px; border-radius: 20px; cursor: pointer; font-size: 11px;">🗑️ EXCLUIR</button>
+                        <button class="btn-link-participantes" data-id="${bolao.id}" style="background: #3b82f6; color: white; border: none; padding: 4px 12px; border-radius: 20px; cursor: pointer; font-size: 11px;">📋 LINK</button>
                     </div>
                     <div style="margin-left: 35px; margin-top: 8px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
                         <label style="font-size: 12px;">Status:</label>
@@ -1278,6 +1279,34 @@ async function carregarReservas() {
         document.getElementById('listaReservas').innerHTML = '<div class="empty-state">❌ Erro ao carregar reservas</div>';
     }
 }
+
+// ============================================
+// GERAR LINKS DOS PARTICIPANTES
+// ============================================
+function gerarLinkParticipantes(bolaoId) {
+    const baseUrl = window.location.origin + '/mega-sena-sistema/participantes.html';
+    return `${baseUrl}?bolao=${bolaoId}`;
+}
+
+// Adicionar botão na lista de bolões para gerar link
+async function adicionarBotaoLinkParticipantes() {
+    // Esta função será chamada ao carregar os bolões
+    document.querySelectorAll('.btn-link-participantes').forEach(btn => {
+        btn.onclick = () => {
+            const bolaoId = btn.dataset.id;
+            const link = gerarLinkParticipantes(bolaoId);
+            
+            // Copiar link
+            navigator.clipboard.writeText(link).then(() => {
+                showToast('📋 Link copiado! Compartilhe no WhatsApp', 'success');
+            }).catch(() => {
+                // Fallback: mostrar o link
+                prompt('Copie o link:', link);
+            });
+        };
+    });
+}
+
 
 async function mostrarHistorico(id, nome) {
     const div = document.getElementById(`historico-${id}`);

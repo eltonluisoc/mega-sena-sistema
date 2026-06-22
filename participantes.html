@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Participantes - Bolões Aleatórios</title>
+    <meta name="theme-color" content="#3b82f6">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #3b82f6 0%, #10b981 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            margin-bottom: 16px;
+        }
+
+        .card-header {
+            padding: 20px 24px;
+            font-weight: bold;
+            font-size: 18px;
+            color: white;
+            background: #3b82f6;
+            text-align: center;
+        }
+
+        .card-header .subtitle {
+            font-size: 12px;
+            font-weight: normal;
+            opacity: 0.8;
+            margin-top: 4px;
+        }
+
+        .card-body {
+            padding: 20px 24px;
+        }
+
+        .participante-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .participante-item:last-child {
+            border-bottom: none;
+        }
+
+        .participante-nome {
+            font-size: 15px;
+            font-weight: 500;
+            color: #1e293b;
+        }
+
+        .participante-cotas {
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #94a3b8;
+        }
+
+        .empty-state .icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+
+        .total-participantes {
+            text-align: center;
+            padding: 12px;
+            background: #f1f5f9;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            color: #475569;
+        }
+
+        .total-participantes strong {
+            color: #1e293b;
+            font-size: 18px;
+        }
+
+        .btn-voltar {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background: #64748b;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            text-align: center;
+            text-decoration: none;
+            margin-top: 12px;
+        }
+
+        .btn-voltar:hover {
+            background: #475569;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #94a3b8;
+        }
+
+        .loading .spinner {
+            display: inline-block;
+            animation: spin 1s linear infinite;
+            font-size: 32px;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+
+        .status-aberto {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-andamento {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-encerrado {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 20px;
+            font-size: 11px;
+            color: rgba(255,255,255,0.7);
+        }
+
+        @media (max-width: 480px) {
+            body { padding: 12px; }
+            .card-body { padding: 16px; }
+            .participante-nome { font-size: 14px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="card-header">
+                🎲 PARTICIPANTES
+                <div class="subtitle" id="bolaoTitulo">Carregando...</div>
+            </div>
+            <div class="card-body" id="conteudo">
+                <div class="loading">
+                    <div class="spinner">🔄</div>
+                    <div>Carregando participantes...</div>
+                </div>
+            </div>
+        </div>
+
+        <a href="index.html" class="btn-voltar">⬅️ VOLTAR PARA O SITE</a>
+        
+        <div class="footer">
+            © 2026 Bolões Aleatórios - Lista de Participantes
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script>
+        // ============================================
+        // PÁGINA DE PARTICIPANTES
+        // ============================================
+        async function carregarParticipantes() {
+            const conteudo = document.getElementById('conteudo');
+            const tituloEl = document.getElementById('bolaoTitulo');
+            
+            // Pegar o ID do bolão da URL
+            const params = new URLSearchParams(window.location.search);
+            const bolaoId = params.get('bolao');
+            
+            if (!bolaoId) {
+                conteudo.innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">⚠️</div>
+                        <div>Nenhum bolão selecionado</div>
+                        <div style="font-size: 12px; margin-top: 8px;">Use um link válido para acessar</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            try {
+                // Buscar dados do bolão
+                const doc = await db.collection('participantes').doc(bolaoId).get();
+                
+                if (!doc.exists) {
+                    conteudo.innerHTML = `
+                        <div class="empty-state">
+                            <div class="icon">❌</div>
+                            <div>Bolão não encontrado</div>
+                            <div style="font-size: 12px; margin-top: 8px;">Verifique se o link está correto</div>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                const bolao = doc.data();
+                const participantes = bolao.participantes || [];
+                const titulo = bolao.titulo || 'Bolão';
+                const loteria = bolao.loteria || '?';
+                const concurso = bolao.concurso || '?';
+                const valorPorCota = bolao.valorPorCota || 0;
+                
+                // Atualizar título
+                const loteriaNomes = {
+                    'mega': 'MEGA-SENA',
+                    'lotofacil': 'LOTOFÁCIL',
+                    'quina': 'QUINA'
+                };
+                tituloEl.textContent = `${titulo} - ${loteriaNomes[loteria] || loteria.toUpperCase()} | Concurso ${concurso}`;
+                
+                // Ordenar participantes: pagos primeiro
+                const participantesOrdenados = participantes.sort((a, b) => {
+                    const aPago = (a.situacao === 'quitado' || a.situacao === 'pago');
+                    const bPago = (b.situacao === 'quitado' || b.situacao === 'pago');
+                    if (aPago && !bPago) return -1;
+                    if (!aPago && bPago) return 1;
+                    return a.nome.localeCompare(b.nome);
+                });
+                
+                if (participantesOrdenados.length === 0) {
+                    conteudo.innerHTML = `
+                        <div class="empty-state">
+                            <div class="icon">📭</div>
+                            <div>Nenhum participante cadastrado</div>
+                            <div style="font-size: 12px; margin-top: 8px;">Ainda não há participantes neste bolão</div>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // Calcular totais
+                const totalPagos = participantesOrdenados.filter(p => p.situacao === 'quitado' || p.situacao === 'pago').length;
+                const totalParticipantes = participantesOrdenados.length;
+                const totalCotas = participantesOrdenados.reduce((acc, p) => acc + (p.quantidadeCotas || 1), 0);
+                const totalCotasPagas = participantesOrdenados
+                    .filter(p => p.situacao === 'quitado' || p.situacao === 'pago')
+                    .reduce((acc, p) => acc + (p.quantidadeCotas || 1), 0);
+                
+                // Montar HTML
+                let html = `
+                    <div class="total-participantes">
+                        <div style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;">
+                            <div><strong>${totalParticipantes}</strong> participantes</div>
+                            <div><strong>${totalCotas}</strong> cotas</div>
+                            <div><strong>${totalPagos}</strong> pagos ✅</div>
+                            <div><strong>${totalCotasPagas}</strong> cotas pagas</div>
+                        </div>
+                        ${valorPorCota > 0 ? `<div style="margin-top: 6px; font-size: 12px;">💰 Valor por cota: R$ ${valorPorCota.toFixed(2)}</div>` : ''}
+                    </div>
+                `;
+                
+                for (const p of participantesOrdenados) {
+                    const quantidadeCotas = p.quantidadeCotas || 1;
+                    const isPago = (p.situacao === 'quitado' || p.situacao === 'pago');
+                    const statusIcon = isPago ? '✅' : '⏳';
+                    const statusText = isPago ? 'PAGO' : 'EM ANDAMENTO';
+                    const statusColor = isPago ? '#10b981' : '#f59e0b';
+                    
+                    html += `
+                        <div class="participante-item">
+                            <span class="participante-nome">${statusIcon} ${p.nome}</span>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span class="participante-cotas">🎟️ ${quantidadeCotas} cota${quantidadeCotas > 1 ? 's' : ''}</span>
+                                <span style="font-size: 10px; color: ${statusColor}; font-weight: 600;">${statusText}</span>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                conteudo.innerHTML = html;
+                
+            } catch (error) {
+                console.error('Erro ao carregar participantes:', error);
+                conteudo.innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">❌</div>
+                        <div>Erro ao carregar participantes</div>
+                        <div style="font-size: 12px; margin-top: 8px;">Tente novamente mais tarde</div>
+                    </div>
+                `;
+            }
+        }
+        
+        // Inicializar
+        document.addEventListener('DOMContentLoaded', carregarParticipantes);
+    </script>
+</body>
+</html>
