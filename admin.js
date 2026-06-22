@@ -27,10 +27,17 @@ function showToast(message, type = 'info') {
 
 function verificarAutenticacao() {
     const autenticado = localStorage.getItem('admin_autenticado');
+    const modal = document.getElementById('authModal');
+    if (!modal) {
+        console.error('❌ Modal de autenticação não encontrado!');
+        return;
+    }
     if (!autenticado) {
-        document.getElementById('authModal').classList.add('show');
+        modal.classList.add('show');
+        console.log('🔐 Exigindo autenticação');
     } else {
-        document.getElementById('authModal').classList.remove('show');
+        modal.classList.remove('show');
+        console.log('✅ Usuário autenticado');
         carregarPixConfig();
         carregarDadosAdmin();
     }
@@ -44,6 +51,8 @@ function autenticar() {
         verificarAutenticacao();
     } else {
         showToast('❌ Senha incorreta!', 'error');
+        document.getElementById('senhaAdmin').value = '';
+        document.getElementById('senhaAdmin').focus();
     }
 }
 
@@ -57,12 +66,10 @@ function setLoteriaAdmin(loteria) {
     console.log(`🔄 Mudando loteria admin para: ${loteria}`);
     loteriaAdmin = loteria;
     
-    // Atualizar botões
     document.getElementById('adminBtnMega').classList.remove('active');
     document.getElementById('adminBtnLotofacil').classList.remove('active');
     document.getElementById('adminBtnQuina').classList.remove('active');
     
-    // Remover estilo active de todos
     document.querySelectorAll('.loteria-btn-admin').forEach(btn => {
         btn.classList.remove('active');
         btn.style.transform = 'scale(1)';
@@ -70,7 +77,6 @@ function setLoteriaAdmin(loteria) {
         btn.style.boxShadow = 'none';
     });
     
-    // Adicionar active no selecionado
     const btnSelecionado = document.getElementById(`adminBtn${loteria.charAt(0).toUpperCase() + loteria.slice(1)}`);
     if (btnSelecionado) {
         btnSelecionado.classList.add('active');
@@ -79,7 +85,6 @@ function setLoteriaAdmin(loteria) {
         btnSelecionado.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.1)';
     }
     
-    // Atualizar dicas do formulário
     const labelNumeros = document.getElementById('labelNumeros');
     const dica = document.querySelector('.dica');
     
@@ -95,7 +100,6 @@ function setLoteriaAdmin(loteria) {
         else if (loteria === 'quina') dica.innerHTML = '💡 QUINA: mínimo 5 números (1-80)';
     }
     
-    // RECARREGAR OS DADOS para esta loteria
     carregarDadosAdmin();
     showToast(`🔄 Mudou para ${loteria.toUpperCase()}`, 'info');
 }
@@ -152,7 +156,6 @@ async function carregarDadosAdmin() {
 function exibirCartoesAdmin() {
     console.log(`📋 Exibindo cartões da loteria: ${loteriaAdmin}`);
     
-    // Filtrar pela loteria selecionada
     let cartoesFiltrados = cartoes.filter(c => c.tipo === loteriaAdmin);
     
     const filtro = document.getElementById('filtroConcurso').value;
@@ -212,7 +215,6 @@ function exibirCartoesAdmin() {
     }
     container.innerHTML = html;
     
-    // Eventos dos botões
     document.querySelectorAll('.btn-editar').forEach(btn => {
         btn.addEventListener('click', function() {
             editarCartao(this.dataset.id);
@@ -233,13 +235,12 @@ function exibirCartoesAdmin() {
     document.querySelectorAll('.checkbox-cartao').forEach(cb => cb.onchange = atualizarContador);
     atualizarContador();
     
-    // Atualizar total
     const totalDiv = document.getElementById('totalCartoes');
     if (totalDiv) totalDiv.innerHTML = cartoesFiltrados.length + ' cartões';
 }
 
 // ============================================
-// FUNÇÃO DE EDIÇÃO COMPLETA E REVISADA
+// FUNÇÃO DE EDIÇÃO COMPLETA
 // ============================================
 async function editarCartao(id) {
     console.log('📝 Abrindo edição do cartão:', id);
@@ -262,7 +263,6 @@ async function editarCartao(id) {
         
         const regra = regras[loteria] || regras.mega;
         
-        // Remover modal antigo se existir
         let modal = document.getElementById('modalEditarCartao');
         if (modal) modal.remove();
         
@@ -331,19 +331,16 @@ async function editarCartao(id) {
         
         document.body.appendChild(modal);
         
-        // FECHAR MODAL - Botão X
         document.getElementById('fecharModalEditar').addEventListener('click', function() {
             modal.remove();
         });
         
-        // FECHAR MODAL - Clique fora
         modal.addEventListener('click', function(e) {
             if (e.target === modal) {
                 modal.remove();
             }
         });
         
-        // ATUALIZAR DICA ao mudar loteria
         document.getElementById('editarLoteria').addEventListener('change', function() {
             const loteriaSelecionada = this.value;
             const regraAtual = regras[loteriaSelecionada] || regras.mega;
@@ -353,7 +350,6 @@ async function editarCartao(id) {
             }
         });
         
-        // SALVAR EDIÇÃO
         document.getElementById('salvarEdicao').addEventListener('click', async function() {
             const novaLoteria = document.getElementById('editarLoteria').value;
             const novoConcurso = document.getElementById('editarConcurso').value.trim();
@@ -361,7 +357,6 @@ async function editarCartao(id) {
             const numerosTexto = document.getElementById('editarNumeros').value.trim();
             const novoTipo = document.getElementById('editarTipoParticipacao').value;
             
-            // VALIDAÇÕES
             if (!novoConcurso) {
                 showToast('⚠️ Informe o concurso!', 'warning');
                 return;
@@ -580,7 +575,6 @@ function carregarConcursosAdmin() {
     }
 }
 
-
 // ============================================
 // ATUALIZAR DASHBOARD
 // ============================================
@@ -713,6 +707,120 @@ function recarregarLista() {
 }
 
 // ============================================
+// GERAR LINKS DOS PARTICIPANTES
+// ============================================
+function gerarLinkParticipantes(bolaoId) {
+    const baseUrl = window.location.origin + '/mega-sena-sistema/participantes.html';
+    return `${baseUrl}?bolao=${bolaoId}`;
+}
+
+// ============================================
+// MOSTRAR MODAL COM LINK PARA COPIAR
+// ============================================
+function mostrarModalLink(bolaoId, bolaoTitulo) {
+    const link = gerarLinkParticipantes(bolaoId);
+    
+    let modal = document.getElementById('modalLinkParticipantes');
+    if (modal) modal.remove();
+    
+    modal = document.createElement('div');
+    modal.id = 'modalLinkParticipantes';
+    modal.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.8); z-index: 10001;
+        display: flex; justify-content: center; align-items: center;
+        padding: 20px;
+    `;
+    
+    modal.innerHTML = `
+        <div style="background: white; border-radius: 20px; max-width: 450px; width: 100%; padding: 25px; text-align: center;">
+            <div style="font-size: 32px; margin-bottom: 10px;">📋</div>
+            <div style="font-weight: bold; font-size: 18px; margin-bottom: 4px;">LINK DO BOLÃO</div>
+            <div style="font-size: 13px; color: #64748b; margin-bottom: 15px;">${bolaoTitulo}</div>
+            
+            <div style="background: #f1f5f9; padding: 12px; border-radius: 10px; margin-bottom: 16px; word-break: break-all;">
+                <code style="font-size: 12px; color: #1e293b;">${link}</code>
+            </div>
+            
+            <div style="display: flex; gap: 10px;">
+                <button id="btnCopiarLink" style="flex: 1; padding: 12px; background: #3b82f6; color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 14px;">
+                    📋 COPIAR LINK
+                </button>
+                <button id="btnFecharModalLink" style="flex: 1; padding: 12px; background: #64748b; color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 14px;">
+                    FECHAR
+                </button>
+            </div>
+            
+            <div id="feedbackCopiar" style="display: none; margin-top: 10px; padding: 8px; background: #d1fae5; border-radius: 8px; color: #065f46; font-size: 13px;">
+                ✅ Link copiado com sucesso!
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    document.getElementById('btnCopiarLink').onclick = async function() {
+        try {
+            await navigator.clipboard.writeText(link);
+            
+            const feedback = document.getElementById('feedbackCopiar');
+            feedback.style.display = 'block';
+            feedback.textContent = '✅ Link copiado com sucesso!';
+            
+            this.style.background = '#10b981';
+            this.textContent = '✅ COPIADO!';
+            
+            setTimeout(() => {
+                this.style.background = '#3b82f6';
+                this.textContent = '📋 COPIAR LINK';
+                feedback.style.display = 'none';
+            }, 3000);
+            
+            showToast('📋 Link copiado! Compartilhe no WhatsApp', 'success');
+            
+        } catch (error) {
+            console.error('Erro ao copiar:', error);
+            
+            const codeElement = document.querySelector('#modalLinkParticipantes code');
+            if (codeElement) {
+                const range = document.createRange();
+                range.selectNode(codeElement);
+                window.getSelection().removeAllRanges();
+                window.getSelection().addRange(range);
+                
+                try {
+                    document.execCommand('copy');
+                    showToast('📋 Link copiado!', 'success');
+                } catch (e) {
+                    showToast('❌ Não foi possível copiar. Copie manualmente.', 'error');
+                }
+            }
+        }
+    };
+    
+    document.getElementById('btnFecharModalLink').onclick = () => modal.remove();
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+}
+
+// ============================================
+// ADICIONAR BOTÕES DE LINK - FUNÇÃO ÚNICA (CORRIGIDA)
+// ============================================
+function adicionarBotaoLinkParticipantes() {
+    document.querySelectorAll('.btn-link-participantes').forEach(btn => {
+        // Remove eventos antigos clonando
+        const novoBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(novoBtn, btn);
+        
+        novoBtn.addEventListener('click', function() {
+            const bolaoId = this.dataset.id;
+            const bolaoTitulo = this.dataset.titulo || 'Bolão';
+            console.log('📋 Link clicado para:', bolaoTitulo, 'ID:', bolaoId);
+            mostrarModalLink(bolaoId, bolaoTitulo);
+        });
+    });
+}
+
+// ============================================
 // CARREGAR BOLÕES PARA GERENCIAR
 // ============================================
 async function carregarBoloesParaGerenciar() {
@@ -767,7 +875,7 @@ async function carregarBoloesParaGerenciar() {
                         <input type="checkbox" class="checkbox-destaque" data-id="${bolao.id}" ${destaqueMap[bolao.id] ? 'checked' : ''} style="width: 18px; height: 18px;">
                         <button class="btn-excluir-bolao" data-id="${bolao.id}" data-titulo="${bolao.titulo}" style="background: #ef4444; color: white; border: none; padding: 4px 12px; border-radius: 20px; cursor: pointer; font-size: 11px;">🗑️ EXCLUIR</button>
                         <button class="btn-link-participantes" data-id="${bolao.id}" data-titulo="${bolao.titulo}" style="background: #3b82f6; color: white; border: none; padding: 4px 12px; border-radius: 20px; cursor: pointer; font-size: 11px;">📋 LINK</button>
-                        </div>
+                    </div>
                     <div style="margin-left: 35px; margin-top: 8px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
                         <label style="font-size: 12px;">Status:</label>
                         <select class="status-select" data-id="${bolao.id}" style="padding: 4px 8px; border-radius: 6px;">
@@ -807,7 +915,10 @@ async function carregarBoloesParaGerenciar() {
         });
         
         console.log(`✅ ${boloes.length} bolões carregados`);
-        
+
+        // ADICIONAR BOTÕES DE LINK (chamada única)
+        adicionarBotaoLinkParticipantes();
+
     } catch (error) {
         console.error('Erro ao carregar bolões:', error);
         container.innerHTML = '<div class="empty-state">Erro ao carregar bolões.</div>';
@@ -1280,146 +1391,6 @@ async function carregarReservas() {
     }
 }
 
-// ============================================
-// GERAR LINKS DOS PARTICIPANTES
-// ============================================
-function gerarLinkParticipantes(bolaoId) {
-    const baseUrl = window.location.origin + '/mega-sena-sistema/participantes.html';
-    return `${baseUrl}?bolao=${bolaoId}`;
-}
-
-// ============================================
-// MOSTRAR MODAL COM LINK PARA COPIAR
-// ============================================
-function mostrarModalLink(bolaoId, bolaoTitulo) {
-    const link = gerarLinkParticipantes(bolaoId);
-    
-    // Remover modal antigo
-    let modal = document.getElementById('modalLinkParticipantes');
-    if (modal) modal.remove();
-    
-    modal = document.createElement('div');
-    modal.id = 'modalLinkParticipantes';
-    modal.style.cssText = `
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.8); z-index: 10001;
-        display: flex; justify-content: center; align-items: center;
-        padding: 20px;
-    `;
-    
-    modal.innerHTML = `
-        <div style="background: white; border-radius: 20px; max-width: 450px; width: 100%; padding: 25px; text-align: center;">
-            <div style="font-size: 32px; margin-bottom: 10px;">📋</div>
-            <div style="font-weight: bold; font-size: 18px; margin-bottom: 4px;">LINK DO BOLÃO</div>
-            <div style="font-size: 13px; color: #64748b; margin-bottom: 15px;">${bolaoTitulo}</div>
-            
-            <div style="background: #f1f5f9; padding: 12px; border-radius: 10px; margin-bottom: 16px; word-break: break-all;">
-                <code style="font-size: 12px; color: #1e293b;">${link}</code>
-            </div>
-            
-            <div style="display: flex; gap: 10px;">
-                <button id="btnCopiarLink" style="flex: 1; padding: 12px; background: #3b82f6; color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 14px;">
-                    📋 COPIAR LINK
-                </button>
-                <button id="btnFecharModalLink" style="flex: 1; padding: 12px; background: #64748b; color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 14px;">
-                    FECHAR
-                </button>
-            </div>
-            
-            <div id="feedbackCopiar" style="display: none; margin-top: 10px; padding: 8px; background: #d1fae5; border-radius: 8px; color: #065f46; font-size: 13px;">
-                ✅ Link copiado com sucesso!
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    // Função para copiar
-    document.getElementById('btnCopiarLink').onclick = async function() {
-        try {
-            await navigator.clipboard.writeText(link);
-            
-            // Mostrar feedback
-            const feedback = document.getElementById('feedbackCopiar');
-            feedback.style.display = 'block';
-            feedback.textContent = '✅ Link copiado com sucesso!';
-            
-            // Mudar cor do botão
-            this.style.background = '#10b981';
-            this.textContent = '✅ COPIADO!';
-            
-            setTimeout(() => {
-                this.style.background = '#3b82f6';
-                this.textContent = '📋 COPIAR LINK';
-                feedback.style.display = 'none';
-            }, 3000);
-            
-            showToast('📋 Link copiado! Compartilhe no WhatsApp', 'success');
-            
-        } catch (error) {
-            console.error('Erro ao copiar:', error);
-            
-            // Fallback: selecionar o texto
-            const codeElement = document.querySelector('#modalLinkParticipantes code');
-            if (codeElement) {
-                const range = document.createRange();
-                range.selectNode(codeElement);
-                window.getSelection().removeAllRanges();
-                window.getSelection().addRange(range);
-                
-                try {
-                    document.execCommand('copy');
-                    showToast('📋 Link copiado!', 'success');
-                } catch (e) {
-                    showToast('❌ Não foi possível copiar. Copie manualmente.', 'error');
-                }
-            }
-        }
-    };
-    
-    // Fechar modal
-    document.getElementById('btnFecharModalLink').onclick = () => modal.remove();
-    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-}
-
-// ============================================
-// ADICIONAR BOTÕES DE LINK
-// ============================================
-function adicionarBotaoLinkParticipantes() {
-    document.querySelectorAll('.btn-link-participantes').forEach(btn => {
-        // Remover eventos antigos
-        btn.replaceWith(btn.cloneNode(true));
-    });
-    
-    document.querySelectorAll('.btn-link-participantes').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const bolaoId = this.dataset.id;
-            const bolaoTitulo = this.dataset.titulo || 'Bolão';
-            mostrarModalLink(bolaoId, bolaoTitulo);
-        });
-    });
-}
-
-// Adicionar botão na lista de bolões para gerar link
-async function adicionarBotaoLinkParticipantes() {
-    // Esta função será chamada ao carregar os bolões
-    document.querySelectorAll('.btn-link-participantes').forEach(btn => {
-        btn.onclick = () => {
-            const bolaoId = btn.dataset.id;
-            const link = gerarLinkParticipantes(bolaoId);
-            
-            // Copiar link
-            navigator.clipboard.writeText(link).then(() => {
-                showToast('📋 Link copiado! Compartilhe no WhatsApp', 'success');
-            }).catch(() => {
-                // Fallback: mostrar o link
-                prompt('Copie o link:', link);
-            });
-        };
-    });
-}
-
-
 async function mostrarHistorico(id, nome) {
     const div = document.getElementById(`historico-${id}`);
     
@@ -1472,6 +1443,7 @@ async function mostrarHistorico(id, nome) {
 document.addEventListener('DOMContentLoaded', () => {
     console.log('📄 Admin inicializado');
     
+    // Verificar autenticação primeiro
     verificarAutenticacao();
     
     const btnAutenticar = document.getElementById('btnAutenticar');
@@ -1492,7 +1464,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnGerarToken = document.getElementById('btnGerarToken');
     const btnAtualizarReservas = document.getElementById('btnAtualizarReservas');
     
-    // Botões de loteria (agora dentro do card)
     const adminBtnMega = document.getElementById('adminBtnMega');
     const adminBtnLotofacil = document.getElementById('adminBtnLotofacil');
     const adminBtnQuina = document.getElementById('adminBtnQuina');
