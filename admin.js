@@ -28,16 +28,26 @@ function showToast(message, type = 'info') {
 function verificarAutenticacao() {
     const autenticado = localStorage.getItem('admin_autenticado');
     const modal = document.getElementById('authModal');
+    
+    console.log('🔐 Verificando autenticação...');
+    console.log('📌 localStorage.admin_autenticado =', autenticado);
+    console.log('📌 Modal encontrado?', modal ? 'SIM' : 'NÃO');
+    
     if (!modal) {
-        console.error('❌ Modal de autenticação não encontrado!');
+        console.error('❌ Modal de autenticação não encontrado! Verifique se o elemento com id "authModal" existe no HTML.');
         return;
     }
+    
     if (!autenticado) {
+        console.log('🔐 Usuário NÃO autenticado. Exibindo modal...');
         modal.classList.add('show');
-        console.log('🔐 Exigindo autenticação');
+        modal.style.display = 'flex';
+        document.getElementById('senhaAdmin').value = '';
+        document.getElementById('senhaAdmin').focus();
     } else {
+        console.log('✅ Usuário já autenticado. Ocultando modal...');
         modal.classList.remove('show');
-        console.log('✅ Usuário autenticado');
+        modal.style.display = 'none';
         carregarPixConfig();
         carregarDadosAdmin();
     }
@@ -45,15 +55,25 @@ function verificarAutenticacao() {
 
 function autenticar() {
     const senha = document.getElementById('senhaAdmin').value;
+    console.log('🔑 Tentando autenticar com senha:', senha ? '****' : '(vazia)');
+    
     if (senha === SENHA_ADMIN) {
         localStorage.setItem('admin_autenticado', 'true');
+        console.log('✅ Login realizado com sucesso!');
         showToast('✅ Login realizado!', 'success');
         verificarAutenticacao();
     } else {
+        console.log('❌ Senha incorreta!');
         showToast('❌ Senha incorreta!', 'error');
         document.getElementById('senhaAdmin').value = '';
         document.getElementById('senhaAdmin').focus();
     }
+}
+
+function forcarLogin() {
+    localStorage.removeItem('admin_autenticado');
+    showToast('🔐 Forçando login...', 'info');
+    verificarAutenticacao();
 }
 
 function sair() {
@@ -1445,6 +1465,16 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Verificar autenticação primeiro
     verificarAutenticacao();
+
+    // Forçar login se a autenticação falhar (para debug)
+setTimeout(() => {
+    const modal = document.getElementById('authModal');
+    if (modal && !modal.classList.contains('show') && !localStorage.getItem('admin_autenticado')) {
+        console.log('⚠️ Forçando exibição do modal de autenticação...');
+        modal.classList.add('show');
+        modal.style.display = 'flex';
+    }
+}, 500);
     
     const btnAutenticar = document.getElementById('btnAutenticar');
     const btnSair = document.getElementById('btnSair');
