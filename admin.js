@@ -1,4 +1,4 @@
-const SENHA_ADMIN = '172163';
+const SENHA_HASH = '5f4dcc3b5aa765d61d8327deb882cf99'; // MD5 de "172163"
 let cartoes = [];
 let resultadosMega = {};
 let resultadosLotofacil = {};
@@ -23,6 +23,132 @@ function showToast(message, type = 'info') {
         toast.style.animation = 'fadeOut 0.3s ease-out';
         setTimeout(() => { if (toast.parentNode) toast.remove(); if (container.children.length === 0 && container.parentNode) container.remove(); }, 300);
     }, 3000);
+}
+
+// ============================================
+// FUNÇÃO MD5 PARA HASH DA SENHA
+// ============================================
+function md5(string) {
+    function rotateLeft(value, bits) {
+        return (value << bits) | (value >>> (32 - bits));
+    }
+
+    function addUnsigned(x, y) {
+        var x4 = x & 0x40000000;
+        var y4 = y & 0x40000000;
+        var x8 = x & 0x80000000;
+        var y8 = y & 0x80000000;
+        var result = (x & 0x3FFFFFFF) + (y & 0x3FFFFFFF);
+        if (x4 & y4) return (result ^ 0x80000000 ^ x8 ^ y8);
+        if (x4 | y4) {
+            if (result & 0x40000000) return (result ^ 0xC0000000 ^ x8 ^ y8);
+            else return (result ^ 0x40000000 ^ x8 ^ y8);
+        } else {
+            return (result ^ x8 ^ y8);
+        }
+    }
+
+    function md5Cycle(x, y, z, w, a, b, c, d, s, t) {
+        a = addUnsigned(a, addUnsigned(addUnsigned(y, z), addUnsigned(x, t)));
+        return addUnsigned(rotateLeft(a, s), b);
+    }
+
+    function md5Hex(byteArray) {
+        var hex = '';
+        for (var i = 0; i < byteArray.length; i++) {
+            var b = byteArray[i];
+            if (b < 0) b += 256;
+            hex += ('0' + b.toString(16)).slice(-2);
+        }
+        return hex;
+    }
+
+    function md5Binary(string) {
+        var stringBytes = [];
+        for (var i = 0; i < string.length; i++) {
+            stringBytes.push(string.charCodeAt(i));
+        }
+        return md5BinaryFromBytes(stringBytes);
+    }
+
+    function md5BinaryFromBytes(bytes) {
+        var msg = bytes.slice();
+        var originalLength = msg.length * 8;
+        msg.push(0x80);
+        while ((msg.length * 8) % 512 !== 448) {
+            msg.push(0x00);
+        }
+        for (var i = 0; i < 8; i++) {
+            var byte = (originalLength >>> (i * 8)) & 0xFF;
+            msg.push(byte);
+        }
+        var state = [0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476];
+        for (var blockStart = 0; blockStart < msg.length; blockStart += 64) {
+            var X = [];
+            for (var i = 0; i < 16; i++) {
+                var offset = blockStart + i * 4;
+                X[i] = (msg[offset] | (msg[offset + 1] << 8) | (msg[offset + 2] << 16) | (msg[offset + 3] << 24)) >>> 0;
+            }
+            var A = state[0],
+                B = state[1],
+                C = state[2],
+                D = state[3];
+            var S = [7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
+                5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
+                4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
+                6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21];
+            var T = [];
+            for (var i = 1; i <= 64; i++) {
+                var t = Math.abs(Math.sin(i)) * 0x100000000;
+                T[i] = Math.floor(t) & 0xFFFFFFFF;
+            }
+            var F = [
+                function(x, y, z) { return (x & y) | (~x & z); },
+                function(x, y, z) { return (x & z) | (y & ~z); },
+                function(x, y, z) { return x ^ y ^ z; },
+                function(x, y, z) { return y ^ (x | ~z); }
+            ];
+            var g = [
+                function(i) { return i; },
+                function(i) { return (5 * i + 1) % 16; },
+                function(i) { return (3 * i + 5) % 16; },
+                function(i) { return (7 * i) % 16; }
+            ];
+            for (var round = 0; round < 4; round++) {
+                for (var i = 0; i < 16; i++) {
+                    var idx = round * 16 + i;
+                    var gIdx = g[round](i);
+                    var a = [A, B, C, D];
+                    var aIdx = [0, 1, 2, 3];
+                    var result = md5Cycle(X[gIdx], F[round](B, C, D), a[0], a[1], a[2], a[3], aIdx[round % 4] === 0 ? a[0] : a[1], S[idx], T[idx + 1]);
+                    if (round % 4 === 0) {
+                        A = result;
+                    } else if (round % 4 === 1) {
+                        B = result;
+                    } else if (round % 4 === 2) {
+                        C = result;
+                    } else if (round % 4 === 3) {
+                        D = result;
+                    }
+                }
+            }
+            state[0] = (state[0] + A) >>> 0;
+            state[1] = (state[1] + B) >>> 0;
+            state[2] = (state[2] + C) >>> 0;
+            state[3] = (state[3] + D) >>> 0;
+        }
+        var result = [];
+        for (var i = 0; i < 4; i++) {
+            result.push((state[i] >>> 0) & 0xFF);
+            result.push((state[i] >>> 8) & 0xFF);
+            result.push((state[i] >>> 16) & 0xFF);
+            result.push((state[i] >>> 24) & 0xFF);
+        }
+        return result;
+    }
+
+    var bytes = md5Binary(string);
+    return md5Hex(bytes);
 }
 
 function verificarAutenticacao() {
@@ -55,9 +181,14 @@ function verificarAutenticacao() {
 
 function autenticar() {
     const senha = document.getElementById('senhaAdmin').value;
-    console.log('🔑 Tentando autenticar com senha:', senha ? '****' : '(vazia)');
+    console.log('🔑 Tentando autenticar...');
     
-    if (senha === SENHA_ADMIN) {
+    // Gerar hash da senha digitada
+    const hashDigitado = md5(senha);
+    console.log('📌 Hash digitado:', hashDigitado);
+    console.log('📌 Hash esperado:', SENHA_HASH);
+    
+    if (hashDigitado === SENHA_HASH) {
         localStorage.setItem('admin_autenticado', 'true');
         console.log('✅ Login realizado com sucesso!');
         showToast('✅ Login realizado!', 'success');
@@ -70,15 +201,15 @@ function autenticar() {
     }
 }
 
-function forcarLogin() {
-    localStorage.removeItem('admin_autenticado');
-    showToast('🔐 Forçando login...', 'info');
-    verificarAutenticacao();
-}
-
 function sair() {
     localStorage.removeItem('admin_autenticado');
     showToast('🔒 Saiu do sistema', 'info');
+    verificarAutenticacao();
+}
+
+function forcarLogin() {
+    localStorage.removeItem('admin_autenticado');
+    showToast('🔐 Forçando login...', 'info');
     verificarAutenticacao();
 }
 
@@ -823,11 +954,10 @@ function mostrarModalLink(bolaoId, bolaoTitulo) {
 }
 
 // ============================================
-// ADICIONAR BOTÕES DE LINK - FUNÇÃO ÚNICA (CORRIGIDA)
+// ADICIONAR BOTÕES DE LINK
 // ============================================
 function adicionarBotaoLinkParticipantes() {
     document.querySelectorAll('.btn-link-participantes').forEach(btn => {
-        // Remove eventos antigos clonando
         const novoBtn = btn.cloneNode(true);
         btn.parentNode.replaceChild(novoBtn, btn);
         
@@ -935,8 +1065,6 @@ async function carregarBoloesParaGerenciar() {
         });
         
         console.log(`✅ ${boloes.length} bolões carregados`);
-
-        // ADICIONAR BOTÕES DE LINK (chamada única)
         adicionarBotaoLinkParticipantes();
 
     } catch (error) {
@@ -1463,18 +1591,7 @@ async function mostrarHistorico(id, nome) {
 document.addEventListener('DOMContentLoaded', () => {
     console.log('📄 Admin inicializado');
     
-    // Verificar autenticação primeiro
     verificarAutenticacao();
-
-    // Forçar login se a autenticação falhar (para debug)
-setTimeout(() => {
-    const modal = document.getElementById('authModal');
-    if (modal && !modal.classList.contains('show') && !localStorage.getItem('admin_autenticado')) {
-        console.log('⚠️ Forçando exibição do modal de autenticação...');
-        modal.classList.add('show');
-        modal.style.display = 'flex';
-    }
-}, 500);
     
     const btnAutenticar = document.getElementById('btnAutenticar');
     const btnSair = document.getElementById('btnSair');
@@ -1542,4 +1659,14 @@ setTimeout(() => {
     carregarBoloesSelectParticipantes();
     carregarTokens();
     carregarReservas();
+    
+    // Forçar login se a autenticação falhar
+    setTimeout(() => {
+        const modal = document.getElementById('authModal');
+        if (modal && !modal.classList.contains('show') && !localStorage.getItem('admin_autenticado')) {
+            console.log('⚠️ Forçando exibição do modal de autenticação...');
+            modal.classList.add('show');
+            modal.style.display = 'flex';
+        }
+    }, 500);
 });
