@@ -1,4 +1,4 @@
-const SENHA_HASH = '5f4dcc3b5aa765d61d8327deb882cf99'; // MD5 de "172163"
+const SENHA_HASH = '5f4dcc3b5aa765d61d8327deb882cf99'; 
 let cartoes = [];
 let resultadosMega = {};
 let resultadosLotofacil = {};
