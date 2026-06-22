@@ -766,8 +766,8 @@ async function carregarBoloesParaGerenciar() {
                         <label style="font-size: 11px; margin-left: auto;">⭐ DESTAQUE:</label>
                         <input type="checkbox" class="checkbox-destaque" data-id="${bolao.id}" ${destaqueMap[bolao.id] ? 'checked' : ''} style="width: 18px; height: 18px;">
                         <button class="btn-excluir-bolao" data-id="${bolao.id}" data-titulo="${bolao.titulo}" style="background: #ef4444; color: white; border: none; padding: 4px 12px; border-radius: 20px; cursor: pointer; font-size: 11px;">🗑️ EXCLUIR</button>
-                        <button class="btn-link-participantes" data-id="${bolao.id}" style="background: #3b82f6; color: white; border: none; padding: 4px 12px; border-radius: 20px; cursor: pointer; font-size: 11px;">📋 LINK</button>
-                    </div>
+                        <button class="btn-link-participantes" data-id="${bolao.id}" data-titulo="${bolao.titulo}" style="background: #3b82f6; color: white; border: none; padding: 4px 12px; border-radius: 20px; cursor: pointer; font-size: 11px;">📋 LINK</button>
+                        </div>
                     <div style="margin-left: 35px; margin-top: 8px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
                         <label style="font-size: 12px;">Status:</label>
                         <select class="status-select" data-id="${bolao.id}" style="padding: 4px 8px; border-radius: 6px;">
@@ -1286,6 +1286,118 @@ async function carregarReservas() {
 function gerarLinkParticipantes(bolaoId) {
     const baseUrl = window.location.origin + '/mega-sena-sistema/participantes.html';
     return `${baseUrl}?bolao=${bolaoId}`;
+}
+
+// ============================================
+// MOSTRAR MODAL COM LINK PARA COPIAR
+// ============================================
+function mostrarModalLink(bolaoId, bolaoTitulo) {
+    const link = gerarLinkParticipantes(bolaoId);
+    
+    // Remover modal antigo
+    let modal = document.getElementById('modalLinkParticipantes');
+    if (modal) modal.remove();
+    
+    modal = document.createElement('div');
+    modal.id = 'modalLinkParticipantes';
+    modal.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.8); z-index: 10001;
+        display: flex; justify-content: center; align-items: center;
+        padding: 20px;
+    `;
+    
+    modal.innerHTML = `
+        <div style="background: white; border-radius: 20px; max-width: 450px; width: 100%; padding: 25px; text-align: center;">
+            <div style="font-size: 32px; margin-bottom: 10px;">📋</div>
+            <div style="font-weight: bold; font-size: 18px; margin-bottom: 4px;">LINK DO BOLÃO</div>
+            <div style="font-size: 13px; color: #64748b; margin-bottom: 15px;">${bolaoTitulo}</div>
+            
+            <div style="background: #f1f5f9; padding: 12px; border-radius: 10px; margin-bottom: 16px; word-break: break-all;">
+                <code style="font-size: 12px; color: #1e293b;">${link}</code>
+            </div>
+            
+            <div style="display: flex; gap: 10px;">
+                <button id="btnCopiarLink" style="flex: 1; padding: 12px; background: #3b82f6; color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 14px;">
+                    📋 COPIAR LINK
+                </button>
+                <button id="btnFecharModalLink" style="flex: 1; padding: 12px; background: #64748b; color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 14px;">
+                    FECHAR
+                </button>
+            </div>
+            
+            <div id="feedbackCopiar" style="display: none; margin-top: 10px; padding: 8px; background: #d1fae5; border-radius: 8px; color: #065f46; font-size: 13px;">
+                ✅ Link copiado com sucesso!
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Função para copiar
+    document.getElementById('btnCopiarLink').onclick = async function() {
+        try {
+            await navigator.clipboard.writeText(link);
+            
+            // Mostrar feedback
+            const feedback = document.getElementById('feedbackCopiar');
+            feedback.style.display = 'block';
+            feedback.textContent = '✅ Link copiado com sucesso!';
+            
+            // Mudar cor do botão
+            this.style.background = '#10b981';
+            this.textContent = '✅ COPIADO!';
+            
+            setTimeout(() => {
+                this.style.background = '#3b82f6';
+                this.textContent = '📋 COPIAR LINK';
+                feedback.style.display = 'none';
+            }, 3000);
+            
+            showToast('📋 Link copiado! Compartilhe no WhatsApp', 'success');
+            
+        } catch (error) {
+            console.error('Erro ao copiar:', error);
+            
+            // Fallback: selecionar o texto
+            const codeElement = document.querySelector('#modalLinkParticipantes code');
+            if (codeElement) {
+                const range = document.createRange();
+                range.selectNode(codeElement);
+                window.getSelection().removeAllRanges();
+                window.getSelection().addRange(range);
+                
+                try {
+                    document.execCommand('copy');
+                    showToast('📋 Link copiado!', 'success');
+                } catch (e) {
+                    showToast('❌ Não foi possível copiar. Copie manualmente.', 'error');
+                }
+            }
+        }
+    };
+    
+    // Fechar modal
+    document.getElementById('btnFecharModalLink').onclick = () => modal.remove();
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+}
+
+// ============================================
+// ADICIONAR BOTÕES DE LINK
+// ============================================
+function adicionarBotaoLinkParticipantes() {
+    document.querySelectorAll('.btn-link-participantes').forEach(btn => {
+        // Remover eventos antigos
+        btn.replaceWith(btn.cloneNode(true));
+    });
+    
+    document.querySelectorAll('.btn-link-participantes').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const bolaoId = this.dataset.id;
+            const bolaoTitulo = this.dataset.titulo || 'Bolão';
+            mostrarModalLink(bolaoId, bolaoTitulo);
+        });
+    });
 }
 
 // Adicionar botão na lista de bolões para gerar link
