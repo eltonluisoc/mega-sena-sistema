@@ -1,4 +1,4 @@
-const SENHA_HASH = '5f4dcc3b5aa765d61d8327deb882cf99'; 
+const SENHA_HASH = '47cf2362b07097105d643ee5b1612df7'; 
 let cartoes = [];
 let resultadosMega = {};
 let resultadosLotofacil = {};
