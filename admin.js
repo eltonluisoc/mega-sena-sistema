@@ -1,4 +1,11 @@
-const SENHA_HASH = '47cf2362b07097105d643ee5b1612df7'; 
+// ============================================
+// SEGURANÇA - SENHA COM HASH MD5
+// ============================================
+const SENHA_HASH = '47cf2362b07097105d643ee5b1612df7';
+
+// ============================================
+// VARIÁVEIS GLOBAIS
+// ============================================
 let cartoes = [];
 let resultadosMega = {};
 let resultadosLotofacil = {};
@@ -6,11 +13,18 @@ let resultadosQuina = {};
 let loteriaAdmin = 'mega';
 let cartoesFiltrados = [];
 let boloes = [];
+
+// ============================================
+// VARIÁVEIS DO CADASTRO EM LOTE
+// ============================================
 let cartoesLote = [];
 let cartaoAtualIndex = 0;
 const MAX_NUMEROS_LOTOFACIL = 15;
 const TOTAL_NUMEROS = 25;
 
+// ============================================
+// TOAST
+// ============================================
 function showToast(message, type = 'info') {
     let container = document.querySelector('.toast-container');
     if (!container) {
@@ -187,6 +201,9 @@ function md5(string) {
     return md5Hex(bytes);
 }
 
+// ============================================
+// AUTENTICAÇÃO
+// ============================================
 function verificarAutenticacao() {
     const autenticado = localStorage.getItem('admin_autenticado');
     const modal = document.getElementById('authModal');
@@ -196,7 +213,7 @@ function verificarAutenticacao() {
     console.log('📌 Modal encontrado?', modal ? 'SIM' : 'NÃO');
     
     if (!modal) {
-        console.error('❌ Modal de autenticação não encontrado! Verifique se o elemento com id "authModal" existe no HTML.');
+        console.error('❌ Modal de autenticação não encontrado!');
         return;
     }
     
@@ -219,7 +236,6 @@ function autenticar() {
     const senha = document.getElementById('senhaAdmin').value;
     console.log('🔑 Tentando autenticar...');
     
-    // Gerar hash da senha digitada
     const hashDigitado = md5(senha);
     console.log('📌 Hash digitado:', hashDigitado);
     console.log('📌 Hash esperado:', SENHA_HASH);
@@ -249,6 +265,9 @@ function forcarLogin() {
     verificarAutenticacao();
 }
 
+// ============================================
+// SELECIONAR LOTERIA
+// ============================================
 function setLoteriaAdmin(loteria) {
     console.log(`🔄 Mudando loteria admin para: ${loteria}`);
     loteriaAdmin = loteria;
@@ -291,6 +310,9 @@ function setLoteriaAdmin(loteria) {
     showToast(`🔄 Mudou para ${loteria.toUpperCase()}`, 'info');
 }
 
+// ============================================
+// PIX CONFIG
+// ============================================
 async function carregarPixConfig() {
     try {
         const doc = await db.collection('config_geral').doc('pix').get();
@@ -305,6 +327,9 @@ async function salvarPixConfig() {
     showToast('✅ Chave PIX salva!', 'success');
 }
 
+// ============================================
+// CARREGAR DADOS ADMIN
+// ============================================
 async function carregarDadosAdmin() {
     try {
         const snapshot = await db.collection('cartoes').get();
@@ -340,6 +365,9 @@ async function carregarDadosAdmin() {
     }
 }
 
+// ============================================
+// EXIBIR CARTÕES ADMIN (CORRIGIDO)
+// ============================================
 function exibirCartoesAdmin() {
     console.log(`📋 Exibindo cartões da loteria: ${loteriaAdmin}`);
     
@@ -350,7 +378,7 @@ function exibirCartoesAdmin() {
         cartoesFiltrados = cartoesFiltrados.filter(c => c.concurso == filtro);
     }
     
-    const ordenarPor = document.getElementById('ordenarPor').value;
+    const ordenarPor = document.getElementById('ordenarPorLista')?.value || 'concurso_desc';
     switch(ordenarPor) {
         case 'concurso_desc': cartoesFiltrados.sort((a,b) => (b.concurso||0) - (a.concurso||0)); break;
         case 'concurso_asc': cartoesFiltrados.sort((a,b) => (a.concurso||0) - (b.concurso||0)); break;
@@ -424,6 +452,152 @@ function exibirCartoesAdmin() {
     
     const totalDiv = document.getElementById('totalCartoes');
     if (totalDiv) totalDiv.innerHTML = cartoesFiltrados.length + ' cartões';
+}
+
+// ============================================
+// CARREGAR CONCURSOS ADMIN (CORRIGIDO)
+// ============================================
+function carregarConcursosAdmin() {
+    const cartoesFiltrados = cartoes.filter(c => c.tipo === loteriaAdmin);
+    const concursos = [...new Set(cartoesFiltrados.map(c => c.concurso))];
+    concursos.sort((a,b) => b - a);
+    const filtro = document.getElementById('filtroConcursoLista');
+    
+    if (filtro) {
+        filtro.innerHTML = '<option value="todos">Todos os concursos</option>';
+        concursos.forEach(c => filtro.innerHTML += `<option value="${c}">Concurso ${c}</option>`);
+    }
+}
+
+// ============================================
+// ATUALIZAR DASHBOARD
+// ============================================
+function atualizarDashboardAdmin() {
+    let abertos = 0;
+    let andamento = 0;
+    let encerrados = 0;
+    
+    db.collection('config_boloes').doc('ativos').get().then(configDoc => {
+        if (configDoc.exists) {
+            const dados = configDoc.data();
+            const statusMap = dados.status || {};
+            
+            for (const id in statusMap) {
+                const status = statusMap[id];
+                if (status === 'aberto') abertos++;
+                else if (status === 'andamento') andamento++;
+                else if (status === 'encerrado') encerrados++;
+            }
+        }
+        
+        if (abertos === 0 && andamento === 0 && encerrados === 0) {
+            if (boloes && boloes.length > 0) {
+                for (const bolao of boloes) {
+                    const status = bolao.status || 'andamento';
+                    if (status === 'aberto') abertos++;
+                    else if (status === 'andamento') andamento++;
+                    else if (status === 'encerrado') encerrados++;
+                }
+            }
+        }
+        
+        const abertosEl = document.getElementById('dashboardAbertos');
+        const andamentoEl = document.getElementById('dashboardAndamento');
+        const encerradosEl = document.getElementById('dashboardEncerrados');
+        
+        if (abertosEl) abertosEl.innerHTML = abertos;
+        if (andamentoEl) andamentoEl.innerHTML = andamento;
+        if (encerradosEl) encerradosEl.innerHTML = encerrados;
+        
+        console.log(`📊 Dashboard: Abertos=${abertos}, Andamento=${andamento}, Encerrados=${encerrados}`);
+    }).catch(error => {
+        console.error('Erro ao carregar status dos bolões:', error);
+    });
+}
+
+// ============================================
+// ADICIONAR CARTÕES (CADASTRO TRADICIONAL)
+// ============================================
+async function adicionarCartoes() {
+    const concurso = document.getElementById('concurso').value;
+    const bolao = document.getElementById('bolao').value || 'Sem Bolão';
+    const tipoParticipacao = document.getElementById('tipoCartao').value;
+    const texto = document.getElementById('numerosCartoes').value;
+    
+    if (!concurso) { showToast('⚠️ Informe o concurso!', 'warning'); return; }
+    if (!texto.trim()) { showToast('⚠️ Informe os números!', 'warning'); return; }
+    
+    const linhas = texto.split('\n');
+    let adicionados = 0;
+    let erros = 0;
+    const minNumeros = loteriaAdmin === 'mega' ? 6 : (loteriaAdmin === 'lotofacil' ? 15 : 5);
+    const maxValor = loteriaAdmin === 'mega' ? 60 : (loteriaAdmin === 'lotofacil' ? 25 : 80);
+    
+    for (const linha of linhas) {
+        if (!linha.trim()) continue;
+        
+        const numeros = linha.match(/\d+/g).map(Number);
+        
+        if (numeros.length < minNumeros) { 
+            console.warn(`❌ Linha ignorada: apenas ${numeros.length} números (mínimo ${minNumeros})`);
+            erros++; 
+            continue; 
+        }
+        
+        const numerosUnicos = [...new Set(numeros)];
+        if (numerosUnicos.length !== numeros.length) { 
+            console.warn(`❌ Linha ignorada: contém números duplicados`);
+            erros++; 
+            continue; 
+        }
+        
+        if (numeros.some(n => n < 1 || n > maxValor)) { 
+            console.warn(`❌ Linha ignorada: números fora do range (1-${maxValor})`);
+            erros++; 
+            continue; 
+        }
+        
+        numeros.sort((a,b) => a-b);
+        
+        try {
+            await db.collection('cartoes').add({ 
+                concurso, 
+                bolao, 
+                numeros, 
+                tipo: loteriaAdmin, 
+                tipoParticipacao: tipoParticipacao,
+                admin: true,
+                dataCadastro: new Date().toISOString(), 
+                totalNumeros: numeros.length 
+            });
+            adicionados++;
+        } catch (error) { 
+            console.error('Erro ao adicionar cartão:', error);
+            erros++; 
+        }
+    }
+    
+    if (adicionados > 0) {
+        showToast(`✅ ${adicionados} cartões adicionados!`, 'success');
+        document.getElementById('numerosCartoes').value = '';
+        carregarDadosAdmin();
+    } else {
+        let msg = `❌ Nenhum cartão adicionado. `;
+        if (loteriaAdmin === 'mega') msg += `MEGA: mínimo 6 números entre 1 e 60.`;
+        else if (loteriaAdmin === 'lotofacil') msg += `LOTOFÁCIL: mínimo 15 números entre 1 e 25.`;
+        else msg += `QUINA: mínimo 5 números entre 1 e 80.`;
+        showToast(msg, 'error');
+    }
+}
+
+function limparFormulario() { 
+    document.getElementById('numerosCartoes').value = ''; 
+    showToast('🧹 Formulário limpo', 'info'); 
+}
+
+function recarregarLista() { 
+    carregarDadosAdmin(); 
+    showToast('🔄 Dados recarregados', 'info'); 
 }
 
 // ============================================
@@ -748,152 +922,6 @@ function importarExcel() {
 }
 
 // ============================================
-// CARREGAR CONCURSOS
-// ============================================
-function carregarConcursosAdmin() {
-    const cartoesFiltrados = cartoes.filter(c => c.tipo === loteriaAdmin);
-    const concursos = [...new Set(cartoesFiltrados.map(c => c.concurso))];
-    concursos.sort((a,b) => b - a);
-    const filtro = document.getElementById('filtroConcursoLista');
-    
-    if (filtro) {
-        filtro.innerHTML = '<option value="todos">Todos os concursos</option>';
-        concursos.forEach(c => filtro.innerHTML += `<option value="${c}">Concurso ${c}</option>`);
-    }
-}
-
-// ============================================
-// ATUALIZAR DASHBOARD
-// ============================================
-function atualizarDashboardAdmin() {
-    let abertos = 0;
-    let andamento = 0;
-    let encerrados = 0;
-    
-    db.collection('config_boloes').doc('ativos').get().then(configDoc => {
-        if (configDoc.exists) {
-            const dados = configDoc.data();
-            const statusMap = dados.status || {};
-            
-            for (const id in statusMap) {
-                const status = statusMap[id];
-                if (status === 'aberto') abertos++;
-                else if (status === 'andamento') andamento++;
-                else if (status === 'encerrado') encerrados++;
-            }
-        }
-        
-        if (abertos === 0 && andamento === 0 && encerrados === 0) {
-            if (boloes && boloes.length > 0) {
-                for (const bolao of boloes) {
-                    const status = bolao.status || 'andamento';
-                    if (status === 'aberto') abertos++;
-                    else if (status === 'andamento') andamento++;
-                    else if (status === 'encerrado') encerrados++;
-                }
-            }
-        }
-        
-        const abertosEl = document.getElementById('dashboardAbertos');
-        const andamentoEl = document.getElementById('dashboardAndamento');
-        const encerradosEl = document.getElementById('dashboardEncerrados');
-        
-        if (abertosEl) abertosEl.innerHTML = abertos;
-        if (andamentoEl) andamentoEl.innerHTML = andamento;
-        if (encerradosEl) encerradosEl.innerHTML = encerrados;
-        
-        console.log(`📊 Dashboard: Abertos=${abertos}, Andamento=${andamento}, Encerrados=${encerrados}`);
-    }).catch(error => {
-        console.error('Erro ao carregar status dos bolões:', error);
-    });
-}
-
-// ============================================
-// ADICIONAR CARTÕES
-// ============================================
-async function adicionarCartoes() {
-    const concurso = document.getElementById('concurso').value;
-    const bolao = document.getElementById('bolao').value || 'Sem Bolão';
-    const tipoParticipacao = document.getElementById('tipoCartao').value;
-    const texto = document.getElementById('numerosCartoes').value;
-    
-    if (!concurso) { showToast('⚠️ Informe o concurso!', 'warning'); return; }
-    if (!texto.trim()) { showToast('⚠️ Informe os números!', 'warning'); return; }
-    
-    const linhas = texto.split('\n');
-    let adicionados = 0;
-    let erros = 0;
-    const minNumeros = loteriaAdmin === 'mega' ? 6 : (loteriaAdmin === 'lotofacil' ? 15 : 5);
-    const maxValor = loteriaAdmin === 'mega' ? 60 : (loteriaAdmin === 'lotofacil' ? 25 : 80);
-    
-    for (const linha of linhas) {
-        if (!linha.trim()) continue;
-        
-        const numeros = linha.match(/\d+/g).map(Number);
-        
-        if (numeros.length < minNumeros) { 
-            console.warn(`❌ Linha ignorada: apenas ${numeros.length} números (mínimo ${minNumeros})`);
-            erros++; 
-            continue; 
-        }
-        
-        const numerosUnicos = [...new Set(numeros)];
-        if (numerosUnicos.length !== numeros.length) { 
-            console.warn(`❌ Linha ignorada: contém números duplicados`);
-            erros++; 
-            continue; 
-        }
-        
-        if (numeros.some(n => n < 1 || n > maxValor)) { 
-            console.warn(`❌ Linha ignorada: números fora do range (1-${maxValor})`);
-            erros++; 
-            continue; 
-        }
-        
-        numeros.sort((a,b) => a-b);
-        
-        try {
-            await db.collection('cartoes').add({ 
-                concurso, 
-                bolao, 
-                numeros, 
-                tipo: loteriaAdmin, 
-                tipoParticipacao: tipoParticipacao,
-                admin: true,
-                dataCadastro: new Date().toISOString(), 
-                totalNumeros: numeros.length 
-            });
-            adicionados++;
-        } catch (error) { 
-            console.error('Erro ao adicionar cartão:', error);
-            erros++; 
-        }
-    }
-    
-    if (adicionados > 0) {
-        showToast(`✅ ${adicionados} cartões adicionados!`, 'success');
-        document.getElementById('numerosCartoes').value = '';
-        carregarDadosAdmin();
-    } else {
-        let msg = `❌ Nenhum cartão adicionado. `;
-        if (loteriaAdmin === 'mega') msg += `MEGA: mínimo 6 números entre 1 e 60.`;
-        else if (loteriaAdmin === 'lotofacil') msg += `LOTOFÁCIL: mínimo 15 números entre 1 e 25.`;
-        else msg += `QUINA: mínimo 5 números entre 1 e 80.`;
-        showToast(msg, 'error');
-    }
-}
-
-function limparFormulario() { 
-    document.getElementById('numerosCartoes').value = ''; 
-    showToast('🧹 Formulário limpo', 'info'); 
-}
-
-function recarregarLista() { 
-    carregarDadosAdmin(); 
-    showToast('🔄 Dados recarregados', 'info'); 
-}
-
-// ============================================
 // GERAR LINKS DOS PARTICIPANTES
 // ============================================
 function gerarLinkParticipantes(bolaoId) {
@@ -901,9 +929,6 @@ function gerarLinkParticipantes(bolaoId) {
     return `${baseUrl}?bolao=${bolaoId}`;
 }
 
-// ============================================
-// MOSTRAR MODAL COM LINK PARA COPIAR
-// ============================================
 function mostrarModalLink(bolaoId, bolaoTitulo) {
     const link = gerarLinkParticipantes(bolaoId);
     
@@ -989,9 +1014,6 @@ function mostrarModalLink(bolaoId, bolaoTitulo) {
     modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 }
 
-// ============================================
-// ADICIONAR BOTÕES DE LINK
-// ============================================
 function adicionarBotaoLinkParticipantes() {
     document.querySelectorAll('.btn-link-participantes').forEach(btn => {
         const novoBtn = btn.cloneNode(true);
@@ -1004,6 +1026,305 @@ function adicionarBotaoLinkParticipantes() {
             mostrarModalLink(bolaoId, bolaoTitulo);
         });
     });
+}
+
+// ============================================
+// FUNÇÕES DO CADASTRO EM LOTE
+// ============================================
+
+function inicializarGradeNumeros() {
+    const grade = document.getElementById('gradeNumeros');
+    if (!grade) return;
+    
+    grade.innerHTML = '';
+    for (let i = 1; i <= TOTAL_NUMEROS; i++) {
+        const btn = document.createElement('button');
+        btn.className = 'numero-btn';
+        btn.dataset.numero = i;
+        btn.textContent = i.toString().padStart(2, '0');
+        btn.onclick = () => toggleNumero(i);
+        grade.appendChild(btn);
+    }
+}
+
+function toggleNumero(numero) {
+    const cartao = cartoesLote[cartaoAtualIndex];
+    if (!cartao) return;
+    
+    const index = cartao.indexOf(numero);
+    if (index > -1) {
+        cartao.splice(index, 1);
+    } else {
+        if (cartao.length >= MAX_NUMEROS_LOTOFACIL) {
+            showToast(`⚠️ Máximo de ${MAX_NUMEROS_LOTOFACIL} números!`, 'warning');
+            return;
+        }
+        cartao.push(numero);
+        cartao.sort((a, b) => a - b);
+    }
+    
+    atualizarGradeVisual();
+    atualizarContador();
+    atualizarPrevia();
+    atualizarResumo();
+}
+
+function atualizarGradeVisual() {
+    const cartao = cartoesLote[cartaoAtualIndex] || [];
+    const botoes = document.querySelectorAll('.numero-btn');
+    botoes.forEach(btn => {
+        const num = parseInt(btn.dataset.numero);
+        if (cartao.includes(num)) {
+            btn.classList.add('selecionado');
+            btn.style.background = '#3b82f6';
+            btn.style.color = 'white';
+            btn.style.borderColor = '#3b82f6';
+            btn.style.transform = 'scale(1.05)';
+        } else {
+            btn.classList.remove('selecionado');
+            btn.style.background = '#f8fafc';
+            btn.style.color = '#1e293b';
+            btn.style.borderColor = '#e2e8f0';
+            btn.style.transform = 'scale(1)';
+        }
+    });
+}
+
+function atualizarContador() {
+    const cartao = cartoesLote[cartaoAtualIndex] || [];
+    const contador = document.getElementById('contadorNumeros');
+    if (contador) {
+        contador.textContent = `${cartao.length}/${MAX_NUMEROS_LOTOFACIL} números selecionados`;
+        contador.style.color = cartao.length === MAX_NUMEROS_LOTOFACIL ? '#10b981' : '#3b82f6';
+    }
+}
+
+function atualizarPrevia() {
+    const container = document.getElementById('previaCartoes');
+    if (!container) return;
+    
+    if (cartoesLote.length === 0) {
+        container.innerHTML = '<div style="color: #94a3b8;">Nenhum cartão cadastrado ainda</div>';
+        return;
+    }
+    
+    let html = '';
+    const maxExibir = Math.min(cartoesLote.length, 20);
+    for (let i = 0; i < maxExibir; i++) {
+        const numeros = cartoesLote[i] || [];
+        const preenchido = numeros.length === MAX_NUMEROS_LOTOFACIL;
+        const status = preenchido ? '✅' : '❌';
+        const cor = preenchido ? '#10b981' : '#ef4444';
+        const numsStr = numeros.map(n => n.toString().padStart(2, '0')).join(' ');
+        html += `<div style="color: ${cor};">
+            #${i+1}: ${numsStr || '(vazio)'} ${status}
+        </div>`;
+    }
+    if (cartoesLote.length > maxExibir) {
+        html += `<div style="color: #94a3b8;">... e mais ${cartoesLote.length - maxExibir} cartões</div>`;
+    }
+    container.innerHTML = html;
+}
+
+function atualizarResumo() {
+    const qtdCartoes = parseInt(document.getElementById('qtdCartoes').value) || 0;
+    const qtdConcursos = parseInt(document.getElementById('qtdConcursos').value) || 0;
+    const concursoInicial = parseInt(document.getElementById('concursoInicial').value) || 0;
+    
+    const preenchidos = cartoesLote.filter(c => c.length === MAX_NUMEROS_LOTOFACIL).length;
+    const total = qtdCartoes * qtdConcursos;
+    const concursoFinal = concursoInicial + qtdConcursos - 1;
+    
+    document.getElementById('resumoCartoes').textContent = qtdCartoes;
+    document.getElementById('resumoConcursos').textContent = qtdConcursos;
+    document.getElementById('resumoTotal').textContent = total.toLocaleString();
+    document.getElementById('resumoConcursosRange').textContent = `${concursoInicial} → ${concursoFinal}`;
+    document.getElementById('resumoPreenchidos').textContent = `${preenchidos}/${qtdCartoes}`;
+    document.getElementById('totalCartoesNumero').textContent = qtdCartoes || 1;
+    document.getElementById('totalCartoesNav').textContent = qtdCartoes || 1;
+}
+
+function navegarCartao(direcao) {
+    const total = parseInt(document.getElementById('qtdCartoes').value) || 1;
+    cartaoAtualIndex += direcao;
+    if (cartaoAtualIndex < 0) cartaoAtualIndex = total - 1;
+    if (cartaoAtualIndex >= total) cartaoAtualIndex = 0;
+    
+    while (cartoesLote.length < total) {
+        cartoesLote.push([]);
+    }
+    
+    document.getElementById('cartaoAtualNumero').textContent = cartaoAtualIndex + 1;
+    document.getElementById('cartaoAtualNav').textContent = cartaoAtualIndex + 1;
+    
+    atualizarGradeVisual();
+    atualizarContador();
+    atualizarPrevia();
+    atualizarResumo();
+}
+
+function duplicarCartaoLote() {
+    const cartaoAtual = cartoesLote[cartaoAtualIndex] || [];
+    if (cartaoAtual.length !== MAX_NUMEROS_LOTOFACIL) {
+        showToast('⚠️ Preencha os 15 números antes de duplicar!', 'warning');
+        return;
+    }
+    
+    const novaPosicao = cartaoAtualIndex + 1;
+    cartoesLote.splice(novaPosicao, 0, [...cartaoAtual]);
+    const total = cartoesLote.length;
+    document.getElementById('qtdCartoes').value = total;
+    cartaoAtualIndex = novaPosicao;
+    navegarCartao(0);
+    showToast(`✅ Cartão duplicado! Total: ${total} cartões`, 'success');
+}
+
+function limparCartaoLote() {
+    if (!confirm('Limpar os números deste cartão?')) return;
+    cartoesLote[cartaoAtualIndex] = [];
+    navegarCartao(0);
+    showToast('🧹 Cartão limpo', 'info');
+}
+
+async function gerarLote() {
+    const bolaoNome = document.getElementById('bolaoNomeLote').value.trim() || 'Bolão em Lote';
+    const concursoInicial = parseInt(document.getElementById('concursoInicial').value);
+    const qtdConcursos = parseInt(document.getElementById('qtdConcursos').value);
+    const qtdCartoes = parseInt(document.getElementById('qtdCartoes').value);
+    const tipoParticipacao = document.getElementById('tipoCartaoLote').value;
+    
+    if (!concursoInicial || concursoInicial < 1) {
+        showToast('⚠️ Informe um concurso inicial válido!', 'warning');
+        return;
+    }
+    if (!qtdConcursos || qtdConcursos < 1) {
+        showToast('⚠️ Informe a quantidade de concursos!', 'warning');
+        return;
+    }
+    if (!qtdCartoes || qtdCartoes < 1) {
+        showToast('⚠️ Informe a quantidade de cartões!', 'warning');
+        return;
+    }
+    
+    const vazios = cartoesLote.some(c => c.length !== MAX_NUMEROS_LOTOFACIL);
+    if (vazios) {
+        showToast(`⚠️ Todos os ${qtdCartoes} cartões devem ter ${MAX_NUMEROS_LOTOFACIL} números!`, 'warning');
+        return;
+    }
+    
+    if (cartoesLote.length !== qtdCartoes) {
+        showToast(`⚠️ Você tem ${cartoesLote.length} cartões, mas configurou ${qtdCartoes}.`, 'warning');
+        return;
+    }
+    
+    const total = qtdCartoes * qtdConcursos;
+    const confirmar = confirm(
+        `⚠️ CONFIRMAR GERAÇÃO EM LOTE\n\n` +
+        `📌 Bolão: ${bolaoNome}\n` +
+        `🎯 ${qtdCartoes} cartões × ${qtdConcursos} concursos\n` +
+        `📊 Total: ${total.toLocaleString()} cartões\n` +
+        `📅 Concurso ${concursoInicial} → ${concursoInicial + qtdConcursos - 1}\n\n` +
+        `Esta ação NÃO pode ser desfeita!`
+    );
+    if (!confirmar) return;
+    
+    showLoading(`Gerando ${total.toLocaleString()} cartões...`);
+    
+    let adicionados = 0;
+    let erros = 0;
+    
+    try {
+        for (let i = 0; i < qtdCartoes; i++) {
+            const numeros = cartoesLote[i];
+            for (let c = 0; c < qtdConcursos; c++) {
+                const concurso = concursoInicial + c;
+                try {
+                    await db.collection('cartoes').add({
+                        concurso: concurso.toString(),
+                        bolao: bolaoNome,
+                        numeros: numeros,
+                        tipo: 'lotofacil',
+                        tipoParticipacao: tipoParticipacao,
+                        admin: true,
+                        dataCadastro: new Date().toISOString(),
+                        totalNumeros: numeros.length
+                    });
+                    adicionados++;
+                } catch (error) {
+                    erros++;
+                }
+            }
+        }
+        
+        if (adicionados > 0) {
+            showToast(`✅ ${adicionados.toLocaleString()} cartões gerados! ${erros > 0 ? `⚠️ ${erros} erros` : ''}`, 'success');
+            cartoesLote = [];
+            cartaoAtualIndex = 0;
+            document.getElementById('qtdCartoes').value = 20;
+            navegarCartao(0);
+            carregarDadosAdmin();
+        } else {
+            showToast('❌ Nenhum cartão foi gerado', 'error');
+        }
+    } catch (error) {
+        showToast('❌ Erro ao gerar lote: ' + error.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+function limparLote() {
+    if (!confirm('⚠️ LIMPAR TODOS OS CARTÕES DO LOTE?\n\nEsta ação NÃO pode ser desfeita!')) return;
+    cartoesLote = [];
+    cartaoAtualIndex = 0;
+    document.getElementById('qtdCartoes').value = 20;
+    navegarCartao(0);
+    showToast('🧹 Lote limpo!', 'info');
+}
+
+async function adicionarCartaoIndividual() {
+    const concurso = document.getElementById('concursoIndividual').value;
+    const bolao = document.getElementById('bolaoIndividual').value || 'Sem Bolão';
+    const tipoParticipacao = document.getElementById('tipoCartaoIndividual').value;
+    const texto = document.getElementById('numerosIndividual').value;
+    
+    if (!concurso) {
+        showToast('⚠️ Informe o concurso!', 'warning');
+        return;
+    }
+    if (!texto.trim()) {
+        showToast('⚠️ Informe os números!', 'warning');
+        return;
+    }
+    
+    const numeros = texto.match(/\d+/g).map(Number);
+    if (numeros.length !== 15) {
+        showToast('❌ LOTOFÁCIL: exatamente 15 números!', 'error');
+        return;
+    }
+    if (numeros.some(n => n < 1 || n > 25)) {
+        showToast('❌ Números entre 1 e 25!', 'error');
+        return;
+    }
+    numeros.sort((a, b) => a - b);
+    
+    try {
+        await db.collection('cartoes').add({
+            concurso: concurso,
+            bolao: bolao,
+            numeros: numeros,
+            tipo: 'lotofacil',
+            tipoParticipacao: tipoParticipacao,
+            admin: true,
+            dataCadastro: new Date().toISOString(),
+            totalNumeros: numeros.length
+        });
+        showToast('✅ Cartão adicionado!', 'success');
+        document.getElementById('numerosIndividual').value = '';
+        carregarDadosAdmin();
+    } catch (error) {
+        showToast('❌ Erro ao adicionar', 'error');
+    }
 }
 
 // ============================================
@@ -1622,306 +1943,7 @@ async function mostrarHistorico(id, nome) {
 }
 
 // ============================================
-// FUNÇÕES DO CADASTRO EM LOTE
-// ============================================
-
-function inicializarGradeNumeros() {
-    const grade = document.getElementById('gradeNumeros');
-    if (!grade) return;
-    
-    grade.innerHTML = '';
-    for (let i = 1; i <= TOTAL_NUMEROS; i++) {
-        const btn = document.createElement('button');
-        btn.className = 'numero-btn';
-        btn.dataset.numero = i;
-        btn.textContent = i.toString().padStart(2, '0');
-        btn.onclick = () => toggleNumero(i);
-        grade.appendChild(btn);
-    }
-}
-
-function toggleNumero(numero) {
-    const cartao = cartoesLote[cartaoAtualIndex];
-    if (!cartao) return;
-    
-    const index = cartao.indexOf(numero);
-    if (index > -1) {
-        cartao.splice(index, 1);
-    } else {
-        if (cartao.length >= MAX_NUMEROS_LOTOFACIL) {
-            showToast(`⚠️ Máximo de ${MAX_NUMEROS_LOTOFACIL} números!`, 'warning');
-            return;
-        }
-        cartao.push(numero);
-        cartao.sort((a, b) => a - b);
-    }
-    
-    atualizarGradeVisual();
-    atualizarContador();
-    atualizarPrevia();
-    atualizarResumo();
-}
-
-function atualizarGradeVisual() {
-    const cartao = cartoesLote[cartaoAtualIndex] || [];
-    const botoes = document.querySelectorAll('.numero-btn');
-    botoes.forEach(btn => {
-        const num = parseInt(btn.dataset.numero);
-        if (cartao.includes(num)) {
-            btn.classList.add('selecionado');
-            btn.style.background = '#3b82f6';
-            btn.style.color = 'white';
-            btn.style.borderColor = '#3b82f6';
-            btn.style.transform = 'scale(1.05)';
-        } else {
-            btn.classList.remove('selecionado');
-            btn.style.background = '#f8fafc';
-            btn.style.color = '#1e293b';
-            btn.style.borderColor = '#e2e8f0';
-            btn.style.transform = 'scale(1)';
-        }
-    });
-}
-
-function atualizarContador() {
-    const cartao = cartoesLote[cartaoAtualIndex] || [];
-    const contador = document.getElementById('contadorNumeros');
-    if (contador) {
-        contador.textContent = `${cartao.length}/${MAX_NUMEROS_LOTOFACIL} números selecionados`;
-        contador.style.color = cartao.length === MAX_NUMEROS_LOTOFACIL ? '#10b981' : '#3b82f6';
-    }
-}
-
-function atualizarPrevia() {
-    const container = document.getElementById('previaCartoes');
-    if (!container) return;
-    
-    if (cartoesLote.length === 0) {
-        container.innerHTML = '<div style="color: #94a3b8;">Nenhum cartão cadastrado ainda</div>';
-        return;
-    }
-    
-    let html = '';
-    const maxExibir = Math.min(cartoesLote.length, 20);
-    for (let i = 0; i < maxExibir; i++) {
-        const numeros = cartoesLote[i] || [];
-        const preenchido = numeros.length === MAX_NUMEROS_LOTOFACIL;
-        const status = preenchido ? '✅' : '❌';
-        const cor = preenchido ? '#10b981' : '#ef4444';
-        const numsStr = numeros.map(n => n.toString().padStart(2, '0')).join(' ');
-        html += `<div style="color: ${cor};">
-            #${i+1}: ${numsStr || '(vazio)'} ${status}
-        </div>`;
-    }
-    if (cartoesLote.length > maxExibir) {
-        html += `<div style="color: #94a3b8;">... e mais ${cartoesLote.length - maxExibir} cartões</div>`;
-    }
-    container.innerHTML = html;
-}
-
-function atualizarResumo() {
-    const qtdCartoes = parseInt(document.getElementById('qtdCartoes').value) || 0;
-    const qtdConcursos = parseInt(document.getElementById('qtdConcursos').value) || 0;
-    const concursoInicial = parseInt(document.getElementById('concursoInicial').value) || 0;
-    
-    const preenchidos = cartoesLote.filter(c => c.length === MAX_NUMEROS_LOTOFACIL).length;
-    const total = qtdCartoes * qtdConcursos;
-    const concursoFinal = concursoInicial + qtdConcursos - 1;
-    
-    document.getElementById('resumoCartoes').textContent = qtdCartoes;
-    document.getElementById('resumoConcursos').textContent = qtdConcursos;
-    document.getElementById('resumoTotal').textContent = total.toLocaleString();
-    document.getElementById('resumoConcursosRange').textContent = `${concursoInicial} → ${concursoFinal}`;
-    document.getElementById('resumoPreenchidos').textContent = `${preenchidos}/${qtdCartoes}`;
-    document.getElementById('totalCartoesNumero').textContent = qtdCartoes || 1;
-    document.getElementById('totalCartoesNav').textContent = qtdCartoes || 1;
-}
-
-function navegarCartao(direcao) {
-    const total = parseInt(document.getElementById('qtdCartoes').value) || 1;
-    cartaoAtualIndex += direcao;
-    if (cartaoAtualIndex < 0) cartaoAtualIndex = total - 1;
-    if (cartaoAtualIndex >= total) cartaoAtualIndex = 0;
-    
-    while (cartoesLote.length < total) {
-        cartoesLote.push([]);
-    }
-    
-    document.getElementById('cartaoAtualNumero').textContent = cartaoAtualIndex + 1;
-    document.getElementById('cartaoAtualNav').textContent = cartaoAtualIndex + 1;
-    
-    atualizarGradeVisual();
-    atualizarContador();
-    atualizarPrevia();
-    atualizarResumo();
-}
-
-function duplicarCartaoLote() {
-    const cartaoAtual = cartoesLote[cartaoAtualIndex] || [];
-    if (cartaoAtual.length !== MAX_NUMEROS_LOTOFACIL) {
-        showToast('⚠️ Preencha os 15 números antes de duplicar!', 'warning');
-        return;
-    }
-    
-    const novaPosicao = cartaoAtualIndex + 1;
-    cartoesLote.splice(novaPosicao, 0, [...cartaoAtual]);
-    const total = cartoesLote.length;
-    document.getElementById('qtdCartoes').value = total;
-    cartaoAtualIndex = novaPosicao;
-    navegarCartao(0);
-    showToast(`✅ Cartão duplicado! Total: ${total} cartões`, 'success');
-}
-
-function limparCartaoLote() {
-    if (!confirm('Limpar os números deste cartão?')) return;
-    cartoesLote[cartaoAtualIndex] = [];
-    navegarCartao(0);
-    showToast('🧹 Cartão limpo', 'info');
-}
-
-async function gerarLote() {
-    const bolaoNome = document.getElementById('bolaoNomeLote').value.trim() || 'Bolão em Lote';
-    const concursoInicial = parseInt(document.getElementById('concursoInicial').value);
-    const qtdConcursos = parseInt(document.getElementById('qtdConcursos').value);
-    const qtdCartoes = parseInt(document.getElementById('qtdCartoes').value);
-    const tipoParticipacao = document.getElementById('tipoCartaoLote').value;
-    
-    if (!concursoInicial || concursoInicial < 1) {
-        showToast('⚠️ Informe um concurso inicial válido!', 'warning');
-        return;
-    }
-    if (!qtdConcursos || qtdConcursos < 1) {
-        showToast('⚠️ Informe a quantidade de concursos!', 'warning');
-        return;
-    }
-    if (!qtdCartoes || qtdCartoes < 1) {
-        showToast('⚠️ Informe a quantidade de cartões!', 'warning');
-        return;
-    }
-    
-    const vazios = cartoesLote.some(c => c.length !== MAX_NUMEROS_LOTOFACIL);
-    if (vazios) {
-        showToast(`⚠️ Todos os ${qtdCartoes} cartões devem ter ${MAX_NUMEROS_LOTOFACIL} números!`, 'warning');
-        return;
-    }
-    
-    if (cartoesLote.length !== qtdCartoes) {
-        showToast(`⚠️ Você tem ${cartoesLote.length} cartões, mas configurou ${qtdCartoes}.`, 'warning');
-        return;
-    }
-    
-    const total = qtdCartoes * qtdConcursos;
-    const confirmar = confirm(
-        `⚠️ CONFIRMAR GERAÇÃO EM LOTE\n\n` +
-        `📌 Bolão: ${bolaoNome}\n` +
-        `🎯 ${qtdCartoes} cartões × ${qtdConcursos} concursos\n` +
-        `📊 Total: ${total.toLocaleString()} cartões\n` +
-        `📅 Concurso ${concursoInicial} → ${concursoInicial + qtdConcursos - 1}\n\n` +
-        `Esta ação NÃO pode ser desfeita!`
-    );
-    if (!confirmar) return;
-    
-    showLoading(`Gerando ${total.toLocaleString()} cartões...`);
-    
-    let adicionados = 0;
-    let erros = 0;
-    
-    try {
-        for (let i = 0; i < qtdCartoes; i++) {
-            const numeros = cartoesLote[i];
-            for (let c = 0; c < qtdConcursos; c++) {
-                const concurso = concursoInicial + c;
-                try {
-                    await db.collection('cartoes').add({
-                        concurso: concurso.toString(),
-                        bolao: bolaoNome,
-                        numeros: numeros,
-                        tipo: 'lotofacil',
-                        tipoParticipacao: tipoParticipacao,
-                        admin: true,
-                        dataCadastro: new Date().toISOString(),
-                        totalNumeros: numeros.length
-                    });
-                    adicionados++;
-                } catch (error) {
-                    erros++;
-                }
-            }
-        }
-        
-        if (adicionados > 0) {
-            showToast(`✅ ${adicionados.toLocaleString()} cartões gerados! ${erros > 0 ? `⚠️ ${erros} erros` : ''}`, 'success');
-            cartoesLote = [];
-            cartaoAtualIndex = 0;
-            document.getElementById('qtdCartoes').value = 20;
-            navegarCartao(0);
-            carregarDadosAdmin();
-        } else {
-            showToast('❌ Nenhum cartão foi gerado', 'error');
-        }
-    } catch (error) {
-        showToast('❌ Erro ao gerar lote: ' + error.message, 'error');
-    } finally {
-        hideLoading();
-    }
-}
-
-function limparLote() {
-    if (!confirm('⚠️ LIMPAR TODOS OS CARTÕES DO LOTE?\n\nEsta ação NÃO pode ser desfeita!')) return;
-    cartoesLote = [];
-    cartaoAtualIndex = 0;
-    document.getElementById('qtdCartoes').value = 20;
-    navegarCartao(0);
-    showToast('🧹 Lote limpo!', 'info');
-}
-
-async function adicionarCartaoIndividual() {
-    const concurso = document.getElementById('concursoIndividual').value;
-    const bolao = document.getElementById('bolaoIndividual').value || 'Sem Bolão';
-    const tipoParticipacao = document.getElementById('tipoCartaoIndividual').value;
-    const texto = document.getElementById('numerosIndividual').value;
-    
-    if (!concurso) {
-        showToast('⚠️ Informe o concurso!', 'warning');
-        return;
-    }
-    if (!texto.trim()) {
-        showToast('⚠️ Informe os números!', 'warning');
-        return;
-    }
-    
-    const numeros = texto.match(/\d+/g).map(Number);
-    if (numeros.length !== 15) {
-        showToast('❌ LOTOFÁCIL: exatamente 15 números!', 'error');
-        return;
-    }
-    if (numeros.some(n => n < 1 || n > 25)) {
-        showToast('❌ Números entre 1 e 25!', 'error');
-        return;
-    }
-    numeros.sort((a, b) => a - b);
-    
-    try {
-        await db.collection('cartoes').add({
-            concurso: concurso,
-            bolao: bolao,
-            numeros: numeros,
-            tipo: 'lotofacil',
-            tipoParticipacao: tipoParticipacao,
-            admin: true,
-            dataCadastro: new Date().toISOString(),
-            totalNumeros: numeros.length
-        });
-        showToast('✅ Cartão adicionado!', 'success');
-        document.getElementById('numerosIndividual').value = '';
-        carregarDadosAdmin();
-    } catch (error) {
-        showToast('❌ Erro ao adicionar', 'error');
-    }
-}
-
-// ============================================
-// INICIALIZAÇÃO
+// INICIALIZAÇÃO (DOMContentLoaded)
 // ============================================
 document.addEventListener('DOMContentLoaded', () => {
     console.log('📄 Admin inicializado');
@@ -1940,8 +1962,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnGerarWhatsApp = document.getElementById('btnGerarWhatsApp');
     const btnSalvarSelecao = document.getElementById('btnSalvarSelecao');
     const btnExportar = document.getElementById('btnExportarExcel');
-    const filtroConcurso = document.getElementById('filtroConcurso');
-    const ordenarPor = document.getElementById('ordenarPor');
+    const filtroConcurso = document.getElementById('filtroConcursoLista');
+    const ordenarPor = document.getElementById('ordenarPorLista');
     const senhaAdmin = document.getElementById('senhaAdmin');
     const btnGerarToken = document.getElementById('btnGerarToken');
     const btnAtualizarReservas = document.getElementById('btnAtualizarReservas');
@@ -1996,7 +2018,7 @@ document.addEventListener('DOMContentLoaded', () => {
     carregarReservas();
     
     // ============================================
-    // EVENTOS DO CADASTRO EM LOTE (NOVO)
+    // EVENTOS DO CADASTRO EM LOTE
     // ============================================
     
     // Inicializar grade de números
