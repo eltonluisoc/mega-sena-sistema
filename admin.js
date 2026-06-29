@@ -345,7 +345,7 @@ function exibirCartoesAdmin() {
     
     let cartoesFiltrados = cartoes.filter(c => c.tipo === loteriaAdmin);
     
-    const filtro = document.getElementById('filtroConcurso').value;
+    const filtro = document.getElementById('filtroConcursoLista')?.value || 'todos';
     if (filtro !== 'todos') {
         cartoesFiltrados = cartoesFiltrados.filter(c => c.concurso == filtro);
     }
@@ -754,7 +754,7 @@ function carregarConcursosAdmin() {
     const cartoesFiltrados = cartoes.filter(c => c.tipo === loteriaAdmin);
     const concursos = [...new Set(cartoesFiltrados.map(c => c.concurso))];
     concursos.sort((a,b) => b - a);
-    const filtro = document.getElementById('filtroConcurso');
+    const filtro = document.getElementById('filtroConcursoLista');
     
     if (filtro) {
         filtro.innerHTML = '<option value="todos">Todos os concursos</option>';
