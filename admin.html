@@ -230,6 +230,112 @@
         }
 
         /* ============================================ */
+/* MELHORIAS DE RESPONSIVIDADE */
+/* ============================================ */
+
+/* Cards responsivos */
+.card {
+    background: #f8fafc;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+    border: 1px solid #e2e8f0;
+}
+
+/* Botões responsivos */
+.btn {
+    padding: 12px 16px;
+    border: none;
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 14px;
+    text-align: center;
+    min-height: 48px;
+    touch-action: manipulation;
+}
+
+/* Inputs responsivos */
+.form-control, select, input, textarea {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 16px;
+    font-family: inherit;
+    background: white;
+    transition: all 0.2s;
+    min-height: 48px;
+    -webkit-appearance: none;
+}
+
+/* Grade de números responsiva */
+.grade-numeros {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.numero-btn {
+    padding: 14px 8px;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    background: white;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #1e293b;
+    font-family: monospace;
+    min-height: 48px;
+    touch-action: manipulation;
+}
+
+@media (max-width: 480px) {
+    .grade-numeros {
+        grid-template-columns: repeat(5, 1fr);
+        gap: 6px;
+    }
+    .numero-btn {
+        padding: 12px 4px;
+        font-size: 14px;
+        min-height: 44px;
+    }
+    .btn {
+        font-size: 13px;
+        padding: 12px 12px;
+        min-height: 44px;
+    }
+    .form-control, select, input, textarea {
+        font-size: 16px;
+        padding: 10px 12px;
+        min-height: 44px;
+    }
+    .card {
+        padding: 12px;
+    }
+    .tab-btn {
+        padding: 10px 12px;
+        font-size: 11px;
+        min-width: 60px;
+    }
+}
+
+@media (max-width: 380px) {
+    .grade-numeros {
+        grid-template-columns: repeat(4, 1fr);
+    }
+    .numero-btn {
+        padding: 10px 2px;
+        font-size: 12px;
+        min-height: 38px;
+    }
+}
+
+        /* ============================================ */
         /* GRADE DE NÚMEROS */
         /* ============================================ */
         .grade-numeros {
@@ -536,35 +642,37 @@
                 </div>
 
                 <!-- CADASTRO INDIVIDUAL -->
-                <div class="card" style="border: 1px dashed #f59e0b;">
-                    <div class="card-header">✏️ CADASTRO INDIVIDUAL</div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>📌 Concurso</label>
-                            <input type="number" id="concursoIndividual" class="form-control" placeholder="Ex: 3200">
-                        </div>
-                        <div class="form-group">
-                            <label>👥 Bolão</label>
-                            <input type="text" id="bolaoIndividual" class="form-control" placeholder="Ex: Família">
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>🎯 Tipo</label>
-                            <select id="tipoCartaoIndividual" class="form-control">
-                                <option value="exclusivo">👥 Grupo Exclusivo</option>
-                                <option value="cota">🎟️ Cota de Bolão</option>
-                            </select>
-                        </div>
-                        <div class="form-group"></div>
-                    </div>
-                    <div class="form-group">
-                        <label>🔢 Números (separados por espaço)</label>
-                        <input type="text" id="numerosIndividual" class="form-control" placeholder="Ex: 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15">
-                    </div>
-                    <button id="btnAdicionarIndividual" class="btn btn-success btn-block">➕ ADICIONAR CARTÃO</button>
-                </div>
-            </div>
+<div class="card" style="border: 1px dashed #f59e0b;">
+    <div class="card-header">✏️ CADASTRO INDIVIDUAL</div>
+    <div class="form-row">
+        <div class="form-group">
+            <label>📌 Concurso</label>
+            <input type="number" id="concursoIndividual" class="form-control" placeholder="Ex: 3200">
+        </div>
+        <div class="form-group">
+            <label>👥 Bolão</label>
+            <input type="text" id="bolaoIndividual" class="form-control" placeholder="Ex: Família">
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label>🎯 Tipo</label>
+            <select id="tipoCartaoIndividual" class="form-control">
+                <option value="exclusivo">👥 Grupo Exclusivo</option>
+                <option value="cota">🎟️ Cota de Bolão</option>
+            </select>
+        </div>
+        <div class="form-group"></div>
+    </div>
+    <div class="form-group">
+        <label id="labelNumerosIndividual">🔢 Números (separados por espaço)</label>
+        <input type="text" id="numerosIndividual" class="form-control" placeholder="Ex: 01 02 03 04 05 06">
+        <div id="dicaNumerosIndividual" style="font-size: 11px; color: #64748b; margin-top: 4px;">
+            💡 Digite os números separados por espaço
+        </div>
+    </div>
+    <button id="btnAdicionarIndividual" class="btn btn-success btn-block">➕ ADICIONAR CARTÃO</button>
+</div>
 
             <!-- ============================================ -->
             <!-- ABA 2: CARTÕES CADASTRADOS -->

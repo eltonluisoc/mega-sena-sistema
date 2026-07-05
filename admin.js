@@ -272,6 +272,7 @@ function setLoteriaAdmin(loteria) {
     console.log(`🔄 Mudando loteria admin para: ${loteria}`);
     loteriaAdmin = loteria;
     
+    // Atualizar botões
     document.getElementById('adminBtnMega').classList.remove('active');
     document.getElementById('adminBtnLotofacil').classList.remove('active');
     document.getElementById('adminBtnQuina').classList.remove('active');
@@ -291,6 +292,7 @@ function setLoteriaAdmin(loteria) {
         btnSelecionado.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.1)';
     }
     
+    // Atualizar dicas do cadastro EM LOTE (Lotofácil)
     const labelNumeros = document.getElementById('labelNumeros');
     const dica = document.querySelector('.dica');
     
@@ -304,6 +306,31 @@ function setLoteriaAdmin(loteria) {
         if (loteria === 'mega') dica.innerHTML = '💡 MEGA: mínimo 6 números (1-60)';
         else if (loteria === 'lotofacil') dica.innerHTML = '💡 LOTOFÁCIL: mínimo 15 números (1-25)';
         else if (loteria === 'quina') dica.innerHTML = '💡 QUINA: mínimo 5 números (1-80)';
+    }
+    
+    // Atualizar dicas do cadastro INDIVIDUAL
+    const labelIndividual = document.getElementById('labelNumerosIndividual');
+    const dicaIndividual = document.getElementById('dicaNumerosIndividual');
+    
+    if (labelIndividual) {
+        if (loteria === 'mega') {
+            labelIndividual.innerHTML = '🔢 Números (6 números separados por espaço)';
+            if (dicaIndividual) dicaIndividual.innerHTML = '💡 MEGA: 6 números (1-60)';
+        } else if (loteria === 'lotofacil') {
+            labelIndividual.innerHTML = '🔢 Números (15 números separados por espaço)';
+            if (dicaIndividual) dicaIndividual.innerHTML = '💡 LOTOFÁCIL: 15 números (1-25)';
+        } else if (loteria === 'quina') {
+            labelIndividual.innerHTML = '🔢 Números (5 a 15 números separados por espaço)';
+            if (dicaIndividual) dicaIndividual.innerHTML = '💡 QUINA: 5 a 15 números (1-80)';
+        }
+    }
+    
+    // Atualizar placeholder do input individual
+    const inputIndividual = document.getElementById('numerosIndividual');
+    if (inputIndividual) {
+        if (loteria === 'mega') inputIndividual.placeholder = 'Ex: 12 15 23 34 45 56';
+        else if (loteria === 'lotofacil') inputIndividual.placeholder = 'Ex: 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15';
+        else if (loteria === 'quina') inputIndividual.placeholder = 'Ex: 12 15 23 34 45 (mínimo 5)';
     }
     
     carregarDadosAdmin();
@@ -1282,6 +1309,9 @@ function limparLote() {
     showToast('🧹 Lote limpo!', 'info');
 }
 
+// ============================================
+// CADASTRO INDIVIDUAL (CORRIGIDO PARA TODAS AS LOTERIAS)
+// ============================================
 async function adicionarCartaoIndividual() {
     const concurso = document.getElementById('concursoIndividual').value;
     const bolao = document.getElementById('bolaoIndividual').value || 'Sem Bolão';
@@ -1298,14 +1328,48 @@ async function adicionarCartaoIndividual() {
     }
     
     const numeros = texto.match(/\d+/g).map(Number);
-    if (numeros.length !== 15) {
-        showToast('❌ LOTOFÁCIL: exatamente 15 números!', 'error');
+    
+    // VALIDAÇÕES POR LOTERIA
+    let minNumeros, maxNumeros, maxValor, label;
+    
+    if (loteriaAdmin === 'mega') {
+        minNumeros = 6;
+        maxNumeros = 6;
+        maxValor = 60;
+        label = 'MEGA-SENA';
+    } else if (loteriaAdmin === 'lotofacil') {
+        minNumeros = 15;
+        maxNumeros = 15;
+        maxValor = 25;
+        label = 'LOTOFÁCIL';
+    } else if (loteriaAdmin === 'quina') {
+        minNumeros = 5;
+        maxNumeros = 15;
+        maxValor = 80;
+        label = 'QUINA';
+    }
+    
+    if (numeros.length < minNumeros) {
+        showToast(`❌ ${label}: mínimo ${minNumeros} números!`, 'error');
         return;
     }
-    if (numeros.some(n => n < 1 || n > 25)) {
-        showToast('❌ Números entre 1 e 25!', 'error');
+    
+    if (numeros.length > maxNumeros) {
+        showToast(`❌ ${label}: máximo ${maxNumeros} números!`, 'error');
         return;
     }
+    
+    const numerosUnicos = [...new Set(numeros)];
+    if (numerosUnicos.length !== numeros.length) {
+        showToast('❌ Números duplicados!', 'error');
+        return;
+    }
+    
+    if (numeros.some(n => n < 1 || n > maxValor)) {
+        showToast(`❌ Números devem estar entre 1 e ${maxValor}!`, 'error');
+        return;
+    }
+    
     numeros.sort((a, b) => a - b);
     
     try {
@@ -1313,16 +1377,17 @@ async function adicionarCartaoIndividual() {
             concurso: concurso,
             bolao: bolao,
             numeros: numeros,
-            tipo: 'lotofacil',
+            tipo: loteriaAdmin,
             tipoParticipacao: tipoParticipacao,
             admin: true,
             dataCadastro: new Date().toISOString(),
             totalNumeros: numeros.length
         });
-        showToast('✅ Cartão adicionado!', 'success');
+        showToast(`✅ Cartão adicionado à ${label}!`, 'success');
         document.getElementById('numerosIndividual').value = '';
         carregarDadosAdmin();
     } catch (error) {
+        console.error('Erro:', error);
         showToast('❌ Erro ao adicionar', 'error');
     }
 }
