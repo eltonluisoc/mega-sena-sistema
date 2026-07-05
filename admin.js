@@ -266,25 +266,33 @@ function forcarLogin() {
 }
 
 // ============================================
-// SELECIONAR LOTERIA
+// SELECIONAR LOTERIA (COM CONTROLE DO CARD LOTE POR ID)
 // ============================================
 function setLoteriaAdmin(loteria) {
     console.log(`🔄 Mudando loteria admin para: ${loteria}`);
     loteriaAdmin = loteria;
     
     // Atualizar botões
-    document.getElementById('adminBtnMega').classList.remove('active');
-    document.getElementById('adminBtnLotofacil').classList.remove('active');
-    document.getElementById('adminBtnQuina').classList.remove('active');
+    const btnMega = document.getElementById('adminBtnMega');
+    const btnLotofacil = document.getElementById('adminBtnLotofacil');
+    const btnQuina = document.getElementById('adminBtnQuina');
     
-    document.querySelectorAll('.loteria-btn-admin').forEach(btn => {
-        btn.classList.remove('active');
-        btn.style.transform = 'scale(1)';
-        btn.style.filter = 'brightness(1)';
-        btn.style.boxShadow = 'none';
+    // Remover active de todos
+    [btnMega, btnLotofacil, btnQuina].forEach(btn => {
+        if (btn) {
+            btn.classList.remove('active');
+            btn.style.transform = 'scale(1)';
+            btn.style.filter = 'brightness(1)';
+            btn.style.boxShadow = 'none';
+        }
     });
     
-    const btnSelecionado = document.getElementById(`adminBtn${loteria.charAt(0).toUpperCase() + loteria.slice(1)}`);
+    // Adicionar active no selecionado
+    let btnSelecionado = null;
+    if (loteria === 'mega') btnSelecionado = btnMega;
+    else if (loteria === 'lotofacil') btnSelecionado = btnLotofacil;
+    else if (loteria === 'quina') btnSelecionado = btnQuina;
+    
     if (btnSelecionado) {
         btnSelecionado.classList.add('active');
         btnSelecionado.style.transform = 'scale(0.98)';
@@ -293,17 +301,21 @@ function setLoteriaAdmin(loteria) {
     }
     
     // ============================================
-    // MOSTRAR/ESCONDER CADASTRO EM LOTE
+    // MOSTRAR/ESCONDER CADASTRO EM LOTE (USANDO ID)
     // ============================================
-    const loteCard = document.querySelector('.card[style*="border: 2px solid #10b981"]');
-    if (loteCard) {
+    const cardLote = document.getElementById('cardLote');
+    if (cardLote) {
         if (loteria === 'lotofacil') {
-            loteCard.style.display = 'block';
-            loteCard.style.opacity = '1';
+            cardLote.style.display = 'block';
+            cardLote.style.opacity = '1';
+            console.log('✅ Card Lote VISÍVEL (Lotofácil)');
         } else {
-            loteCard.style.display = 'none';
-            loteCard.style.opacity = '0.5';
+            cardLote.style.display = 'none';
+            cardLote.style.opacity = '0.5';
+            console.log(`❌ Card Lote OCULTO (${loteria.toUpperCase()})`);
         }
+    } else {
+        console.warn('⚠️ Card Lote não encontrado! Verifique se o ID "cardLote" existe no HTML.');
     }
     
     // ============================================
@@ -2086,26 +2098,29 @@ document.addEventListener('DOMContentLoaded', () => {
     inicializarGradeNumeros();
     
     // ============================================
-    // INICIALIZAR VISIBILIDADE DO LOTE (só Lotofácil)
+    // INICIALIZAR VISIBILIDADE DO LOTE (só Lotofácil) - USANDO ID
     // ============================================
     function atualizarVisibilidadeLote() {
-        const loteCard = document.querySelector('.card[style*="border: 2px solid #10b981"]');
-        if (loteCard) {
+        const cardLote = document.getElementById('cardLote');
+        if (cardLote) {
             if (loteriaAdmin === 'lotofacil') {
-                loteCard.style.display = 'block';
-                loteCard.style.opacity = '1';
+                cardLote.style.display = 'block';
+                cardLote.style.opacity = '1';
+                console.log('✅ Card Lote VISÍVEL (Lotofácil)');
             } else {
-                loteCard.style.display = 'none';
-                loteCard.style.opacity = '0.5';
+                cardLote.style.display = 'none';
+                cardLote.style.opacity = '0.5';
+                console.log(`❌ Card Lote OCULTO (${loteriaAdmin.toUpperCase()})`);
             }
+        } else {
+            console.warn('⚠️ Card Lote não encontrado! Verifique o ID "cardLote" no HTML.');
         }
     }
     
     // Chamar ao carregar
     atualizarVisibilidadeLote();
     
-    // Atualizar quando mudar de loteria (já está no setLoteriaAdmin)
-    // Mas também garantir no clique dos botões
+    // Atualizar quando mudar de loteria
     adminBtnMega.addEventListener('click', () => {
         setTimeout(atualizarVisibilidadeLote, 100);
     });
