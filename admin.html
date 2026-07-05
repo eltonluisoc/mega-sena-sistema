@@ -539,107 +539,164 @@
             </div>
 
             <!-- ============================================ -->
-            <!-- ABA 1: CADASTRO -->
-            <!-- ============================================ -->
-            <div class="tab-content active" id="tab-cadastro">
-                
-                <!-- SELETOR DE LOTERIA -->
-                <div style="margin-bottom: 20px; padding: 12px; background: #f1f5f9; border-radius: 12px;">
-                    <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 8px; color: #1e293b;">🎯 SELECIONAR LOTERIA:</label>
-                    <div class="loteria-selector-admin" style="display: flex; gap: 8px;">
-                        <button id="adminBtnMega" class="loteria-btn-admin mega" style="flex:1; padding: 10px 8px; border: none; border-radius: 30px; font-weight: bold; cursor: pointer; font-size: 13px; background: #8b5cf6; color: white;">🎯 MEGA</button>
-                        <button id="adminBtnLotofacil" class="loteria-btn-admin lotofacil active" style="flex:1; padding: 10px 8px; border: none; border-radius: 30px; font-weight: bold; cursor: pointer; font-size: 13px; background: #10b981; color: white;">🌟 LOTOFÁCIL</button>
-                        <button id="adminBtnQuina" class="loteria-btn-admin quina" style="flex:1; padding: 10px 8px; border: none; border-radius: 30px; font-weight: bold; cursor: pointer; font-size: 13px; background: #ef4444; color: white;">🎯 QUINA</button>
-                    </div>
-                    <div style="font-size: 11px; color: #64748b; margin-top: 6px; text-align: center;">
-                        📌 Selecione a loteria para cadastrar cartões
-                    </div>
+<!-- ABA 1: CADASTRO -->
+<!-- ============================================ -->
+<div class="tab-content active" id="tab-cadastro">
+    
+    <!-- SELETOR DE LOTERIA -->
+    <div style="margin-bottom: 20px; padding: 12px; background: #f1f5f9; border-radius: 12px;">
+        <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 8px; color: #1e293b;">🎯 SELECIONAR LOTERIA:</label>
+        <div class="loteria-selector-admin" style="display: flex; gap: 8px;">
+            <button id="adminBtnMega" class="loteria-btn-admin mega" style="flex:1; padding: 10px 8px; border: none; border-radius: 30px; font-weight: bold; cursor: pointer; font-size: 13px; background: #8b5cf6; color: white;">🎯 MEGA</button>
+            <button id="adminBtnLotofacil" class="loteria-btn-admin lotofacil active" style="flex:1; padding: 10px 8px; border: none; border-radius: 30px; font-weight: bold; cursor: pointer; font-size: 13px; background: #10b981; color: white;">🌟 LOTOFÁCIL</button>
+            <button id="adminBtnQuina" class="loteria-btn-admin quina" style="flex:1; padding: 10px 8px; border: none; border-radius: 30px; font-weight: bold; cursor: pointer; font-size: 13px; background: #ef4444; color: white;">🎯 QUINA</button>
+        </div>
+        <div style="font-size: 11px; color: #64748b; margin-top: 6px; text-align: center;">
+            📌 Selecione a loteria para cadastrar cartões
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- 1. CADASTRO INDIVIDUAL (TODAS AS LOTERIAS) -->
+    <!-- ============================================ -->
+    <div class="card" style="border: 2px solid #3b82f6;">
+        <div class="card-header">
+            ✏️ CADASTRO INDIVIDUAL
+            <span class="badge" style="font-size: 10px; background: #3b82f6; color: white; padding: 2px 10px; border-radius: 20px;">MEGA • LOTOFÁCIL • QUINA</span>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>📌 Concurso</label>
+                <input type="number" id="concursoIndividual" class="form-control" placeholder="Ex: 3200">
+            </div>
+            <div class="form-group">
+                <label>👥 Bolão</label>
+                <input type="text" id="bolaoIndividual" class="form-control" placeholder="Ex: Família">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>🎯 Tipo</label>
+                <select id="tipoCartaoIndividual" class="form-control">
+                    <option value="exclusivo">👥 Grupo Exclusivo</option>
+                    <option value="cota">🎟️ Cota de Bolão</option>
+                </select>
+            </div>
+            <div class="form-group"></div>
+        </div>
+        <div class="form-group">
+            <label id="labelNumerosIndividual">🔢 Números (separados por espaço)</label>
+            <input type="text" id="numerosIndividual" class="form-control" placeholder="Ex: 01 02 03 04 05 06">
+            <div id="dicaNumerosIndividual" style="font-size: 11px; color: #64748b; margin-top: 4px;">
+                💡 Digite os números separados por espaço
+            </div>
+        </div>
+        <button id="btnAdicionarIndividual" class="btn btn-success btn-block">➕ ADICIONAR CARTÃO</button>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- 2. CADASTRO EM LOTE (APENAS LOTOFÁCIL) -->
+    <!-- ============================================ -->
+    <div class="card" style="border: 2px solid #10b981; background: #f0fdf4;">
+        <div class="card-header">
+            📦 CADASTRO EM LOTE
+            <span class="badge" style="font-size: 10px; background: #10b981; color: white; padding: 2px 10px; border-radius: 20px;">APENAS LOTOFÁCIL</span>
+        </div>
+        <div style="font-size: 12px; color: #065f46; margin-bottom: 12px; background: #d1fae5; padding: 8px 12px; border-radius: 8px;">
+            ⚡ Crie 20 cartões × N concursos em poucos cliques! <strong>Selecione LOTOFÁCIL</strong> para usar.
+        </div>
+        
+        <!-- CONFIGURAÇÃO DO BOLÃO -->
+        <div style="background: white; padding: 12px; border-radius: 10px; margin-bottom: 16px;">
+            <div style="font-weight: bold; margin-bottom: 10px; color: #1e293b;">📌 CONFIGURAÇÃO DO BOLÃO</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>👥 Nome do Bolão</label>
+                    <input type="text" id="bolaoNomeLote" class="form-control" placeholder="Ex: Lotofácil 24 Concursos" value="Lotofácil 24 Concursos">
                 </div>
-
-                <!-- CADASTRO EM LOTE -->
-                <div class="card">
-                    <div class="card-header">📌 CONFIGURAÇÃO DO BOLÃO</div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>👥 Nome do Bolão</label>
-                            <input type="text" id="bolaoNomeLote" class="form-control" placeholder="Ex: Lotofácil 24 Concursos" value="Lotofácil 24 Concursos">
-                        </div>
-                        <div class="form-group">
-                            <label>📌 Concurso inicial</label>
-                            <input type="number" id="concursoInicial" class="form-control" placeholder="Ex: 3200" value="3200">
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>📌 Quantos concursos?</label>
-                            <input type="number" id="qtdConcursos" class="form-control" placeholder="Ex: 24" value="24" min="1" max="100">
-                        </div>
-                        <div class="form-group">
-                            <label>📌 Quantos cartões?</label>
-                            <input type="number" id="qtdCartoes" class="form-control" placeholder="Ex: 20" value="20" min="1" max="100">
-                        </div>
-                        <div class="form-group">
-                            <label>🎯 Tipo</label>
-                            <select id="tipoCartaoLote" class="form-control">
-                                <option value="exclusivo">👥 Grupo Exclusivo</option>
-                                <option value="cota">🎟️ Cota de Bolão</option>
-                            </select>
-                        </div>
-                    </div>
+                <div class="form-group">
+                    <label>📌 Concurso inicial</label>
+                    <input type="number" id="concursoInicial" class="form-control" placeholder="Ex: 3200" value="3200">
                 </div>
-
-                <!-- SELEÇÃO DE NÚMEROS -->
-                <div class="card" style="border: 2px solid #3b82f6;">
-                    <div class="card-header">
-                        🎯 CARTÃO <span id="cartaoAtualNumero">1</span>/<span id="totalCartoesNumero">20</span>
-                        <span style="font-size: 13px; color: #64748b; font-weight: normal;">Selecione <strong>15</strong> números</span>
-                    </div>
-                    
-                    <div class="grade-numeros" id="gradeNumeros">
-                        <!-- Gerado via JavaScript -->
-                    </div>
-                    
-                    <div style="text-align: center; margin-top: 12px;">
-                        <span id="contadorNumeros" style="font-size: 14px; font-weight: bold; color: #3b82f6;">0/15 números selecionados</span>
-                    </div>
-
-                    <div style="display: flex; justify-content: center; gap: 12px; margin-top: 16px; flex-wrap: wrap;">
-                        <button id="btnCartaoAnterior" class="btn btn-secondary" style="min-width: 120px;">◀ ANTERIOR</button>
-                        <span style="display: flex; align-items: center; font-size: 14px; color: #475569;">
-                            CARTÃO <span id="cartaoAtualNav">1</span>/<span id="totalCartoesNav">20</span>
-                        </span>
-                        <button id="btnCartaoProximo" class="btn btn-secondary" style="min-width: 120px;">PRÓXIMO ▶</button>
-                    </div>
-
-                    <div style="display: flex; justify-content: center; gap: 12px; margin-top: 12px; flex-wrap: wrap;">
-                        <button id="btnDuplicarCartao" class="btn btn-warning" style="min-width: 150px;">🔁 DUPLICAR</button>
-                        <button id="btnLimparCartao" class="btn btn-danger" style="min-width: 150px;">🗑️ LIMPAR</button>
-                    </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>📌 Quantos concursos?</label>
+                    <input type="number" id="qtdConcursos" class="form-control" placeholder="Ex: 24" value="24" min="1" max="100">
                 </div>
-
-                <!-- RESUMO -->
-                <div class="card" style="background: #f0fdf4; border: 2px solid #10b981;">
-                    <div class="card-header">📊 RESUMO DO LOTE</div>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px;">
-                        <div><strong>🎯 Cartões:</strong> <span id="resumoCartoes">20</span></div>
-                        <div><strong>📌 Concursos:</strong> <span id="resumoConcursos">24</span></div>
-                        <div><strong>📊 Total:</strong> <span id="resumoTotal" style="color: #3b82f6; font-size: 18px;">480</span></div>
-                        <div><strong>📅 Concursos:</strong> <span id="resumoConcursosRange">3200 → 3223</span></div>
-                        <div><strong>✅ Preenchidos:</strong> <span id="resumoPreenchidos">0/20</span></div>
-                    </div>
-                    <div style="display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap;">
-                        <button id="btnGerarLote" class="btn btn-success" style="flex: 1; min-width: 200px; padding: 14px; font-size: 16px;">🚀 GERAR TODOS</button>
-                        <button id="btnLimparLote" class="btn btn-danger" style="flex: 1; min-width: 150px; padding: 14px; font-size: 16px;">🗑️ LIMPAR TUDO</button>
-                    </div>
+                <div class="form-group">
+                    <label>📌 Quantos cartões?</label>
+                    <input type="number" id="qtdCartoes" class="form-control" placeholder="Ex: 20" value="20" min="1" max="100">
                 </div>
-
-                <!-- PRÉVIA -->
-                <div class="card">
-                    <div class="card-header">📋 PRÉVIA DOS CARTÕES</div>
-                    <div id="previaCartoes" style="font-size: 12px; font-family: monospace; max-height: 200px; overflow-y: auto;">
-                        <div style="color: #94a3b8;">Nenhum cartão cadastrado ainda</div>
-                    </div>
+                <div class="form-group">
+                    <label>🎯 Tipo</label>
+                    <select id="tipoCartaoLote" class="form-control">
+                        <option value="exclusivo">👥 Grupo Exclusivo</option>
+                        <option value="cota">🎟️ Cota de Bolão</option>
+                    </select>
                 </div>
+            </div>
+        </div>
+
+        <!-- SELEÇÃO DE NÚMEROS -->
+        <div style="background: white; padding: 12px; border-radius: 10px; margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <div style="font-weight: bold; font-size: 15px; color: #1e293b;">
+                    🎯 CARTÃO <span id="cartaoAtualNumero">1</span>/<span id="totalCartoesNumero">20</span>
+                </div>
+                <span style="font-size: 13px; color: #64748b;">Selecione <strong>15</strong> números</span>
+            </div>
+            
+            <div class="grade-numeros" id="gradeNumeros">
+                <!-- Gerado via JavaScript -->
+            </div>
+            
+            <div style="text-align: center; margin-top: 12px;">
+                <span id="contadorNumeros" style="font-size: 14px; font-weight: bold; color: #3b82f6;">0/15 números selecionados</span>
+            </div>
+
+            <div style="display: flex; justify-content: center; gap: 12px; margin-top: 16px; flex-wrap: wrap;">
+                <button id="btnCartaoAnterior" class="btn btn-secondary" style="min-width: 100px;">◀</button>
+                <span style="display: flex; align-items: center; font-size: 14px; color: #475569;">
+                    <span id="cartaoAtualNav">1</span>/<span id="totalCartoesNav">20</span>
+                </span>
+                <button id="btnCartaoProximo" class="btn btn-secondary" style="min-width: 100px;">▶</button>
+            </div>
+
+            <div style="display: flex; justify-content: center; gap: 12px; margin-top: 12px; flex-wrap: wrap;">
+                <button id="btnDuplicarCartao" class="btn btn-warning" style="min-width: 130px;">🔁 DUPLICAR</button>
+                <button id="btnLimparCartao" class="btn btn-danger" style="min-width: 130px;">🗑️ LIMPAR</button>
+            </div>
+        </div>
+
+        <!-- RESUMO -->
+        <div style="background: white; padding: 12px; border-radius: 10px; margin-bottom: 16px;">
+            <div style="font-weight: bold; margin-bottom: 8px; color: #1e293b;">📊 RESUMO DO LOTE</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px;">
+                <div><strong>🎯 Cartões:</strong> <span id="resumoCartoes">20</span></div>
+                <div><strong>📌 Concursos:</strong> <span id="resumoConcursos">24</span></div>
+                <div><strong>📊 Total:</strong> <span id="resumoTotal" style="color: #3b82f6; font-size: 18px;">480</span></div>
+                <div><strong>📅 Concursos:</strong> <span id="resumoConcursosRange">3200 → 3223</span></div>
+                <div><strong>✅ Preenchidos:</strong> <span id="resumoPreenchidos">0/20</span></div>
+            </div>
+        </div>
+
+        <!-- AÇÕES DO LOTE -->
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <button id="btnGerarLote" class="btn btn-success" style="flex: 1; min-width: 200px; padding: 14px; font-size: 16px;">🚀 GERAR TODOS</button>
+            <button id="btnLimparLote" class="btn btn-danger" style="flex: 1; min-width: 150px; padding: 14px; font-size: 16px;">🗑️ LIMPAR TUDO</button>
+        </div>
+
+        <!-- PRÉVIA -->
+        <div style="background: white; padding: 12px; border-radius: 10px; margin-top: 16px; max-height: 150px; overflow-y: auto;">
+            <div style="font-weight: bold; margin-bottom: 6px; color: #1e293b; font-size: 12px;">📋 PRÉVIA DOS CARTÕES</div>
+            <div id="previaCartoes" style="font-size: 11px; font-family: monospace;">
+                <div style="color: #94a3b8;">Nenhum cartão cadastrado ainda</div>
+            </div>
+        </div>
+    </div>
+
+</div>
 
                 <!-- CADASTRO INDIVIDUAL -->
 <div class="card" style="border: 1px dashed #f59e0b;">

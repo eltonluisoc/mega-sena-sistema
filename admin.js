@@ -292,45 +292,41 @@ function setLoteriaAdmin(loteria) {
         btnSelecionado.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.1)';
     }
     
-    // Atualizar dicas do cadastro EM LOTE (Lotofácil)
-    const labelNumeros = document.getElementById('labelNumeros');
-    const dica = document.querySelector('.dica');
-    
-    if (labelNumeros) {
-        if (loteria === 'mega') labelNumeros.innerHTML = '🔢 Números (um por linha - MEGA: 6 números):';
-        else if (loteria === 'lotofacil') labelNumeros.innerHTML = '🔢 Números (um por linha - LOTOFÁCIL: 15 números):';
-        else if (loteria === 'quina') labelNumeros.innerHTML = '🔢 Números (um por linha - QUINA: mínimo 5 números):';
+    // ============================================
+    // MOSTRAR/ESCONDER CADASTRO EM LOTE
+    // ============================================
+    const loteCard = document.querySelector('.card[style*="border: 2px solid #10b981"]');
+    if (loteCard) {
+        if (loteria === 'lotofacil') {
+            loteCard.style.display = 'block';
+            loteCard.style.opacity = '1';
+        } else {
+            loteCard.style.display = 'none';
+            loteCard.style.opacity = '0.5';
+        }
     }
     
-    if (dica) {
-        if (loteria === 'mega') dica.innerHTML = '💡 MEGA: mínimo 6 números (1-60)';
-        else if (loteria === 'lotofacil') dica.innerHTML = '💡 LOTOFÁCIL: mínimo 15 números (1-25)';
-        else if (loteria === 'quina') dica.innerHTML = '💡 QUINA: mínimo 5 números (1-80)';
-    }
-    
-    // Atualizar dicas do cadastro INDIVIDUAL
+    // ============================================
+    // ATUALIZAR DICAS DO CADASTRO INDIVIDUAL
+    // ============================================
     const labelIndividual = document.getElementById('labelNumerosIndividual');
     const dicaIndividual = document.getElementById('dicaNumerosIndividual');
+    const inputIndividual = document.getElementById('numerosIndividual');
     
     if (labelIndividual) {
         if (loteria === 'mega') {
             labelIndividual.innerHTML = '🔢 Números (6 números separados por espaço)';
             if (dicaIndividual) dicaIndividual.innerHTML = '💡 MEGA: 6 números (1-60)';
+            if (inputIndividual) inputIndividual.placeholder = 'Ex: 12 15 23 34 45 56';
         } else if (loteria === 'lotofacil') {
             labelIndividual.innerHTML = '🔢 Números (15 números separados por espaço)';
             if (dicaIndividual) dicaIndividual.innerHTML = '💡 LOTOFÁCIL: 15 números (1-25)';
+            if (inputIndividual) inputIndividual.placeholder = 'Ex: 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15';
         } else if (loteria === 'quina') {
             labelIndividual.innerHTML = '🔢 Números (5 a 15 números separados por espaço)';
             if (dicaIndividual) dicaIndividual.innerHTML = '💡 QUINA: 5 a 15 números (1-80)';
+            if (inputIndividual) inputIndividual.placeholder = 'Ex: 12 15 23 34 45 (mínimo 5)';
         }
-    }
-    
-    // Atualizar placeholder do input individual
-    const inputIndividual = document.getElementById('numerosIndividual');
-    if (inputIndividual) {
-        if (loteria === 'mega') inputIndividual.placeholder = 'Ex: 12 15 23 34 45 56';
-        else if (loteria === 'lotofacil') inputIndividual.placeholder = 'Ex: 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15';
-        else if (loteria === 'quina') inputIndividual.placeholder = 'Ex: 12 15 23 34 45 (mínimo 5)';
     }
     
     carregarDadosAdmin();
@@ -2088,6 +2084,37 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Inicializar grade de números
     inicializarGradeNumeros();
+    
+    // ============================================
+    // INICIALIZAR VISIBILIDADE DO LOTE (só Lotofácil)
+    // ============================================
+    function atualizarVisibilidadeLote() {
+        const loteCard = document.querySelector('.card[style*="border: 2px solid #10b981"]');
+        if (loteCard) {
+            if (loteriaAdmin === 'lotofacil') {
+                loteCard.style.display = 'block';
+                loteCard.style.opacity = '1';
+            } else {
+                loteCard.style.display = 'none';
+                loteCard.style.opacity = '0.5';
+            }
+        }
+    }
+    
+    // Chamar ao carregar
+    atualizarVisibilidadeLote();
+    
+    // Atualizar quando mudar de loteria (já está no setLoteriaAdmin)
+    // Mas também garantir no clique dos botões
+    adminBtnMega.addEventListener('click', () => {
+        setTimeout(atualizarVisibilidadeLote, 100);
+    });
+    adminBtnLotofacil.addEventListener('click', () => {
+        setTimeout(atualizarVisibilidadeLote, 100);
+    });
+    adminBtnQuina.addEventListener('click', () => {
+        setTimeout(atualizarVisibilidadeLote, 100);
+    });
     
     // Configurar eventos do lote
     const qtdCartoes = document.getElementById('qtdCartoes');
