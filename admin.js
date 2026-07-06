@@ -316,6 +316,17 @@ function setLoteriaAdmin(loteria) {
         }
     } else {
         console.warn('⚠️ Card Lote não encontrado! Verifique se o ID "cardLote" existe no HTML.');
+        // TENTAR POR CLASSE COMO FALLBACK
+        const cardLoteFallback = document.querySelector('.card[style*="border: 2px solid #10b981"]');
+        if (cardLoteFallback) {
+            if (loteria === 'lotofacil') {
+                cardLoteFallback.style.display = 'block';
+                cardLoteFallback.style.opacity = '1';
+            } else {
+                cardLoteFallback.style.display = 'none';
+                cardLoteFallback.style.opacity = '0.5';
+            }
+        }
     }
     
     // ============================================
@@ -2090,7 +2101,7 @@ document.addEventListener('DOMContentLoaded', () => {
     carregarTokens();
     carregarReservas();
     
-    // ============================================
+// ============================================
 // EVENTOS DO CADASTRO EM LOTE
 // ============================================
     
@@ -2114,22 +2125,32 @@ function atualizarVisibilidadeLote() {
         }
     } else {
         console.warn('⚠️ Card Lote não encontrado! Verifique o ID "cardLote" no HTML.');
+        // FALLBACK: tentar por estilo
+        const cardLoteFallback = document.querySelector('.card[style*="border: 2px solid #10b981"]');
+        if (cardLoteFallback) {
+            if (loteriaAdmin === 'lotofacil') {
+                cardLoteFallback.style.display = 'block';
+                cardLoteFallback.style.opacity = '1';
+            } else {
+                cardLoteFallback.style.display = 'none';
+                cardLoteFallback.style.opacity = '0.5';
+            }
+        }
     }
 }
 
 // Chamar ao carregar
-atualizarVisibilidadeLote();
+setTimeout(atualizarVisibilidadeLote, 200);
 
-// Atualizar quando mudar de loteria (já está no setLoteriaAdmin)
-// Mas também garantir no clique dos botões
+// Atualizar quando mudar de loteria
 adminBtnMega.addEventListener('click', () => {
-    setTimeout(atualizarVisibilidadeLote, 100);
+    setTimeout(atualizarVisibilidadeLote, 200);
 });
 adminBtnLotofacil.addEventListener('click', () => {
-    setTimeout(atualizarVisibilidadeLote, 100);
+    setTimeout(atualizarVisibilidadeLote, 200);
 });
 adminBtnQuina.addEventListener('click', () => {
-    setTimeout(atualizarVisibilidadeLote, 100);
+    setTimeout(atualizarVisibilidadeLote, 200);
 });
 
 // Configurar eventos do lote
