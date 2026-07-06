@@ -266,7 +266,7 @@ function forcarLogin() {
 }
 
 // ============================================
-// SELECIONAR LOTERIA (COM CONTROLE DO CARD LOTE POR ID)
+// SELECIONAR LOTERIA (COM CONTROLE DO CARD LOTE)
 // ============================================
 function setLoteriaAdmin(loteria) {
     console.log(`🔄 Mudando loteria admin para: ${loteria}`);
@@ -2091,91 +2091,92 @@ document.addEventListener('DOMContentLoaded', () => {
     carregarReservas();
     
     // ============================================
-    // EVENTOS DO CADASTRO EM LOTE
-    // ============================================
+// EVENTOS DO CADASTRO EM LOTE
+// ============================================
     
-    // Inicializar grade de números
-    inicializarGradeNumeros();
-    
-    // ============================================
-    // INICIALIZAR VISIBILIDADE DO LOTE (só Lotofácil) - USANDO ID
-    // ============================================
-    function atualizarVisibilidadeLote() {
-        const cardLote = document.getElementById('cardLote');
-        if (cardLote) {
-            if (loteriaAdmin === 'lotofacil') {
-                cardLote.style.display = 'block';
-                cardLote.style.opacity = '1';
-                console.log('✅ Card Lote VISÍVEL (Lotofácil)');
-            } else {
-                cardLote.style.display = 'none';
-                cardLote.style.opacity = '0.5';
-                console.log(`❌ Card Lote OCULTO (${loteriaAdmin.toUpperCase()})`);
-            }
+// Inicializar grade de números
+inicializarGradeNumeros();
+
+// ============================================
+// INICIALIZAR VISIBILIDADE DO LOTE (só Lotofácil)
+// ============================================
+function atualizarVisibilidadeLote() {
+    const cardLote = document.getElementById('cardLote');
+    if (cardLote) {
+        if (loteriaAdmin === 'lotofacil') {
+            cardLote.style.display = 'block';
+            cardLote.style.opacity = '1';
+            console.log('✅ Card Lote VISÍVEL (Lotofácil)');
         } else {
-            console.warn('⚠️ Card Lote não encontrado! Verifique o ID "cardLote" no HTML.');
+            cardLote.style.display = 'none';
+            cardLote.style.opacity = '0.5';
+            console.log(`❌ Card Lote OCULTO (${loteriaAdmin.toUpperCase()})`);
         }
+    } else {
+        console.warn('⚠️ Card Lote não encontrado! Verifique o ID "cardLote" no HTML.');
     }
-    
-    // Chamar ao carregar
-    atualizarVisibilidadeLote();
-    
-    // Atualizar quando mudar de loteria
-    adminBtnMega.addEventListener('click', () => {
-        setTimeout(atualizarVisibilidadeLote, 100);
+}
+
+// Chamar ao carregar
+atualizarVisibilidadeLote();
+
+// Atualizar quando mudar de loteria (já está no setLoteriaAdmin)
+// Mas também garantir no clique dos botões
+adminBtnMega.addEventListener('click', () => {
+    setTimeout(atualizarVisibilidadeLote, 100);
+});
+adminBtnLotofacil.addEventListener('click', () => {
+    setTimeout(atualizarVisibilidadeLote, 100);
+});
+adminBtnQuina.addEventListener('click', () => {
+    setTimeout(atualizarVisibilidadeLote, 100);
+});
+
+// Configurar eventos do lote
+const qtdCartoes = document.getElementById('qtdCartoes');
+if (qtdCartoes) {
+    qtdCartoes.addEventListener('change', () => {
+        const total = parseInt(qtdCartoes.value) || 1;
+        while (cartoesLote.length < total) {
+            cartoesLote.push([]);
+        }
+        while (cartoesLote.length > total) {
+            cartoesLote.pop();
+        }
+        if (cartaoAtualIndex >= total) cartaoAtualIndex = total - 1;
+        navegarCartao(0);
     });
-    adminBtnLotofacil.addEventListener('click', () => {
-        setTimeout(atualizarVisibilidadeLote, 100);
-    });
-    adminBtnQuina.addEventListener('click', () => {
-        setTimeout(atualizarVisibilidadeLote, 100);
-    });
-    
-    // Configurar eventos do lote
-    const qtdCartoes = document.getElementById('qtdCartoes');
-    if (qtdCartoes) {
-        qtdCartoes.addEventListener('change', () => {
-            const total = parseInt(qtdCartoes.value) || 1;
-            while (cartoesLote.length < total) {
-                cartoesLote.push([]);
-            }
-            while (cartoesLote.length > total) {
-                cartoesLote.pop();
-            }
-            if (cartaoAtualIndex >= total) cartaoAtualIndex = total - 1;
-            navegarCartao(0);
-        });
-    }
-    
-    const qtdConcursos = document.getElementById('qtdConcursos');
-    if (qtdConcursos) qtdConcursos.addEventListener('change', atualizarResumo);
-    
-    const concursoInicial = document.getElementById('concursoInicial');
-    if (concursoInicial) concursoInicial.addEventListener('change', atualizarResumo);
-    
-    const btnCartaoAnterior = document.getElementById('btnCartaoAnterior');
-    if (btnCartaoAnterior) btnCartaoAnterior.addEventListener('click', () => navegarCartao(-1));
-    
-    const btnCartaoProximo = document.getElementById('btnCartaoProximo');
-    if (btnCartaoProximo) btnCartaoProximo.addEventListener('click', () => navegarCartao(1));
-    
-    const btnDuplicarCartao = document.getElementById('btnDuplicarCartao');
-    if (btnDuplicarCartao) btnDuplicarCartao.addEventListener('click', duplicarCartaoLote);
-    
-    const btnLimparCartao = document.getElementById('btnLimparCartao');
-    if (btnLimparCartao) btnLimparCartao.addEventListener('click', limparCartaoLote);
-    
-    const btnGerarLote = document.getElementById('btnGerarLote');
-    if (btnGerarLote) btnGerarLote.addEventListener('click', gerarLote);
-    
-    const btnLimparLote = document.getElementById('btnLimparLote');
-    if (btnLimparLote) btnLimparLote.addEventListener('click', limparLote);
-    
-    const btnAdicionarIndividual = document.getElementById('btnAdicionarIndividual');
-    if (btnAdicionarIndividual) btnAdicionarIndividual.addEventListener('click', adicionarCartaoIndividual);
-    
-    // Inicializar navegação
-    navegarCartao(0);
+}
+
+const qtdConcursos = document.getElementById('qtdConcursos');
+if (qtdConcursos) qtdConcursos.addEventListener('change', atualizarResumo);
+
+const concursoInicial = document.getElementById('concursoInicial');
+if (concursoInicial) concursoInicial.addEventListener('change', atualizarResumo);
+
+const btnCartaoAnterior = document.getElementById('btnCartaoAnterior');
+if (btnCartaoAnterior) btnCartaoAnterior.addEventListener('click', () => navegarCartao(-1));
+
+const btnCartaoProximo = document.getElementById('btnCartaoProximo');
+if (btnCartaoProximo) btnCartaoProximo.addEventListener('click', () => navegarCartao(1));
+
+const btnDuplicarCartao = document.getElementById('btnDuplicarCartao');
+if (btnDuplicarCartao) btnDuplicarCartao.addEventListener('click', duplicarCartaoLote);
+
+const btnLimparCartao = document.getElementById('btnLimparCartao');
+if (btnLimparCartao) btnLimparCartao.addEventListener('click', limparCartaoLote);
+
+const btnGerarLote = document.getElementById('btnGerarLote');
+if (btnGerarLote) btnGerarLote.addEventListener('click', gerarLote);
+
+const btnLimparLote = document.getElementById('btnLimparLote');
+if (btnLimparLote) btnLimparLote.addEventListener('click', limparLote);
+
+const btnAdicionarIndividual = document.getElementById('btnAdicionarIndividual');
+if (btnAdicionarIndividual) btnAdicionarIndividual.addEventListener('click', adicionarCartaoIndividual);
+
+// Inicializar navegação
+navegarCartao(0);
     
     // Forçar login se a autenticação falhar
     setTimeout(() => {
