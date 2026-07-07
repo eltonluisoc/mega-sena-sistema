@@ -6,7 +6,7 @@
     <title>Admin - Bolões Aleatórios</title>
     <link rel="manifest" href="manifest-admin.json">
     <meta name="theme-color" content="#3b82f6">
-    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Admin Bolões">
     <link rel="stylesheet" href="style.css">
@@ -233,15 +233,6 @@
         /* MELHORIAS DE RESPONSIVIDADE */
         /* ============================================ */
 
-        /* Cards responsivos */
-        .card {
-            background: #f8fafc;
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 16px;
-            border: 1px solid #e2e8f0;
-        }
-
         /* Botões responsivos */
         .btn {
             padding: 12px 16px;
@@ -292,6 +283,12 @@
             font-family: monospace;
             min-height: 48px;
             touch-action: manipulation;
+        }
+
+        .numero-btn.selecionado {
+            background: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
         }
 
         @media (max-width: 480px) {
@@ -561,106 +558,106 @@
                 </div>
 
                 <!-- ============================================ -->
-<!-- 2. CADASTRO EM LOTE (APENAS LOTOFÁCIL) -->
-<!-- ============================================ -->
-<div class="card" id="cardLote" style="border: 2px solid #10b981; background: #f0fdf4;">
-    <div class="card-header">
-        📦 CADASTRO EM LOTE
-        <span class="badge" style="font-size: 10px; background: #10b981; color: white; padding: 2px 10px; border-radius: 20px;">APENAS LOTOFÁCIL</span>
-    </div>
-    <div style="font-size: 12px; color: #065f46; margin-bottom: 12px; background: #d1fae5; padding: 8px 12px; border-radius: 8px;">
-        ⚡ Crie 20 cartões × N concursos em poucos cliques! <strong>Selecione LOTOFÁCIL</strong> para usar.
-    </div>
-    
-    <!-- CONFIGURAÇÃO DO BOLÃO -->
-    <div style="background: white; padding: 12px; border-radius: 10px; margin-bottom: 16px;">
-        <div style="font-weight: bold; margin-bottom: 10px; color: #1e293b;">📌 CONFIGURAÇÃO DO BOLÃO</div>
-        <div class="form-row">
-            <div class="form-group">
-                <label>👥 Nome do Bolão</label>
-                <input type="text" id="bolaoNomeLote" class="form-control" placeholder="Ex: Lotofácil 24 Concursos" value="Lotofácil 24 Concursos">
-            </div>
-            <div class="form-group">
-                <label>📌 Concurso inicial</label>
-                <input type="number" id="concursoInicial" class="form-control" placeholder="Ex: 3200" value="3200">
-            </div>
-        </div>
-        <div class="form-row">
-            <div class="form-group">
-                <label>📌 Quantos concursos?</label>
-                <input type="number" id="qtdConcursos" class="form-control" placeholder="Ex: 24" value="24" min="1" max="100">
-            </div>
-            <div class="form-group">
-                <label>📌 Quantos cartões?</label>
-                <input type="number" id="qtdCartoes" class="form-control" placeholder="Ex: 20" value="20" min="1" max="100">
-            </div>
-            <div class="form-group">
-                <label>🎯 Tipo</label>
-                <select id="tipoCartaoLote" class="form-control">
-                    <option value="exclusivo">👥 Grupo Exclusivo</option>
-                    <option value="cota">🎟️ Cota de Bolão</option>
-                </select>
-            </div>
-        </div>
-    </div>
+                <!-- 2. CADASTRO EM LOTE (APENAS LOTOFÁCIL) -->
+                <!-- ============================================ -->
+                <div class="card" id="cardLote" style="border: 2px solid #10b981; background: #f0fdf4;">
+                    <div class="card-header">
+                        📦 CADASTRO EM LOTE
+                        <span class="badge" style="font-size: 10px; background: #10b981; color: white; padding: 2px 10px; border-radius: 20px;">APENAS LOTOFÁCIL</span>
+                    </div>
+                    <div style="font-size: 12px; color: #065f46; margin-bottom: 12px; background: #d1fae5; padding: 8px 12px; border-radius: 8px;">
+                        ⚡ Crie 20 cartões × N concursos em poucos cliques! <strong>Selecione LOTOFÁCIL</strong> para usar.
+                    </div>
+                    
+                    <!-- CONFIGURAÇÃO DO BOLÃO -->
+                    <div style="background: white; padding: 12px; border-radius: 10px; margin-bottom: 16px;">
+                        <div style="font-weight: bold; margin-bottom: 10px; color: #1e293b;">📌 CONFIGURAÇÃO DO BOLÃO</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>👥 Nome do Bolão</label>
+                                <input type="text" id="bolaoNomeLote" class="form-control" placeholder="Ex: Lotofácil 24 Concursos" value="Lotofácil 24 Concursos">
+                            </div>
+                            <div class="form-group">
+                                <label>📌 Concurso inicial</label>
+                                <input type="number" id="concursoInicial" class="form-control" placeholder="Ex: 3200" value="3200">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>📌 Quantos concursos?</label>
+                                <input type="number" id="qtdConcursos" class="form-control" placeholder="Ex: 24" value="24" min="1" max="100">
+                            </div>
+                            <div class="form-group">
+                                <label>📌 Quantos cartões?</label>
+                                <input type="number" id="qtdCartoes" class="form-control" placeholder="Ex: 20" value="20" min="1" max="100">
+                            </div>
+                            <div class="form-group">
+                                <label>🎯 Tipo</label>
+                                <select id="tipoCartaoLote" class="form-control">
+                                    <option value="exclusivo">👥 Grupo Exclusivo</option>
+                                    <option value="cota">🎟️ Cota de Bolão</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
 
-    <!-- SELEÇÃO DE NÚMEROS -->
-    <div style="background: white; padding: 12px; border-radius: 10px; margin-bottom: 16px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <div style="font-weight: bold; font-size: 15px; color: #1e293b;">
-                🎯 CARTÃO <span id="cartaoAtualNumero">1</span>/<span id="totalCartoesNumero">20</span>
-            </div>
-            <span style="font-size: 13px; color: #64748b;">Selecione <strong>15</strong> números</span>
-        </div>
-        
-        <div class="grade-numeros" id="gradeNumeros">
-            <!-- Gerado via JavaScript -->
-        </div>
-        
-        <div style="text-align: center; margin-top: 12px;">
-            <span id="contadorNumeros" style="font-size: 14px; font-weight: bold; color: #3b82f6;">0/15 números selecionados</span>
-        </div>
+                    <!-- SELEÇÃO DE NÚMEROS -->
+                    <div style="background: white; padding: 12px; border-radius: 10px; margin-bottom: 16px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <div style="font-weight: bold; font-size: 15px; color: #1e293b;">
+                                🎯 CARTÃO <span id="cartaoAtualNumero">1</span>/<span id="totalCartoesNumero">20</span>
+                            </div>
+                            <span style="font-size: 13px; color: #64748b;">Selecione <strong>15</strong> números</span>
+                        </div>
+                        
+                        <div class="grade-numeros" id="gradeNumeros">
+                            <!-- Gerado via JavaScript -->
+                        </div>
+                        
+                        <div style="text-align: center; margin-top: 12px;">
+                            <span id="contadorNumeros" style="font-size: 14px; font-weight: bold; color: #3b82f6;">0/15 números selecionados</span>
+                        </div>
 
-        <div style="display: flex; justify-content: center; gap: 12px; margin-top: 16px; flex-wrap: wrap;">
-            <button id="btnCartaoAnterior" class="btn btn-secondary" style="min-width: 100px;">◀</button>
-            <span style="display: flex; align-items: center; font-size: 14px; color: #475569;">
-                <span id="cartaoAtualNav">1</span>/<span id="totalCartoesNav">20</span>
-            </span>
-            <button id="btnCartaoProximo" class="btn btn-secondary" style="min-width: 100px;">▶</button>
-        </div>
+                        <div style="display: flex; justify-content: center; gap: 12px; margin-top: 16px; flex-wrap: wrap;">
+                            <button id="btnCartaoAnterior" class="btn btn-secondary" style="min-width: 100px;">◀</button>
+                            <span style="display: flex; align-items: center; font-size: 14px; color: #475569;">
+                                <span id="cartaoAtualNav">1</span>/<span id="totalCartoesNav">20</span>
+                            </span>
+                            <button id="btnCartaoProximo" class="btn btn-secondary" style="min-width: 100px;">▶</button>
+                        </div>
 
-        <div style="display: flex; justify-content: center; gap: 12px; margin-top: 12px; flex-wrap: wrap;">
-            <button id="btnDuplicarCartao" class="btn btn-warning" style="min-width: 130px;">🔁 DUPLICAR</button>
-            <button id="btnLimparCartao" class="btn btn-danger" style="min-width: 130px;">🗑️ LIMPAR</button>
-        </div>
-    </div>
+                        <div style="display: flex; justify-content: center; gap: 12px; margin-top: 12px; flex-wrap: wrap;">
+                            <button id="btnDuplicarCartao" class="btn btn-warning" style="min-width: 130px;">🔁 DUPLICAR</button>
+                            <button id="btnLimparCartao" class="btn btn-danger" style="min-width: 130px;">🗑️ LIMPAR</button>
+                        </div>
+                    </div>
 
-    <!-- RESUMO -->
-    <div style="background: white; padding: 12px; border-radius: 10px; margin-bottom: 16px;">
-        <div style="font-weight: bold; margin-bottom: 8px; color: #1e293b;">📊 RESUMO DO LOTE</div>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px;">
-            <div><strong>🎯 Cartões:</strong> <span id="resumoCartoes">20</span></div>
-            <div><strong>📌 Concursos:</strong> <span id="resumoConcursos">24</span></div>
-            <div><strong>📊 Total:</strong> <span id="resumoTotal" style="color: #3b82f6; font-size: 18px;">480</span></div>
-            <div><strong>📅 Concursos:</strong> <span id="resumoConcursosRange">3200 → 3223</span></div>
-            <div><strong>✅ Preenchidos:</strong> <span id="resumoPreenchidos">0/20</span></div>
-        </div>
-    </div>
+                    <!-- RESUMO -->
+                    <div style="background: white; padding: 12px; border-radius: 10px; margin-bottom: 16px;">
+                        <div style="font-weight: bold; margin-bottom: 8px; color: #1e293b;">📊 RESUMO DO LOTE</div>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px;">
+                            <div><strong>🎯 Cartões:</strong> <span id="resumoCartoes">20</span></div>
+                            <div><strong>📌 Concursos:</strong> <span id="resumoConcursos">24</span></div>
+                            <div><strong>📊 Total:</strong> <span id="resumoTotal" style="color: #3b82f6; font-size: 18px;">480</span></div>
+                            <div><strong>📅 Concursos:</strong> <span id="resumoConcursosRange">3200 → 3223</span></div>
+                            <div><strong>✅ Preenchidos:</strong> <span id="resumoPreenchidos">0/20</span></div>
+                        </div>
+                    </div>
 
-    <!-- AÇÕES DO LOTE -->
-    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-        <button id="btnGerarLote" class="btn btn-success" style="flex: 1; min-width: 200px; padding: 14px; font-size: 16px;">🚀 GERAR TODOS</button>
-        <button id="btnLimparLote" class="btn btn-danger" style="flex: 1; min-width: 150px; padding: 14px; font-size: 16px;">🗑️ LIMPAR TUDO</button>
-    </div>
+                    <!-- AÇÕES DO LOTE -->
+                    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                        <button id="btnGerarLote" class="btn btn-success" style="flex: 1; min-width: 200px; padding: 14px; font-size: 16px;">🚀 GERAR TODOS</button>
+                        <button id="btnLimparLote" class="btn btn-danger" style="flex: 1; min-width: 150px; padding: 14px; font-size: 16px;">🗑️ LIMPAR TUDO</button>
+                    </div>
 
-    <!-- PRÉVIA -->
-    <div style="background: white; padding: 12px; border-radius: 10px; margin-top: 16px; max-height: 150px; overflow-y: auto;">
-        <div style="font-weight: bold; margin-bottom: 6px; color: #1e293b; font-size: 12px;">📋 PRÉVIA DOS CARTÕES</div>
-        <div id="previaCartoes" style="font-size: 11px; font-family: monospace;">
-            <div style="color: #94a3b8;">Nenhum cartão cadastrado ainda</div>
-        </div>
-    </div>
-</div>
+                    <!-- PRÉVIA -->
+                    <div style="background: white; padding: 12px; border-radius: 10px; margin-top: 16px; max-height: 150px; overflow-y: auto;">
+                        <div style="font-weight: bold; margin-bottom: 6px; color: #1e293b; font-size: 12px;">📋 PRÉVIA DOS CARTÕES</div>
+                        <div id="previaCartoes" style="font-size: 11px; font-family: monospace;">
+                            <div style="color: #94a3b8;">Nenhum cartão cadastrado ainda</div>
+                        </div>
+                    </div>
+                </div>
 
             </div>
 
@@ -772,4 +769,36 @@
             <div class="modal-header">🔐 ACESSO ADMINISTRATIVO</div>
             <div class="modal-body">
                 <input type="password" id="senhaAdmin" class="form-control" placeholder="Digite a senha">
-                <button id="btnAutenticar" class="btn btn-primary btn-block" style="margin-top:15px
+                <button id="btnAutenticar" class="btn btn-primary btn-block" style="margin-top:15px;">🔓 ENTRAR</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer" style="text-align: center; padding: 15px; font-size: 11px; color: #94a3b8; background: #1e293b; margin-top: 20px;">
+        <div>© 2026 Bolões Aleatórios - Versão 2.0</div>
+        <div style="font-size: 10px;">Desenvolvido por Elton Luis</div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-analytics-compat.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="admin.js"></script>
+    
+    <script>
+        // ============================================
+        // SISTEMA DE ABAS
+        // ============================================
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                this.classList.add('active');
+                const tabId = this.dataset.tab;
+                document.getElementById(tabId).classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>
