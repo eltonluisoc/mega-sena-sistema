@@ -316,7 +316,6 @@ function setLoteriaAdmin(loteria) {
         }
     } else {
         console.warn('⚠️ Card Lote não encontrado! Verifique se o ID "cardLote" existe no HTML.');
-        // TENTAR POR CLASSE COMO FALLBACK
         const cardLoteFallback = document.querySelector('.card[style*="border: 2px solid #10b981"]');
         if (cardLoteFallback) {
             if (loteria === 'lotofacil') {
@@ -338,17 +337,17 @@ function setLoteriaAdmin(loteria) {
     
     if (labelIndividual) {
         if (loteria === 'mega') {
-            labelIndividual.innerHTML = '🔢 Números (6 números separados por espaço)';
-            if (dicaIndividual) dicaIndividual.innerHTML = '💡 MEGA: 6 números (1-60)';
-            if (inputIndividual) inputIndividual.placeholder = 'Ex: 12 15 23 34 45 56';
+            labelIndividual.innerHTML = '🔢 Números (6 a 20 números separados por espaço)';
+            if (dicaIndividual) dicaIndividual.innerHTML = '💡 MEGA: 6 a 20 números (1-60)';
+            if (inputIndividual) inputIndividual.placeholder = 'Ex: 12 15 23 34 45 56 (6 a 20)';
         } else if (loteria === 'lotofacil') {
-            labelIndividual.innerHTML = '🔢 Números (15 números separados por espaço)';
-            if (dicaIndividual) dicaIndividual.innerHTML = '💡 LOTOFÁCIL: 15 números (1-25)';
-            if (inputIndividual) inputIndividual.placeholder = 'Ex: 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15';
+            labelIndividual.innerHTML = '🔢 Números (15 a 20 números separados por espaço)';
+            if (dicaIndividual) dicaIndividual.innerHTML = '💡 LOTOFÁCIL: 15 a 20 números (1-25)';
+            if (inputIndividual) inputIndividual.placeholder = 'Ex: 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 (15 a 20)';
         } else if (loteria === 'quina') {
             labelIndividual.innerHTML = '🔢 Números (5 a 15 números separados por espaço)';
             if (dicaIndividual) dicaIndividual.innerHTML = '💡 QUINA: 5 a 15 números (1-80)';
-            if (inputIndividual) inputIndividual.placeholder = 'Ex: 12 15 23 34 45 (mínimo 5)';
+            if (inputIndividual) inputIndividual.placeholder = 'Ex: 12 15 23 34 45 (5 a 15)';
         }
     }
     
@@ -562,7 +561,7 @@ function atualizarDashboardAdmin() {
 }
 
 // ============================================
-// ADICIONAR CARTÕES (CADASTRO TRADICIONAL)
+// ADICIONAR CARTÕES (CADASTRO TRADICIONAL - EM LOTE)
 // ============================================
 async function adicionarCartoes() {
     const concurso = document.getElementById('concurso').value;
@@ -576,20 +575,51 @@ async function adicionarCartoes() {
     const linhas = texto.split('\n');
     let adicionados = 0;
     let erros = 0;
-    const minNumeros = loteriaAdmin === 'mega' ? 6 : (loteriaAdmin === 'lotofacil' ? 15 : 5);
-    const maxValor = loteriaAdmin === 'mega' ? 60 : (loteriaAdmin === 'lotofacil' ? 25 : 80);
+    
+    // ============================================
+    // REGRAS POR LOTERIA
+    // ============================================
+    let minNumeros, maxNumeros, maxValor, label;
+    
+    if (loteriaAdmin === 'mega') {
+        minNumeros = 6;
+        maxNumeros = 20;
+        maxValor = 60;
+        label = 'MEGA-SENA';
+    } else if (loteriaAdmin === 'lotofacil') {
+        minNumeros = 15;
+        maxNumeros = 20;
+        maxValor = 25;
+        label = 'LOTOFÁCIL';
+    } else if (loteriaAdmin === 'quina') {
+        minNumeros = 5;
+        maxNumeros = 15;
+        maxValor = 80;
+        label = 'QUINA';
+    } else {
+        showToast('⚠️ Loteria não reconhecida!', 'error');
+        return;
+    }
     
     for (const linha of linhas) {
         if (!linha.trim()) continue;
         
         const numeros = linha.match(/\d+/g).map(Number);
         
+        // Validar quantidade
         if (numeros.length < minNumeros) { 
             console.warn(`❌ Linha ignorada: apenas ${numeros.length} números (mínimo ${minNumeros})`);
             erros++; 
             continue; 
         }
         
+        if (numeros.length > maxNumeros) {
+            console.warn(`❌ Linha ignorada: ${numeros.length} números (máximo ${maxNumeros})`);
+            erros++;
+            continue;
+        }
+        
+        // Validar duplicados
         const numerosUnicos = [...new Set(numeros)];
         if (numerosUnicos.length !== numeros.length) { 
             console.warn(`❌ Linha ignorada: contém números duplicados`);
@@ -597,6 +627,7 @@ async function adicionarCartoes() {
             continue; 
         }
         
+        // Validar range
         if (numeros.some(n => n < 1 || n > maxValor)) { 
             console.warn(`❌ Linha ignorada: números fora do range (1-${maxValor})`);
             erros++; 
@@ -624,14 +655,14 @@ async function adicionarCartoes() {
     }
     
     if (adicionados > 0) {
-        showToast(`✅ ${adicionados} cartões adicionados!`, 'success');
+        showToast(`✅ ${adicionados} cartões adicionados à ${label}!`, 'success');
         document.getElementById('numerosCartoes').value = '';
         carregarDadosAdmin();
     } else {
         let msg = `❌ Nenhum cartão adicionado. `;
-        if (loteriaAdmin === 'mega') msg += `MEGA: mínimo 6 números entre 1 e 60.`;
-        else if (loteriaAdmin === 'lotofacil') msg += `LOTOFÁCIL: mínimo 15 números entre 1 e 25.`;
-        else msg += `QUINA: mínimo 5 números entre 1 e 80.`;
+        if (loteriaAdmin === 'mega') msg += `MEGA: 6 a 20 números (1-60).`;
+        else if (loteriaAdmin === 'lotofacil') msg += `LOTOFÁCIL: 15 a 20 números (1-25).`;
+        else msg += `QUINA: 5 a 15 números (1-80).`;
         showToast(msg, 'error');
     }
 }
@@ -1348,17 +1379,19 @@ async function adicionarCartaoIndividual() {
     
     const numeros = texto.match(/\d+/g).map(Number);
     
+    // ============================================
     // VALIDAÇÕES POR LOTERIA
+    // ============================================
     let minNumeros, maxNumeros, maxValor, label;
     
     if (loteriaAdmin === 'mega') {
         minNumeros = 6;
-        maxNumeros = 6;
+        maxNumeros = 20;
         maxValor = 60;
         label = 'MEGA-SENA';
     } else if (loteriaAdmin === 'lotofacil') {
         minNumeros = 15;
-        maxNumeros = 15;
+        maxNumeros = 20;
         maxValor = 25;
         label = 'LOTOFÁCIL';
     } else if (loteriaAdmin === 'quina') {
@@ -1366,8 +1399,12 @@ async function adicionarCartaoIndividual() {
         maxNumeros = 15;
         maxValor = 80;
         label = 'QUINA';
+    } else {
+        showToast('⚠️ Loteria não reconhecida!', 'error');
+        return;
     }
     
+    // VALIDAR QUANTIDADE DE NÚMEROS
     if (numeros.length < minNumeros) {
         showToast(`❌ ${label}: mínimo ${minNumeros} números!`, 'error');
         return;
@@ -1378,12 +1415,14 @@ async function adicionarCartaoIndividual() {
         return;
     }
     
+    // VALIDAR NÚMEROS DUPLICADOS
     const numerosUnicos = [...new Set(numeros)];
     if (numerosUnicos.length !== numeros.length) {
         showToast('❌ Números duplicados!', 'error');
         return;
     }
     
+    // VALIDAR RANGE DOS NÚMEROS
     if (numeros.some(n => n < 1 || n > maxValor)) {
         showToast(`❌ Números devem estar entre 1 e ${maxValor}!`, 'error');
         return;
