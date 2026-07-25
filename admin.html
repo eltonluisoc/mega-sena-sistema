@@ -474,6 +474,52 @@
             .numero-btn { padding: 10px 6px; font-size: 12px; }
             .tab-btn { padding: 8px 10px; font-size: 11px; min-width: 60px; }
         }
+
+        /* ============================================ */
+/* BOTÃO COPIAR HISTÓRICO - RESERVAS */
+/* ============================================ */
+.btn-copiar-historico {
+    background: #25D366 !important;
+    color: white !important;
+    border: none !important;
+    padding: 12px 16px !important;
+    border-radius: 10px !important;
+    cursor: pointer !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    width: 100% !important;
+    touch-action: manipulation !important;
+    transition: all 0.2s !important;
+}
+
+.btn-copiar-historico:hover {
+    transform: scale(1.02);
+    filter: brightness(1.05);
+}
+
+.btn-copiar-historico:active {
+    transform: scale(0.98);
+}
+
+/* Reservas - Responsivo */
+.reservas-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+@media (max-width: 768px) {
+    .reservas-grid {
+        grid-template-columns: 1fr;
+    }
+    .reserva-card {
+        padding: 12px !important;
+    }
+    .btn-ver-historico {
+        font-size: 14px !important;
+        padding: 12px !important;
+    }
+}
     </style>
 </head>
 <body>

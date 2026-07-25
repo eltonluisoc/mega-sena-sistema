@@ -2039,7 +2039,7 @@ function handlerHistorico(event) {
 }
 
 // ============================================
-// MOSTRAR HISTÓRICO (CORRIGIDO)
+// MOSTRAR HISTÓRICO (COM BOTÃO PARA COPIAR)
 // ============================================
 async function mostrarHistorico(id, nome) {
     const div = document.getElementById(`historico-${id}`);
@@ -2073,48 +2073,185 @@ async function mostrarHistorico(id, nome) {
         
         const data = doc.data();
         const historico = data.historico || [];
+        const saldoAtual = data.saldoReserva || 0;
         
         if (historico.length === 0) {
-            div.innerHTML = '<div style="text-align: center; color: #64748b;">📭 Nenhuma movimentação registrada</div>';
-        } else {
-            // Ordenar do mais recente para o mais antigo
-            const historicoOrdenado = [...historico].reverse();
+            div.innerHTML = `
+                <div style="text-align: center; color: #64748b;">📭 Nenhuma movimentação registrada</div>
+                <button class="btn-copiar-historico" data-id="${id}" data-nome="${nome}" style="margin-top: 12px; background: #25D366; color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; width: 100%; touch-action: manipulation;">
+                    📤 COPIAR HISTÓRICO
+                </button>
+            `;
+            if (btn) btn.textContent = '📜 VER HISTÓRICO';
             
-            let html = '<div style="font-weight: bold; margin-bottom: 8px; color: #1e293b;">📋 MOVIMENTAÇÕES</div>';
-            html += '<div style="max-height: 180px; overflow-y: auto;">';
-            
-            for (const item of historicoOrdenado) {
-                const dataItem = item.data ? new Date(item.data).toLocaleString('pt-BR') : 'Data não disponível';
-                const tipoIcon = item.tipo === 'deposito' ? '💰 DEPÓSITO' : (item.tipo === 'saque' ? '💸 SAQUE' : '🎯 USO');
-                const valorClass = item.tipo === 'deposito' ? 'color: #10b981;' : 'color: #ef4444;';
-                const valorSinal = item.tipo === 'deposito' ? '+' : '-';
-                
-                html += `
-                    <div style="border-bottom: 1px solid #e2e8f0; padding: 8px 0; font-size: 12px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span style="font-weight: 600;">${tipoIcon}</span>
-                            <span style="font-weight: bold; ${valorClass}">${valorSinal} R$ ${(item.valor || 0).toFixed(2)}</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; color: #64748b; font-size: 11px;">
-                            <span>${dataItem}</span>
-                            <span>Saldo: R$ ${(item.saldoNovo || 0).toFixed(2)}</span>
-                        </div>
-                        ${item.descricao ? `<div style="color: #475569; font-size: 11px; margin-top: 2px;">📝 ${item.descricao}</div>` : ''}
-                    </div>
-                `;
-            }
-            html += '</div>';
-            div.innerHTML = html;
+            // Adicionar evento ao botão de copiar
+            document.querySelector(`.btn-copiar-historico[data-id="${id}"]`)?.addEventListener('click', function() {
+                copiarHistoricoWhatsApp(id, nome);
+            });
+            return;
         }
+        
+        // Ordenar do mais recente para o mais antigo
+        const historicoOrdenado = [...historico].reverse();
+        
+        let html = '<div style="font-weight: bold; margin-bottom: 8px; color: #1e293b;">📋 MOVIMENTAÇÕES</div>';
+        html += `<div style="font-size: 13px; color: #475569; margin-bottom: 10px;">💰 Saldo atual: <strong style="color: ${saldoAtual >= 0 ? '#10b981' : '#ef4444'};">R$ ${saldoAtual.toFixed(2)}</strong></div>`;
+        html += '<div style="max-height: 180px; overflow-y: auto;">';
+        
+        for (const item of historicoOrdenado) {
+            const dataItem = item.data ? new Date(item.data).toLocaleString('pt-BR') : 'Data não disponível';
+            const tipoIcon = item.tipo === 'deposito' ? '💰 DEPÓSITO' : (item.tipo === 'saque' ? '💸 SAQUE' : '🎯 USO');
+            const valorClass = item.tipo === 'deposito' ? 'color: #10b981;' : 'color: #ef4444;';
+            const valorSinal = item.tipo === 'deposito' ? '+' : '-';
+            
+            html += `
+                <div style="border-bottom: 1px solid #e2e8f0; padding: 8px 0; font-size: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-weight: 600;">${tipoIcon}</span>
+                        <span style="font-weight: bold; ${valorClass}">${valorSinal} R$ ${(item.valor || 0).toFixed(2)}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; color: #64748b; font-size: 11px;">
+                        <span>${dataItem}</span>
+                        <span>Saldo: R$ ${(item.saldoNovo || 0).toFixed(2)}</span>
+                    </div>
+                    ${item.descricao ? `<div style="color: #475569; font-size: 11px; margin-top: 2px;">📝 ${item.descricao}</div>` : ''}
+                </div>
+            `;
+        }
+        html += '</div>';
+        
+        // Adicionar botão de copiar
+        html += `
+            <button class="btn-copiar-historico" data-id="${id}" data-nome="${nome}" style="margin-top: 12px; background: #25D366; color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; width: 100%; touch-action: manipulation; font-weight: 600;">
+                📤 COPIAR HISTÓRICO PARA WHATSAPP
+            </button>
+        `;
+        
+        div.innerHTML = html;
         
         // Atualizar texto do botão
         if (btn) btn.textContent = '🙈 OCULTAR HISTÓRICO';
+        
+        // Adicionar evento ao botão de copiar
+        document.querySelector(`.btn-copiar-historico[data-id="${id}"]`)?.addEventListener('click', function() {
+            copiarHistoricoWhatsApp(id, nome);
+        });
         
     } catch (error) {
         console.error('Erro ao carregar histórico:', error);
         div.innerHTML = `<div style="color: #ef4444;">❌ Erro ao carregar histórico: ${error.message}</div>`;
         if (btn) btn.textContent = '📜 VER HISTÓRICO';
         showToast('❌ Erro ao carregar histórico', 'error');
+    }
+}
+// ============================================
+// COPIAR HISTÓRICO PARA WHATSAPP
+// ============================================
+async function copiarHistoricoWhatsApp(id, nome) {
+    try {
+        showToast('📋 Gerando mensagem...', 'info');
+        
+        const doc = await db.collection('reservas_participantes').doc(id).get();
+        
+        if (!doc.exists) {
+            showToast('❌ Reserva não encontrada', 'error');
+            return;
+        }
+        
+        const data = doc.data();
+        const historico = data.historico || [];
+        const saldoAtual = data.saldoReserva || 0;
+        
+        if (historico.length === 0) {
+            showToast('📭 Nenhuma movimentação para copiar', 'warning');
+            return;
+        }
+        
+        // ============================================
+        // MONTAR MENSAGEM FORMATADA
+        // ============================================
+        const linha = '──────────────────';
+        const dataAtual = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const horaAtual = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        
+        let mensagem = `📊 *EXTRATO DE RESERVAS*\n`;
+        mensagem += `👤 *Participante:* ${nome}\n`;
+        mensagem += `📅 *Data:* ${dataAtual} às ${horaAtual}\n`;
+        mensagem += `${linha}\n\n`;
+        
+        // Ordenar do mais antigo para o mais recente (para exibir em ordem cronológica)
+        const historicoOrdenado = [...historico];
+        
+        // Calcular totais
+        let totalDepositos = 0;
+        let totalSaques = 0;
+        let totalUso = 0;
+        
+        for (const item of historicoOrdenado) {
+            if (item.tipo === 'deposito') totalDepositos += item.valor || 0;
+            else if (item.tipo === 'saque') totalSaques += item.valor || 0;
+            else if (item.tipo === 'uso') totalUso += item.valor || 0;
+        }
+        
+        // Adicionar movimentações
+        mensagem += `📋 *MOVIMENTAÇÕES:*\n\n`;
+        
+        for (const item of historicoOrdenado) {
+            const dataItem = item.data ? new Date(item.data).toLocaleString('pt-BR') : 'Data não disponível';
+            const tipoIcon = item.tipo === 'deposito' ? '💰' : (item.tipo === 'saque' ? '💸' : '🎯');
+            const tipoNome = item.tipo === 'deposito' ? 'DEPÓSITO' : (item.tipo === 'saque' ? 'SAQUE' : 'USO');
+            const valorSinal = item.tipo === 'deposito' ? '+' : '-';
+            const valorFormatado = (item.valor || 0).toFixed(2);
+            const saldoFormatado = (item.saldoNovo || 0).toFixed(2);
+            
+            mensagem += `${tipoIcon} *${tipoNome}*\n`;
+            mensagem += `   📅 ${dataItem}\n`;
+            mensagem += `   💰 ${valorSinal} R$ ${valorFormatado}\n`;
+            mensagem += `   💵 Saldo: R$ ${saldoFormatado}\n`;
+            if (item.descricao) {
+                mensagem += `   📝 ${item.descricao}\n`;
+            }
+            mensagem += `\n`;
+        }
+        
+        mensagem += `${linha}\n`;
+        mensagem += `📊 *RESUMO:*\n`;
+        mensagem += `   💰 Total de depósitos: R$ ${totalDepositos.toFixed(2)}\n`;
+        mensagem += `   💸 Total de saques: R$ ${totalSaques.toFixed(2)}\n`;
+        mensagem += `   🎯 Total de uso: R$ ${totalUso.toFixed(2)}\n`;
+        mensagem += `   ──────────────────\n`;
+        mensagem += `   💵 *Saldo atual: R$ ${saldoAtual.toFixed(2)}*\n`;
+        mensagem += `   ──────────────────\n`;
+        mensagem += `   📊 *${historico.length} movimentações* no total\n\n`;
+        mensagem += `${linha}\n`;
+        mensagem += `🔗 *Bolões Aleatórios*\n`;
+        mensagem += `https://rebrand.ly/boloesaleatorios`;
+        
+        // ============================================
+        // COPIAR PARA ÁREA DE TRANSFERÊNCIA
+        // ============================================
+        try {
+            await navigator.clipboard.writeText(mensagem);
+            showToast('✅ Mensagem copiada! Cole no WhatsApp', 'success');
+            
+            // Abrir WhatsApp com a mensagem pré-preenchida (opcional)
+            // const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+            // const whatsappUrl = isMobile ? 
+            //     `https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}` : 
+            //     `https://web.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
+            // window.open(whatsappUrl, '_blank');
+            
+        } catch (error) {
+            console.error('Erro ao copiar:', error);
+            
+            // Fallback: mostrar em um prompt
+            prompt('Copie a mensagem abaixo:', mensagem);
+            showToast('📋 Mensagem pronta para copiar!', 'info');
+        }
+        
+    } catch (error) {
+        console.error('Erro ao gerar mensagem:', error);
+        showToast('❌ Erro ao gerar mensagem', 'error');
     }
 }
 
