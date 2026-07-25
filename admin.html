@@ -74,6 +74,26 @@
             font-size: 12px;
         }
 
+        /* Reservas - Responsivo */
+.reservas-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+@media (max-width: 768px) {
+    .reservas-grid {
+        grid-template-columns: 1fr;
+    }
+    .reserva-card {
+        padding: 12px !important;
+    }
+    .btn-ver-historico {
+        font-size: 14px !important;
+        padding: 12px !important;
+    }
+}
+
         .container {
             max-width: 1400px;
             margin: 0 auto;

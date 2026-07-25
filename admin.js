@@ -1960,7 +1960,7 @@ async function carregarParticipantesAdmin(bolaoId) {
 }
 
 // ============================================
-// RESERVAS
+// RESERVAS - CARREGAR LISTA (CORRIGIDO)
 // ============================================
 async function carregarReservas() {
     try {
@@ -1974,8 +1974,10 @@ async function carregarReservas() {
             totalSaldo += data.saldoReserva || 0;
         });
         
+        // Ordenar por saldo (maior primeiro)
         reservas.sort((a, b) => (b.saldoReserva || 0) - (a.saldoReserva || 0));
         
+        // Atualizar total
         document.getElementById('totalReservas').innerHTML = `R$ ${totalSaldo.toFixed(2)}`;
         
         const container = document.getElementById('listaReservas');
@@ -1985,83 +1987,134 @@ async function carregarReservas() {
             return;
         }
         
-        let html = '<div class="reservas-grid">';
+        let html = '<div class="reservas-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">';
         for (const reserva of reservas) {
             const dataAtualizacao = reserva.dataAtualizacao ? new Date(reserva.dataAtualizacao).toLocaleString('pt-BR') : '---';
             const saldo = (reserva.saldoReserva || 0).toFixed(2);
             const saldoClass = reserva.saldoReserva > 0 ? 'positivo' : (reserva.saldoReserva < 0 ? 'negativo' : 'zero');
             
             html += `
-                <div class="reserva-card">
-                    <div class="reserva-header">
-                        <div class="reserva-nome">👤 ${reserva.nome}</div>
-                        <div class="reserva-saldo ${saldoClass}">R$ ${saldo}</div>
+                <div class="reserva-card" style="background: #f8fafc; border-radius: 12px; padding: 14px; border: 1px solid #e2e8f0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <div style="font-weight: bold; font-size: 15px; color: #1e293b;">👤 ${reserva.nome}</div>
+                        <div style="font-weight: bold; font-size: 16px; color: ${reserva.saldoReserva > 0 ? '#10b981' : reserva.saldoReserva < 0 ? '#ef4444' : '#64748b'};">R$ ${saldo}</div>
                     </div>
-                    <div class="reserva-info">
-                        <div>🆔 ID: ${reserva.participanteId || reserva.id.substring(0, 8)}</div>
-                        <div>📅 Atualizado: ${dataAtualizacao}</div>
+                    <div style="font-size: 12px; color: #64748b; margin-bottom: 8px;">
+                        🆔 ${reserva.participanteId || reserva.id.substring(0, 8)} • 📅 ${dataAtualizacao}
                     </div>
-                    <button class="btn-ver-historico" data-id="${reserva.id}" data-nome="${reserva.nome}" style="background: #64748b; width: auto; padding: 5px 12px; margin-top: 8px;">📜 VER HISTÓRICO</button>
-                    <div id="historico-${reserva.id}" style="display: none; margin-top: 10px; background: #f8fafc; border-radius: 8px; padding: 10px; font-size: 11px;"></div>
+                    <button class="btn-ver-historico" data-id="${reserva.id}" data-nome="${reserva.nome}" style="background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; width: 100%; touch-action: manipulation;">
+                        📜 VER HISTÓRICO
+                    </button>
+                    <div id="historico-${reserva.id}" style="display: none; margin-top: 12px; background: white; border-radius: 8px; padding: 12px; font-size: 13px; max-height: 200px; overflow-y: auto; border: 1px solid #e2e8f0;"></div>
                 </div>
             `;
         }
         html += '</div>';
         container.innerHTML = html;
         
+        // ============================================
+        // EVENTO PARA VER HISTÓRICO (CORRIGIDO)
+        // ============================================
         document.querySelectorAll('.btn-ver-historico').forEach(btn => {
-            btn.onclick = () => mostrarHistorico(btn.dataset.id, btn.dataset.nome);
+            // Remove eventos anteriores para evitar duplicação
+            btn.removeEventListener('click', handlerHistorico);
+            btn.addEventListener('click', handlerHistorico);
         });
         
     } catch (error) {
         console.error('Erro ao carregar reservas:', error);
         document.getElementById('listaReservas').innerHTML = '<div class="empty-state">❌ Erro ao carregar reservas</div>';
+        showToast('❌ Erro ao carregar reservas', 'error');
     }
 }
 
+// ============================================
+// HANDLER PARA O BOTÃO DE HISTÓRICO
+// ============================================
+function handlerHistorico(event) {
+    const btn = event.currentTarget;
+    const id = btn.dataset.id;
+    const nome = btn.dataset.nome;
+    mostrarHistorico(id, nome);
+}
+
+// ============================================
+// MOSTRAR HISTÓRICO (CORRIGIDO)
+// ============================================
 async function mostrarHistorico(id, nome) {
     const div = document.getElementById(`historico-${id}`);
+    const btn = document.querySelector(`.btn-ver-historico[data-id="${id}"]`);
     
-    if (div.style.display === 'none') {
-        try {
-            const doc = await db.collection('reservas_participantes').doc(id).get();
-            const data = doc.data();
-            const historico = data.historico || [];
-            
-            if (historico.length === 0) {
-                div.innerHTML = '<div style="text-align: center; color: #666;">Nenhuma movimentação registrada</div>';
-            } else {
-                let html = '<div style="font-weight: bold; margin-bottom: 8px;">📋 MOVIMENTAÇÕES</div>';
-                html = '<div style="max-height: 200px; overflow-y: auto;">';
-                for (const item of historico.reverse()) {
-                    const data = new Date(item.data).toLocaleString('pt-BR');
-                    const tipoIcon = item.tipo === 'deposito' ? '💰 DEPÓSITO' : (item.tipo === 'saque' ? '💸 SAQUE' : '🎯 USO');
-                    const valorClass = item.tipo === 'deposito' ? 'text-success' : 'text-danger';
-                    html += `
-                        <div style="border-bottom: 1px solid #e2e8f0; padding: 6px 0; font-size: 11px;">
-                            <div style="display: flex; justify-content: space-between;">
-                                <span>${tipoIcon}</span>
-                                <span class="${valorClass}">R$ ${item.valor.toFixed(2)}</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; color: #666;">
-                                <span>${data}</span>
-                                <span>Saldo: R$ ${item.saldoNovo.toFixed(2)}</span>
-                            </div>
-                            ${item.descricao ? `<div style="color: #666; font-size: 10px;">${item.descricao}</div>` : ''}
-                        </div>
-                    `;
-                }
-                html += '</div>';
-                div.innerHTML = html;
-            }
-            div.style.display = 'block';
-            btn.textContent = '🙈 OCULTAR HISTÓRICO';
-        } catch (error) {
-            div.innerHTML = '<div style="color: red;">Erro ao carregar histórico</div>';
-            div.style.display = 'block';
-        }
-    } else {
+    if (!div) {
+        console.error('Div do histórico não encontrada para ID:', id);
+        return;
+    }
+    
+    // Se já estiver visível, ocultar e sair
+    if (div.style.display === 'block') {
         div.style.display = 'none';
+        if (btn) btn.textContent = '📜 VER HISTÓRICO';
+        return;
+    }
+    
+    // Mostrar loading
+    div.style.display = 'block';
+    div.innerHTML = '<div style="text-align: center; color: #94a3b8;">🔄 Carregando histórico...</div>';
+    if (btn) btn.textContent = '⏳ CARREGANDO...';
+    
+    try {
+        const doc = await db.collection('reservas_participantes').doc(id).get();
+        
+        if (!doc.exists) {
+            div.innerHTML = '<div style="color: #ef4444;">❌ Reserva não encontrada</div>';
+            if (btn) btn.textContent = '📜 VER HISTÓRICO';
+            return;
+        }
+        
+        const data = doc.data();
+        const historico = data.historico || [];
+        
+        if (historico.length === 0) {
+            div.innerHTML = '<div style="text-align: center; color: #64748b;">📭 Nenhuma movimentação registrada</div>';
+        } else {
+            // Ordenar do mais recente para o mais antigo
+            const historicoOrdenado = [...historico].reverse();
+            
+            let html = '<div style="font-weight: bold; margin-bottom: 8px; color: #1e293b;">📋 MOVIMENTAÇÕES</div>';
+            html += '<div style="max-height: 180px; overflow-y: auto;">';
+            
+            for (const item of historicoOrdenado) {
+                const dataItem = item.data ? new Date(item.data).toLocaleString('pt-BR') : 'Data não disponível';
+                const tipoIcon = item.tipo === 'deposito' ? '💰 DEPÓSITO' : (item.tipo === 'saque' ? '💸 SAQUE' : '🎯 USO');
+                const valorClass = item.tipo === 'deposito' ? 'color: #10b981;' : 'color: #ef4444;';
+                const valorSinal = item.tipo === 'deposito' ? '+' : '-';
+                
+                html += `
+                    <div style="border-bottom: 1px solid #e2e8f0; padding: 8px 0; font-size: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-weight: 600;">${tipoIcon}</span>
+                            <span style="font-weight: bold; ${valorClass}">${valorSinal} R$ ${(item.valor || 0).toFixed(2)}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; color: #64748b; font-size: 11px;">
+                            <span>${dataItem}</span>
+                            <span>Saldo: R$ ${(item.saldoNovo || 0).toFixed(2)}</span>
+                        </div>
+                        ${item.descricao ? `<div style="color: #475569; font-size: 11px; margin-top: 2px;">📝 ${item.descricao}</div>` : ''}
+                    </div>
+                `;
+            }
+            html += '</div>';
+            div.innerHTML = html;
+        }
+        
+        // Atualizar texto do botão
+        if (btn) btn.textContent = '🙈 OCULTAR HISTÓRICO';
+        
+    } catch (error) {
+        console.error('Erro ao carregar histórico:', error);
+        div.innerHTML = `<div style="color: #ef4444;">❌ Erro ao carregar histórico: ${error.message}</div>`;
+        if (btn) btn.textContent = '📜 VER HISTÓRICO';
+        showToast('❌ Erro ao carregar histórico', 'error');
     }
 }
 
