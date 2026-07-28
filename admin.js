@@ -339,11 +339,12 @@ function md5(string) {
 }
 
 // ============================================
-// AUTENTICAÇÃO
+// AUTENTICAÇÃO (CORRIGIDA PARA MOBILE)
 // ============================================
 function verificarAutenticacao() {
     const autenticado = localStorage.getItem('admin_autenticado');
     const modal = document.getElementById('authModal');
+    const senhaInput = document.getElementById('senhaAdmin');
     
     console.log('🔐 Verificando autenticação...');
     console.log('📌 localStorage.admin_autenticado =', autenticado);
@@ -358,8 +359,17 @@ function verificarAutenticacao() {
         console.log('🔐 Usuário NÃO autenticado. Exibindo modal...');
         modal.classList.add('show');
         modal.style.display = 'flex';
-        document.getElementById('senhaAdmin').value = '';
-        document.getElementById('senhaAdmin').focus();
+        if (senhaInput) {
+            senhaInput.value = '';
+            // Forçar foco no mobile
+            setTimeout(() => {
+                senhaInput.focus();
+                // No mobile, mostrar teclado
+                if (navigator.userAgent.match(/iPhone|iPad|iPod|Android/i)) {
+                    senhaInput.click();
+                }
+            }, 300);
+        }
     } else {
         console.log('✅ Usuário já autenticado. Ocultando modal...');
         modal.classList.remove('show');
@@ -500,23 +510,12 @@ atualizarGradeSelecaoVisual();
 }
 
 // ============================================
-// ADICIONAR CARTÃO VIA SELEÇÃO
+// ADICIONAR CARTÃO VIA SELEÇÃO (CORRIGIDO)
 // ============================================
 async function adicionarCartaoIndividualSelecao() {
     const concurso = document.getElementById('concursoIndividualSelecao').value;
     const bolao = document.getElementById('bolaoIndividualSelecao').value || 'Sem Bolão';
     const tipoParticipacao = document.getElementById('tipoCartaoIndividualSelecao').value;
-
-
-    // Se modo seleção estiver ativo, usar os campos de seleção
-if (modoSelecaoAtivo) {
-    // Sincronizar campos antes de chamar a função de seleção
-    document.getElementById('concursoIndividualSelecao').value = document.getElementById('concursoIndividual').value;
-    document.getElementById('bolaoIndividualSelecao').value = document.getElementById('bolaoIndividual').value;
-    document.getElementById('tipoCartaoIndividualSelecao').value = document.getElementById('tipoCartaoIndividual').value;
-    await adicionarCartaoIndividualSelecao();
-    return;
-}
     
     if (!concurso) {
         showToast('⚠️ Informe o concurso!', 'warning');
@@ -1598,6 +1597,16 @@ function limparLote() {
 // CADASTRO INDIVIDUAL (CORRIGIDO PARA TODAS AS LOTERIAS)
 // ============================================
 async function adicionarCartaoIndividual() {
+    // Se modo seleção estiver ativo, usar os campos de seleção
+    if (modoSelecaoAtivo) {
+        // Sincronizar campos de seleção com os campos de digitação
+        document.getElementById('concursoIndividualSelecao').value = document.getElementById('concursoIndividual').value;
+        document.getElementById('bolaoIndividualSelecao').value = document.getElementById('bolaoIndividual').value;
+        document.getElementById('tipoCartaoIndividualSelecao').value = document.getElementById('tipoCartaoIndividual').value;
+        await adicionarCartaoIndividualSelecao();
+        return;
+    }
+    
     const concurso = document.getElementById('concursoIndividual').value;
     const bolao = document.getElementById('bolaoIndividual').value || 'Sem Bolão';
     const tipoParticipacao = document.getElementById('tipoCartaoIndividual').value;
