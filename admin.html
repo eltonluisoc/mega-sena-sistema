@@ -586,42 +586,96 @@
                 </div>
 
                 <!-- ============================================ -->
-                <!-- 1. CADASTRO INDIVIDUAL (TODAS AS LOTERIAS) -->
-                <!-- ============================================ -->
-                <div class="card" style="border: 2px solid #3b82f6;">
-                    <div class="card-header">
-                        ✏️ CADASTRO INDIVIDUAL
-                        <span class="badge" style="font-size: 10px; background: #3b82f6; color: white; padding: 2px 10px; border-radius: 20px;">MEGA • LOTOFÁCIL • QUINA</span>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>📌 Concurso</label>
-                            <input type="number" id="concursoIndividual" class="form-control" placeholder="Ex: 3200">
-                        </div>
-                        <div class="form-group">
-                            <label>👥 Bolão</label>
-                            <input type="text" id="bolaoIndividual" class="form-control" placeholder="Ex: Família">
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>🎯 Tipo</label>
-                            <select id="tipoCartaoIndividual" class="form-control">
-                                <option value="exclusivo">👥 Grupo Exclusivo</option>
-                                <option value="cota">🎟️ Cota de Bolão</option>
-                            </select>
-                        </div>
-                        <div class="form-group"></div>
-                    </div>
-                    <div class="form-group">
-                        <label id="labelNumerosIndividual">🔢 Números (separados por espaço)</label>
-                        <input type="text" id="numerosIndividual" class="form-control" placeholder="Ex: 01 02 03 04 05 06">
-                        <div id="dicaNumerosIndividual" style="font-size: 11px; color: #64748b; margin-top: 4px;">
-                            💡 Digite os números separados por espaço
-                        </div>
-                    </div>
-                    <button id="btnAdicionarIndividual" class="btn btn-success btn-block">➕ ADICIONAR CARTÃO</button>
-                </div>
+<!-- 1. CADASTRO INDIVIDUAL (TODAS AS LOTERIAS) -->
+<!-- ============================================ -->
+<div class="card" style="border: 2px solid #3b82f6;">
+    <div class="card-header">
+        ✏️ CADASTRO INDIVIDUAL
+        <span class="badge" style="font-size: 10px; background: #3b82f6; color: white; padding: 2px 10px; border-radius: 20px;">MEGA • LOTOFÁCIL • QUINA</span>
+    </div>
+    
+    <!-- BOTÃO TOGGLE: MODO SELEÇÃO -->
+    <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 600; color: #1e293b;">
+            <input type="checkbox" id="toggleModoSelecao" style="width: 20px; height: 20px; cursor: pointer;">
+            🖱️ MODO SELEÇÃO (clique nos números)
+        </label>
+        <span id="statusModoSelecao" style="font-size: 12px; color: #64748b;">(Digitação manual)</span>
+    </div>
+    
+    <!-- MODO DIGITAÇÃO (padrão) -->
+    <div id="modoDigitacao">
+        <div class="form-row">
+            <div class="form-group">
+                <label>📌 Concurso</label>
+                <input type="number" id="concursoIndividual" class="form-control" placeholder="Ex: 3200">
+            </div>
+            <div class="form-group">
+                <label>👥 Bolão</label>
+                <input type="text" id="bolaoIndividual" class="form-control" placeholder="Ex: Família">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>🎯 Tipo</label>
+                <select id="tipoCartaoIndividual" class="form-control">
+                    <option value="exclusivo">👥 Grupo Exclusivo</option>
+                    <option value="cota">🎟️ Cota de Bolão</option>
+                </select>
+            </div>
+            <div class="form-group"></div>
+        </div>
+        <div class="form-group">
+            <label id="labelNumerosIndividual">🔢 Números (separados por espaço)</label>
+            <input type="text" id="numerosIndividual" class="form-control" placeholder="Ex: 01 02 03 04 05 06">
+            <div id="dicaNumerosIndividual" style="font-size: 11px; color: #64748b; margin-top: 4px;">
+                💡 Digite os números separados por espaço
+            </div>
+        </div>
+        <button id="btnAdicionarIndividual" class="btn btn-success btn-block">➕ ADICIONAR CARTÃO</button>
+    </div>
+    
+    <!-- MODO SELEÇÃO (grade de números) -->
+    <div id="modoSelecao" style="display: none;">
+        <div class="form-row">
+            <div class="form-group">
+                <label>📌 Concurso</label>
+                <input type="number" id="concursoIndividualSelecao" class="form-control" placeholder="Ex: 3200">
+            </div>
+            <div class="form-group">
+                <label>👥 Bolão</label>
+                <input type="text" id="bolaoIndividualSelecao" class="form-control" placeholder="Ex: Família">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>🎯 Tipo</label>
+                <select id="tipoCartaoIndividualSelecao" class="form-control">
+                    <option value="exclusivo">👥 Grupo Exclusivo</option>
+                    <option value="cota">🎟️ Cota de Bolão</option>
+                </select>
+            </div>
+            <div class="form-group"></div>
+        </div>
+        
+        <!-- GRADE DE NÚMEROS (dinâmica) -->
+        <div style="margin-top: 12px;">
+            <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 8px; color: #1e293b;">🔢 Clique nos números para selecionar:</label>
+            <div id="gradeSelecaoIndividual" class="grade-numeros" style="max-width: 100%;">
+                <!-- Gerado via JavaScript -->
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+                <span id="contadorSelecao" style="font-size: 14px; font-weight: bold; color: #3b82f6;">0 números selecionados</span>
+                <button id="btnLimparSelecao" class="btn btn-sm btn-danger" style="padding: 4px 12px;">🗑️ LIMPAR</button>
+            </div>
+            <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px;" id="previaNumerosSelecionados">
+                <span style="color: #94a3b8; font-size: 12px;">Nenhum número selecionado</span>
+            </div>
+        </div>
+        
+        <button id="btnAdicionarIndividualSelecao" class="btn btn-success btn-block" style="margin-top: 15px;">➕ ADICIONAR CARTÃO (SELEÇÃO)</button>
+    </div>
+</div>
 
                 <!-- ============================================ -->
                 <!-- 2. CADASTRO EM LOTE (APENAS LOTOFÁCIL) -->
