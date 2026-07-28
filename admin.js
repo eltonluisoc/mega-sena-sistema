@@ -2145,7 +2145,7 @@ async function mostrarHistorico(id, nome) {
     }
 }
 // ============================================
-// COPIAR HISTÓRICO PARA WHATSAPP
+// COPIAR HISTÓRICO PARA WHATSAPP (APENAS A PARTIR DO ÚLTIMO DEPÓSITO)
 // ============================================
 async function copiarHistoricoWhatsApp(id, nome) {
     try {
@@ -2168,6 +2168,33 @@ async function copiarHistoricoWhatsApp(id, nome) {
         }
         
         // ============================================
+        // ENCONTRAR O ÚLTIMO DEPÓSITO
+        // ============================================
+        // Ordenar do mais recente para o mais antigo para encontrar o último depósito
+        const historicoOrdenado = [...historico].reverse();
+        let ultimoDepositoIndex = -1;
+        
+        for (let i = 0; i < historicoOrdenado.length; i++) {
+            if (historicoOrdenado[i].tipo === 'deposito') {
+                ultimoDepositoIndex = i;
+                break;
+            }
+        }
+        
+        // Se não houver depósito, usar todo o histórico
+        let historicoFiltrado;
+        if (ultimoDepositoIndex === -1) {
+            historicoFiltrado = [...historico]; // usa tudo
+        } else {
+            // Pega do último depósito até o final (do mais antigo para o mais novo)
+            // historicoOrdenado está do mais recente para o mais antigo
+            // Queremos do último depósito (que está em ultimoDepositoIndex) até o final (mais antigo)
+            const historicoApartirDeposito = historicoOrdenado.slice(0, ultimoDepositoIndex + 1);
+            // Reverter para ordem cronológica (mais antigo -> mais recente)
+            historicoFiltrado = historicoApartirDeposito.reverse();
+        }
+        
+        // ============================================
         // MONTAR MENSAGEM FORMATADA
         // ============================================
         const linha = '──────────────────';
@@ -2177,17 +2204,17 @@ async function copiarHistoricoWhatsApp(id, nome) {
         let mensagem = `📊 *EXTRATO DE RESERVAS*\n`;
         mensagem += `👤 *Participante:* ${nome}\n`;
         mensagem += `📅 *Data:* ${dataAtual} às ${horaAtual}\n`;
+        if (ultimoDepositoIndex !== -1) {
+            mensagem += `📌 *Mostrando movimentações a partir do último depósito*\n`;
+        }
         mensagem += `${linha}\n\n`;
         
-        // Ordenar do mais antigo para o mais recente (para exibir em ordem cronológica)
-        const historicoOrdenado = [...historico];
-        
-        // Calcular totais
+        // Calcular totais apenas do histórico filtrado
         let totalDepositos = 0;
         let totalSaques = 0;
         let totalUso = 0;
         
-        for (const item of historicoOrdenado) {
+        for (const item of historicoFiltrado) {
             if (item.tipo === 'deposito') totalDepositos += item.valor || 0;
             else if (item.tipo === 'saque') totalSaques += item.valor || 0;
             else if (item.tipo === 'uso') totalUso += item.valor || 0;
@@ -2196,7 +2223,7 @@ async function copiarHistoricoWhatsApp(id, nome) {
         // Adicionar movimentações
         mensagem += `📋 *MOVIMENTAÇÕES:*\n\n`;
         
-        for (const item of historicoOrdenado) {
+        for (const item of historicoFiltrado) {
             const dataItem = item.data ? new Date(item.data).toLocaleString('pt-BR') : 'Data não disponível';
             const tipoIcon = item.tipo === 'deposito' ? '💰' : (item.tipo === 'saque' ? '💸' : '🎯');
             const tipoNome = item.tipo === 'deposito' ? 'DEPÓSITO' : (item.tipo === 'saque' ? 'SAQUE' : 'USO');
@@ -2215,14 +2242,14 @@ async function copiarHistoricoWhatsApp(id, nome) {
         }
         
         mensagem += `${linha}\n`;
-        mensagem += `📊 *RESUMO:*\n`;
+        mensagem += `📊 *RESUMO (a partir do último depósito):*\n`;
         mensagem += `   💰 Total de depósitos: R$ ${totalDepositos.toFixed(2)}\n`;
         mensagem += `   💸 Total de saques: R$ ${totalSaques.toFixed(2)}\n`;
         mensagem += `   🎯 Total de uso: R$ ${totalUso.toFixed(2)}\n`;
         mensagem += `   ──────────────────\n`;
         mensagem += `   💵 *Saldo atual: R$ ${saldoAtual.toFixed(2)}*\n`;
         mensagem += `   ──────────────────\n`;
-        mensagem += `   📊 *${historico.length} movimentações* no total\n\n`;
+        mensagem += `   📊 *${historicoFiltrado.length} movimentações* (a partir do último depósito)\n\n`;
         mensagem += `${linha}\n`;
         mensagem += `🔗 *Bolões Aleatórios*\n`;
         mensagem += `https://rebrand.ly/boloesaleatorios`;
@@ -2233,18 +2260,8 @@ async function copiarHistoricoWhatsApp(id, nome) {
         try {
             await navigator.clipboard.writeText(mensagem);
             showToast('✅ Mensagem copiada! Cole no WhatsApp', 'success');
-            
-            // Abrir WhatsApp com a mensagem pré-preenchida (opcional)
-            // const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-            // const whatsappUrl = isMobile ? 
-            //     `https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}` : 
-            //     `https://web.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
-            // window.open(whatsappUrl, '_blank');
-            
         } catch (error) {
             console.error('Erro ao copiar:', error);
-            
-            // Fallback: mostrar em um prompt
             prompt('Copie a mensagem abaixo:', mensagem);
             showToast('📋 Mensagem pronta para copiar!', 'info');
         }
