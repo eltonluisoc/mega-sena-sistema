@@ -2949,11 +2949,12 @@ document.addEventListener('DOMContentLoaded', () => {
     inicializarGradeSelecaoIndividual();
     
     // ============================================
-    // EVENTOS DO CADASTRO POR IMAGEM (OCR)
-    // ============================================
-    
-    const imgUpload = document.getElementById('imgUpload');
-    
+// EVENTOS DO CADASTRO POR IMAGEM (OCR)
+// ============================================
+
+// Upload da galeria
+const imgUpload = document.getElementById('imgUpload');
+if (imgUpload) {
     imgUpload.addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (file) {
@@ -2965,35 +2966,46 @@ document.addEventListener('DOMContentLoaded', () => {
             mostrarPreviaImagem(file);
         }
     });
-    
-    document.getElementById('btnProcessarImagem').addEventListener('click', function() {
-        const file = document.getElementById('imgUpload').files[0];
-        if (!file) {
-            showToast('⚠️ Selecione uma imagem primeiro!', 'warning');
-            return;
+}
+
+// Upload da câmera
+const imgUploadCamera = document.getElementById('imgUploadCamera');
+if (imgUploadCamera) {
+    imgUploadCamera.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            if (file.size > 10 * 1024 * 1024) {
+                showToast('⚠️ Imagem muito grande! Máx: 10MB', 'warning');
+                this.value = '';
+                return;
+            }
+            mostrarPreviaImagem(file);
         }
-        processarImagem(file);
     });
-    
-    document.getElementById('btnCadastrarImagem').addEventListener('click', cadastrarCartoesImagem);
-    
-    document.getElementById('btnLimparImagem').addEventListener('click', function() {
-        document.getElementById('imgResultado').style.display = 'none';
-        document.getElementById('imgPreview').style.display = 'none';
-        document.getElementById('imgUpload').value = '';
-        numerosExtraidos = [];
-        imagemProcessada = false;
-        document.getElementById('imgStatus').textContent = 'Aguardando processamento';
-        showToast('🧹 Limpo!', 'info');
-    });
-    
-    // Forçar login se a autenticação falhar
-    setTimeout(() => {
-        const modal = document.getElementById('authModal');
-        if (modal && !modal.classList.contains('show') && !localStorage.getItem('admin_autenticado')) {
-            console.log('⚠️ Forçando exibição do modal de autenticação...');
-            modal.classList.add('show');
-            modal.style.display = 'flex';
-        }
-    }, 500);
+}
+
+document.getElementById('btnProcessarImagem').addEventListener('click', function() {
+    // Verificar qual input tem arquivo
+    let file = document.getElementById('imgUpload').files[0];
+    if (!file) {
+        file = document.getElementById('imgUploadCamera').files[0];
+    }
+    if (!file) {
+        showToast('⚠️ Selecione uma imagem primeiro!', 'warning');
+        return;
+    }
+    processarImagem(file);
+});
+
+document.getElementById('btnCadastrarImagem').addEventListener('click', cadastrarCartoesImagem);
+
+document.getElementById('btnLimparImagem').addEventListener('click', function() {
+    document.getElementById('imgResultado').style.display = 'none';
+    document.getElementById('imgPreview').style.display = 'none';
+    document.getElementById('imgUpload').value = '';
+    document.getElementById('imgUploadCamera').value = '';
+    numerosExtraidos = [];
+    imagemProcessada = false;
+    document.getElementById('imgStatus').textContent = 'Aguardando processamento';
+    showToast('🧹 Limpo!', 'info');
 });
