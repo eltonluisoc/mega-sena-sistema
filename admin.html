@@ -11,6 +11,9 @@
     <meta name="apple-mobile-web-app-title" content="Admin Bolões">
     <link rel="stylesheet" href="style.css">
     <style>
+        /* ============================================ */
+        /* RESET E BASE */
+        /* ============================================ */
         * {
             margin: 0;
             padding: 0;
@@ -23,8 +26,12 @@
             background: linear-gradient(135deg, #3b82f6 0%, #10b981 100%);
             min-height: 100vh;
             overflow-x: hidden;
+            padding-bottom: 20px;
         }
 
+        /* ============================================ */
+        /* TOP BAR */
+        /* ============================================ */
         .top-bar {
             background: #1e293b;
             color: white;
@@ -37,63 +44,63 @@
             position: sticky;
             top: 0;
             z-index: 100;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
 
         .logo {
             font-size: 18px;
             font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
         .version {
             font-size: 10px;
             color: #94a3b8;
-            margin-left: 6px;
+            font-weight: normal;
         }
 
         .stats {
             display: flex;
             gap: 8px;
             align-items: center;
+            flex-wrap: wrap;
         }
 
         .stat {
-            background: rgba(255,255,255,0.1);
-            padding: 4px 10px;
+            background: rgba(255,255,255,0.12);
+            padding: 4px 12px;
             border-radius: 20px;
             font-size: 11px;
+            border: 1px solid rgba(255,255,255,0.05);
         }
 
         .btn-logout {
             background: #ef4444;
             color: white;
             border: none;
-            padding: 5px 12px;
+            padding: 6px 14px;
             border-radius: 20px;
             cursor: pointer;
             font-weight: bold;
             font-size: 12px;
+            transition: all 0.2s;
+            min-height: 36px;
         }
 
-        /* Reservas - Responsivo */
-.reservas-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-}
+        .btn-logout:hover {
+            transform: scale(1.02);
+            filter: brightness(1.1);
+        }
 
-@media (max-width: 768px) {
-    .reservas-grid {
-        grid-template-columns: 1fr;
-    }
-    .reserva-card {
-        padding: 12px !important;
-    }
-    .btn-ver-historico {
-        font-size: 14px !important;
-        padding: 12px !important;
-    }
-}
+        .btn-logout:active {
+            transform: scale(0.96);
+        }
 
+        /* ============================================ */
+        /* CONTAINER */
+        /* ============================================ */
         .container {
             max-width: 1400px;
             margin: 0 auto;
@@ -107,20 +114,26 @@
             background: white;
             border-radius: 16px;
             overflow: hidden;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.12);
             margin-bottom: 16px;
         }
 
         .tabs-header {
             display: flex;
-            background: #f1f5f9;
+            background: #f8fafc;
             border-bottom: 2px solid #e2e8f0;
             overflow-x: auto;
             flex-wrap: nowrap;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+
+        .tabs-header::-webkit-scrollbar {
+            display: none;
         }
 
         .tab-btn {
-            padding: 14px 20px;
+            padding: 14px 16px;
             border: none;
             background: transparent;
             font-weight: 600;
@@ -132,7 +145,7 @@
             border-bottom: 3px solid transparent;
             flex: 1;
             text-align: center;
-            min-width: 100px;
+            min-width: 80px;
         }
 
         .tab-btn:hover {
@@ -157,34 +170,48 @@
         }
 
         /* ============================================ */
-        /* CARDS DENTRO DAS ABAS */
+        /* CARDS */
         /* ============================================ */
         .card {
-            background: #f8fafc;
-            border-radius: 12px;
-            padding: 16px;
+            background: #ffffff;
+            border-radius: 14px;
+            padding: 18px;
             margin-bottom: 16px;
             border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            transition: all 0.2s;
+        }
+
+        .card:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
         }
 
         .card-header {
-            font-weight: bold;
-            font-size: 15px;
+            font-weight: 700;
+            font-size: 16px;
             color: #1e293b;
-            margin-bottom: 12px;
+            margin-bottom: 14px;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
 
         .card-header .badge {
-            font-size: 11px;
+            font-size: 10px;
             background: #3b82f6;
             color: white;
-            padding: 2px 10px;
+            padding: 3px 12px;
             border-radius: 20px;
+            font-weight: 600;
         }
 
+        .card-header .badge-green {
+            background: #10b981;
+        }
+
+        /* ============================================ */
+        /* FORMULÁRIOS */
+        /* ============================================ */
         .form-group {
             margin-bottom: 14px;
         }
@@ -206,56 +233,35 @@
             font-weight: 600;
             color: #1e293b;
             font-size: 12px;
+            letter-spacing: 0.3px;
         }
         
         .form-control, select, input, textarea {
             width: 100%;
-            padding: 10px 12px;
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
-            font-size: 14px;
+            padding: 12px 14px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 15px;
             font-family: inherit;
-            background: white;
+            background: #fafbfc;
             transition: all 0.2s;
+            min-height: 48px;
+            -webkit-appearance: none;
+            appearance: none;
         }
         
         .form-control:focus, select:focus, input:focus, textarea:focus {
             outline: none;
             border-color: #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
-        }
-
-        .btn {
-            padding: 10px 16px;
-            border: none;
-            border-radius: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-size: 13px;
-            text-align: center;
-        }
-        
-        .btn-primary { background: #3b82f6; color: white; }
-        .btn-success { background: #10b981; color: white; }
-        .btn-warning { background: #f59e0b; color: white; }
-        .btn-danger { background: #ef4444; color: white; }
-        .btn-secondary { background: #64748b; color: white; }
-        .btn-sm { padding: 6px 12px; font-size: 12px; }
-        .btn-block { width: 100%; }
-        
-        .btn:hover {
-            transform: translateY(-1px);
-            filter: brightness(1.05);
+            box-shadow: 0 0 0 4px rgba(59,130,246,0.12);
+            background: white;
         }
 
         /* ============================================ */
-        /* MELHORIAS DE RESPONSIVIDADE */
+        /* BOTÕES */
         /* ============================================ */
-
-        /* Botões responsivos */
         .btn {
-            padding: 12px 16px;
+            padding: 12px 20px;
             border: none;
             border-radius: 12px;
             font-weight: 600;
@@ -265,23 +271,70 @@
             text-align: center;
             min-height: 48px;
             touch-action: manipulation;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        
+        .btn-primary { background: #3b82f6; color: white; }
+        .btn-success { background: #10b981; color: white; }
+        .btn-warning { background: #f59e0b; color: white; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-secondary { background: #64748b; color: white; }
+        .btn-sm { padding: 6px 14px; font-size: 12px; min-height: 34px; }
+        .btn-block { width: 100%; }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            filter: brightness(1.05);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
 
-        /* Inputs responsivos */
-        .form-control, select, input, textarea {
-            width: 100%;
-            padding: 12px 14px;
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
-            font-size: 16px;
-            font-family: inherit;
-            background: white;
+        .btn:active {
+            transform: scale(0.97);
+            filter: brightness(0.95);
+        }
+
+        /* ============================================ */
+        /* LOTERIA SELECTOR */
+        /* ============================================ */
+        .loteria-selector-admin {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .loteria-btn-admin {
+            flex: 1;
+            padding: 12px 8px;
+            border: 2px solid transparent;
+            border-radius: 30px;
+            font-weight: bold;
+            cursor: pointer;
             transition: all 0.2s;
+            font-size: 13px;
+            text-align: center;
             min-height: 48px;
-            -webkit-appearance: none;
         }
+        
+        .loteria-btn-admin.mega { background: #ede9fe; color: #6d28d9; border-color: #8b5cf6; }
+        .loteria-btn-admin.lotofacil { background: #d1fae5; color: #065f46; border-color: #10b981; }
+        .loteria-btn-admin.quina { background: #fee2e2; color: #991b1b; border-color: #ef4444; }
+        
+        .loteria-btn-admin.active {
+            transform: scale(0.97);
+            filter: brightness(0.9);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.08);
+        }
+        
+        .loteria-btn-admin.mega.active { background: #8b5cf6; color: white; }
+        .loteria-btn-admin.lotofacil.active { background: #10b981; color: white; }
+        .loteria-btn-admin.quina.active { background: #ef4444; color: white; }
 
-        /* Grade de números responsiva */
+        /* ============================================ */
+        /* GRADE DE NÚMEROS */
+        /* ============================================ */
         .grade-numeros {
             display: grid;
             grid-template-columns: repeat(7, 1fr);
@@ -295,77 +348,207 @@
             border: 2px solid #e2e8f0;
             border-radius: 10px;
             background: white;
-            font-size: 16px;
+            font-size: 15px;
             font-weight: bold;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.15s;
             color: #1e293b;
             font-family: monospace;
             min-height: 48px;
             touch-action: manipulation;
         }
 
+        .numero-btn:hover {
+            transform: scale(1.04);
+            border-color: #94a3b8;
+        }
+
         .numero-btn.selecionado {
             background: #3b82f6;
             color: white;
             border-color: #3b82f6;
-        }
-
-        @media (max-width: 480px) {
-            .grade-numeros {
-                grid-template-columns: repeat(5, 1fr);
-                gap: 6px;
-            }
-            .numero-btn {
-                padding: 12px 4px;
-                font-size: 14px;
-                min-height: 44px;
-            }
-            .btn {
-                font-size: 13px;
-                padding: 12px 12px;
-                min-height: 44px;
-            }
-            .form-control, select, input, textarea {
-                font-size: 16px;
-                padding: 10px 12px;
-                min-height: 44px;
-            }
-            .card {
-                padding: 12px;
-            }
-            .tab-btn {
-                padding: 10px 12px;
-                font-size: 11px;
-                min-width: 60px;
-            }
-        }
-
-        @media (max-width: 380px) {
-            .grade-numeros {
-                grid-template-columns: repeat(4, 1fr);
-            }
-            .numero-btn {
-                padding: 10px 2px;
-                font-size: 12px;
-                min-height: 38px;
-            }
+            transform: scale(1.06);
+            box-shadow: 0 2px 8px rgba(59,130,246,0.3);
         }
 
         /* ============================================ */
-        /* LISTA DE CARTÕES */
+        /* DASHBOARD */
         /* ============================================ */
-        .cartoes-grid {
-            max-height: 500px;
-            overflow-y: auto;
+        .dashboard-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
         }
         
-        .cartao-item {
-            background: white;
+        .dashboard-card {
+            text-align: center;
+            background: #f8fafc;
+            padding: 18px 12px;
+            border-radius: 14px;
             border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 12px;
-            margin-bottom: 10px;
+            transition: all 0.2s;
+        }
+
+        .dashboard-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+        }
+        
+        .dashboard-number {
+            font-size: 28px;
+            font-weight: 800;
+        }
+
+        /* ============================================ */
+        /* RESERVAS - CORRIGIDO (SEM ROLAGEM HORIZONTAL) */
+        /* ============================================ */
+        .reservas-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .reserva-card {
+            background: #f8fafc;
+            border-radius: 14px;
+            padding: 16px;
+            border: 1px solid #e2e8f0;
+            transition: all 0.2s;
+            width: 100%;
+            overflow: hidden;
+            word-break: break-word;
+        }
+
+        .reserva-card:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+
+        .reserva-card .reserva-nome {
+            font-weight: 700;
+            font-size: 15px;
+            color: #1e293b;
+        }
+
+        .reserva-card .reserva-saldo {
+            font-weight: 700;
+            font-size: 17px;
+        }
+
+        .reserva-card .reserva-saldo.positivo { color: #10b981; }
+        .reserva-card .reserva-saldo.negativo { color: #ef4444; }
+        .reserva-card .reserva-saldo.zero { color: #64748b; }
+
+        .btn-ver-historico {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 13px;
+            width: 100%;
+            touch-action: manipulation;
+            transition: all 0.2s;
+            font-weight: 600;
+            min-height: 44px;
+        }
+
+        .btn-ver-historico:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.05);
+        }
+
+        .btn-ver-historico:active {
+            transform: scale(0.97);
+        }
+
+        .btn-copiar-historico {
+            background: #25D366 !important;
+            color: white !important;
+            border: none !important;
+            padding: 12px 16px !important;
+            border-radius: 10px !important;
+            cursor: pointer !important;
+            font-size: 14px !important;
+            font-weight: 600 !important;
+            width: 100% !important;
+            touch-action: manipulation !important;
+            transition: all 0.2s !important;
+            min-height: 48px !important;
+        }
+
+        .btn-copiar-historico:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.05);
+        }
+
+        .btn-copiar-historico:active {
+            transform: scale(0.97);
+        }
+
+        /* ============================================ */
+        /* MODAL */
+        /* ============================================ */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
+        
+        .modal.show { display: flex; }
+        
+        .modal-content {
+            background: white;
+            border-radius: 24px;
+            width: 90%;
+            max-width: 380px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            animation: modalFade 0.3s ease;
+        }
+
+        @keyframes modalFade {
+            from { transform: scale(0.9); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        
+        .modal-header {
+            background: #3b82f6;
+            color: white;
+            padding: 20px;
+            font-weight: bold;
+            font-size: 18px;
+            text-align: center;
+        }
+        
+        .modal-body { padding: 24px; }
+
+        /* ============================================ */
+        /* EMPTY STATE */
+        /* ============================================ */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #94a3b8;
+            font-size: 14px;
+        }
+
+        .empty-state .icon {
+            font-size: 48px;
+            margin-bottom: 12px;
         }
 
         /* ============================================ */
@@ -384,75 +567,49 @@
         }
 
         /* ============================================ */
-        /* DASHBOARD */
+        /* LISTA DE CARTÕES */
         /* ============================================ */
-        .dashboard-cards {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 15px;
+        .cartoes-grid {
+            max-height: 500px;
+            overflow-y: auto;
+            padding-right: 4px;
         }
         
-        .dashboard-card {
+        .cartao-item {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 10px;
+            transition: all 0.2s;
+        }
+
+        .cartao-item:hover {
+            border-color: #94a3b8;
+        }
+
+        /* ============================================ */
+        /* FOOTER */
+        /* ============================================ */
+        .footer {
             text-align: center;
-            background: #f8fafc;
-            padding: 15px;
+            padding: 16px;
+            font-size: 11px;
+            color: #94a3b8;
+            background: #1e293b;
+            margin-top: 20px;
             border-radius: 12px;
         }
-        
-        .dashboard-number {
-            font-size: 28px;
-            font-weight: bold;
-        }
 
         /* ============================================ */
-        /* MODAL */
+        /* RESPONSIVO COMPLETO */
         /* ============================================ */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-        }
-        
-        .modal.show { display: flex; }
-        
-        .modal-content {
-            background: white;
-            border-radius: 20px;
-            width: 90%;
-            max-width: 350px;
-            overflow: hidden;
-        }
-        
-        .modal-header {
-            background: #3b82f6;
-            color: white;
-            padding: 15px;
-            font-weight: bold;
-            text-align: center;
-        }
-        
-        .modal-body { padding: 20px; }
-
-        /* ============================================ */
-        /* EMPTY STATE */
-        /* ============================================ */
-        .empty-state {
-            text-align: center;
-            padding: 40px;
-            color: #94a3b8;
-            font-size: 13px;
+        @media (max-width: 1024px) {
+            .dashboard-cards {
+                grid-template-columns: repeat(3, 1fr);
+            }
         }
 
-        /* ============================================ */
-        /* RESPONSIVO */
-        /* ============================================ */
         @media (max-width: 768px) {
             .container { padding: 10px; }
             .form-row { flex-direction: column; gap: 10px; }
@@ -460,66 +617,122 @@
             .dashboard-cards { grid-template-columns: 1fr; }
             .filtros { flex-direction: column; }
             .filtros select, .filtros button { width: 100%; }
-            .top-bar { flex-direction: column; text-align: center; }
-            .stats { justify-content: center; }
+            .top-bar { flex-direction: column; text-align: center; padding: 10px; }
+            .stats { justify-content: center; width: 100%; }
             .tabs-header { flex-wrap: nowrap; overflow-x: auto; }
-            .tab-btn { padding: 10px 14px; font-size: 12px; min-width: 80px; }
-            .grade-numeros { grid-template-columns: repeat(5, 1fr); }
+            .tab-btn { padding: 10px 12px; font-size: 11px; min-width: 70px; }
+            .grade-numeros { grid-template-columns: repeat(5, 1fr); gap: 6px; }
+            .reservas-grid { grid-template-columns: 1fr; gap: 10px; }
+            .reserva-card { padding: 14px; }
+            .tab-content { padding: 12px; }
+            .card { padding: 14px; }
         }
 
         @media (max-width: 480px) {
-            .logo { font-size: 16px; }
+            .logo { font-size: 15px; }
             .stat { font-size: 10px; padding: 3px 8px; }
-            .dashboard-number { font-size: 20px; }
-            .numero-btn { padding: 10px 6px; font-size: 12px; }
-            .tab-btn { padding: 8px 10px; font-size: 11px; min-width: 60px; }
+            .dashboard-number { font-size: 22px; }
+            .numero-btn { padding: 10px 4px; font-size: 13px; min-height: 40px; }
+            .tab-btn { padding: 8px 10px; font-size: 10px; min-width: 60px; }
+            .btn { font-size: 13px; padding: 10px 14px; min-height: 42px; }
+            .form-control, select, input, textarea { font-size: 15px; padding: 10px 12px; min-height: 42px; }
+            .reserva-card { padding: 12px; }
+            .modal-content { max-width: 100%; margin: 10px; }
+        }
+
+        @media (max-width: 380px) {
+            .grade-numeros {
+                grid-template-columns: repeat(4, 1fr);
+            }
+            .numero-btn {
+                padding: 8px 2px;
+                font-size: 11px;
+                min-height: 34px;
+            }
         }
 
         /* ============================================ */
-/* BOTÃO COPIAR HISTÓRICO - RESERVAS */
-/* ============================================ */
-.btn-copiar-historico {
-    background: #25D366 !important;
-    color: white !important;
-    border: none !important;
-    padding: 12px 16px !important;
-    border-radius: 10px !important;
-    cursor: pointer !important;
-    font-size: 15px !important;
-    font-weight: 600 !important;
-    width: 100% !important;
-    touch-action: manipulation !important;
-    transition: all 0.2s !important;
-}
+        /* TOAST CUSTOMIZADO */
+        /* ============================================ */
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 99999;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 90%;
+            max-width: 400px;
+            pointer-events: none;
+        }
 
-.btn-copiar-historico:hover {
-    transform: scale(1.02);
-    filter: brightness(1.05);
-}
+        .toast {
+            padding: 14px 18px;
+            border-radius: 14px;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+            animation: slideUp 0.3s ease;
+            pointer-events: auto;
+            text-align: center;
+        }
 
-.btn-copiar-historico:active {
-    transform: scale(0.98);
-}
+        .toast-success { background: #10b981; }
+        .toast-error { background: #ef4444; }
+        .toast-warning { background: #f59e0b; }
+        .toast-info { background: #3b82f6; }
 
-/* Reservas - Responsivo */
-.reservas-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-}
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
 
-@media (max-width: 768px) {
-    .reservas-grid {
-        grid-template-columns: 1fr;
-    }
-    .reserva-card {
-        padding: 12px !important;
-    }
-    .btn-ver-historico {
-        font-size: 14px !important;
-        padding: 12px !important;
-    }
-}
+        @keyframes fadeOut {
+            from { opacity: 1; transform: translateY(0); }
+            to { opacity: 0; transform: translateY(-10px); }
+        }
+
+        /* ============================================ */
+        /* LOADING GLOBAL */
+        /* ============================================ */
+        #globalLoading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 99999;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            gap: 15px;
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
+
+        #globalLoading .loading-box {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+            min-width: 200px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        #globalLoading .spinner {
+            font-size: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -534,22 +747,22 @@
     <div class="container">
         
         <!-- ============================================ -->
-        <!-- DASHBOARD (FORA DAS ABAS) -->
+        <!-- DASHBOARD -->
         <!-- ============================================ -->
-        <div class="card" style="background: white; border-radius: 16px; padding: 16px; margin-bottom: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
-            <div style="font-weight: bold; font-size: 16px; margin-bottom: 12px; color: #1e293b;">📊 DASHBOARD</div>
+        <div class="card" style="background: white; border-radius: 16px; padding: 16px; margin-bottom: 16px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); border: none;">
+            <div style="font-weight: 700; font-size: 16px; margin-bottom: 14px; color: #1e293b;">📊 DASHBOARD</div>
             <div class="dashboard-cards">
-                <div class="dashboard-card" style="background: #f0fdf4;">
+                <div class="dashboard-card" style="background: #f0fdf4; border-color: #bbf7d0;">
                     <div class="dashboard-number" style="color: #10b981;" id="dashboardAbertos">0</div>
-                    <div style="font-size: 13px; font-weight: bold; color: #065f46;">🟢 BOLÕES ABERTOS</div>
+                    <div style="font-size: 13px; font-weight: 600; color: #065f46;">🟢 BOLÕES ABERTOS</div>
                 </div>
-                <div class="dashboard-card" style="background: #fef3c7;">
+                <div class="dashboard-card" style="background: #fef3c7; border-color: #fde68a;">
                     <div class="dashboard-number" style="color: #f59e0b;" id="dashboardAndamento">0</div>
-                    <div style="font-size: 13px; font-weight: bold; color: #92400e;">🟡 EM ANDAMENTO</div>
+                    <div style="font-size: 13px; font-weight: 600; color: #92400e;">🟡 EM ANDAMENTO</div>
                 </div>
-                <div class="dashboard-card" style="background: #fee2e2;">
+                <div class="dashboard-card" style="background: #fee2e2; border-color: #fca5a5;">
                     <div class="dashboard-number" style="color: #ef4444;" id="dashboardEncerrados">0</div>
-                    <div style="font-size: 13px; font-weight: bold; color: #991b1b;">🔴 ENCERRADOS</div>
+                    <div style="font-size: 13px; font-weight: 600; color: #991b1b;">🔴 ENCERRADOS</div>
                 </div>
             </div>
         </div>
@@ -573,125 +786,119 @@
             <div class="tab-content active" id="tab-cadastro">
                 
                 <!-- SELETOR DE LOTERIA -->
-                <div style="margin-bottom: 20px; padding: 12px; background: #f1f5f9; border-radius: 12px;">
-                    <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 8px; color: #1e293b;">🎯 SELECIONAR LOTERIA:</label>
-                    <div class="loteria-selector-admin" style="display: flex; gap: 8px;">
-                        <button id="adminBtnMega" class="loteria-btn-admin mega" style="flex:1; padding: 10px 8px; border: none; border-radius: 30px; font-weight: bold; cursor: pointer; font-size: 13px; background: #8b5cf6; color: white;">🎯 MEGA</button>
-                        <button id="adminBtnLotofacil" class="loteria-btn-admin lotofacil active" style="flex:1; padding: 10px 8px; border: none; border-radius: 30px; font-weight: bold; cursor: pointer; font-size: 13px; background: #10b981; color: white;">🌟 LOTOFÁCIL</button>
-                        <button id="adminBtnQuina" class="loteria-btn-admin quina" style="flex:1; padding: 10px 8px; border: none; border-radius: 30px; font-weight: bold; cursor: pointer; font-size: 13px; background: #ef4444; color: white;">🎯 QUINA</button>
+                <div style="margin-bottom: 20px; padding: 16px; background: #f8fafc; border-radius: 14px; border: 1px solid #e2e8f0;">
+                    <label style="display: block; font-weight: 700; font-size: 13px; margin-bottom: 10px; color: #1e293b;">🎯 SELECIONAR LOTERIA:</label>
+                    <div class="loteria-selector-admin">
+                        <button id="adminBtnMega" class="loteria-btn-admin mega" style="flex:1;">🎯 MEGA</button>
+                        <button id="adminBtnLotofacil" class="loteria-btn-admin lotofacil active" style="flex:1;">🌟 LOTOFÁCIL</button>
+                        <button id="adminBtnQuina" class="loteria-btn-admin quina" style="flex:1;">🎯 QUINA</button>
                     </div>
-                    <div style="font-size: 11px; color: #64748b; margin-top: 6px; text-align: center;">
+                    <div style="font-size: 11px; color: #64748b; margin-top: 8px; text-align: center;">
                         📌 Selecione a loteria para cadastrar cartões
                     </div>
                 </div>
 
                 <!-- ============================================ -->
-<!-- 1. CADASTRO INDIVIDUAL (TODAS AS LOTERIAS) -->
-<!-- ============================================ -->
-<div class="card" style="border: 2px solid #3b82f6;">
-    <div class="card-header">
-        ✏️ CADASTRO INDIVIDUAL
-        <span class="badge" style="font-size: 10px; background: #3b82f6; color: white; padding: 2px 10px; border-radius: 20px;">MEGA • LOTOFÁCIL • QUINA</span>
-    </div>
-    
-    <!-- BOTÃO TOGGLE: MODO SELEÇÃO -->
-    <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 600; color: #1e293b;">
-            <input type="checkbox" id="toggleModoSelecao" style="width: 20px; height: 20px; cursor: pointer;">
-            🖱️ MODO SELEÇÃO (clique nos números)
-        </label>
-        <span id="statusModoSelecao" style="font-size: 12px; color: #64748b;">(Digitação manual)</span>
-    </div>
-    
-    <!-- MODO DIGITAÇÃO (padrão) -->
-    <div id="modoDigitacao">
-        <div class="form-row">
-            <div class="form-group">
-                <label>📌 Concurso</label>
-                <input type="number" id="concursoIndividual" class="form-control" placeholder="Ex: 3200">
-            </div>
-            <div class="form-group">
-                <label>👥 Bolão</label>
-                <input type="text" id="bolaoIndividual" class="form-control" placeholder="Ex: Família">
-            </div>
-        </div>
-        <div class="form-row">
-            <div class="form-group">
-                <label>🎯 Tipo</label>
-                <select id="tipoCartaoIndividual" class="form-control">
-                    <option value="exclusivo">👥 Grupo Exclusivo</option>
-                    <option value="cota">🎟️ Cota de Bolão</option>
-                </select>
-            </div>
-            <div class="form-group"></div>
-        </div>
-        <div class="form-group">
-            <label id="labelNumerosIndividual">🔢 Números (separados por espaço)</label>
-            <input type="text" id="numerosIndividual" class="form-control" placeholder="Ex: 01 02 03 04 05 06">
-            <div id="dicaNumerosIndividual" style="font-size: 11px; color: #64748b; margin-top: 4px;">
-                💡 Digite os números separados por espaço
-            </div>
-        </div>
-        <button id="btnAdicionarIndividual" class="btn btn-success btn-block">➕ ADICIONAR CARTÃO</button>
-    </div>
-    
-    <!-- MODO SELEÇÃO (grade de números) -->
-    <div id="modoSelecao" style="display: none;">
-        <div class="form-row">
-            <div class="form-group">
-                <label>📌 Concurso</label>
-                <input type="number" id="concursoIndividualSelecao" class="form-control" placeholder="Ex: 3200">
-            </div>
-            <div class="form-group">
-                <label>👥 Bolão</label>
-                <input type="text" id="bolaoIndividualSelecao" class="form-control" placeholder="Ex: Família">
-            </div>
-        </div>
-        <div class="form-row">
-            <div class="form-group">
-                <label>🎯 Tipo</label>
-                <select id="tipoCartaoIndividualSelecao" class="form-control">
-                    <option value="exclusivo">👥 Grupo Exclusivo</option>
-                    <option value="cota">🎟️ Cota de Bolão</option>
-                </select>
-            </div>
-            <div class="form-group"></div>
-        </div>
-        
-        <!-- GRADE DE NÚMEROS (dinâmica) -->
-        <div style="margin-top: 12px;">
-            <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 8px; color: #1e293b;">🔢 Clique nos números para selecionar:</label>
-            <div id="gradeSelecaoIndividual" class="grade-numeros" style="max-width: 100%;">
-                <!-- Gerado via JavaScript -->
-            </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
-                <span id="contadorSelecao" style="font-size: 14px; font-weight: bold; color: #3b82f6;">0 números selecionados</span>
-                <button id="btnLimparSelecao" class="btn btn-sm btn-danger" style="padding: 4px 12px;">🗑️ LIMPAR</button>
-            </div>
-            <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px;" id="previaNumerosSelecionados">
-                <span style="color: #94a3b8; font-size: 12px;">Nenhum número selecionado</span>
-            </div>
-        </div>
-        
-        <button id="btnAdicionarIndividualSelecao" class="btn btn-success btn-block" style="margin-top: 15px;">➕ ADICIONAR CARTÃO (SELEÇÃO)</button>
-    </div>
-</div>
+                <!-- 1. CADASTRO INDIVIDUAL -->
+                <!-- ============================================ -->
+                <div class="card" style="border: 2px solid #3b82f6; background: #f8faff;">
+                    <div class="card-header">
+                        ✏️ CADASTRO INDIVIDUAL
+                        <span class="badge">MEGA • LOTOFÁCIL • QUINA</span>
+                    </div>
+                    
+                    <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 600; color: #1e293b;">
+                            <input type="checkbox" id="toggleModoSelecao" style="width: 20px; height: 20px; cursor: pointer; accent-color: #3b82f6;">
+                            🖱️ MODO SELEÇÃO
+                        </label>
+                        <span id="statusModoSelecao" style="font-size: 12px; color: #64748b; background: #f1f5f9; padding: 2px 12px; border-radius: 12px;">Digitação manual</span>
+                    </div>
+                    
+                    <div id="modoDigitacao">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>📌 Concurso</label>
+                                <input type="number" id="concursoIndividual" class="form-control" placeholder="Ex: 3200">
+                            </div>
+                            <div class="form-group">
+                                <label>👥 Bolão</label>
+                                <input type="text" id="bolaoIndividual" class="form-control" placeholder="Ex: Família">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>🎯 Tipo</label>
+                                <select id="tipoCartaoIndividual" class="form-control">
+                                    <option value="exclusivo">👥 Grupo Exclusivo</option>
+                                    <option value="cota">🎟️ Cota de Bolão</option>
+                                </select>
+                            </div>
+                            <div class="form-group"></div>
+                        </div>
+                        <div class="form-group">
+                            <label id="labelNumerosIndividual">🔢 Números (separados por espaço)</label>
+                            <input type="text" id="numerosIndividual" class="form-control" placeholder="Ex: 01 02 03 04 05 06">
+                            <div id="dicaNumerosIndividual" style="font-size: 11px; color: #64748b; margin-top: 4px;">
+                                💡 Digite os números separados por espaço
+                            </div>
+                        </div>
+                        <button id="btnAdicionarIndividual" class="btn btn-success btn-block">➕ ADICIONAR CARTÃO</button>
+                    </div>
+                    
+                    <div id="modoSelecao" style="display: none;">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>📌 Concurso</label>
+                                <input type="number" id="concursoIndividualSelecao" class="form-control" placeholder="Ex: 3200">
+                            </div>
+                            <div class="form-group">
+                                <label>👥 Bolão</label>
+                                <input type="text" id="bolaoIndividualSelecao" class="form-control" placeholder="Ex: Família">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>🎯 Tipo</label>
+                                <select id="tipoCartaoIndividualSelecao" class="form-control">
+                                    <option value="exclusivo">👥 Grupo Exclusivo</option>
+                                    <option value="cota">🎟️ Cota de Bolão</option>
+                                </select>
+                            </div>
+                            <div class="form-group"></div>
+                        </div>
+                        
+                        <div style="margin-top: 12px;">
+                            <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 8px; color: #1e293b;">🔢 Clique nos números para selecionar:</label>
+                            <div id="gradeSelecaoIndividual" class="grade-numeros" style="max-width: 100%;">
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; flex-wrap: wrap; gap: 8px;">
+                                <span id="contadorSelecao" style="font-size: 14px; font-weight: 600; color: #3b82f6;">0 números selecionados</span>
+                                <button id="btnLimparSelecao" class="btn btn-sm btn-danger" style="padding: 4px 16px;">🗑️ LIMPAR</button>
+                            </div>
+                            <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px;" id="previaNumerosSelecionados">
+                                <span style="color: #94a3b8; font-size: 12px;">Nenhum número selecionado</span>
+                            </div>
+                        </div>
+                        
+                        <button id="btnAdicionarIndividualSelecao" class="btn btn-success btn-block" style="margin-top: 15px;">➕ ADICIONAR CARTÃO</button>
+                    </div>
+                </div>
 
                 <!-- ============================================ -->
-                <!-- 2. CADASTRO EM LOTE (APENAS LOTOFÁCIL) -->
+                <!-- 2. CADASTRO EM LOTE -->
                 <!-- ============================================ -->
                 <div class="card" id="cardLote" style="border: 2px solid #10b981; background: #f0fdf4;">
                     <div class="card-header">
                         📦 CADASTRO EM LOTE
-                        <span class="badge" style="font-size: 10px; background: #10b981; color: white; padding: 2px 10px; border-radius: 20px;">APENAS LOTOFÁCIL</span>
+                        <span class="badge badge-green">APENAS LOTOFÁCIL</span>
                     </div>
-                    <div style="font-size: 12px; color: #065f46; margin-bottom: 12px; background: #d1fae5; padding: 8px 12px; border-radius: 8px;">
+                    <div style="font-size: 12px; color: #065f46; margin-bottom: 14px; background: #d1fae5; padding: 10px 14px; border-radius: 10px;">
                         ⚡ Crie 20 cartões × N concursos em poucos cliques! <strong>Selecione LOTOFÁCIL</strong> para usar.
                     </div>
                     
-                    <!-- CONFIGURAÇÃO DO BOLÃO -->
-                    <div style="background: white; padding: 12px; border-radius: 10px; margin-bottom: 16px;">
-                        <div style="font-weight: bold; margin-bottom: 10px; color: #1e293b;">📌 CONFIGURAÇÃO DO BOLÃO</div>
+                    <div style="background: #f8fafc; padding: 14px; border-radius: 12px; margin-bottom: 16px; border: 1px solid #e2e8f0;">
+                        <div style="font-weight: 700; margin-bottom: 12px; color: #1e293b; font-size: 14px;">📌 CONFIGURAÇÃO DO BOLÃO</div>
                         <div class="form-row">
                             <div class="form-group">
                                 <label>👥 Nome do Bolão</label>
@@ -721,75 +928,68 @@
                         </div>
                     </div>
 
-                    <!-- SELEÇÃO DE NÚMEROS -->
-                    <div style="background: white; padding: 12px; border-radius: 10px; margin-bottom: 16px;">
+                    <div style="background: #f8fafc; padding: 14px; border-radius: 12px; margin-bottom: 16px; border: 1px solid #e2e8f0;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                            <div style="font-weight: bold; font-size: 15px; color: #1e293b;">
+                            <div style="font-weight: 700; font-size: 15px; color: #1e293b;">
                                 🎯 CARTÃO <span id="cartaoAtualNumero">1</span>/<span id="totalCartoesNumero">20</span>
                             </div>
                             <span style="font-size: 13px; color: #64748b;">Selecione <strong>15</strong> números</span>
                         </div>
                         
-                        <div class="grade-numeros" id="gradeNumeros">
-                            <!-- Gerado via JavaScript -->
-                        </div>
+                        <div class="grade-numeros" id="gradeNumeros"></div>
                         
                         <div style="text-align: center; margin-top: 12px;">
-                            <span id="contadorNumeros" style="font-size: 14px; font-weight: bold; color: #3b82f6;">0/15 números selecionados</span>
+                            <span id="contadorNumeros" style="font-size: 14px; font-weight: 600; color: #3b82f6;">0/15 números selecionados</span>
                         </div>
 
                         <div style="display: flex; justify-content: center; gap: 12px; margin-top: 16px; flex-wrap: wrap;">
-                            <button id="btnCartaoAnterior" class="btn btn-secondary" style="min-width: 100px;">◀</button>
-                            <span style="display: flex; align-items: center; font-size: 14px; color: #475569;">
+                            <button id="btnCartaoAnterior" class="btn btn-secondary" style="min-width: 80px;">◀</button>
+                            <span style="display: flex; align-items: center; font-size: 14px; color: #475569; font-weight: 600;">
                                 <span id="cartaoAtualNav">1</span>/<span id="totalCartoesNav">20</span>
                             </span>
-                            <button id="btnCartaoProximo" class="btn btn-secondary" style="min-width: 100px;">▶</button>
+                            <button id="btnCartaoProximo" class="btn btn-secondary" style="min-width: 80px;">▶</button>
                         </div>
 
                         <div style="display: flex; justify-content: center; gap: 12px; margin-top: 12px; flex-wrap: wrap;">
-                            <button id="btnDuplicarCartao" class="btn btn-warning" style="min-width: 130px;">🔁 DUPLICAR</button>
-                            <button id="btnLimparCartao" class="btn btn-danger" style="min-width: 130px;">🗑️ LIMPAR</button>
+                            <button id="btnDuplicarCartao" class="btn btn-warning" style="min-width: 120px;">🔁 DUPLICAR</button>
+                            <button id="btnLimparCartao" class="btn btn-danger" style="min-width: 120px;">🗑️ LIMPAR</button>
                         </div>
                     </div>
 
-                    <!-- RESUMO -->
-                    <div style="background: white; padding: 12px; border-radius: 10px; margin-bottom: 16px;">
-                        <div style="font-weight: bold; margin-bottom: 8px; color: #1e293b;">📊 RESUMO DO LOTE</div>
+                    <div style="background: #f8fafc; padding: 14px; border-radius: 12px; margin-bottom: 16px; border: 1px solid #e2e8f0;">
+                        <div style="font-weight: 700; margin-bottom: 10px; color: #1e293b; font-size: 14px;">📊 RESUMO DO LOTE</div>
                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px;">
                             <div><strong>🎯 Cartões:</strong> <span id="resumoCartoes">20</span></div>
                             <div><strong>📌 Concursos:</strong> <span id="resumoConcursos">24</span></div>
-                            <div><strong>📊 Total:</strong> <span id="resumoTotal" style="color: #3b82f6; font-size: 18px;">480</span></div>
+                            <div><strong>📊 Total:</strong> <span id="resumoTotal" style="color: #3b82f6; font-size: 18px; font-weight: 700;">480</span></div>
                             <div><strong>📅 Concursos:</strong> <span id="resumoConcursosRange">3200 → 3223</span></div>
                             <div><strong>✅ Preenchidos:</strong> <span id="resumoPreenchidos">0/20</span></div>
                         </div>
                     </div>
 
-                    <!-- AÇÕES DO LOTE -->
                     <div style="display: flex; gap: 12px; flex-wrap: wrap;">
                         <button id="btnGerarLote" class="btn btn-success" style="flex: 1; min-width: 200px; padding: 14px; font-size: 16px;">🚀 GERAR TODOS</button>
                         <button id="btnLimparLote" class="btn btn-danger" style="flex: 1; min-width: 150px; padding: 14px; font-size: 16px;">🗑️ LIMPAR TUDO</button>
                     </div>
 
-                    <!-- PRÉVIA -->
-                    <div style="background: white; padding: 12px; border-radius: 10px; margin-top: 16px; max-height: 150px; overflow-y: auto;">
-                        <div style="font-weight: bold; margin-bottom: 6px; color: #1e293b; font-size: 12px;">📋 PRÉVIA DOS CARTÕES</div>
+                    <div style="background: #f8fafc; padding: 12px; border-radius: 12px; margin-top: 16px; max-height: 150px; overflow-y: auto; border: 1px solid #e2e8f0;">
+                        <div style="font-weight: 600; margin-bottom: 6px; color: #1e293b; font-size: 12px;">📋 PRÉVIA DOS CARTÕES</div>
                         <div id="previaCartoes" style="font-size: 11px; font-family: monospace;">
                             <div style="color: #94a3b8;">Nenhum cartão cadastrado ainda</div>
                         </div>
                     </div>
                 </div>
-
             </div>
 
             <!-- ============================================ -->
             <!-- ABA 2: CARTÕES CADASTRADOS -->
             <!-- ============================================ -->
             <div class="tab-content" id="tab-cartoes">
-                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
-                    <select id="filtroConcursoLista" class="form-control" style="flex: 1; min-width: 150px;">
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px;">
+                    <select id="filtroConcursoLista" class="form-control" style="flex: 1; min-width: 130px;">
                         <option value="todos">Todos os concursos</option>
                     </select>
-                    <select id="ordenarPorLista" class="form-control" style="flex: 1; min-width: 150px;">
+                    <select id="ordenarPorLista" class="form-control" style="flex: 1; min-width: 130px;">
                         <option value="concurso_desc">📌 Concurso (mais novo)</option>
                         <option value="concurso_asc">📌 Concurso (mais antigo)</option>
                         <option value="bolao">👥 Bolão (A-Z)</option>
@@ -812,7 +1012,7 @@
                 </div>
                 <button id="btnSalvarSelecao" class="btn btn-primary btn-block" style="margin-top: 15px;">💾 SALVAR CONFIGURAÇÕES</button>
                 
-                <hr style="margin: 20px 0;">
+                <hr style="margin: 20px 0; border-color: #e2e8f0;">
                 
                 <div class="card">
                     <div class="card-header">👥 PARTICIPANTES POR BOLÃO</div>
@@ -846,14 +1046,16 @@
             </div>
 
             <!-- ============================================ -->
-            <!-- ABA 5: RESERVAS -->
+            <!-- ABA 5: RESERVAS (CORRIGIDA) -->
             <!-- ============================================ -->
             <div class="tab-content" id="tab-reservas">
-                <div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-                    <div><strong>💵 TOTAL EM RESERVAS:</strong> <span id="totalReservas" style="font-size: 24px; color: #10b981;">R$ 0,00</span></div>
-                    <button id="btnAtualizarReservas" class="btn btn-primary" style="width: auto;">🔄 ATUALIZAR</button>
+                <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div style="font-size: 15px; font-weight: 600; color: #1e293b;">
+                        💵 TOTAL EM RESERVAS: <span id="totalReservas" style="font-size: 22px; color: #10b981; font-weight: 700;">R$ 0,00</span>
+                    </div>
+                    <button id="btnAtualizarReservas" class="btn btn-primary" style="width: auto; min-width: 120px;">🔄 ATUALIZAR</button>
                 </div>
-                <div id="listaReservas" style="max-height: 400px; overflow-y: auto;">
+                <div id="listaReservas" style="max-height: 500px; overflow-y: auto;">
                     <div class="empty-state">Nenhuma reserva encontrada</div>
                 </div>
             </div>
@@ -871,8 +1073,8 @@
                     <button id="btnSalvarPix" class="btn btn-success btn-block">💾 SALVAR PIX</button>
                 </div>
 
-                <div class="card" style="border: 1px dashed #ef4444;">
-                    <div class="card-header">⚠️ PERIGO</div>
+                <div class="card" style="border: 2px dashed #ef4444; background: #fef2f2;">
+                    <div class="card-header" style="color: #dc2626;">⚠️ PERIGO</div>
                     <button id="btnLimparCache" class="btn btn-danger btn-block" onclick="if(confirm('Limpar cache do sistema?')){ localStorage.clear(); sessionStorage.clear(); showToast('🧹 Cache limpo!', 'success'); location.reload(); }">
                         🗑️ LIMPAR CACHE DO SISTEMA
                     </button>
@@ -884,19 +1086,19 @@
     </div>
 
     <!-- Modal de autenticação -->
-<div id="authModal" class="modal" style="display: none;">
-    <div class="modal-content">
-        <div class="modal-header">🔐 ACESSO ADMINISTRATIVO</div>
-        <div class="modal-body">
-            <input type="password" id="senhaAdmin" class="form-control" placeholder="Digite a senha" autofocus>
-            <button id="btnAutenticar" class="btn btn-primary btn-block" style="margin-top:15px;">🔓 ENTRAR</button>
+    <div id="authModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">🔐 ACESSO ADMINISTRATIVO</div>
+            <div class="modal-body">
+                <input type="password" id="senhaAdmin" class="form-control" placeholder="Digite a senha" autofocus>
+                <button id="btnAutenticar" class="btn btn-primary btn-block" style="margin-top:15px;">🔓 ENTRAR</button>
+            </div>
         </div>
     </div>
-</div>
 
-    <div class="footer" style="text-align: center; padding: 15px; font-size: 11px; color: #94a3b8; background: #1e293b; margin-top: 20px;">
+    <div class="footer">
         <div>© 2026 Bolões Aleatórios - Versão 2.0</div>
-        <div style="font-size: 10px;">Desenvolvido por Elton Luis</div>
+        <div style="font-size: 10px; margin-top: 4px;">Desenvolvido por Elton Luis</div>
     </div>
 
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -907,9 +1109,6 @@
     <script src="admin.js"></script>
     
     <script>
-        // ============================================
-        // SISTEMA DE ABAS
-        // ============================================
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', function() {
                 document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
