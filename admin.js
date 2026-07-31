@@ -14,7 +14,6 @@ let loteriaAdmin = 'mega';
 let cartoesFiltrados = [];
 let boloes = [];
 
-
 // ============================================
 // VARIÁVEIS DO CADASTRO EM LOTE
 // ============================================
@@ -88,7 +87,6 @@ function hideLoading() {
     }
 }
 
-
 // ============================================
 // INICIALIZAR GRADE DE SELEÇÃO INDIVIDUAL
 // ============================================
@@ -96,11 +94,10 @@ function inicializarGradeSelecaoIndividual() {
     const grade = document.getElementById('gradeSelecaoIndividual');
     if (!grade) return;
     
-    // Determinar quantidade de números com base na loteria
-    let totalNumeros = 60; // padrão Mega
+    let totalNumeros = 60;
     if (loteriaAdmin === 'lotofacil') totalNumeros = 25;
     else if (loteriaAdmin === 'quina') totalNumeros = 80;
-    else totalNumeros = 60; // mega
+    else totalNumeros = 60;
     
     grade.innerHTML = '';
     for (let i = 1; i <= totalNumeros; i++) {
@@ -119,7 +116,6 @@ function inicializarGradeSelecaoIndividual() {
 // TOGGLE NÚMERO NA SELEÇÃO INDIVIDUAL
 // ============================================
 function toggleNumeroSelecao(numero) {
-    // Determinar limites
     let minNumeros, maxNumeros;
     if (loteriaAdmin === 'mega') {
         minNumeros = 6;
@@ -219,7 +215,7 @@ function atualizarPreviaSelecao() {
 }
 
 // ============================================
-// FUNÇÃO MD5 PARA HASH DA SENHA
+// FUNÇÃO MD5
 // ============================================
 function md5(string) {
     function rotateLeft(value, bits) {
@@ -282,10 +278,7 @@ function md5(string) {
                 var offset = blockStart + i * 4;
                 X[i] = (msg[offset] | (msg[offset + 1] << 8) | (msg[offset + 2] << 16) | (msg[offset + 3] << 24)) >>> 0;
             }
-            var A = state[0],
-                B = state[1],
-                C = state[2],
-                D = state[3];
+            var A = state[0], B = state[1], C = state[2], D = state[3];
             var S = [7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
                 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
                 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
@@ -345,7 +338,7 @@ function md5(string) {
 }
 
 // ============================================
-// AUTENTICAÇÃO (CORRIGIDA PARA MOBILE)
+// AUTENTICAÇÃO
 // ============================================
 function verificarAutenticacao() {
     const autenticado = localStorage.getItem('admin_autenticado');
@@ -367,7 +360,6 @@ function verificarAutenticacao() {
         modal.style.display = 'flex';
         if (senhaInput) {
             senhaInput.value = '';
-            // Forçar foco no mobile
             setTimeout(() => {
                 senhaInput.focus();
                 if (navigator.userAgent.match(/iPhone|iPad|iPod|Android/i)) {
@@ -418,18 +410,16 @@ function forcarLogin() {
 }
 
 // ============================================
-// SELECIONAR LOTERIA (COM CONTROLE DO CARD LOTE)
+// SELECIONAR LOTERIA
 // ============================================
 function setLoteriaAdmin(loteria) {
     console.log(`🔄 Mudando loteria admin para: ${loteria}`);
     loteriaAdmin = loteria;
     
-    // Atualizar botões
     const btnMega = document.getElementById('adminBtnMega');
     const btnLotofacil = document.getElementById('adminBtnLotofacil');
     const btnQuina = document.getElementById('adminBtnQuina');
     
-    // Remover active de todos
     [btnMega, btnLotofacil, btnQuina].forEach(btn => {
         if (btn) {
             btn.classList.remove('active');
@@ -439,7 +429,6 @@ function setLoteriaAdmin(loteria) {
         }
     });
     
-    // Adicionar active no selecionado
     let btnSelecionado = null;
     if (loteria === 'mega') btnSelecionado = btnMega;
     else if (loteria === 'lotofacil') btnSelecionado = btnLotofacil;
@@ -452,37 +441,17 @@ function setLoteriaAdmin(loteria) {
         btnSelecionado.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.1)';
     }
     
-    // ============================================
-    // MOSTRAR/ESCONDER CADASTRO EM LOTE (USANDO ID)
-    // ============================================
     const cardLote = document.getElementById('cardLote');
     if (cardLote) {
         if (loteria === 'lotofacil') {
             cardLote.style.display = 'block';
             cardLote.style.opacity = '1';
-            console.log('✅ Card Lote VISÍVEL (Lotofácil)');
         } else {
             cardLote.style.display = 'none';
             cardLote.style.opacity = '0.5';
-            console.log(`❌ Card Lote OCULTO (${loteria.toUpperCase()})`);
-        }
-    } else {
-        console.warn('⚠️ Card Lote não encontrado! Verifique se o ID "cardLote" existe no HTML.');
-        const cardLoteFallback = document.querySelector('.card[style*="border: 2px solid #10b981"]');
-        if (cardLoteFallback) {
-            if (loteria === 'lotofacil') {
-                cardLoteFallback.style.display = 'block';
-                cardLoteFallback.style.opacity = '1';
-            } else {
-                cardLoteFallback.style.display = 'none';
-                cardLoteFallback.style.opacity = '0.5';
-            }
         }
     }
     
-    // ============================================
-    // ATUALIZAR DICAS DO CADASTRO INDIVIDUAL
-    // ============================================
     const labelIndividual = document.getElementById('labelNumerosIndividual');
     const dicaIndividual = document.getElementById('dicaNumerosIndividual');
     const inputIndividual = document.getElementById('numerosIndividual');
@@ -502,9 +471,8 @@ function setLoteriaAdmin(loteria) {
             if (inputIndividual) inputIndividual.placeholder = 'Ex: 12 15 23 34 45 (5 a 15)';
         }
     }
-    // Atualizar grade de seleção individual
+    
     inicializarGradeSelecaoIndividual();
-    // Resetar seleção ao mudar loteria
     numerosSelecionados = [];
     atualizarContadorSelecao();
     atualizarPreviaSelecao();
@@ -515,7 +483,7 @@ function setLoteriaAdmin(loteria) {
 }
 
 // ============================================
-// ADICIONAR CARTÃO VIA SELEÇÃO (CORRIGIDO)
+// ADICIONAR CARTÃO VIA SELEÇÃO
 // ============================================
 async function adicionarCartaoIndividualSelecao() {
     const concurso = document.getElementById('concursoIndividualSelecao').value;
@@ -532,7 +500,6 @@ async function adicionarCartaoIndividualSelecao() {
         return;
     }
     
-    // VALIDAÇÕES
     let minNumeros, maxNumeros, maxValor, label;
     if (loteriaAdmin === 'mega') {
         minNumeros = 6;
@@ -564,7 +531,6 @@ async function adicionarCartaoIndividualSelecao() {
         return;
     }
     
-    // Verificar duplicados (já garantido pelo Set)
     const numeros = [...numerosSelecionados].sort((a, b) => a - b);
     
     try {
@@ -579,18 +545,266 @@ async function adicionarCartaoIndividualSelecao() {
             totalNumeros: numeros.length
         });
         showToast(`✅ Cartão adicionado à ${label}!`, 'success');
-        // Limpar seleção
         numerosSelecionados = [];
         atualizarGradeSelecaoVisual();
         atualizarContadorSelecao();
         atualizarPreviaSelecao();
-        // Limpar campos
         document.getElementById('concursoIndividualSelecao').value = '';
         document.getElementById('bolaoIndividualSelecao').value = '';
         carregarDadosAdmin();
     } catch (error) {
         console.error('Erro:', error);
         showToast('❌ Erro ao adicionar', 'error');
+    }
+}
+
+// ============================================
+// FUNÇÕES DO CADASTRO POR IMAGEM (OCR)
+// ============================================
+
+function mostrarPreviaImagem(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const img = document.getElementById('imgPreviewSrc');
+        img.src = e.target.result;
+        document.getElementById('imgPreview').style.display = 'block';
+        document.getElementById('imgResultado').style.display = 'none';
+        document.getElementById('imgLoading').style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+}
+
+async function processarImagem(file) {
+    const loading = document.getElementById('imgLoading');
+    const resultado = document.getElementById('imgResultado');
+    const status = document.getElementById('imgStatus');
+    const container = document.getElementById('imgNumerosExtracao');
+    
+    loading.style.display = 'block';
+    resultado.style.display = 'none';
+    status.textContent = '🔄 Processando...';
+    
+    try {
+        const imageUrl = URL.createObjectURL(file);
+        const result = await Tesseract.recognize(imageUrl, 'por', {
+            logger: (m) => {
+                if (m.status === 'recognizing text') {
+                    status.textContent = `🔄 ${Math.round(m.progress * 100)}% concluído...`;
+                }
+            }
+        });
+        
+        URL.revokeObjectURL(imageUrl);
+        
+        const texto = result.data.text;
+        console.log('📝 Texto extraído:', texto);
+        
+        const numeros = extrairNumerosDoTexto(texto);
+        
+        if (numeros.length === 0) {
+            status.textContent = '❌ Nenhum número encontrado! Tente outra imagem.';
+            container.innerHTML = '<div style="color: #ef4444;">Nenhum número foi identificado. Verifique a qualidade da imagem.</div>';
+            loading.style.display = 'none';
+            return;
+        }
+        
+        numerosExtraidos = numeros;
+        imagemProcessada = true;
+        
+        let html = '';
+        const linhas = agruparNumerosEmLinhas(numeros);
+        
+        html += `<div style="margin-bottom: 10px; color: #10b981; font-weight: 600;">✅ ${linhas.length} cartões identificados</div>`;
+        html += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">`;
+        
+        linhas.forEach((linha, index) => {
+            const numsStr = linha.map(n => n.toString().padStart(2, '0')).join(' ');
+            html += `
+                <div style="background: white; border-radius: 8px; padding: 6px 10px; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 6px;">
+                    <span style="font-weight: 600; color: #64748b; font-size: 11px;">#${index+1}</span>
+                    <input type="text" class="img-cartao-edit" data-index="${index}" value="${numsStr}" style="flex: 1; border: none; background: transparent; font-family: monospace; font-size: 12px; outline: none; padding: 4px;">
+                </div>
+            `;
+        });
+        html += `</div>`;
+        html += `<div style="margin-top: 12px; font-size: 11px; color: #64748b;">💡 Clique nos números para editar se necessário.</div>`;
+        
+        container.innerHTML = html;
+        status.textContent = `✅ ${linhas.length} cartões extraídos`;
+        resultado.style.display = 'block';
+        loading.style.display = 'none';
+        
+        showToast(`✅ ${linhas.length} cartões identificados!`, 'success');
+        
+    } catch (error) {
+        console.error('Erro no OCR:', error);
+        status.textContent = '❌ Erro ao processar imagem';
+        container.innerHTML = `<div style="color: #ef4444;">Erro: ${error.message}</div>`;
+        loading.style.display = 'none';
+        showToast('❌ Erro ao processar imagem', 'error');
+    }
+}
+
+function extrairNumerosDoTexto(texto) {
+    const numeros = [];
+    const matches = texto.match(/\b\d{1,2}\b/g);
+    if (matches) {
+        for (const m of matches) {
+            const num = parseInt(m);
+            if (num >= 1 && num <= 99) {
+                numeros.push(num);
+            }
+        }
+    }
+    return numeros;
+}
+
+function agruparNumerosEmLinhas(numeros) {
+    const loteria = document.getElementById('imgLoteria').value;
+    let porLinha = 15;
+    if (loteria === 'mega') porLinha = 6;
+    else if (loteria === 'quina') porLinha = 5;
+    
+    const linhas = [];
+    for (let i = 0; i < numeros.length; i += porLinha) {
+        const linha = numeros.slice(i, i + porLinha);
+        if (linha.length >= porLinha) {
+            linhas.push(linha);
+        } else {
+            if (linhas.length > 0 && linhas[linhas.length - 1].length < porLinha * 2) {
+                const ultima = linhas[linhas.length - 1];
+                const faltam = porLinha - ultima.length;
+                for (let j = 0; j < Math.min(faltam, linha.length); j++) {
+                    ultima.push(linha[j]);
+                }
+            } else if (linha.length > 0) {
+                linhas.push(linha);
+            }
+        }
+    }
+    return linhas;
+}
+
+function getCartoesEditados() {
+    const inputs = document.querySelectorAll('.img-cartao-edit');
+    const cartoes = [];
+    inputs.forEach(input => {
+        const numeros = input.value.trim().split(/\s+/).map(Number).filter(n => n > 0);
+        if (numeros.length > 0) {
+            cartoes.push(numeros);
+        }
+    });
+    return cartoes;
+}
+
+async function cadastrarCartoesImagem() {
+    const loteria = document.getElementById('imgLoteria').value;
+    const concurso = document.getElementById('imgConcurso').value.trim();
+    const bolao = document.getElementById('imgBolao').value.trim() || 'Bolão por Imagem';
+    const tipo = document.getElementById('imgTipo').value;
+    
+    if (!concurso) {
+        showToast('⚠️ Informe o concurso!', 'warning');
+        return;
+    }
+    
+    const cartoes = getCartoesEditados();
+    if (cartoes.length === 0) {
+        showToast('⚠️ Nenhum cartão válido para cadastrar', 'warning');
+        return;
+    }
+    
+    let minNumeros, maxNumeros, maxValor;
+    if (loteria === 'mega') {
+        minNumeros = 6; maxNumeros = 20; maxValor = 60;
+    } else if (loteria === 'lotofacil') {
+        minNumeros = 15; maxNumeros = 20; maxValor = 25;
+    } else {
+        minNumeros = 5; maxNumeros = 15; maxValor = 80;
+    }
+    
+    let validos = 0;
+    let erros = 0;
+    let mensagemErro = '';
+    
+    for (const cartao of cartoes) {
+        if (cartao.length < minNumeros) {
+            erros++;
+            mensagemErro += `Cartão com ${cartao.length} números (mínimo ${minNumeros})\n`;
+            continue;
+        }
+        if (cartao.length > maxNumeros) {
+            erros++;
+            mensagemErro += `Cartão com ${cartao.length} números (máximo ${maxNumeros})\n`;
+            continue;
+        }
+        if (cartao.some(n => n < 1 || n > maxValor)) {
+            erros++;
+            mensagemErro += `Cartão com número fora do range (1-${maxValor})\n`;
+            continue;
+        }
+        const unicos = new Set(cartao);
+        if (unicos.size !== cartao.length) {
+            erros++;
+            mensagemErro += `Cartão com números duplicados\n`;
+            continue;
+        }
+        validos++;
+    }
+    
+    if (erros > 0) {
+        showToast(`⚠️ ${erros} cartão(ões) inválidos!`, 'warning');
+        return;
+    }
+    
+    const confirmar = confirm(
+        `📌 CONFIRMAR CADASTRO\n\n` +
+        `🎯 ${cartoes.length} cartões\n` +
+        `📌 Concurso: ${concurso}\n` +
+        `👥 Bolão: ${bolao}\n` +
+        `🎲 ${loteria.toUpperCase()}\n\n` +
+        `Confirmar?`
+    );
+    if (!confirmar) return;
+    
+    showLoading('Cadastrando cartões...');
+    
+    let adicionados = 0;
+    let errosCadastro = 0;
+    
+    for (const cartao of cartoes) {
+        const numeros = [...cartao].sort((a,b) => a-b);
+        try {
+            await db.collection('cartoes').add({
+                concurso: concurso,
+                bolao: bolao,
+                numeros: numeros,
+                tipo: loteria,
+                tipoParticipacao: tipo,
+                admin: true,
+                dataCadastro: new Date().toISOString(),
+                totalNumeros: numeros.length
+            });
+            adicionados++;
+        } catch (error) {
+            errosCadastro++;
+        }
+    }
+    
+    hideLoading();
+    
+    if (adicionados > 0) {
+        showToast(`✅ ${adicionados} cartões cadastrados! ${errosCadastro > 0 ? `⚠️ ${errosCadastro} erros` : ''}`, 'success');
+        document.getElementById('imgConcurso').value = '';
+        document.getElementById('imgResultado').style.display = 'none';
+        document.getElementById('imgPreview').style.display = 'none';
+        document.getElementById('imgUpload').value = '';
+        document.getElementById('imgUploadCamera').value = '';
+        numerosExtraidos = [];
+        imagemProcessada = false;
+        carregarDadosAdmin();
+    } else {
+        showToast('❌ Nenhum cartão foi cadastrado', 'error');
     }
 }
 
@@ -650,7 +864,7 @@ async function carregarDadosAdmin() {
 }
 
 // ============================================
-// EXIBIR CARTÕES ADMIN (CORRIGIDO)
+// EXIBIR CARTÕES ADMIN
 // ============================================
 function exibirCartoesAdmin() {
     console.log(`📋 Exibindo cartões da loteria: ${loteriaAdmin}`);
@@ -739,7 +953,7 @@ function exibirCartoesAdmin() {
 }
 
 // ============================================
-// CARREGAR CONCURSOS ADMIN (CORRIGIDO)
+// CARREGAR CONCURSOS ADMIN
 // ============================================
 function carregarConcursosAdmin() {
     const cartoesFiltrados = cartoes.filter(c => c.tipo === loteriaAdmin);
@@ -765,23 +979,11 @@ function atualizarDashboardAdmin() {
         if (configDoc.exists) {
             const dados = configDoc.data();
             const statusMap = dados.status || {};
-            
             for (const id in statusMap) {
                 const status = statusMap[id];
                 if (status === 'aberto') abertos++;
                 else if (status === 'andamento') andamento++;
                 else if (status === 'encerrado') encerrados++;
-            }
-        }
-        
-        if (abertos === 0 && andamento === 0 && encerrados === 0) {
-            if (boloes && boloes.length > 0) {
-                for (const bolao of boloes) {
-                    const status = bolao.status || 'andamento';
-                    if (status === 'aberto') abertos++;
-                    else if (status === 'andamento') andamento++;
-                    else if (status === 'encerrado') encerrados++;
-                }
             }
         }
         
@@ -792,15 +994,13 @@ function atualizarDashboardAdmin() {
         if (abertosEl) abertosEl.innerHTML = abertos;
         if (andamentoEl) andamentoEl.innerHTML = andamento;
         if (encerradosEl) encerradosEl.innerHTML = encerrados;
-        
-        console.log(`📊 Dashboard: Abertos=${abertos}, Andamento=${andamento}, Encerrados=${encerrados}`);
     }).catch(error => {
         console.error('Erro ao carregar status dos bolões:', error);
     });
 }
 
 // ============================================
-// ADICIONAR CARTÕES (CADASTRO TRADICIONAL - EM LOTE)
+// ADICIONAR CARTÕES (CADASTRO TRADICIONAL)
 // ============================================
 async function adicionarCartoes() {
     const concurso = document.getElementById('concurso').value;
@@ -815,11 +1015,7 @@ async function adicionarCartoes() {
     let adicionados = 0;
     let erros = 0;
     
-    // ============================================
-    // REGRAS POR LOTERIA
-    // ============================================
     let minNumeros, maxNumeros, maxValor, label;
-    
     if (loteriaAdmin === 'mega') {
         minNumeros = 6;
         maxNumeros = 20;
@@ -846,26 +1042,22 @@ async function adicionarCartoes() {
         const numeros = linha.match(/\d+/g).map(Number);
         
         if (numeros.length < minNumeros) { 
-            console.warn(`❌ Linha ignorada: apenas ${numeros.length} números (mínimo ${minNumeros})`);
             erros++; 
             continue; 
         }
         
         if (numeros.length > maxNumeros) {
-            console.warn(`❌ Linha ignorada: ${numeros.length} números (máximo ${maxNumeros})`);
             erros++;
             continue;
         }
         
         const numerosUnicos = [...new Set(numeros)];
         if (numerosUnicos.length !== numeros.length) { 
-            console.warn(`❌ Linha ignorada: contém números duplicados`);
             erros++; 
             continue; 
         }
         
         if (numeros.some(n => n < 1 || n > maxValor)) { 
-            console.warn(`❌ Linha ignorada: números fora do range (1-${maxValor})`);
             erros++; 
             continue; 
         }
@@ -885,7 +1077,6 @@ async function adicionarCartoes() {
             });
             adicionados++;
         } catch (error) { 
-            console.error('Erro ao adicionar cartão:', error);
             erros++; 
         }
     }
@@ -914,7 +1105,7 @@ function recarregarLista() {
 }
 
 // ============================================
-// FUNÇÃO DE EDIÇÃO COMPLETA
+// EDIÇÃO CARTÃO
 // ============================================
 async function editarCartao(id) {
     console.log('📝 Abrindo edição do cartão:', id);
@@ -978,15 +1169,11 @@ async function editarCartao(id) {
                 <div style="margin-bottom: 15px;">
                     <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 5px; color: #1e293b;">👥 BOLÃO</label>
                     <input type="text" id="editarBolao" value="${bolaoAtual}" style="width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #e2e8f0; font-size: 14px;" placeholder="Ex: Quina de São João 2026">
-                    <div style="font-size: 11px; color: #64748b; margin-top: 4px;">💡 Nome do bolão para identificar no índice</div>
                 </div>
                 
                 <div style="margin-bottom: 15px;">
-                    <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 5px; color: #1e293b;">🔢 NÚMEROS (separados por espaço)</label>
+                    <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 5px; color: #1e293b;">🔢 NÚMEROS</label>
                     <input type="text" id="editarNumeros" value="${numerosAtuais}" style="width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #e2e8f0; font-size: 14px;" placeholder="Ex: 12 15 23 34 45 56">
-                    <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
-                        💡 ${regra.label}: mínimo ${regra.min} números (1-${regra.max})
-                    </div>
                 </div>
                 
                 <div style="margin-bottom: 20px;">
@@ -1146,7 +1333,6 @@ async function excluirSelecionados() {
             await db.collection('cartoes').doc(cb.dataset.id).delete();
             excluidos++;
         } catch (error) {
-            console.error('Erro ao excluir:', error);
             erros++;
         }
     }
@@ -1262,23 +1448,14 @@ function mostrarModalLink(bolaoId, bolaoTitulo) {
             <div style="font-size: 32px; margin-bottom: 10px;">📋</div>
             <div style="font-weight: bold; font-size: 18px; margin-bottom: 4px;">LINK DO BOLÃO</div>
             <div style="font-size: 13px; color: #64748b; margin-bottom: 15px;">${bolaoTitulo}</div>
-            
             <div style="background: #f1f5f9; padding: 12px; border-radius: 10px; margin-bottom: 16px; word-break: break-all;">
                 <code style="font-size: 12px; color: #1e293b;">${link}</code>
             </div>
-            
             <div style="display: flex; gap: 10px;">
-                <button id="btnCopiarLink" style="flex: 1; padding: 12px; background: #3b82f6; color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 14px;">
-                    📋 COPIAR LINK
-                </button>
-                <button id="btnFecharModalLink" style="flex: 1; padding: 12px; background: #64748b; color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 14px;">
-                    FECHAR
-                </button>
+                <button id="btnCopiarLink" style="flex: 1; padding: 12px; background: #3b82f6; color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 14px;">📋 COPIAR LINK</button>
+                <button id="btnFecharModalLink" style="flex: 1; padding: 12px; background: #64748b; color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 14px;">FECHAR</button>
             </div>
-            
-            <div id="feedbackCopiar" style="display: none; margin-top: 10px; padding: 8px; background: #d1fae5; border-radius: 8px; color: #065f46; font-size: 13px;">
-                ✅ Link copiado com sucesso!
-            </div>
+            <div id="feedbackCopiar" style="display: none; margin-top: 10px; padding: 8px; background: #d1fae5; border-radius: 8px; color: #065f46; font-size: 13px;">✅ Link copiado com sucesso!</div>
         </div>
     `;
     
@@ -1287,32 +1464,24 @@ function mostrarModalLink(bolaoId, bolaoTitulo) {
     document.getElementById('btnCopiarLink').onclick = async function() {
         try {
             await navigator.clipboard.writeText(link);
-            
             const feedback = document.getElementById('feedbackCopiar');
             feedback.style.display = 'block';
             feedback.textContent = '✅ Link copiado com sucesso!';
-            
             this.style.background = '#10b981';
             this.textContent = '✅ COPIADO!';
-            
             setTimeout(() => {
                 this.style.background = '#3b82f6';
                 this.textContent = '📋 COPIAR LINK';
                 feedback.style.display = 'none';
             }, 3000);
-            
             showToast('📋 Link copiado! Compartilhe no WhatsApp', 'success');
-            
         } catch (error) {
-            console.error('Erro ao copiar:', error);
-            
             const codeElement = document.querySelector('#modalLinkParticipantes code');
             if (codeElement) {
                 const range = document.createRange();
                 range.selectNode(codeElement);
                 window.getSelection().removeAllRanges();
                 window.getSelection().addRange(range);
-                
                 try {
                     document.execCommand('copy');
                     showToast('📋 Link copiado!', 'success');
@@ -1331,11 +1500,9 @@ function adicionarBotaoLinkParticipantes() {
     document.querySelectorAll('.btn-link-participantes').forEach(btn => {
         const novoBtn = btn.cloneNode(true);
         btn.parentNode.replaceChild(novoBtn, btn);
-        
         novoBtn.addEventListener('click', function() {
             const bolaoId = this.dataset.id;
             const bolaoTitulo = this.dataset.titulo || 'Bolão';
-            console.log('📋 Link clicado para:', bolaoTitulo, 'ID:', bolaoId);
             mostrarModalLink(bolaoId, bolaoTitulo);
         });
     });
@@ -1596,10 +1763,9 @@ function limparLote() {
 }
 
 // ============================================
-// CADASTRO INDIVIDUAL (CORRIGIDO PARA TODAS AS LOTERIAS)
+// CADASTRO INDIVIDUAL
 // ============================================
 async function adicionarCartaoIndividual() {
-    // Se modo seleção estiver ativo, usar os campos de seleção
     if (modoSelecaoAtivo) {
         document.getElementById('concursoIndividualSelecao').value = document.getElementById('concursoIndividual').value;
         document.getElementById('bolaoIndividualSelecao').value = document.getElementById('bolaoIndividual').value;
@@ -1624,11 +1790,7 @@ async function adicionarCartaoIndividual() {
     
     const numeros = texto.match(/\d+/g).map(Number);
     
-    // ============================================
-    // VALIDAÇÕES POR LOTERIA
-    // ============================================
     let minNumeros, maxNumeros, maxValor, label;
-    
     if (loteriaAdmin === 'mega') {
         minNumeros = 6;
         maxNumeros = 20;
@@ -1693,263 +1855,6 @@ async function adicionarCartaoIndividual() {
 }
 
 // ============================================
-// FUNÇÕES DO CADASTRO POR IMAGEM (OCR)
-// ============================================
-
-// Mostrar prévia da imagem
-function mostrarPreviaImagem(file) {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        const img = document.getElementById('imgPreviewSrc');
-        img.src = e.target.result;
-        document.getElementById('imgPreview').style.display = 'block';
-        document.getElementById('imgResultado').style.display = 'none';
-        document.getElementById('imgLoading').style.display = 'none';
-    };
-    reader.readAsDataURL(file);
-}
-
-// Processar imagem com Tesseract
-async function processarImagem(file) {
-    const loading = document.getElementById('imgLoading');
-    const resultado = document.getElementById('imgResultado');
-    const status = document.getElementById('imgStatus');
-    const container = document.getElementById('imgNumerosExtracao');
-    
-    loading.style.display = 'block';
-    resultado.style.display = 'none';
-    status.textContent = '🔄 Processando...';
-    
-    try {
-        const imageUrl = URL.createObjectURL(file);
-        const result = await Tesseract.recognize(imageUrl, 'por', {
-            logger: (m) => {
-                if (m.status === 'recognizing text') {
-                    status.textContent = `🔄 ${Math.round(m.progress * 100)}% concluído...`;
-                }
-            }
-        });
-        
-        URL.revokeObjectURL(imageUrl);
-        
-        const texto = result.data.text;
-        console.log('📝 Texto extraído:', texto);
-        
-        // Extrair apenas números (sequências de 2 dígitos)
-        const numeros = extrairNumerosDoTexto(texto);
-        
-        if (numeros.length === 0) {
-            status.textContent = '❌ Nenhum número encontrado! Tente outra imagem.';
-            container.innerHTML = '<div style="color: #ef4444;">Nenhum número foi identificado. Verifique a qualidade da imagem.</div>';
-            loading.style.display = 'none';
-            return;
-        }
-        
-        numerosExtraidos = numeros;
-        imagemProcessada = true;
-        
-        // Exibir os números extraídos
-        let html = '';
-        const linhas = agruparNumerosEmLinhas(numeros);
-        
-        html += `<div style="margin-bottom: 10px; color: #10b981; font-weight: 600;">✅ ${linhas.length} cartões identificados</div>`;
-        html += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">`;
-        
-        linhas.forEach((linha, index) => {
-            const numsStr = linha.map(n => n.toString().padStart(2, '0')).join(' ');
-            html += `
-                <div style="background: white; border-radius: 8px; padding: 6px 10px; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 6px;">
-                    <span style="font-weight: 600; color: #64748b; font-size: 11px;">#${index+1}</span>
-                    <input type="text" class="img-cartao-edit" data-index="${index}" value="${numsStr}" style="flex: 1; border: none; background: transparent; font-family: monospace; font-size: 12px; outline: none; padding: 4px;">
-                </div>
-            `;
-        });
-        html += `</div>`;
-        html += `<div style="margin-top: 12px; font-size: 11px; color: #64748b;">💡 Clique nos números para editar se necessário.</div>`;
-        
-        container.innerHTML = html;
-        status.textContent = `✅ ${linhas.length} cartões extraídos`;
-        resultado.style.display = 'block';
-        loading.style.display = 'none';
-        
-        showToast(`✅ ${linhas.length} cartões identificados!`, 'success');
-        
-    } catch (error) {
-        console.error('Erro no OCR:', error);
-        status.textContent = '❌ Erro ao processar imagem';
-        container.innerHTML = `<div style="color: #ef4444;">Erro: ${error.message}</div>`;
-        loading.style.display = 'none';
-        showToast('❌ Erro ao processar imagem', 'error');
-    }
-}
-
-// Extrair números do texto
-function extrairNumerosDoTexto(texto) {
-    const numeros = [];
-    const matches = texto.match(/\b\d{1,2}\b/g);
-    if (matches) {
-        for (const m of matches) {
-            const num = parseInt(m);
-            if (num >= 1 && num <= 99) {
-                numeros.push(num);
-            }
-        }
-    }
-    return numeros;
-}
-
-// Agrupar números em linhas
-function agruparNumerosEmLinhas(numeros) {
-    const loteria = document.getElementById('imgLoteria').value;
-    let porLinha = 15;
-    if (loteria === 'mega') porLinha = 6;
-    else if (loteria === 'quina') porLinha = 5;
-    
-    const linhas = [];
-    for (let i = 0; i < numeros.length; i += porLinha) {
-        const linha = numeros.slice(i, i + porLinha);
-        if (linha.length >= porLinha) {
-            linhas.push(linha);
-        } else {
-            if (linhas.length > 0 && linhas[linhas.length - 1].length < porLinha * 2) {
-                const ultima = linhas[linhas.length - 1];
-                const faltam = porLinha - ultima.length;
-                for (let j = 0; j < Math.min(faltam, linha.length); j++) {
-                    ultima.push(linha[j]);
-                }
-            } else if (linha.length > 0) {
-                linhas.push(linha);
-            }
-        }
-    }
-    return linhas;
-}
-
-// Obter os cartões editados
-function getCartoesEditados() {
-    const inputs = document.querySelectorAll('.img-cartao-edit');
-    const cartoes = [];
-    inputs.forEach(input => {
-        const numeros = input.value.trim().split(/\s+/).map(Number).filter(n => n > 0);
-        if (numeros.length > 0) {
-            cartoes.push(numeros);
-        }
-    });
-    return cartoes;
-}
-
-// Cadastrar cartões da imagem
-async function cadastrarCartoesImagem() {
-    const loteria = document.getElementById('imgLoteria').value;
-    const concurso = document.getElementById('imgConcurso').value.trim();
-    const bolao = document.getElementById('imgBolao').value.trim() || 'Bolão por Imagem';
-    const tipo = document.getElementById('imgTipo').value;
-    
-    if (!concurso) {
-        showToast('⚠️ Informe o concurso!', 'warning');
-        return;
-    }
-    
-    const cartoes = getCartoesEditados();
-    if (cartoes.length === 0) {
-        showToast('⚠️ Nenhum cartão válido para cadastrar', 'warning');
-        return;
-    }
-    
-    let minNumeros, maxNumeros, maxValor;
-    if (loteria === 'mega') {
-        minNumeros = 6; maxNumeros = 20; maxValor = 60;
-    } else if (loteria === 'lotofacil') {
-        minNumeros = 15; maxNumeros = 20; maxValor = 25;
-    } else {
-        minNumeros = 5; maxNumeros = 15; maxValor = 80;
-    }
-    
-    let validos = 0;
-    let erros = 0;
-    let mensagemErro = '';
-    
-    for (const cartao of cartoes) {
-        if (cartao.length < minNumeros) {
-            erros++;
-            mensagemErro += `Cartão com ${cartao.length} números (mínimo ${minNumeros})\n`;
-            continue;
-        }
-        if (cartao.length > maxNumeros) {
-            erros++;
-            mensagemErro += `Cartão com ${cartao.length} números (máximo ${maxNumeros})\n`;
-            continue;
-        }
-        if (cartao.some(n => n < 1 || n > maxValor)) {
-            erros++;
-            mensagemErro += `Cartão com número fora do range (1-${maxValor})\n`;
-            continue;
-        }
-        const unicos = new Set(cartao);
-        if (unicos.size !== cartao.length) {
-            erros++;
-            mensagemErro += `Cartão com números duplicados\n`;
-            continue;
-        }
-        validos++;
-    }
-    
-    if (erros > 0) {
-        showToast(`⚠️ ${erros} cartão(ões) inválidos!\n${mensagemErro}`, 'warning');
-        return;
-    }
-    
-    const confirmar = confirm(
-        `📌 CONFIRMAR CADASTRO\n\n` +
-        `🎯 ${cartoes.length} cartões\n` +
-        `📌 Concurso: ${concurso}\n` +
-        `👥 Bolão: ${bolao}\n` +
-        `🎲 ${loteria.toUpperCase()}\n\n` +
-        `Confirmar?`
-    );
-    if (!confirmar) return;
-    
-    showLoading('Cadastrando cartões...');
-    
-    let adicionados = 0;
-    let errosCadastro = 0;
-    
-    for (const cartao of cartoes) {
-        const numeros = [...cartao].sort((a,b) => a-b);
-        try {
-            await db.collection('cartoes').add({
-                concurso: concurso,
-                bolao: bolao,
-                numeros: numeros,
-                tipo: loteria,
-                tipoParticipacao: tipo,
-                admin: true,
-                dataCadastro: new Date().toISOString(),
-                totalNumeros: numeros.length
-            });
-            adicionados++;
-        } catch (error) {
-            errosCadastro++;
-        }
-    }
-    
-    hideLoading();
-    
-    if (adicionados > 0) {
-        showToast(`✅ ${adicionados} cartões cadastrados! ${errosCadastro > 0 ? `⚠️ ${errosCadastro} erros` : ''}`, 'success');
-        document.getElementById('imgConcurso').value = '';
-        document.getElementById('imgResultado').style.display = 'none';
-        document.getElementById('imgPreview').style.display = 'none';
-        document.getElementById('imgUpload').value = '';
-        numerosExtraidos = [];
-        imagemProcessada = false;
-        carregarDadosAdmin();
-    } else {
-        showToast('❌ Nenhum cartão foi cadastrado', 'error');
-    }
-}
-
-// ============================================
 // CARREGAR BOLÕES PARA GERENCIAR
 // ============================================
 async function carregarBoloesParaGerenciar() {
@@ -1966,7 +1871,7 @@ async function carregarBoloesParaGerenciar() {
         boloes.sort((a, b) => a.titulo.localeCompare(b.titulo));
         
         if (boloes.length === 0) {
-            container.innerHTML = '<div class="empty-state">Nenhum bolão encontrado. Envie pelo desktop.</div>';
+            container.innerHTML = '<div class="empty-state">Nenhum bolão encontrado.</div>';
             return;
         }
         
@@ -2229,7 +2134,6 @@ function gerarTokenUnico() {
 async function salvarToken(participanteId, nome, telefone) {
     const token = gerarTokenUnico();
     const link = `${window.location.origin}/mega-sena-sistema/consulta.html?token=${token}`;
-    
     const telefoneNumeros = telefone.replace(/\D/g, '');
     
     await db.collection('participantes_tokens').doc(token).set({
@@ -2459,7 +2363,7 @@ async function carregarParticipantesAdmin(bolaoId) {
 }
 
 // ============================================
-// RESERVAS - CARREGAR LISTA (CORRIGIDO)
+// RESERVAS
 // ============================================
 async function carregarReservas() {
     try {
@@ -2817,23 +2721,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (loteriaAdmin === 'lotofacil') {
                 cardLote.style.display = 'block';
                 cardLote.style.opacity = '1';
-                console.log('✅ Card Lote VISÍVEL (Lotofácil)');
             } else {
                 cardLote.style.display = 'none';
                 cardLote.style.opacity = '0.5';
-                console.log(`❌ Card Lote OCULTO (${loteriaAdmin.toUpperCase()})`);
-            }
-        } else {
-            console.warn('⚠️ Card Lote não encontrado!');
-            const cardLoteFallback = document.querySelector('.card[style*="border: 2px solid #10b981"]');
-            if (cardLoteFallback) {
-                if (loteriaAdmin === 'lotofacil') {
-                    cardLoteFallback.style.display = 'block';
-                    cardLoteFallback.style.opacity = '1';
-                } else {
-                    cardLoteFallback.style.display = 'none';
-                    cardLoteFallback.style.opacity = '0.5';
-                }
             }
         }
     }
@@ -2949,63 +2839,72 @@ document.addEventListener('DOMContentLoaded', () => {
     inicializarGradeSelecaoIndividual();
     
     // ============================================
-// EVENTOS DO CADASTRO POR IMAGEM (OCR)
-// ============================================
-
-// Upload da galeria
-const imgUpload = document.getElementById('imgUpload');
-if (imgUpload) {
-    imgUpload.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (file) {
-            if (file.size > 10 * 1024 * 1024) {
-                showToast('⚠️ Imagem muito grande! Máx: 10MB', 'warning');
-                this.value = '';
-                return;
+    // EVENTOS DO CADASTRO POR IMAGEM (OCR)
+    // ============================================
+    
+    const imgUpload = document.getElementById('imgUpload');
+    const imgUploadCamera = document.getElementById('imgUploadCamera');
+    
+    if (imgUpload) {
+        imgUpload.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                if (file.size > 10 * 1024 * 1024) {
+                    showToast('⚠️ Imagem muito grande! Máx: 10MB', 'warning');
+                    this.value = '';
+                    return;
+                }
+                mostrarPreviaImagem(file);
             }
-            mostrarPreviaImagem(file);
-        }
-    });
-}
-
-// Upload da câmera
-const imgUploadCamera = document.getElementById('imgUploadCamera');
-if (imgUploadCamera) {
-    imgUploadCamera.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (file) {
-            if (file.size > 10 * 1024 * 1024) {
-                showToast('⚠️ Imagem muito grande! Máx: 10MB', 'warning');
-                this.value = '';
-                return;
+        });
+    }
+    
+    if (imgUploadCamera) {
+        imgUploadCamera.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                if (file.size > 10 * 1024 * 1024) {
+                    showToast('⚠️ Imagem muito grande! Máx: 10MB', 'warning');
+                    this.value = '';
+                    return;
+                }
+                mostrarPreviaImagem(file);
             }
-            mostrarPreviaImagem(file);
+        });
+    }
+    
+    document.getElementById('btnProcessarImagem')?.addEventListener('click', function() {
+        let file = document.getElementById('imgUpload').files[0];
+        if (!file) {
+            file = document.getElementById('imgUploadCamera').files[0];
         }
+        if (!file) {
+            showToast('⚠️ Selecione uma imagem primeiro!', 'warning');
+            return;
+        }
+        processarImagem(file);
     });
-}
-
-document.getElementById('btnProcessarImagem').addEventListener('click', function() {
-    // Verificar qual input tem arquivo
-    let file = document.getElementById('imgUpload').files[0];
-    if (!file) {
-        file = document.getElementById('imgUploadCamera').files[0];
-    }
-    if (!file) {
-        showToast('⚠️ Selecione uma imagem primeiro!', 'warning');
-        return;
-    }
-    processarImagem(file);
-});
-
-document.getElementById('btnCadastrarImagem').addEventListener('click', cadastrarCartoesImagem);
-
-document.getElementById('btnLimparImagem').addEventListener('click', function() {
-    document.getElementById('imgResultado').style.display = 'none';
-    document.getElementById('imgPreview').style.display = 'none';
-    document.getElementById('imgUpload').value = '';
-    document.getElementById('imgUploadCamera').value = '';
-    numerosExtraidos = [];
-    imagemProcessada = false;
-    document.getElementById('imgStatus').textContent = 'Aguardando processamento';
-    showToast('🧹 Limpo!', 'info');
+    
+    document.getElementById('btnCadastrarImagem')?.addEventListener('click', cadastrarCartoesImagem);
+    
+    document.getElementById('btnLimparImagem')?.addEventListener('click', function() {
+        document.getElementById('imgResultado').style.display = 'none';
+        document.getElementById('imgPreview').style.display = 'none';
+        document.getElementById('imgUpload').value = '';
+        document.getElementById('imgUploadCamera').value = '';
+        numerosExtraidos = [];
+        imagemProcessada = false;
+        document.getElementById('imgStatus').textContent = 'Aguardando processamento';
+        showToast('🧹 Limpo!', 'info');
+    });
+    
+    // Forçar login se a autenticação falhar
+    setTimeout(() => {
+        const modal = document.getElementById('authModal');
+        if (modal && !modal.classList.contains('show') && !localStorage.getItem('admin_autenticado')) {
+            console.log('⚠️ Forçando exibição do modal de autenticação...');
+            modal.classList.add('show');
+            modal.style.display = 'flex';
+        }
+    }, 500);
 });
