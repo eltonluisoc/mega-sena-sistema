@@ -574,6 +574,9 @@ function mostrarPreviaImagem(file) {
     reader.readAsDataURL(file);
 }
 
+// ============================================
+// PROCESSAR IMAGEM COM TESSERACT (VERSÃO MELHORADA)
+// ============================================
 async function processarImagem(file) {
     const loading = document.getElementById('imgLoading');
     const resultado = document.getElementById('imgResultado');
@@ -586,6 +589,8 @@ async function processarImagem(file) {
     
     try {
         const imageUrl = URL.createObjectURL(file);
+        
+        // Usar Tesseract com dados de posição
         const result = await Tesseract.recognize(imageUrl, 'por', {
             logger: (m) => {
                 if (m.status === 'recognizing text') {
@@ -597,41 +602,39 @@ async function processarImagem(file) {
         URL.revokeObjectURL(imageUrl);
         
         const texto = result.data.text;
-        console.log('📝 Texto extraído:', texto);
+        console.log('📝 Texto completo extraído:', texto);
+        console.log('📊 Detalhes dos caracteres:', result.data.words);
         
-        const numeros = extrairNumerosDoTexto(texto);
+        // Extrair números com posição usando words (palavras)
+        const numerosComPosicao = extrairNumerosComPosicao(result.data.words);
         
-        if (numeros.length === 0) {
-            status.textContent = '❌ Nenhum número encontrado! Tente outra imagem.';
-            container.innerHTML = '<div style="color: #ef4444;">Nenhum número foi identificado. Verifique a qualidade da imagem.</div>';
+        if (numerosComPosicao.length === 0) {
+            // Fallback: tentar extrair do texto simples
+            const numerosFallback = extrairNumerosDoTexto(texto);
+            if (numerosFallback.length === 0) {
+                status.textContent = '❌ Nenhum número encontrado! Tente outra imagem.';
+                container.innerHTML = '<div style="color: #ef4444;">Nenhum número foi identificado. Verifique a qualidade da imagem.</div>';
+                loading.style.display = 'none';
+                return;
+            }
+            // Usar fallback
+            const linhas = agruparNumerosPorLinhaSimples(numerosFallback);
+            exibirResultadoOCR(linhas, container, status);
             loading.style.display = 'none';
             return;
         }
         
-        numerosExtraidos = numeros;
-        imagemProcessada = true;
+        // Agrupar números por linha usando a posição Y
+        const linhas = agruparNumerosPorPosicao(numerosComPosicao);
         
-        let html = '';
-        const linhas = agruparNumerosEmLinhas(numeros);
+        if (linhas.length === 0) {
+            status.textContent = '❌ Nenhum cartão identificado!';
+            container.innerHTML = '<div style="color: #ef4444;">Não foi possível identificar cartões. Tente uma imagem mais nítida.</div>';
+            loading.style.display = 'none';
+            return;
+        }
         
-        html += `<div style="margin-bottom: 10px; color: #10b981; font-weight: 600;">✅ ${linhas.length} cartões identificados</div>`;
-        html += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">`;
-        
-        linhas.forEach((linha, index) => {
-            const numsStr = linha.map(n => n.toString().padStart(2, '0')).join(' ');
-            html += `
-                <div style="background: white; border-radius: 8px; padding: 6px 10px; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 6px;">
-                    <span style="font-weight: 600; color: #64748b; font-size: 11px;">#${index+1}</span>
-                    <input type="text" class="img-cartao-edit" data-index="${index}" value="${numsStr}" style="flex: 1; border: none; background: transparent; font-family: monospace; font-size: 12px; outline: none; padding: 4px;">
-                </div>
-            `;
-        });
-        html += `</div>`;
-        html += `<div style="margin-top: 12px; font-size: 11px; color: #64748b;">💡 Clique nos números para editar se necessário.</div>`;
-        
-        container.innerHTML = html;
-        status.textContent = `✅ ${linhas.length} cartões extraídos`;
-        resultado.style.display = 'block';
+        exibirResultadoOCR(linhas, container, status);
         loading.style.display = 'none';
         
         showToast(`✅ ${linhas.length} cartões identificados!`, 'success');
@@ -639,12 +642,183 @@ async function processarImagem(file) {
     } catch (error) {
         console.error('Erro no OCR:', error);
         status.textContent = '❌ Erro ao processar imagem';
-        container.innerHTML = `<div style="color: #ef4444;">Erro: ${error.message}</div>`;
+        document.getElementById('imgNumerosExtracao').innerHTML = `<div style="color: #ef4444;">Erro: ${error.message}</div>`;
         loading.style.display = 'none';
         showToast('❌ Erro ao processar imagem', 'error');
     }
 }
 
+// ============================================
+// EXTRAIR NÚMEROS COM POSIÇÃO (bounding boxes)
+// ============================================
+function extrairNumerosComPosicao(words) {
+    const numeros = [];
+    if (!words || words.length === 0) return numeros;
+    
+    for (const word of words) {
+        const texto = word.text || '';
+        const numerosEncontrados = texto.match(/\b\d{1,2}\b/g);
+        if (numerosEncontrados) {
+            // Usar a posição da palavra como referência
+            const bbox = word.bbox || { x0: 0, y0: 0, x1: 0, y1: 0 };
+            const centroX = (bbox.x0 + bbox.x1) / 2;
+            const centroY = (bbox.y0 + bbox.y1) / 2;
+            
+            for (const numStr of numerosEncontrados) {
+                const num = parseInt(numStr);
+                if (num >= 1 && num <= 99) {
+                    numeros.push({
+                        numero: num,
+                        x: centroX,
+                        y: centroY,
+                        x0: bbox.x0,
+                        y0: bbox.y0,
+                        x1: bbox.x1,
+                        y1: bbox.y1
+                    });
+                }
+            }
+        }
+    }
+    
+    // Ordenar por posição Y (linha) e depois X (coluna)
+    numeros.sort((a, b) => {
+        if (Math.abs(a.y - b.y) < 20) {
+            return a.x - b.x;
+        }
+        return a.y - b.y;
+    });
+    
+    return numeros;
+}
+
+// ============================================
+// AGRUPAR NÚMEROS POR POSIÇÃO (linhas)
+// ============================================
+function agruparNumerosPorPosicao(numerosComPosicao) {
+    if (numerosComPosicao.length === 0) return [];
+    
+    // Determinar a loteria para saber quantos números por linha
+    const loteria = document.getElementById('imgLoteria').value;
+    let porLinha = 15;
+    if (loteria === 'mega') porLinha = 6;
+    else if (loteria === 'quina') porLinha = 5;
+    
+    // Agrupar por linha (baseado na posição Y)
+    const linhas = [];
+    let linhaAtual = [];
+    let ultimoY = null;
+    const toleranciaY = 25; // Tolerância para considerar mesma linha
+    
+    for (const item of numerosComPosicao) {
+        if (ultimoY === null || Math.abs(item.y - ultimoY) < toleranciaY) {
+            linhaAtual.push(item.numero);
+        } else {
+            if (linhaAtual.length > 0) {
+                // Verificar se a linha tem pelo menos a quantidade mínima
+                if (linhaAtual.length >= porLinha * 0.5) {
+                    linhas.push(linhaAtual);
+                }
+            }
+            linhaAtual = [item.numero];
+        }
+        ultimoY = item.y;
+    }
+    
+    // Adicionar última linha
+    if (linhaAtual.length > 0 && linhaAtual.length >= porLinha * 0.5) {
+        linhas.push(linhaAtual);
+    }
+    
+    // Verificar se as linhas têm o tamanho correto
+    // Se alguma linha estiver muito curta, tentar juntar com a próxima
+    const linhasFinal = [];
+    let linhaTemp = [];
+    
+    for (const linha of linhas) {
+        if (linha.length >= porLinha) {
+            linhasFinal.push(linha.slice(0, porLinha));
+        } else if (linha.length >= porLinha * 0.5) {
+            // Tentar completar com números da próxima linha
+            // Mas não vamos forçar, deixar o usuário editar
+            linhasFinal.push(linha);
+        }
+    }
+    
+    return linhasFinal;
+}
+
+// ============================================
+// AGRUPAR NÚMEROS POR LINHA SIMPLES (FALLBACK)
+// ============================================
+function agruparNumerosPorLinhaSimples(numeros) {
+    const loteria = document.getElementById('imgLoteria').value;
+    let porLinha = 15;
+    if (loteria === 'mega') porLinha = 6;
+    else if (loteria === 'quina') porLinha = 5;
+    
+    const linhas = [];
+    for (let i = 0; i < numeros.length; i += porLinha) {
+        const linha = numeros.slice(i, i + porLinha);
+        if (linha.length >= porLinha * 0.5) {
+            linhas.push(linha);
+        }
+    }
+    return linhas;
+}
+
+// ============================================
+// EXIBIR RESULTADO DO OCR
+// ============================================
+function exibirResultadoOCR(linhas, container, status) {
+    numerosExtraidos = linhas.flat();
+    imagemProcessada = true;
+    
+    let html = `<div style="margin-bottom: 10px; color: #10b981; font-weight: 600;">✅ ${linhas.length} cartões identificados</div>`;
+    html += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">`;
+    
+    linhas.forEach((linha, index) => {
+        const numsStr = linha.map(n => n.toString().padStart(2, '0')).join(' ');
+        const estaCompleto = linha.length >= (document.getElementById('imgLoteria').value === 'mega' ? 6 : 
+                                 document.getElementById('imgLoteria').value === 'lotofacil' ? 15 : 5);
+        const corBorda = estaCompleto ? '#10b981' : '#f59e0b';
+        
+        html += `
+            <div style="background: white; border-radius: 8px; padding: 6px 10px; border: 2px solid ${corBorda}; display: flex; align-items: center; gap: 6px;">
+                <span style="font-weight: 600; color: #64748b; font-size: 11px;">#${index+1}</span>
+                <input type="text" class="img-cartao-edit" data-index="${index}" value="${numsStr}" style="flex: 1; border: none; background: transparent; font-family: monospace; font-size: 12px; outline: none; padding: 4px;">
+                ${!estaCompleto ? '<span style="font-size: 10px; color: #f59e0b;">⚠️</span>' : '<span style="font-size: 10px; color: #10b981;">✅</span>'}
+            </div>
+        `;
+    });
+    html += `</div>`;
+    html += `<div style="margin-top: 12px; font-size: 11px; color: #64748b;">💡 Clique nos números para editar se necessário. Cartões com ⚠️ precisam de ajuste.</div>`;
+    
+    container.innerHTML = html;
+    document.getElementById('imgResultado').style.display = 'block';
+    document.getElementById('imgStatus').textContent = `✅ ${linhas.length} cartões extraídos`;
+    
+    // Destacar cartões incompletos
+    document.querySelectorAll('.img-cartao-edit').forEach(input => {
+        const numeros = input.value.trim().split(/\s+/).map(Number).filter(n => n > 0);
+        const parentDiv = input.closest('div');
+        if (parentDiv) {
+            const loteria = document.getElementById('imgLoteria').value;
+            const esperado = loteria === 'mega' ? 6 : (loteria === 'lotofacil' ? 15 : 5);
+            if (numeros.length < esperado) {
+                parentDiv.style.borderColor = '#f59e0b';
+                parentDiv.style.backgroundColor = '#fffbeb';
+            } else {
+                parentDiv.style.borderColor = '#10b981';
+                parentDiv.style.backgroundColor = 'white';
+            }
+        }
+    });
+}
+
+// ============================================
+// EXTRAIR NÚMEROS DO TEXTO (FALLBACK - MANTIDO)
+// ============================================
 function extrairNumerosDoTexto(texto) {
     const numeros = [];
     const matches = texto.match(/\b\d{1,2}\b/g);
