@@ -575,7 +575,7 @@ function mostrarPreviaImagem(file) {
 }
 
 // ============================================
-// PROCESSAR IMAGEM COM TESSERACT (VERSÃO MELHORADA)
+// PROCESSAR IMAGEM COM TESSERACT (VERSÃO OTIMIZADA)
 // ============================================
 async function processarImagem(file) {
     const loading = document.getElementById('imgLoading');
@@ -590,30 +590,51 @@ async function processarImagem(file) {
     try {
         const imageUrl = URL.createObjectURL(file);
         
-        // Usar Tesseract com dados de posição
-        const result = await Tesseract.recognize(imageUrl, 'por', {
-            logger: (m) => {
-                if (m.status === 'recognizing text') {
-                    status.textContent = `🔄 ${Math.round(m.progress * 100)}% concluído...`;
-                }
+        // Usar PSM 6 para melhor leitura de números
+        const result = await Tesseract.recognize(
+            imageUrl, 
+            'por', 
+            {
+                logger: (m) => {
+                    if (m.status === 'recognizing text') {
+                        status.textContent = `🔄 ${Math.round(m.progress * 100)}% concluído...`;
+                    }
+                },
+                // Parâmetros adicionais para melhorar OCR
+                tessedit_pageseg_mode: '6',  // Assume um único bloco de texto
+                tessedit_char_whitelist: '0123456789 ',
             }
-        });
+        );
         
         URL.revokeObjectURL(imageUrl);
         
         const texto = result.data.text;
         console.log('📝 Texto completo extraído:', texto);
-        console.log('📊 Detalhes dos caracteres:', result.data.words);
+        console.log('📊 Palavras detectadas:', result.data.words);
         
-        // Extrair números com posição usando words (palavras)
-        const numerosComPosicao = extrairNumerosComPosicao(result.data.words);
+        // Extrair números com posição
+        const numerosComPosicao = extrairNumerosComPosicaoMelhorado(result.data.words);
         
         if (numerosComPosicao.length === 0) {
             // Fallback: tentar extrair do texto simples
             const numerosFallback = extrairNumerosDoTexto(texto);
             if (numerosFallback.length === 0) {
-                status.textContent = '❌ Nenhum número encontrado! Tente outra imagem.';
-                container.innerHTML = '<div style="color: #ef4444;">Nenhum número foi identificado. Verifique a qualidade da imagem.</div>';
+                status.textContent = '❌ Nenhum número encontrado!';
+                container.innerHTML = `
+                    <div style="color: #ef4444; margin-bottom: 12px;">Nenhum número foi identificado.</div>
+                    <div style="background: #fef3c7; padding: 12px; border-radius: 8px; font-size: 13px;">
+                        <strong>💡 Dicas:</strong><br>
+                        • Use uma imagem com boa iluminação<br>
+                        • Apenas números (sem linhas ou desenhos)<br>
+                        • Fonte legível e bem contrastada
+                    </div>
+                    <div style="margin-top: 12px;">
+                        <button id="btnAbrirManualOCR" class="btn btn-secondary" style="width: auto;">✏️ INSERIR MANUALMENTE</button>
+                    </div>
+                `;
+                document.getElementById('btnAbrirManualOCR')?.addEventListener('click', function() {
+                    abrirEditorManual(numerosFallback);
+                });
                 loading.style.display = 'none';
                 return;
             }
@@ -624,12 +645,18 @@ async function processarImagem(file) {
             return;
         }
         
-        // Agrupar números por linha usando a posição Y
-        const linhas = agruparNumerosPorPosicao(numerosComPosicao);
+        // Agrupar números por linha usando clustering
+        const linhas = agruparNumerosPorClustering(numerosComPosicao);
         
         if (linhas.length === 0) {
             status.textContent = '❌ Nenhum cartão identificado!';
-            container.innerHTML = '<div style="color: #ef4444;">Não foi possível identificar cartões. Tente uma imagem mais nítida.</div>';
+            container.innerHTML = `
+                <div style="color: #ef4444;">Não foi possível identificar cartões.</div>
+                <button id="btnAbrirManualOCR" class="btn btn-secondary" style="margin-top: 12px; width: auto;">✏️ INSERIR MANUALMENTE</button>
+            `;
+            document.getElementById('btnAbrirManualOCR')?.addEventListener('click', function() {
+                abrirEditorManual([]);
+            });
             loading.style.display = 'none';
             return;
         }
@@ -642,24 +669,30 @@ async function processarImagem(file) {
     } catch (error) {
         console.error('Erro no OCR:', error);
         status.textContent = '❌ Erro ao processar imagem';
-        document.getElementById('imgNumerosExtracao').innerHTML = `<div style="color: #ef4444;">Erro: ${error.message}</div>`;
+        container.innerHTML = `
+            <div style="color: #ef4444;">Erro: ${error.message}</div>
+            <button id="btnAbrirManualOCR" class="btn btn-secondary" style="margin-top: 12px; width: auto;">✏️ INSERIR MANUALMENTE</button>
+        `;
+        document.getElementById('btnAbrirManualOCR')?.addEventListener('click', function() {
+            abrirEditorManual([]);
+        });
         loading.style.display = 'none';
         showToast('❌ Erro ao processar imagem', 'error');
     }
 }
 
 // ============================================
-// EXTRAIR NÚMEROS COM POSIÇÃO (bounding boxes)
+// EXTRAIR NÚMEROS COM POSIÇÃO MELHORADO
 // ============================================
-function extrairNumerosComPosicao(words) {
+function extrairNumerosComPosicaoMelhorado(words) {
     const numeros = [];
     if (!words || words.length === 0) return numeros;
     
     for (const word of words) {
         const texto = word.text || '';
+        // Tentar extrair números de dois dígitos ou um dígito
         const numerosEncontrados = texto.match(/\b\d{1,2}\b/g);
         if (numerosEncontrados) {
-            // Usar a posição da palavra como referência
             const bbox = word.bbox || { x0: 0, y0: 0, x1: 0, y1: 0 };
             const centroX = (bbox.x0 + bbox.x1) / 2;
             const centroY = (bbox.y0 + bbox.y1) / 2;
@@ -674,16 +707,18 @@ function extrairNumerosComPosicao(words) {
                         x0: bbox.x0,
                         y0: bbox.y0,
                         x1: bbox.x1,
-                        y1: bbox.y1
+                        y1: bbox.y1,
+                        textoOriginal: texto
                     });
                 }
             }
         }
     }
     
-    // Ordenar por posição Y (linha) e depois X (coluna)
+    // Ordenar por Y (linha) e depois X (coluna)
     numeros.sort((a, b) => {
-        if (Math.abs(a.y - b.y) < 20) {
+        const diffY = Math.abs(a.y - b.y);
+        if (diffY < 30) {
             return a.x - b.x;
         }
         return a.y - b.y;
@@ -693,94 +728,161 @@ function extrairNumerosComPosicao(words) {
 }
 
 // ============================================
-// AGRUPAR NÚMEROS POR POSIÇÃO (linhas)
+// AGRUPAR POR CLUSTERING ADAPTATIVO
 // ============================================
-function agruparNumerosPorPosicao(numerosComPosicao) {
+function agruparNumerosPorClustering(numerosComPosicao) {
     if (numerosComPosicao.length === 0) return [];
     
-    // Determinar a loteria para saber quantos números por linha
     const loteria = document.getElementById('imgLoteria').value;
-    let porLinha = 15;
-    if (loteria === 'mega') porLinha = 6;
-    else if (loteria === 'quina') porLinha = 5;
+    let esperado = 15;
+    if (loteria === 'mega') esperado = 6;
+    else if (loteria === 'quina') esperado = 5;
     
-    // Agrupar por linha (baseado na posição Y)
-    const linhas = [];
-    let linhaAtual = [];
+    // Clustering por posição Y
+    const clusters = [];
+    let clusterAtual = [];
     let ultimoY = null;
-    const toleranciaY = 25; // Tolerância para considerar mesma linha
+    const limiarY = 35; // Tolerância para mesma linha
     
     for (const item of numerosComPosicao) {
-        if (ultimoY === null || Math.abs(item.y - ultimoY) < toleranciaY) {
-            linhaAtual.push(item.numero);
+        if (ultimoY === null || Math.abs(item.y - ultimoY) < limiarY) {
+            clusterAtual.push(item);
         } else {
-            if (linhaAtual.length > 0) {
-                // Verificar se a linha tem pelo menos a quantidade mínima
-                if (linhaAtual.length >= porLinha * 0.5) {
-                    linhas.push(linhaAtual);
-                }
+            if (clusterAtual.length > 0) {
+                clusters.push(clusterAtual);
             }
-            linhaAtual = [item.numero];
+            clusterAtual = [item];
         }
         ultimoY = item.y;
     }
-    
-    // Adicionar última linha
-    if (linhaAtual.length > 0 && linhaAtual.length >= porLinha * 0.5) {
-        linhas.push(linhaAtual);
+    if (clusterAtual.length > 0) {
+        clusters.push(clusterAtual);
     }
     
-    // Verificar se as linhas têm o tamanho correto
-    // Se alguma linha estiver muito curta, tentar juntar com a próxima
-    const linhasFinal = [];
-    let linhaTemp = [];
+    // Converter clusters para arrays de números
+    const linhas = clusters.map(cluster => {
+        // Ordenar por X dentro do cluster
+        cluster.sort((a, b) => a.x - b.x);
+        return cluster.map(item => item.numero);
+    });
     
-    for (const linha of linhas) {
-        if (linha.length >= porLinha) {
-            linhasFinal.push(linha.slice(0, porLinha));
-        } else if (linha.length >= porLinha * 0.5) {
-            // Tentar completar com números da próxima linha
-            // Mas não vamos forçar, deixar o usuário editar
-            linhasFinal.push(linha);
+    // Filtrar linhas muito curtas (menos de 50% do esperado)
+    const linhasFiltradas = linhas.filter(linha => linha.length >= esperado * 0.5);
+    
+    // Se não houver linhas, tentar agrupar todas em uma só
+    if (linhasFiltradas.length === 0 && numerosComPosicao.length > 0) {
+        const todosNumeros = numerosComPosicao.map(item => item.numero);
+        // Dividir em grupos de tamanho esperado
+        const grupos = [];
+        for (let i = 0; i < todosNumeros.length; i += esperado) {
+            const grupo = todosNumeros.slice(i, i + esperado);
+            if (grupo.length >= esperado * 0.5) {
+                grupos.push(grupo);
+            }
         }
+        return grupos;
     }
     
-    return linhasFinal;
+    return linhasFiltradas;
 }
 
 // ============================================
-// AGRUPAR NÚMEROS POR LINHA SIMPLES (FALLBACK)
+// ABRIR EDITOR MANUAL PARA NÚMEROS
 // ============================================
-function agruparNumerosPorLinhaSimples(numeros) {
+function abrirEditorManual(numerosExistentes = []) {
+    // Criar modal para entrada manual
+    let modal = document.getElementById('modalManualOCR');
+    if (modal) modal.remove();
+    
+    modal = document.createElement('div');
+    modal.id = 'modalManualOCR';
+    modal.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.8); z-index: 10002;
+        display: flex; justify-content: center; align-items: center;
+        padding: 20px;
+    `;
+    
     const loteria = document.getElementById('imgLoteria').value;
-    let porLinha = 15;
-    if (loteria === 'mega') porLinha = 6;
-    else if (loteria === 'quina') porLinha = 5;
+    let esperado = 15;
+    let label = 'LOTOFÁCIL';
+    if (loteria === 'mega') { esperado = 6; label = 'MEGA-SENA'; }
+    else if (loteria === 'quina') { esperado = 5; label = 'QUINA'; }
     
-    const linhas = [];
-    for (let i = 0; i < numeros.length; i += porLinha) {
-        const linha = numeros.slice(i, i + porLinha);
-        if (linha.length >= porLinha * 0.5) {
-            linhas.push(linha);
+    modal.innerHTML = `
+        <div style="background: white; border-radius: 20px; max-width: 500px; width: 100%; padding: 25px; max-height: 90vh; overflow-y: auto;">
+            <h3 style="margin: 0 0 12px 0;">✏️ INSERIR CARTÕES MANUALMENTE</h3>
+            <div style="font-size: 13px; color: #64748b; margin-bottom: 12px;">
+                Digite os números de cada cartão, <strong>um cartão por linha</strong>, números separados por espaço.
+                <br>${label}: <strong>${esperado}</strong> números por cartão.
+            </div>
+            <textarea id="manualNumerosInput" rows="6" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 12px; font-family: monospace; font-size: 14px; resize: vertical;">${numerosExistentes.length > 0 ? numerosExistentes.join(' ') : ''}</textarea>
+            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                <button id="btnManualConfirmar" class="btn btn-success" style="flex: 1;">✅ CONFIRMAR</button>
+                <button id="btnManualCancelar" class="btn btn-secondary" style="flex: 1;">CANCELAR</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    document.getElementById('btnManualConfirmar').onclick = function() {
+        const texto = document.getElementById('manualNumerosInput').value;
+        const linhas = texto.split('\n').filter(line => line.trim() !== '');
+        const cartoes = linhas.map(line => {
+            return line.trim().split(/\s+/).map(Number).filter(n => n > 0);
+        }).filter(c => c.length > 0);
+        
+        if (cartoes.length === 0) {
+            showToast('⚠️ Nenhum cartão válido!', 'warning');
+            return;
         }
-    }
-    return linhas;
+        
+        // Validar
+        const invalidos = cartoes.filter(c => c.length !== esperado);
+        if (invalidos.length > 0) {
+            showToast(`⚠️ ${invalidos.length} cartão(ões) com números diferentes de ${esperado}!`, 'warning');
+            return;
+        }
+        
+        // Exibir no resultado
+        const container = document.getElementById('imgNumerosExtracao');
+        const status = document.getElementById('imgStatus');
+        exibirResultadoOCR(cartoes, container, status);
+        modal.remove();
+        showToast(`✅ ${cartoes.length} cartões inseridos manualmente!`, 'success');
+    };
+    
+    document.getElementById('btnManualCancelar').onclick = function() {
+        modal.remove();
+    };
+    
+    modal.onclick = function(e) {
+        if (e.target === modal) modal.remove();
+    };
+    
+    // Focar no textarea
+    document.getElementById('manualNumerosInput').focus();
 }
 
 // ============================================
-// EXIBIR RESULTADO DO OCR
+// EXIBIR RESULTADO DO OCR (ATUALIZADO)
 // ============================================
 function exibirResultadoOCR(linhas, container, status) {
     numerosExtraidos = linhas.flat();
     imagemProcessada = true;
+    
+    const loteria = document.getElementById('imgLoteria').value;
+    let esperado = 15;
+    if (loteria === 'mega') esperado = 6;
+    else if (loteria === 'quina') esperado = 5;
     
     let html = `<div style="margin-bottom: 10px; color: #10b981; font-weight: 600;">✅ ${linhas.length} cartões identificados</div>`;
     html += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">`;
     
     linhas.forEach((linha, index) => {
         const numsStr = linha.map(n => n.toString().padStart(2, '0')).join(' ');
-        const estaCompleto = linha.length >= (document.getElementById('imgLoteria').value === 'mega' ? 6 : 
-                                 document.getElementById('imgLoteria').value === 'lotofacil' ? 15 : 5);
+        const estaCompleto = linha.length === esperado;
         const corBorda = estaCompleto ? '#10b981' : '#f59e0b';
         
         html += `
@@ -792,27 +894,48 @@ function exibirResultadoOCR(linhas, container, status) {
         `;
     });
     html += `</div>`;
-    html += `<div style="margin-top: 12px; font-size: 11px; color: #64748b;">💡 Clique nos números para editar se necessário. Cartões com ⚠️ precisam de ajuste.</div>`;
+    html += `<div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
+        <button id="btnAbrirManualOCR" class="btn btn-secondary btn-sm" style="width: auto;">✏️ AJUSTAR MANUALMENTE</button>
+        <span style="font-size: 11px; color: #64748b; display: flex; align-items: center;">💡 Clique nos números para editar</span>
+    </div>`;
     
     container.innerHTML = html;
     document.getElementById('imgResultado').style.display = 'block';
     document.getElementById('imgStatus').textContent = `✅ ${linhas.length} cartões extraídos`;
     
-    // Destacar cartões incompletos
+    // Evento para abrir manual
+    document.getElementById('btnAbrirManualOCR')?.addEventListener('click', function() {
+        // Coletar os números atuais para pré-preencher
+        const inputs = document.querySelectorAll('.img-cartao-edit');
+        const numerosAtuais = [];
+        inputs.forEach(input => {
+            const nums = input.value.trim().split(/\s+/).map(Number).filter(n => n > 0);
+            if (nums.length > 0) numerosAtuais.push(nums.join(' '));
+        });
+        abrirEditorManual(numerosAtuais);
+    });
+    
+    // Destacar cartões incompletos e adicionar validação em tempo real
     document.querySelectorAll('.img-cartao-edit').forEach(input => {
-        const numeros = input.value.trim().split(/\s+/).map(Number).filter(n => n > 0);
-        const parentDiv = input.closest('div');
-        if (parentDiv) {
-            const loteria = document.getElementById('imgLoteria').value;
-            const esperado = loteria === 'mega' ? 6 : (loteria === 'lotofacil' ? 15 : 5);
-            if (numeros.length < esperado) {
-                parentDiv.style.borderColor = '#f59e0b';
-                parentDiv.style.backgroundColor = '#fffbeb';
-            } else {
-                parentDiv.style.borderColor = '#10b981';
-                parentDiv.style.backgroundColor = 'white';
+        input.addEventListener('input', function() {
+            const numeros = this.value.trim().split(/\s+/).map(Number).filter(n => n > 0);
+            const parentDiv = this.closest('div');
+            if (parentDiv) {
+                const esperado = document.getElementById('imgLoteria').value === 'mega' ? 6 :
+                                 document.getElementById('imgLoteria').value === 'lotofacil' ? 15 : 5;
+                if (numeros.length < esperado) {
+                    parentDiv.style.borderColor = '#f59e0b';
+                    parentDiv.style.backgroundColor = '#fffbeb';
+                    parentDiv.querySelector('span:last-child')?.remove();
+                    parentDiv.innerHTML += `<span style="font-size: 10px; color: #f59e0b; margin-left: 4px;">⚠️</span>`;
+                } else {
+                    parentDiv.style.borderColor = '#10b981';
+                    parentDiv.style.backgroundColor = 'white';
+                    parentDiv.querySelector('span:last-child')?.remove();
+                    parentDiv.innerHTML += `<span style="font-size: 10px; color: #10b981; margin-left: 4px;">✅</span>`;
+                }
             }
-        }
+        });
     });
 }
 
