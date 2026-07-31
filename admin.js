@@ -2932,7 +2932,7 @@ async function copiarHistoricoWhatsApp(id, nome) {
 }
 
 // ============================================
-// INICIALIZAÇÃO (DOMContentLoaded)
+// INICIALIZAÇÃO (DOMContentLoaded) - CORRIGIDO
 // ============================================
 document.addEventListener('DOMContentLoaded', () => {
     console.log('📄 Admin inicializado');
@@ -3000,6 +3000,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (btnAtualizarReservas) btnAtualizarReservas.onclick = () => carregarReservas();
     
+    // ============================================
+    // CARREGAR DADOS PRINCIPAIS (CORRIGIDO)
+    // ============================================
     carregarBoloesParaGerenciar();
     carregarBoloesNoSelectRapido();
     carregarBoloesSelectParticipantes();
@@ -3009,7 +3012,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // ============================================
     // EVENTOS DO CADASTRO EM LOTE
     // ============================================
-    
     inicializarGradeNumeros();
     
     function atualizarVisibilidadeLote() {
@@ -3084,7 +3086,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // ============================================
     // EVENTOS DO MODO SELEÇÃO INDIVIDUAL
     // ============================================
-    
     const toggleModo = document.getElementById('toggleModoSelecao');
     const modoDigitacao = document.getElementById('modoDigitacao');
     const modoSelecao = document.getElementById('modoSelecao');
@@ -3138,7 +3139,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // ============================================
     // EVENTOS DO CADASTRO POR IMAGEM (OCR)
     // ============================================
-    
     const imgUpload = document.getElementById('imgUpload');
     const imgUploadCamera = document.getElementById('imgUploadCamera');
     
