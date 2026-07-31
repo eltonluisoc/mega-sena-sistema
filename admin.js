@@ -3195,6 +3195,31 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('🧹 Limpo!', 'info');
     });
     
+
+// ============================================
+// FORÇAR RECARREGAMENTO DAS ABAS (DEBUG)
+// ============================================
+setTimeout(() => {
+    console.log('🔄 Forçando recarregamento das abas...');
+    
+    // Verificar se os elementos existem
+    const listaBoloes = document.getElementById('listaBoloes');
+    const listaTokens = document.getElementById('listaTokens');
+    const listaReservas = document.getElementById('listaReservas');
+    
+    console.log('📌 listaBoloes:', listaBoloes ? '✅ Encontrado' : '❌ NÃO ENCONTRADO');
+    console.log('📌 listaTokens:', listaTokens ? '✅ Encontrado' : '❌ NÃO ENCONTRADO');
+    console.log('📌 listaReservas:', listaReservas ? '✅ Encontrado' : '❌ NÃO ENCONTRADO');
+    
+    // Recarregar os dados
+    if (listaBoloes) carregarBoloesParaGerenciar();
+    if (listaTokens) carregarTokens();
+    if (listaReservas) carregarReservas();
+    
+}, 1000);
+
+
+
     // Forçar login se a autenticação falhar
     setTimeout(() => {
         const modal = document.getElementById('authModal');
