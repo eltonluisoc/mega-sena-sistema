@@ -856,43 +856,57 @@
                     </div>
                     
                     <div id="modoSelecao" style="display: none;">
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>📌 Concurso</label>
-                                <input type="number" id="concursoIndividualSelecao" class="form-control" placeholder="Ex: 3200">
-                            </div>
-                            <div class="form-group">
-                                <label>👥 Bolão</label>
-                                <input type="text" id="bolaoIndividualSelecao" class="form-control" placeholder="Ex: Família">
-                            </div>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>🎯 Tipo</label>
-                                <select id="tipoCartaoIndividualSelecao" class="form-control">
-                                    <option value="exclusivo">👥 Grupo Exclusivo</option>
-                                    <option value="cota">🎟️ Cota de Bolão</option>
-                                </select>
-                            </div>
-                            <div class="form-group"></div>
-                        </div>
-                        
-                        <div style="margin-top: 12px;">
-                            <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 8px; color: #1e293b;">🔢 Clique nos números para selecionar:</label>
-                            <div id="gradeSelecaoIndividual" class="grade-numeros" style="max-width: 100%;">
-                            </div>
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; flex-wrap: wrap; gap: 8px;">
-                                <span id="contadorSelecao" style="font-size: 14px; font-weight: 600; color: #3b82f6;">0 números selecionados</span>
-                                <button id="btnLimparSelecao" class="btn btn-sm btn-danger" style="padding: 4px 16px;">🗑️ LIMPAR</button>
-                            </div>
-                            <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px;" id="previaNumerosSelecionados">
-                                <span style="color: #94a3b8; font-size: 12px;">Nenhum número selecionado</span>
-                            </div>
-                        </div>
-                        
-                        <button id="btnAdicionarIndividualSelecao" class="btn btn-success btn-block" style="margin-top: 15px;">➕ ADICIONAR CARTÃO</button>
-                    </div>
+    <!-- CONFIGURAÇÃO FIXA -->
+    <div style="background: #f8fafc; padding: 12px; border-radius: 10px; margin-bottom: 16px; border: 1px solid #e2e8f0;">
+        <div style="font-weight: 700; margin-bottom: 10px; color: #1e293b; font-size: 14px;">📌 CONFIGURAÇÃO FIXA</div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>📌 Concurso</label>
+                <input type="number" id="concursoIndividualSelecao" class="form-control" placeholder="Ex: 3200" value="3200">
+            </div>
+            <div class="form-group">
+                <label>👥 Bolão</label>
+                <input type="text" id="bolaoIndividualSelecao" class="form-control" placeholder="Ex: Família" value="Bolão Seleção">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>🎯 Tipo</label>
+                <select id="tipoCartaoIndividualSelecao" class="form-control">
+                    <option value="exclusivo">👥 Grupo Exclusivo</option>
+                    <option value="cota">🎟️ Cota de Bolão</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>📌 Cartão atual</label>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button id="btnSelecaoAnterior" class="btn btn-secondary btn-sm" style="min-width: 40px;">◀</button>
+                    <span style="font-weight: bold; font-size: 16px;" id="cartaoSelecaoAtual">1</span>
+                    <button id="btnSelecaoProximo" class="btn btn-secondary btn-sm" style="min-width: 40px;">▶</button>
+                    <span style="font-size: 12px; color: #64748b;">de <span id="totalCartoesSelecao">1</span></span>
                 </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- GRADE DE NÚMEROS (6x10) -->
+    <div style="margin-top: 12px;">
+        <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 8px; color: #1e293b;">🔢 Clique nos números para selecionar:</label>
+        <div id="gradeSelecaoIndividual" class="grade-numeros" style="max-width: 100%; display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px;">
+            <!-- Gerado via JavaScript -->
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; flex-wrap: wrap; gap: 8px;">
+            <span id="contadorSelecao" style="font-size: 14px; font-weight: 600; color: #3b82f6;">0 números selecionados</span>
+            <div style="display: flex; gap: 8px;">
+                <button id="btnLimparSelecao" class="btn btn-sm btn-danger" style="padding: 4px 16px;">🗑️ LIMPAR</button>
+                <button id="btnAdicionarSelecao" class="btn btn-success btn-sm" style="padding: 4px 16px;">➕ ADICIONAR</button>
+            </div>
+        </div>
+        <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px;" id="previaNumerosSelecionados">
+            <span style="color: #94a3b8; font-size: 12px;">Nenhum número selecionado</span>
+        </div>
+    </div>
+</div>
 
                 <!-- ============================================ -->
                 <!-- 2. CADASTRO EM LOTE -->

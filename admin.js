@@ -27,12 +27,153 @@ const TOTAL_NUMEROS = 25;
 // ============================================
 let modoSelecaoAtivo = false;
 let numerosSelecionados = [];
+let cartaoAtualSelecao = 0;
+let todosCartoesSelecao = [];
 
 // ============================================
 // VARIÁVEIS DO CADASTRO POR IMAGEM (OCR)
 // ============================================
 let numerosExtraidos = [];
 let imagemProcessada = false;
+
+
+
+
+// ============================================
+// ADICIONAR CARTÃO ATUAL DA SELEÇÃO
+// ============================================
+async function adicionarCartaoSelecaoAtual() {
+    const concurso = document.getElementById('concursoIndividualSelecao').value;
+    const bolao = document.getElementById('bolaoIndividualSelecao').value || 'Bolão Seleção';
+    const tipoParticipacao = document.getElementById('tipoCartaoIndividualSelecao').value;
+    
+    if (!concurso) {
+        showToast('⚠️ Informe o concurso!', 'warning');
+        return;
+    }
+    
+    if (numerosSelecionados.length === 0) {
+        showToast('⚠️ Selecione pelo menos um número!', 'warning');
+        return;
+    }
+    
+    // VALIDAÇÕES
+    let minNumeros, maxNumeros, maxValor, label;
+    if (loteriaAdmin === 'mega') {
+        minNumeros = 6;
+        maxNumeros = 20;
+        maxValor = 60;
+        label = 'MEGA-SENA';
+    } else if (loteriaAdmin === 'lotofacil') {
+        minNumeros = 15;
+        maxNumeros = 20;
+        maxValor = 25;
+        label = 'LOTOFÁCIL';
+    } else if (loteriaAdmin === 'quina') {
+        minNumeros = 5;
+        maxNumeros = 15;
+        maxValor = 80;
+        label = 'QUINA';
+    } else {
+        showToast('⚠️ Loteria não reconhecida!', 'error');
+        return;
+    }
+    
+    if (numerosSelecionados.length < minNumeros) {
+        showToast(`❌ ${label}: mínimo ${minNumeros} números!`, 'error');
+        return;
+    }
+    
+    if (numerosSelecionados.length > maxNumeros) {
+        showToast(`❌ ${label}: máximo ${maxNumeros} números!`, 'error');
+        return;
+    }
+    
+    const numeros = [...numerosSelecionados].sort((a, b) => a - b);
+    
+    try {
+        await db.collection('cartoes').add({
+            concurso: concurso,
+            bolao: bolao,
+            numeros: numeros,
+            tipo: loteriaAdmin,
+            tipoParticipacao: tipoParticipacao,
+            admin: true,
+            dataCadastro: new Date().toISOString(),
+            totalNumeros: numeros.length
+        });
+        showToast(`✅ Cartão #${todosCartoesSelecao.length + 1} adicionado à ${label}!`, 'success');
+        
+        // Salvar no array de cartões
+        todosCartoesSelecao.push({
+            concurso: concurso,
+            bolao: bolao,
+            numeros: numeros,
+            tipo: loteriaAdmin,
+            tipoParticipacao: tipoParticipacao
+        });
+        
+        // Limpar seleção
+        numerosSelecionados = [];
+        atualizarGradeSelecaoVisual();
+        atualizarContadorSelecao();
+        atualizarPreviaSelecao();
+        atualizarTotalCartoesSelecao();
+        
+        carregarDadosAdmin();
+    } catch (error) {
+        console.error('Erro:', error);
+        showToast('❌ Erro ao adicionar', 'error');
+    }
+}
+
+
+// ============================================
+// NAVEGAÇÃO ENTRE CARTÕES DA SELEÇÃO
+// ============================================
+function navegarSelecao(direcao) {
+    const total = todosCartoesSelecao.length || 1;
+    cartaoAtualSelecao += direcao;
+    if (cartaoAtualSelecao < 0) cartaoAtualSelecao = total - 1;
+    if (cartaoAtualSelecao >= total) cartaoAtualSelecao = 0;
+    
+    document.getElementById('cartaoSelecaoAtual').textContent = cartaoAtualSelecao + 1;
+    document.getElementById('totalCartoesSelecao').textContent = total;
+    
+    // Se houver cartões, carregar os números
+    if (todosCartoesSelecao.length > 0 && cartaoAtualSelecao < todosCartoesSelecao.length) {
+        const cartao = todosCartoesSelecao[cartaoAtualSelecao];
+        numerosSelecionados = [...cartao.numeros];
+        atualizarGradeSelecaoVisual();
+        atualizarContadorSelecao();
+        atualizarPreviaSelecao();
+    } else {
+        numerosSelecionados = [];
+        atualizarGradeSelecaoVisual();
+        atualizarContadorSelecao();
+        atualizarPreviaSelecao();
+    }
+}
+
+function atualizarTotalCartoesSelecao() {
+    document.getElementById('totalCartoesSelecao').textContent = todosCartoesSelecao.length || 1;
+}
+
+// ============================================
+// LIMPAR TODOS OS CARTÕES DA SELEÇÃO
+// ============================================
+function limparTodosCartoesSelecao() {
+    if (!confirm('⚠️ ATENÇÃO!\n\nLimpar todos os cartões da seleção?\n\nEsta ação NÃO pode ser desfeita!')) return;
+    todosCartoesSelecao = [];
+    cartaoAtualSelecao = 0;
+    numerosSelecionados = [];
+    atualizarGradeSelecaoVisual();
+    atualizarContadorSelecao();
+    atualizarPreviaSelecao();
+    atualizarTotalCartoesSelecao();
+    showToast('🧹 Todos os cartões limpos!', 'info');
+}
+
 
 // ============================================
 // TOAST
@@ -88,16 +229,21 @@ function hideLoading() {
 }
 
 // ============================================
-// INICIALIZAR GRADE DE SELEÇÃO INDIVIDUAL
+// INICIALIZAR GRADE DE SELEÇÃO INDIVIDUAL (6x10)
 // ============================================
 function inicializarGradeSelecaoIndividual() {
     const grade = document.getElementById('gradeSelecaoIndividual');
     if (!grade) return;
     
-    let totalNumeros = 60;
+    // Determinar quantidade de números com base na loteria
+    let totalNumeros = 60; // padrão Mega
     if (loteriaAdmin === 'lotofacil') totalNumeros = 25;
     else if (loteriaAdmin === 'quina') totalNumeros = 80;
     else totalNumeros = 60;
+    
+    // Ajustar grid para 10 colunas
+    grade.style.gridTemplateColumns = 'repeat(10, 1fr)';
+    grade.style.gap = '6px';
     
     grade.innerHTML = '';
     for (let i = 1; i <= totalNumeros; i++) {
@@ -105,8 +251,11 @@ function inicializarGradeSelecaoIndividual() {
         btn.className = 'numero-btn';
         btn.dataset.numero = i;
         btn.textContent = i.toString().padStart(2, '0');
-        btn.style.fontSize = (totalNumeros > 60) ? '12px' : '14px';
-        btn.style.padding = (totalNumeros > 60) ? '8px 4px' : '12px 8px';
+        // Ajustar tamanho para caber 10 colunas
+        btn.style.fontSize = (totalNumeros > 60) ? '11px' : '13px';
+        btn.style.padding = (totalNumeros > 60) ? '6px 2px' : '8px 4px';
+        btn.style.minHeight = (totalNumeros > 60) ? '32px' : '38px';
+        btn.style.borderRadius = '6px';
         btn.onclick = () => toggleNumeroSelecao(i);
         grade.appendChild(btn);
     }
@@ -410,16 +559,18 @@ function forcarLogin() {
 }
 
 // ============================================
-// SELECIONAR LOTERIA
+// SELECIONAR LOTERIA (COM CONTROLE DO CARD LOTE E RESET DO MODO SELEÇÃO)
 // ============================================
 function setLoteriaAdmin(loteria) {
     console.log(`🔄 Mudando loteria admin para: ${loteria}`);
     loteriaAdmin = loteria;
     
+    // Atualizar botões
     const btnMega = document.getElementById('adminBtnMega');
     const btnLotofacil = document.getElementById('adminBtnLotofacil');
     const btnQuina = document.getElementById('adminBtnQuina');
     
+    // Remover active de todos
     [btnMega, btnLotofacil, btnQuina].forEach(btn => {
         if (btn) {
             btn.classList.remove('active');
@@ -429,6 +580,7 @@ function setLoteriaAdmin(loteria) {
         }
     });
     
+    // Adicionar active no selecionado
     let btnSelecionado = null;
     if (loteria === 'mega') btnSelecionado = btnMega;
     else if (loteria === 'lotofacil') btnSelecionado = btnLotofacil;
@@ -441,6 +593,9 @@ function setLoteriaAdmin(loteria) {
         btnSelecionado.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.1)';
     }
     
+    // ============================================
+    // MOSTRAR/ESCONDER CADASTRO EM LOTE
+    // ============================================
     const cardLote = document.getElementById('cardLote');
     if (cardLote) {
         if (loteria === 'lotofacil') {
@@ -452,6 +607,9 @@ function setLoteriaAdmin(loteria) {
         }
     }
     
+    // ============================================
+    // ATUALIZAR DICAS DO CADASTRO INDIVIDUAL
+    // ============================================
     const labelIndividual = document.getElementById('labelNumerosIndividual');
     const dicaIndividual = document.getElementById('dicaNumerosIndividual');
     const inputIndividual = document.getElementById('numerosIndividual');
@@ -472,8 +630,18 @@ function setLoteriaAdmin(loteria) {
         }
     }
     
+    // ============================================
+    // ATUALIZAR GRADE DE SELEÇÃO INDIVIDUAL
+    // ============================================
     inicializarGradeSelecaoIndividual();
+    
+    // ============================================
+    // RESETAR MODO SELEÇÃO AO MUDAR LOTERIA
+    // ============================================
+    todosCartoesSelecao = [];
+    cartaoAtualSelecao = 0;
     numerosSelecionados = [];
+    atualizarTotalCartoesSelecao();
     atualizarContadorSelecao();
     atualizarPreviaSelecao();
     atualizarGradeSelecaoVisual();
@@ -2932,7 +3100,7 @@ async function copiarHistoricoWhatsApp(id, nome) {
 }
 
 // ============================================
-// INICIALIZAÇÃO (DOMContentLoaded) - CORRIGIDO
+// INICIALIZAÇÃO (DOMContentLoaded)
 // ============================================
 document.addEventListener('DOMContentLoaded', () => {
     console.log('📄 Admin inicializado');
@@ -3000,9 +3168,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (btnAtualizarReservas) btnAtualizarReservas.onclick = () => carregarReservas();
     
-    // ============================================
-    // CARREGAR DADOS PRINCIPAIS (CORRIGIDO)
-    // ============================================
     carregarBoloesParaGerenciar();
     carregarBoloesNoSelectRapido();
     carregarBoloesSelectParticipantes();
@@ -3084,7 +3249,7 @@ document.addEventListener('DOMContentLoaded', () => {
     navegarCartao(0);
     
     // ============================================
-    // EVENTOS DO MODO SELEÇÃO INDIVIDUAL
+    // EVENTOS DO MODO SELEÇÃO INDIVIDUAL (CORRIGIDO COM LOCAL 3)
     // ============================================
     const toggleModo = document.getElementById('toggleModoSelecao');
     const modoDigitacao = document.getElementById('modoDigitacao');
@@ -3125,16 +3290,35 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
+    // ============================================
+    // EVENTOS DO MODO SELEÇÃO (NOVOS - LOCAL 3)
+    // ============================================
+    
+    // Navegação entre cartões
+    document.getElementById('btnSelecaoAnterior')?.addEventListener('click', () => navegarSelecao(-1));
+    document.getElementById('btnSelecaoProximo')?.addEventListener('click', () => navegarSelecao(1));
+    
+    // Adicionar cartão atual
+    document.getElementById('btnAdicionarSelecao')?.addEventListener('click', adicionarCartaoSelecaoAtual);
+    
+    // Limpar seleção / todos os cartões
     document.getElementById('btnLimparSelecao')?.addEventListener('click', function() {
+        if (todosCartoesSelecao.length > 0) {
+            if (!confirm('Limpar apenas a seleção atual ou todos os cartões?\n\n"OK" = Limpar seleção atual\n"Cancelar" = Limpar todos os cartões')) {
+                limparTodosCartoesSelecao();
+                return;
+            }
+        }
         numerosSelecionados = [];
         atualizarGradeSelecaoVisual();
         atualizarContadorSelecao();
         atualizarPreviaSelecao();
-        showToast('🧹 Seleção limpa', 'info');
+        showToast('🧹 Seleção limpa!', 'info');
     });
     
-    document.getElementById('btnAdicionarIndividualSelecao')?.addEventListener('click', adicionarCartaoIndividualSelecao);
+    // Inicializar grade de seleção
     inicializarGradeSelecaoIndividual();
+    atualizarTotalCartoesSelecao();
     
     // ============================================
     // EVENTOS DO CADASTRO POR IMAGEM (OCR)
@@ -3195,31 +3379,26 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('🧹 Limpo!', 'info');
     });
     
-
-// ============================================
-// FORÇAR RECARREGAMENTO DAS ABAS (DEBUG)
-// ============================================
-setTimeout(() => {
-    console.log('🔄 Forçando recarregamento das abas...');
+    // ============================================
+    // FORÇAR RECARREGAMENTO DAS ABAS (DEBUG)
+    // ============================================
+    setTimeout(() => {
+        console.log('🔄 Forçando recarregamento das abas...');
+        
+        const listaBoloes = document.getElementById('listaBoloes');
+        const listaTokens = document.getElementById('listaTokens');
+        const listaReservas = document.getElementById('listaReservas');
+        
+        console.log('📌 listaBoloes:', listaBoloes ? '✅ Encontrado' : '❌ NÃO ENCONTRADO');
+        console.log('📌 listaTokens:', listaTokens ? '✅ Encontrado' : '❌ NÃO ENCONTRADO');
+        console.log('📌 listaReservas:', listaReservas ? '✅ Encontrado' : '❌ NÃO ENCONTRADO');
+        
+        if (listaBoloes) carregarBoloesParaGerenciar();
+        if (listaTokens) carregarTokens();
+        if (listaReservas) carregarReservas();
+        
+    }, 1000);
     
-    // Verificar se os elementos existem
-    const listaBoloes = document.getElementById('listaBoloes');
-    const listaTokens = document.getElementById('listaTokens');
-    const listaReservas = document.getElementById('listaReservas');
-    
-    console.log('📌 listaBoloes:', listaBoloes ? '✅ Encontrado' : '❌ NÃO ENCONTRADO');
-    console.log('📌 listaTokens:', listaTokens ? '✅ Encontrado' : '❌ NÃO ENCONTRADO');
-    console.log('📌 listaReservas:', listaReservas ? '✅ Encontrado' : '❌ NÃO ENCONTRADO');
-    
-    // Recarregar os dados
-    if (listaBoloes) carregarBoloesParaGerenciar();
-    if (listaTokens) carregarTokens();
-    if (listaReservas) carregarReservas();
-    
-}, 1000);
-
-
-
     // Forçar login se a autenticação falhar
     setTimeout(() => {
         const modal = document.getElementById('authModal');
