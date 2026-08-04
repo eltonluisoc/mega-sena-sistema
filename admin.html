@@ -1224,58 +1224,70 @@
         // SISTEMA DE ABAS (CORRIGIDO)
         // ============================================
         document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                // Remover active de todos os botões
-                document.querySelectorAll('.tab-btn').forEach(b => {
-                    b.classList.remove('active');
-                });
-                
-                // Ocultar todos os conteúdos
-                document.querySelectorAll('.tab-content').forEach(c => {
-                    c.classList.remove('active');
-                    c.style.display = 'none';
-                });
-                
-                // Ativar o botão clicado
-                this.classList.add('active');
-                
-                // Mostrar o conteúdo correspondente
-                const tabId = this.dataset.tab;
-                const tabContent = document.getElementById(tabId);
-                if (tabContent) {
-                    tabContent.classList.add('active');
-                    tabContent.style.display = 'block';
-                    
-                    // Recarregar conteúdo da aba ao clicar
-                    if (tabId === 'tab-boloes' && typeof carregarBoloesParaGerenciar === 'function') {
-                        setTimeout(carregarBoloesParaGerenciar, 100);
-                    }
-                    if (tabId === 'tab-tokens' && typeof carregarTokens === 'function') {
-                        setTimeout(carregarTokens, 100);
-                    }
-                    if (tabId === 'tab-reservas' && typeof carregarReservas === 'function') {
-                        setTimeout(carregarReservas, 100);
-                    }
-                    if (tabId === 'tab-cartoes' && typeof exibirCartoesAdmin === 'function') {
-                        setTimeout(exibirCartoesAdmin, 100);
-                    }
-                }
+        btn.addEventListener('click', function() {
+            // Remover active de todos os botões
+            document.querySelectorAll('.tab-btn').forEach(b => {
+                b.classList.remove('active');
             });
-        });
-        
-        // Garantir que a primeira aba (CADASTRO) esteja ativa ao carregar
-        setTimeout(() => {
-            const primeiraAba = document.querySelector('.tab-btn.active');
-            if (primeiraAba) {
-                primeiraAba.click();
-            } else {
-                const primeiraAbaDefault = document.querySelector('.tab-btn');
-                if (primeiraAbaDefault) {
-                    primeiraAbaDefault.classList.add('active');
-                    primeiraAbaDefault.click();
+            
+            // Ocultar todos os conteúdos
+            document.querySelectorAll('.tab-content').forEach(c => {
+                c.classList.remove('active');
+                c.style.display = 'none';
+            });
+            
+            // Ativar o botão clicado
+            this.classList.add('active');
+            
+            // Mostrar o conteúdo correspondente
+            const tabId = this.dataset.tab;
+            const tabContent = document.getElementById(tabId);
+            if (tabContent) {
+                tabContent.classList.add('active');
+                tabContent.style.display = 'block';
+                
+                // Recarregar conteúdo da aba ao clicar
+                if (tabId === 'tab-boloes' && typeof carregarBoloesParaGerenciar === 'function') {
+                    setTimeout(carregarBoloesParaGerenciar, 200);
+                }
+                if (tabId === 'tab-tokens' && typeof carregarTokens === 'function') {
+                    setTimeout(carregarTokens, 200);
+                }
+                if (tabId === 'tab-reservas' && typeof carregarReservas === 'function') {
+                    setTimeout(carregarReservas, 200);
+                }
+                if (tabId === 'tab-cartoes' && typeof exibirCartoesAdmin === 'function') {
+                    setTimeout(exibirCartoesAdmin, 200);
+                }
+                if (tabId === 'tab-cadastro' && typeof inicializarGradeNumeros === 'function') {
+                    setTimeout(inicializarGradeNumeros, 200);
                 }
             }
-        }, 200);
+        });
+    });
+    
+    // Garantir que a primeira aba (CADASTRO) esteja ativa ao carregar
+    setTimeout(() => {
+        const primeiraAba = document.querySelector('.tab-btn.active');
+        if (primeiraAba) {
+            primeiraAba.click();
+        } else {
+            const primeiraAbaDefault = document.querySelector('.tab-btn');
+            if (primeiraAbaDefault) {
+                primeiraAbaDefault.classList.add('active');
+                primeiraAbaDefault.click();
+            }
+        }
+        
+        // Pré-carregar dados das abas
+        setTimeout(() => {
+            if (typeof carregarBoloesParaGerenciar === 'function') carregarBoloesParaGerenciar();
+            if (typeof carregarTokens === 'function') carregarTokens();
+            if (typeof carregarReservas === 'function') carregarReservas();
+            if (typeof exibirCartoesAdmin === 'function') exibirCartoesAdmin();
+        }, 500);
+        
+    }, 300);
     </script>
 </body>
 </html>

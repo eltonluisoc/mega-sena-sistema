@@ -1291,7 +1291,7 @@ async function salvarPixConfig() {
 }
 
 // ============================================
-// CARREGAR DADOS ADMIN
+// CARREGAR DADOS ADMIN (COMPLETO COM ATUALIZAÇÃO DAS ABAS)
 // ============================================
 async function carregarDadosAdmin() {
     try {
@@ -1321,6 +1321,26 @@ async function carregarDadosAdmin() {
         const totalDiv = document.getElementById('totalCartoes');
         if (totalDiv) totalDiv.innerHTML = total + ' cartões';
         showToast('✅ Dados carregados!', 'success');
+        
+        // ============================================
+        // APÓS CARREGAR OS DADOS, ATUALIZAR AS ABAS SE ESTIVEREM VISÍVEIS
+        // ============================================
+        const tabBoloes = document.getElementById('tab-boloes');
+        if (tabBoloes && tabBoloes.style.display === 'block') {
+            carregarBoloesParaGerenciar();
+        }
+        const tabTokens = document.getElementById('tab-tokens');
+        if (tabTokens && tabTokens.style.display === 'block') {
+            carregarTokens();
+        }
+        const tabReservas = document.getElementById('tab-reservas');
+        if (tabReservas && tabReservas.style.display === 'block') {
+            carregarReservas();
+        }
+        const tabCartoes = document.getElementById('tab-cartoes');
+        if (tabCartoes && tabCartoes.style.display === 'block') {
+            exibirCartoesAdmin();
+        }
         
     } catch (error) {
         console.error('Erro:', error);
@@ -1772,7 +1792,7 @@ async function duplicarCartao(id) {
 }
 
 // ============================================
-// EXCLUIR SELECIONADOS
+// EXCLUIR SELECIONADOS (CORRIGIDO - FORÇA ATUALIZAÇÃO)
 // ============================================
 async function excluirSelecionados() {
     const selecionados = document.querySelectorAll('.checkbox-cartao:checked');
@@ -1798,6 +1818,7 @@ async function excluirSelecionados() {
             await db.collection('cartoes').doc(cb.dataset.id).delete();
             excluidos++;
         } catch (error) {
+            console.error('Erro ao excluir:', error);
             erros++;
         }
     }
@@ -1808,7 +1829,13 @@ async function excluirSelecionados() {
         showToast(`❌ Nenhum cartão foi excluído`, 'error');
     }
     
-    carregarDadosAdmin();
+    // FORÇAR RECARREGAMENTO COMPLETO
+    await carregarDadosAdmin();
+    // Forçar exibição da aba de cartões
+    const tabCartoes = document.getElementById('tab-cartoes');
+    if (tabCartoes && tabCartoes.style.display === 'block') {
+        exibirCartoesAdmin();
+    }
 }
 
 // ============================================
@@ -3378,12 +3405,22 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('imgStatus').textContent = 'Aguardando processamento';
         showToast('🧹 Limpo!', 'info');
     });
-    
-    // ============================================
-    // FORÇAR RECARREGAMENTO DAS ABAS (DEBUG)
+
+// ============================================
+    // FORÇAR CARREGAMENTO DAS ABAS (UNIFICADO)
     // ============================================
     setTimeout(() => {
-        console.log('🔄 Forçando recarregamento das abas...');
+        console.log('🔄 Forçando carregamento das abas...');
+        
+        const primeiraAba = document.querySelector('.tab-btn.active');
+        if (primeiraAba) {
+            const tabId = primeiraAba.dataset.tab;
+            const tabContent = document.getElementById(tabId);
+            if (tabContent) {
+                tabContent.style.display = 'block';
+                tabContent.classList.add('active');
+            }
+        }
         
         const listaBoloes = document.getElementById('listaBoloes');
         const listaTokens = document.getElementById('listaTokens');
@@ -3396,8 +3433,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (listaBoloes) carregarBoloesParaGerenciar();
         if (listaTokens) carregarTokens();
         if (listaReservas) carregarReservas();
+        exibirCartoesAdmin();
         
-    }, 1000);
+    }, 800);
     
     // Forçar login se a autenticação falhar
     setTimeout(() => {
@@ -3408,4 +3446,5 @@ document.addEventListener('DOMContentLoaded', () => {
             modal.style.display = 'flex';
         }
     }, 500);
+    
 });
