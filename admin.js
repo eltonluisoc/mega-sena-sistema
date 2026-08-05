@@ -36,145 +36,6 @@ let todosCartoesSelecao = [];
 let numerosExtraidos = [];
 let imagemProcessada = false;
 
-
-
-
-// ============================================
-// ADICIONAR CARTÃO ATUAL DA SELEÇÃO
-// ============================================
-async function adicionarCartaoSelecaoAtual() {
-    const concurso = document.getElementById('concursoIndividualSelecao').value;
-    const bolao = document.getElementById('bolaoIndividualSelecao').value || 'Bolão Seleção';
-    const tipoParticipacao = document.getElementById('tipoCartaoIndividualSelecao').value;
-    
-    if (!concurso) {
-        showToast('⚠️ Informe o concurso!', 'warning');
-        return;
-    }
-    
-    if (numerosSelecionados.length === 0) {
-        showToast('⚠️ Selecione pelo menos um número!', 'warning');
-        return;
-    }
-    
-    // VALIDAÇÕES
-    let minNumeros, maxNumeros, maxValor, label;
-    if (loteriaAdmin === 'mega') {
-        minNumeros = 6;
-        maxNumeros = 20;
-        maxValor = 60;
-        label = 'MEGA-SENA';
-    } else if (loteriaAdmin === 'lotofacil') {
-        minNumeros = 15;
-        maxNumeros = 20;
-        maxValor = 25;
-        label = 'LOTOFÁCIL';
-    } else if (loteriaAdmin === 'quina') {
-        minNumeros = 5;
-        maxNumeros = 15;
-        maxValor = 80;
-        label = 'QUINA';
-    } else {
-        showToast('⚠️ Loteria não reconhecida!', 'error');
-        return;
-    }
-    
-    if (numerosSelecionados.length < minNumeros) {
-        showToast(`❌ ${label}: mínimo ${minNumeros} números!`, 'error');
-        return;
-    }
-    
-    if (numerosSelecionados.length > maxNumeros) {
-        showToast(`❌ ${label}: máximo ${maxNumeros} números!`, 'error');
-        return;
-    }
-    
-    const numeros = [...numerosSelecionados].sort((a, b) => a - b);
-    
-    try {
-        await db.collection('cartoes').add({
-            concurso: concurso,
-            bolao: bolao,
-            numeros: numeros,
-            tipo: loteriaAdmin,
-            tipoParticipacao: tipoParticipacao,
-            admin: true,
-            dataCadastro: new Date().toISOString(),
-            totalNumeros: numeros.length
-        });
-        showToast(`✅ Cartão #${todosCartoesSelecao.length + 1} adicionado à ${label}!`, 'success');
-        
-        // Salvar no array de cartões
-        todosCartoesSelecao.push({
-            concurso: concurso,
-            bolao: bolao,
-            numeros: numeros,
-            tipo: loteriaAdmin,
-            tipoParticipacao: tipoParticipacao
-        });
-        
-        // Limpar seleção
-        numerosSelecionados = [];
-        atualizarGradeSelecaoVisual();
-        atualizarContadorSelecao();
-        atualizarPreviaSelecao();
-        atualizarTotalCartoesSelecao();
-        
-        carregarDadosAdmin();
-    } catch (error) {
-        console.error('Erro:', error);
-        showToast('❌ Erro ao adicionar', 'error');
-    }
-}
-
-
-// ============================================
-// NAVEGAÇÃO ENTRE CARTÕES DA SELEÇÃO
-// ============================================
-function navegarSelecao(direcao) {
-    const total = todosCartoesSelecao.length || 1;
-    cartaoAtualSelecao += direcao;
-    if (cartaoAtualSelecao < 0) cartaoAtualSelecao = total - 1;
-    if (cartaoAtualSelecao >= total) cartaoAtualSelecao = 0;
-    
-    document.getElementById('cartaoSelecaoAtual').textContent = cartaoAtualSelecao + 1;
-    document.getElementById('totalCartoesSelecao').textContent = total;
-    
-    // Se houver cartões, carregar os números
-    if (todosCartoesSelecao.length > 0 && cartaoAtualSelecao < todosCartoesSelecao.length) {
-        const cartao = todosCartoesSelecao[cartaoAtualSelecao];
-        numerosSelecionados = [...cartao.numeros];
-        atualizarGradeSelecaoVisual();
-        atualizarContadorSelecao();
-        atualizarPreviaSelecao();
-    } else {
-        numerosSelecionados = [];
-        atualizarGradeSelecaoVisual();
-        atualizarContadorSelecao();
-        atualizarPreviaSelecao();
-    }
-}
-
-function atualizarTotalCartoesSelecao() {
-    document.getElementById('totalCartoesSelecao').textContent = todosCartoesSelecao.length || 1;
-}
-
-// ============================================
-// LIMPAR TODOS OS CARTÕES DA SELEÇÃO
-// ============================================
-function limparTodosCartoesSelecao() {
-    if (!confirm('⚠️ ATENÇÃO!\n\nLimpar todos os cartões da seleção?\n\nEsta ação NÃO pode ser desfeita!')) return;
-    todosCartoesSelecao = [];
-    cartaoAtualSelecao = 0;
-    numerosSelecionados = [];
-    atualizarGradeSelecaoVisual();
-    atualizarContadorSelecao();
-    atualizarPreviaSelecao();
-    atualizarTotalCartoesSelecao();
-    showToast('🧹 Todos os cartões limpos!', 'info');
-}
-
-
 // ============================================
 // TOAST
 // ============================================
@@ -235,13 +96,11 @@ function inicializarGradeSelecaoIndividual() {
     const grade = document.getElementById('gradeSelecaoIndividual');
     if (!grade) return;
     
-    // Determinar quantidade de números com base na loteria
-    let totalNumeros = 60; // padrão Mega
+    let totalNumeros = 60;
     if (loteriaAdmin === 'lotofacil') totalNumeros = 25;
     else if (loteriaAdmin === 'quina') totalNumeros = 80;
     else totalNumeros = 60;
     
-    // Ajustar grid para 10 colunas
     grade.style.gridTemplateColumns = 'repeat(10, 1fr)';
     grade.style.gap = '6px';
     
@@ -251,7 +110,6 @@ function inicializarGradeSelecaoIndividual() {
         btn.className = 'numero-btn';
         btn.dataset.numero = i;
         btn.textContent = i.toString().padStart(2, '0');
-        // Ajustar tamanho para caber 10 colunas
         btn.style.fontSize = (totalNumeros > 60) ? '11px' : '13px';
         btn.style.padding = (totalNumeros > 60) ? '6px 2px' : '8px 4px';
         btn.style.minHeight = (totalNumeros > 60) ? '32px' : '38px';
@@ -361,6 +219,139 @@ function atualizarPreviaSelecao() {
         html += `<span style="background: #3b82f6; color: white; padding: 2px 8px; border-radius: 4px; font-family: monospace; font-size: 13px;">${n.toString().padStart(2, '0')}</span>`;
     }
     previa.innerHTML = html;
+}
+
+// ============================================
+// ATUALIZAR TOTAL DE CARTÕES DA SELEÇÃO
+// ============================================
+function atualizarTotalCartoesSelecao() {
+    document.getElementById('totalCartoesSelecao').textContent = todosCartoesSelecao.length || 1;
+}
+
+// ============================================
+// NAVEGAÇÃO ENTRE CARTÕES DA SELEÇÃO
+// ============================================
+function navegarSelecao(direcao) {
+    const total = todosCartoesSelecao.length || 1;
+    cartaoAtualSelecao += direcao;
+    if (cartaoAtualSelecao < 0) cartaoAtualSelecao = total - 1;
+    if (cartaoAtualSelecao >= total) cartaoAtualSelecao = 0;
+    
+    document.getElementById('cartaoSelecaoAtual').textContent = cartaoAtualSelecao + 1;
+    document.getElementById('totalCartoesSelecao').textContent = total;
+    
+    if (todosCartoesSelecao.length > 0 && cartaoAtualSelecao < todosCartoesSelecao.length) {
+        const cartao = todosCartoesSelecao[cartaoAtualSelecao];
+        numerosSelecionados = [...cartao.numeros];
+        atualizarGradeSelecaoVisual();
+        atualizarContadorSelecao();
+        atualizarPreviaSelecao();
+    } else {
+        numerosSelecionados = [];
+        atualizarGradeSelecaoVisual();
+        atualizarContadorSelecao();
+        atualizarPreviaSelecao();
+    }
+}
+
+// ============================================
+// ADICIONAR CARTÃO ATUAL DA SELEÇÃO
+// ============================================
+async function adicionarCartaoSelecaoAtual() {
+    const concurso = document.getElementById('concursoIndividualSelecao').value;
+    const bolao = document.getElementById('bolaoIndividualSelecao').value || 'Bolão Seleção';
+    const tipoParticipacao = document.getElementById('tipoCartaoIndividualSelecao').value;
+    
+    if (!concurso) {
+        showToast('⚠️ Informe o concurso!', 'warning');
+        return;
+    }
+    
+    if (numerosSelecionados.length === 0) {
+        showToast('⚠️ Selecione pelo menos um número!', 'warning');
+        return;
+    }
+    
+    let minNumeros, maxNumeros, maxValor, label;
+    if (loteriaAdmin === 'mega') {
+        minNumeros = 6;
+        maxNumeros = 20;
+        maxValor = 60;
+        label = 'MEGA-SENA';
+    } else if (loteriaAdmin === 'lotofacil') {
+        minNumeros = 15;
+        maxNumeros = 20;
+        maxValor = 25;
+        label = 'LOTOFÁCIL';
+    } else if (loteriaAdmin === 'quina') {
+        minNumeros = 5;
+        maxNumeros = 15;
+        maxValor = 80;
+        label = 'QUINA';
+    } else {
+        showToast('⚠️ Loteria não reconhecida!', 'error');
+        return;
+    }
+    
+    if (numerosSelecionados.length < minNumeros) {
+        showToast(`❌ ${label}: mínimo ${minNumeros} números!`, 'error');
+        return;
+    }
+    
+    if (numerosSelecionados.length > maxNumeros) {
+        showToast(`❌ ${label}: máximo ${maxNumeros} números!`, 'error');
+        return;
+    }
+    
+    const numeros = [...numerosSelecionados].sort((a, b) => a - b);
+    
+    try {
+        await db.collection('cartoes').add({
+            concurso: concurso,
+            bolao: bolao,
+            numeros: numeros,
+            tipo: loteriaAdmin,
+            tipoParticipacao: tipoParticipacao,
+            admin: true,
+            dataCadastro: new Date().toISOString(),
+            totalNumeros: numeros.length
+        });
+        showToast(`✅ Cartão #${todosCartoesSelecao.length + 1} adicionado à ${label}!`, 'success');
+        
+        todosCartoesSelecao.push({
+            concurso: concurso,
+            bolao: bolao,
+            numeros: numeros,
+            tipo: loteriaAdmin,
+            tipoParticipacao: tipoParticipacao
+        });
+        
+        numerosSelecionados = [];
+        atualizarGradeSelecaoVisual();
+        atualizarContadorSelecao();
+        atualizarPreviaSelecao();
+        atualizarTotalCartoesSelecao();
+        
+        carregarDadosAdmin();
+    } catch (error) {
+        console.error('Erro:', error);
+        showToast('❌ Erro ao adicionar', 'error');
+    }
+}
+
+// ============================================
+// LIMPAR TODOS OS CARTÕES DA SELEÇÃO
+// ============================================
+function limparTodosCartoesSelecao() {
+    if (!confirm('⚠️ ATENÇÃO!\n\nLimpar todos os cartões da seleção?\n\nEsta ação NÃO pode ser desfeita!')) return;
+    todosCartoesSelecao = [];
+    cartaoAtualSelecao = 0;
+    numerosSelecionados = [];
+    atualizarGradeSelecaoVisual();
+    atualizarContadorSelecao();
+    atualizarPreviaSelecao();
+    atualizarTotalCartoesSelecao();
+    showToast('🧹 Todos os cartões limpos!', 'info');
 }
 
 // ============================================
@@ -565,12 +556,10 @@ function setLoteriaAdmin(loteria) {
     console.log(`🔄 Mudando loteria admin para: ${loteria}`);
     loteriaAdmin = loteria;
     
-    // Atualizar botões
     const btnMega = document.getElementById('adminBtnMega');
     const btnLotofacil = document.getElementById('adminBtnLotofacil');
     const btnQuina = document.getElementById('adminBtnQuina');
     
-    // Remover active de todos
     [btnMega, btnLotofacil, btnQuina].forEach(btn => {
         if (btn) {
             btn.classList.remove('active');
@@ -580,7 +569,6 @@ function setLoteriaAdmin(loteria) {
         }
     });
     
-    // Adicionar active no selecionado
     let btnSelecionado = null;
     if (loteria === 'mega') btnSelecionado = btnMega;
     else if (loteria === 'lotofacil') btnSelecionado = btnLotofacil;
@@ -593,9 +581,6 @@ function setLoteriaAdmin(loteria) {
         btnSelecionado.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.1)';
     }
     
-    // ============================================
-    // MOSTRAR/ESCONDER CADASTRO EM LOTE
-    // ============================================
     const cardLote = document.getElementById('cardLote');
     if (cardLote) {
         if (loteria === 'lotofacil') {
@@ -607,9 +592,6 @@ function setLoteriaAdmin(loteria) {
         }
     }
     
-    // ============================================
-    // ATUALIZAR DICAS DO CADASTRO INDIVIDUAL
-    // ============================================
     const labelIndividual = document.getElementById('labelNumerosIndividual');
     const dicaIndividual = document.getElementById('dicaNumerosIndividual');
     const inputIndividual = document.getElementById('numerosIndividual');
@@ -630,14 +612,8 @@ function setLoteriaAdmin(loteria) {
         }
     }
     
-    // ============================================
-    // ATUALIZAR GRADE DE SELEÇÃO INDIVIDUAL
-    // ============================================
     inicializarGradeSelecaoIndividual();
     
-    // ============================================
-    // RESETAR MODO SELEÇÃO AO MUDAR LOTERIA
-    // ============================================
     todosCartoesSelecao = [];
     cartaoAtualSelecao = 0;
     numerosSelecionados = [];
@@ -729,7 +705,6 @@ async function adicionarCartaoIndividualSelecao() {
 // ============================================
 // FUNÇÕES DO CADASTRO POR IMAGEM (OCR)
 // ============================================
-
 function mostrarPreviaImagem(file) {
     const reader = new FileReader();
     reader.onload = function(e) {
@@ -742,9 +717,6 @@ function mostrarPreviaImagem(file) {
     reader.readAsDataURL(file);
 }
 
-// ============================================
-// PROCESSAR IMAGEM COM TESSERACT (VERSÃO OTIMIZADA)
-// ============================================
 async function processarImagem(file) {
     const loading = document.getElementById('imgLoading');
     const resultado = document.getElementById('imgResultado');
@@ -757,79 +729,52 @@ async function processarImagem(file) {
     
     try {
         const imageUrl = URL.createObjectURL(file);
-        
-        // Usar PSM 6 para melhor leitura de números
-        const result = await Tesseract.recognize(
-            imageUrl, 
-            'por', 
-            {
-                logger: (m) => {
-                    if (m.status === 'recognizing text') {
-                        status.textContent = `🔄 ${Math.round(m.progress * 100)}% concluído...`;
-                    }
-                },
-                // Parâmetros adicionais para melhorar OCR
-                tessedit_pageseg_mode: '6',  // Assume um único bloco de texto
-                tessedit_char_whitelist: '0123456789 ',
+        const result = await Tesseract.recognize(imageUrl, 'por', {
+            logger: (m) => {
+                if (m.status === 'recognizing text') {
+                    status.textContent = `🔄 ${Math.round(m.progress * 100)}% concluído...`;
+                }
             }
-        );
+        });
         
         URL.revokeObjectURL(imageUrl);
         
         const texto = result.data.text;
-        console.log('📝 Texto completo extraído:', texto);
-        console.log('📊 Palavras detectadas:', result.data.words);
+        console.log('📝 Texto extraído:', texto);
         
-        // Extrair números com posição
-        const numerosComPosicao = extrairNumerosComPosicaoMelhorado(result.data.words);
+        const numeros = extrairNumerosDoTexto(texto);
         
-        if (numerosComPosicao.length === 0) {
-            // Fallback: tentar extrair do texto simples
-            const numerosFallback = extrairNumerosDoTexto(texto);
-            if (numerosFallback.length === 0) {
-                status.textContent = '❌ Nenhum número encontrado!';
-                container.innerHTML = `
-                    <div style="color: #ef4444; margin-bottom: 12px;">Nenhum número foi identificado.</div>
-                    <div style="background: #fef3c7; padding: 12px; border-radius: 8px; font-size: 13px;">
-                        <strong>💡 Dicas:</strong><br>
-                        • Use uma imagem com boa iluminação<br>
-                        • Apenas números (sem linhas ou desenhos)<br>
-                        • Fonte legível e bem contrastada
-                    </div>
-                    <div style="margin-top: 12px;">
-                        <button id="btnAbrirManualOCR" class="btn btn-secondary" style="width: auto;">✏️ INSERIR MANUALMENTE</button>
-                    </div>
-                `;
-                document.getElementById('btnAbrirManualOCR')?.addEventListener('click', function() {
-                    abrirEditorManual(numerosFallback);
-                });
-                loading.style.display = 'none';
-                return;
-            }
-            // Usar fallback
-            const linhas = agruparNumerosPorLinhaSimples(numerosFallback);
-            exibirResultadoOCR(linhas, container, status);
+        if (numeros.length === 0) {
+            status.textContent = '❌ Nenhum número encontrado! Tente outra imagem.';
+            container.innerHTML = '<div style="color: #ef4444;">Nenhum número foi identificado. Verifique a qualidade da imagem.</div>';
             loading.style.display = 'none';
             return;
         }
         
-        // Agrupar números por linha usando clustering
-        const linhas = agruparNumerosPorClustering(numerosComPosicao);
+        numerosExtraidos = numeros;
+        imagemProcessada = true;
         
-        if (linhas.length === 0) {
-            status.textContent = '❌ Nenhum cartão identificado!';
-            container.innerHTML = `
-                <div style="color: #ef4444;">Não foi possível identificar cartões.</div>
-                <button id="btnAbrirManualOCR" class="btn btn-secondary" style="margin-top: 12px; width: auto;">✏️ INSERIR MANUALMENTE</button>
+        let html = '';
+        const linhas = agruparNumerosEmLinhas(numeros);
+        
+        html += `<div style="margin-bottom: 10px; color: #10b981; font-weight: 600;">✅ ${linhas.length} cartões identificados</div>`;
+        html += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">`;
+        
+        linhas.forEach((linha, index) => {
+            const numsStr = linha.map(n => n.toString().padStart(2, '0')).join(' ');
+            html += `
+                <div style="background: white; border-radius: 8px; padding: 6px 10px; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 6px;">
+                    <span style="font-weight: 600; color: #64748b; font-size: 11px;">#${index+1}</span>
+                    <input type="text" class="img-cartao-edit" data-index="${index}" value="${numsStr}" style="flex: 1; border: none; background: transparent; font-family: monospace; font-size: 12px; outline: none; padding: 4px;">
+                </div>
             `;
-            document.getElementById('btnAbrirManualOCR')?.addEventListener('click', function() {
-                abrirEditorManual([]);
-            });
-            loading.style.display = 'none';
-            return;
-        }
+        });
+        html += `</div>`;
+        html += `<div style="margin-top: 12px; font-size: 11px; color: #64748b;">💡 Clique nos números para editar se necessário.</div>`;
         
-        exibirResultadoOCR(linhas, container, status);
+        container.innerHTML = html;
+        status.textContent = `✅ ${linhas.length} cartões extraídos`;
+        resultado.style.display = 'block';
         loading.style.display = 'none';
         
         showToast(`✅ ${linhas.length} cartões identificados!`, 'success');
@@ -837,279 +782,12 @@ async function processarImagem(file) {
     } catch (error) {
         console.error('Erro no OCR:', error);
         status.textContent = '❌ Erro ao processar imagem';
-        container.innerHTML = `
-            <div style="color: #ef4444;">Erro: ${error.message}</div>
-            <button id="btnAbrirManualOCR" class="btn btn-secondary" style="margin-top: 12px; width: auto;">✏️ INSERIR MANUALMENTE</button>
-        `;
-        document.getElementById('btnAbrirManualOCR')?.addEventListener('click', function() {
-            abrirEditorManual([]);
-        });
+        container.innerHTML = `<div style="color: #ef4444;">Erro: ${error.message}</div>`;
         loading.style.display = 'none';
         showToast('❌ Erro ao processar imagem', 'error');
     }
 }
 
-// ============================================
-// EXTRAIR NÚMEROS COM POSIÇÃO MELHORADO
-// ============================================
-function extrairNumerosComPosicaoMelhorado(words) {
-    const numeros = [];
-    if (!words || words.length === 0) return numeros;
-    
-    for (const word of words) {
-        const texto = word.text || '';
-        // Tentar extrair números de dois dígitos ou um dígito
-        const numerosEncontrados = texto.match(/\b\d{1,2}\b/g);
-        if (numerosEncontrados) {
-            const bbox = word.bbox || { x0: 0, y0: 0, x1: 0, y1: 0 };
-            const centroX = (bbox.x0 + bbox.x1) / 2;
-            const centroY = (bbox.y0 + bbox.y1) / 2;
-            
-            for (const numStr of numerosEncontrados) {
-                const num = parseInt(numStr);
-                if (num >= 1 && num <= 99) {
-                    numeros.push({
-                        numero: num,
-                        x: centroX,
-                        y: centroY,
-                        x0: bbox.x0,
-                        y0: bbox.y0,
-                        x1: bbox.x1,
-                        y1: bbox.y1,
-                        textoOriginal: texto
-                    });
-                }
-            }
-        }
-    }
-    
-    // Ordenar por Y (linha) e depois X (coluna)
-    numeros.sort((a, b) => {
-        const diffY = Math.abs(a.y - b.y);
-        if (diffY < 30) {
-            return a.x - b.x;
-        }
-        return a.y - b.y;
-    });
-    
-    return numeros;
-}
-
-// ============================================
-// AGRUPAR POR CLUSTERING ADAPTATIVO
-// ============================================
-function agruparNumerosPorClustering(numerosComPosicao) {
-    if (numerosComPosicao.length === 0) return [];
-    
-    const loteria = document.getElementById('imgLoteria').value;
-    let esperado = 15;
-    if (loteria === 'mega') esperado = 6;
-    else if (loteria === 'quina') esperado = 5;
-    
-    // Clustering por posição Y
-    const clusters = [];
-    let clusterAtual = [];
-    let ultimoY = null;
-    const limiarY = 35; // Tolerância para mesma linha
-    
-    for (const item of numerosComPosicao) {
-        if (ultimoY === null || Math.abs(item.y - ultimoY) < limiarY) {
-            clusterAtual.push(item);
-        } else {
-            if (clusterAtual.length > 0) {
-                clusters.push(clusterAtual);
-            }
-            clusterAtual = [item];
-        }
-        ultimoY = item.y;
-    }
-    if (clusterAtual.length > 0) {
-        clusters.push(clusterAtual);
-    }
-    
-    // Converter clusters para arrays de números
-    const linhas = clusters.map(cluster => {
-        // Ordenar por X dentro do cluster
-        cluster.sort((a, b) => a.x - b.x);
-        return cluster.map(item => item.numero);
-    });
-    
-    // Filtrar linhas muito curtas (menos de 50% do esperado)
-    const linhasFiltradas = linhas.filter(linha => linha.length >= esperado * 0.5);
-    
-    // Se não houver linhas, tentar agrupar todas em uma só
-    if (linhasFiltradas.length === 0 && numerosComPosicao.length > 0) {
-        const todosNumeros = numerosComPosicao.map(item => item.numero);
-        // Dividir em grupos de tamanho esperado
-        const grupos = [];
-        for (let i = 0; i < todosNumeros.length; i += esperado) {
-            const grupo = todosNumeros.slice(i, i + esperado);
-            if (grupo.length >= esperado * 0.5) {
-                grupos.push(grupo);
-            }
-        }
-        return grupos;
-    }
-    
-    return linhasFiltradas;
-}
-
-// ============================================
-// ABRIR EDITOR MANUAL PARA NÚMEROS
-// ============================================
-function abrirEditorManual(numerosExistentes = []) {
-    // Criar modal para entrada manual
-    let modal = document.getElementById('modalManualOCR');
-    if (modal) modal.remove();
-    
-    modal = document.createElement('div');
-    modal.id = 'modalManualOCR';
-    modal.style.cssText = `
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.8); z-index: 10002;
-        display: flex; justify-content: center; align-items: center;
-        padding: 20px;
-    `;
-    
-    const loteria = document.getElementById('imgLoteria').value;
-    let esperado = 15;
-    let label = 'LOTOFÁCIL';
-    if (loteria === 'mega') { esperado = 6; label = 'MEGA-SENA'; }
-    else if (loteria === 'quina') { esperado = 5; label = 'QUINA'; }
-    
-    modal.innerHTML = `
-        <div style="background: white; border-radius: 20px; max-width: 500px; width: 100%; padding: 25px; max-height: 90vh; overflow-y: auto;">
-            <h3 style="margin: 0 0 12px 0;">✏️ INSERIR CARTÕES MANUALMENTE</h3>
-            <div style="font-size: 13px; color: #64748b; margin-bottom: 12px;">
-                Digite os números de cada cartão, <strong>um cartão por linha</strong>, números separados por espaço.
-                <br>${label}: <strong>${esperado}</strong> números por cartão.
-            </div>
-            <textarea id="manualNumerosInput" rows="6" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 12px; font-family: monospace; font-size: 14px; resize: vertical;">${numerosExistentes.length > 0 ? numerosExistentes.join(' ') : ''}</textarea>
-            <div style="display: flex; gap: 10px; margin-top: 15px;">
-                <button id="btnManualConfirmar" class="btn btn-success" style="flex: 1;">✅ CONFIRMAR</button>
-                <button id="btnManualCancelar" class="btn btn-secondary" style="flex: 1;">CANCELAR</button>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    document.getElementById('btnManualConfirmar').onclick = function() {
-        const texto = document.getElementById('manualNumerosInput').value;
-        const linhas = texto.split('\n').filter(line => line.trim() !== '');
-        const cartoes = linhas.map(line => {
-            return line.trim().split(/\s+/).map(Number).filter(n => n > 0);
-        }).filter(c => c.length > 0);
-        
-        if (cartoes.length === 0) {
-            showToast('⚠️ Nenhum cartão válido!', 'warning');
-            return;
-        }
-        
-        // Validar
-        const invalidos = cartoes.filter(c => c.length !== esperado);
-        if (invalidos.length > 0) {
-            showToast(`⚠️ ${invalidos.length} cartão(ões) com números diferentes de ${esperado}!`, 'warning');
-            return;
-        }
-        
-        // Exibir no resultado
-        const container = document.getElementById('imgNumerosExtracao');
-        const status = document.getElementById('imgStatus');
-        exibirResultadoOCR(cartoes, container, status);
-        modal.remove();
-        showToast(`✅ ${cartoes.length} cartões inseridos manualmente!`, 'success');
-    };
-    
-    document.getElementById('btnManualCancelar').onclick = function() {
-        modal.remove();
-    };
-    
-    modal.onclick = function(e) {
-        if (e.target === modal) modal.remove();
-    };
-    
-    // Focar no textarea
-    document.getElementById('manualNumerosInput').focus();
-}
-
-// ============================================
-// EXIBIR RESULTADO DO OCR (ATUALIZADO)
-// ============================================
-function exibirResultadoOCR(linhas, container, status) {
-    numerosExtraidos = linhas.flat();
-    imagemProcessada = true;
-    
-    const loteria = document.getElementById('imgLoteria').value;
-    let esperado = 15;
-    if (loteria === 'mega') esperado = 6;
-    else if (loteria === 'quina') esperado = 5;
-    
-    let html = `<div style="margin-bottom: 10px; color: #10b981; font-weight: 600;">✅ ${linhas.length} cartões identificados</div>`;
-    html += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">`;
-    
-    linhas.forEach((linha, index) => {
-        const numsStr = linha.map(n => n.toString().padStart(2, '0')).join(' ');
-        const estaCompleto = linha.length === esperado;
-        const corBorda = estaCompleto ? '#10b981' : '#f59e0b';
-        
-        html += `
-            <div style="background: white; border-radius: 8px; padding: 6px 10px; border: 2px solid ${corBorda}; display: flex; align-items: center; gap: 6px;">
-                <span style="font-weight: 600; color: #64748b; font-size: 11px;">#${index+1}</span>
-                <input type="text" class="img-cartao-edit" data-index="${index}" value="${numsStr}" style="flex: 1; border: none; background: transparent; font-family: monospace; font-size: 12px; outline: none; padding: 4px;">
-                ${!estaCompleto ? '<span style="font-size: 10px; color: #f59e0b;">⚠️</span>' : '<span style="font-size: 10px; color: #10b981;">✅</span>'}
-            </div>
-        `;
-    });
-    html += `</div>`;
-    html += `<div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
-        <button id="btnAbrirManualOCR" class="btn btn-secondary btn-sm" style="width: auto;">✏️ AJUSTAR MANUALMENTE</button>
-        <span style="font-size: 11px; color: #64748b; display: flex; align-items: center;">💡 Clique nos números para editar</span>
-    </div>`;
-    
-    container.innerHTML = html;
-    document.getElementById('imgResultado').style.display = 'block';
-    document.getElementById('imgStatus').textContent = `✅ ${linhas.length} cartões extraídos`;
-    
-    // Evento para abrir manual
-    document.getElementById('btnAbrirManualOCR')?.addEventListener('click', function() {
-        // Coletar os números atuais para pré-preencher
-        const inputs = document.querySelectorAll('.img-cartao-edit');
-        const numerosAtuais = [];
-        inputs.forEach(input => {
-            const nums = input.value.trim().split(/\s+/).map(Number).filter(n => n > 0);
-            if (nums.length > 0) numerosAtuais.push(nums.join(' '));
-        });
-        abrirEditorManual(numerosAtuais);
-    });
-    
-    // Destacar cartões incompletos e adicionar validação em tempo real
-    document.querySelectorAll('.img-cartao-edit').forEach(input => {
-        input.addEventListener('input', function() {
-            const numeros = this.value.trim().split(/\s+/).map(Number).filter(n => n > 0);
-            const parentDiv = this.closest('div');
-            if (parentDiv) {
-                const esperado = document.getElementById('imgLoteria').value === 'mega' ? 6 :
-                                 document.getElementById('imgLoteria').value === 'lotofacil' ? 15 : 5;
-                if (numeros.length < esperado) {
-                    parentDiv.style.borderColor = '#f59e0b';
-                    parentDiv.style.backgroundColor = '#fffbeb';
-                    parentDiv.querySelector('span:last-child')?.remove();
-                    parentDiv.innerHTML += `<span style="font-size: 10px; color: #f59e0b; margin-left: 4px;">⚠️</span>`;
-                } else {
-                    parentDiv.style.borderColor = '#10b981';
-                    parentDiv.style.backgroundColor = 'white';
-                    parentDiv.querySelector('span:last-child')?.remove();
-                    parentDiv.innerHTML += `<span style="font-size: 10px; color: #10b981; margin-left: 4px;">✅</span>`;
-                }
-            }
-        });
-    });
-}
-
-// ============================================
-// EXTRAIR NÚMEROS DO TEXTO (FALLBACK - MANTIDO)
-// ============================================
 function extrairNumerosDoTexto(texto) {
     const numeros = [];
     const matches = texto.match(/\b\d{1,2}\b/g);
@@ -1792,7 +1470,7 @@ async function duplicarCartao(id) {
 }
 
 // ============================================
-// EXCLUIR SELECIONADOS (CORRIGIDO - FORÇA ATUALIZAÇÃO)
+// EXCLUIR SELECIONADOS (CORRIGIDO)
 // ============================================
 async function excluirSelecionados() {
     const selecionados = document.querySelectorAll('.checkbox-cartao:checked');
@@ -1829,9 +1507,7 @@ async function excluirSelecionados() {
         showToast(`❌ Nenhum cartão foi excluído`, 'error');
     }
     
-    // FORÇAR RECARREGAMENTO COMPLETO
     await carregarDadosAdmin();
-    // Forçar exibição da aba de cartões
     const tabCartoes = document.getElementById('tab-cartoes');
     if (tabCartoes && tabCartoes.style.display === 'block') {
         exibirCartoesAdmin();
@@ -2003,7 +1679,6 @@ function adicionarBotaoLinkParticipantes() {
 // ============================================
 // FUNÇÕES DO CADASTRO EM LOTE
 // ============================================
-
 function inicializarGradeNumeros() {
     const grade = document.getElementById('gradeNumeros');
     if (!grade) return;
@@ -3195,11 +2870,19 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (btnAtualizarReservas) btnAtualizarReservas.onclick = () => carregarReservas();
     
-    carregarBoloesParaGerenciar();
-    carregarBoloesNoSelectRapido();
-    carregarBoloesSelectParticipantes();
-    carregarTokens();
-    carregarReservas();
+    // ============================================
+    // CARREGAR DADOS DAS ABAS (FORÇADO)
+    // ============================================
+    setTimeout(() => {
+        console.log('🔄 Carregando dados das abas...');
+        carregarBoloesParaGerenciar();
+        carregarBoloesNoSelectRapido();
+        carregarBoloesSelectParticipantes();
+        carregarTokens();
+        carregarReservas();
+        exibirCartoesAdmin();
+        console.log('✅ Dados das abas carregados!');
+    }, 300);
     
     // ============================================
     // EVENTOS DO CADASTRO EM LOTE
@@ -3276,7 +2959,7 @@ document.addEventListener('DOMContentLoaded', () => {
     navegarCartao(0);
     
     // ============================================
-    // EVENTOS DO MODO SELEÇÃO INDIVIDUAL (CORRIGIDO COM LOCAL 3)
+    // EVENTOS DO MODO SELEÇÃO INDIVIDUAL
     // ============================================
     const toggleModo = document.getElementById('toggleModoSelecao');
     const modoDigitacao = document.getElementById('modoDigitacao');
@@ -3318,17 +3001,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // ============================================
-    // EVENTOS DO MODO SELEÇÃO (NOVOS - LOCAL 3)
+    // EVENTOS DO MODO SELEÇÃO (NOVOS)
     // ============================================
-    
-    // Navegação entre cartões
     document.getElementById('btnSelecaoAnterior')?.addEventListener('click', () => navegarSelecao(-1));
     document.getElementById('btnSelecaoProximo')?.addEventListener('click', () => navegarSelecao(1));
-    
-    // Adicionar cartão atual
     document.getElementById('btnAdicionarSelecao')?.addEventListener('click', adicionarCartaoSelecaoAtual);
     
-    // Limpar seleção / todos os cartões
     document.getElementById('btnLimparSelecao')?.addEventListener('click', function() {
         if (todosCartoesSelecao.length > 0) {
             if (!confirm('Limpar apenas a seleção atual ou todos os cartões?\n\n"OK" = Limpar seleção atual\n"Cancelar" = Limpar todos os cartões')) {
@@ -3343,7 +3021,6 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('🧹 Seleção limpa!', 'info');
     });
     
-    // Inicializar grade de seleção
     inicializarGradeSelecaoIndividual();
     atualizarTotalCartoesSelecao();
     
@@ -3405,8 +3082,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('imgStatus').textContent = 'Aguardando processamento';
         showToast('🧹 Limpo!', 'info');
     });
-
-// ============================================
+    
+    // ============================================
     // FORÇAR CARREGAMENTO DAS ABAS (UNIFICADO)
     // ============================================
     setTimeout(() => {
@@ -3446,5 +3123,4 @@ document.addEventListener('DOMContentLoaded', () => {
             modal.style.display = 'flex';
         }
     }, 500);
-    
 });
