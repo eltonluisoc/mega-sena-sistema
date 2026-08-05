@@ -855,58 +855,60 @@
                         <button id="btnAdicionarIndividual" class="btn btn-success btn-block">➕ ADICIONAR CARTÃO</button>
                     </div>
                     
+                    <!-- MODO SELEÇÃO (grade de números) -->
                     <div id="modoSelecao" style="display: none;">
-    <!-- CONFIGURAÇÃO FIXA -->
-    <div style="background: #f8fafc; padding: 12px; border-radius: 10px; margin-bottom: 16px; border: 1px solid #e2e8f0;">
-        <div style="font-weight: 700; margin-bottom: 10px; color: #1e293b; font-size: 14px;">📌 CONFIGURAÇÃO FIXA</div>
-        <div class="form-row">
-            <div class="form-group">
-                <label>📌 Concurso</label>
-                <input type="number" id="concursoIndividualSelecao" class="form-control" placeholder="Ex: 3200" value="3200">
-            </div>
-            <div class="form-group">
-                <label>👥 Bolão</label>
-                <input type="text" id="bolaoIndividualSelecao" class="form-control" placeholder="Ex: Família" value="Bolão Seleção">
-            </div>
-        </div>
-        <div class="form-row">
-            <div class="form-group">
-                <label>🎯 Tipo</label>
-                <select id="tipoCartaoIndividualSelecao" class="form-control">
-                    <option value="exclusivo">👥 Grupo Exclusivo</option>
-                    <option value="cota">🎟️ Cota de Bolão</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>📌 Cartão atual</label>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                    <button id="btnSelecaoAnterior" class="btn btn-secondary btn-sm" style="min-width: 40px;">◀</button>
-                    <span style="font-weight: bold; font-size: 16px;" id="cartaoSelecaoAtual">1</span>
-                    <button id="btnSelecaoProximo" class="btn btn-secondary btn-sm" style="min-width: 40px;">▶</button>
-                    <span style="font-size: 12px; color: #64748b;">de <span id="totalCartoesSelecao">1</span></span>
+                        <!-- CONFIGURAÇÃO FIXA -->
+                        <div style="background: #f8fafc; padding: 12px; border-radius: 10px; margin-bottom: 16px; border: 1px solid #e2e8f0;">
+                            <div style="font-weight: 700; margin-bottom: 10px; color: #1e293b; font-size: 14px;">📌 CONFIGURAÇÃO FIXA</div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>📌 Concurso</label>
+                                    <input type="number" id="concursoIndividualSelecao" class="form-control" placeholder="Ex: 3200" value="3200">
+                                </div>
+                                <div class="form-group">
+                                    <label>👥 Bolão</label>
+                                    <input type="text" id="bolaoIndividualSelecao" class="form-control" placeholder="Ex: Família" value="Bolão Seleção">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>🎯 Tipo</label>
+                                    <select id="tipoCartaoIndividualSelecao" class="form-control">
+                                        <option value="exclusivo">👥 Grupo Exclusivo</option>
+                                        <option value="cota">🎟️ Cota de Bolão</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>📌 Cartão atual</label>
+                                    <div style="display: flex; gap: 8px; align-items: center;">
+                                        <button id="btnSelecaoAnterior" class="btn btn-secondary btn-sm" style="min-width: 40px;">◀</button>
+                                        <span style="font-weight: bold; font-size: 16px;" id="cartaoSelecaoAtual">1</span>
+                                        <button id="btnSelecaoProximo" class="btn btn-secondary btn-sm" style="min-width: 40px;">▶</button>
+                                        <span style="font-size: 12px; color: #64748b;">de <span id="totalCartoesSelecao">1</span></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- GRADE DE NÚMEROS (6x10) -->
+                        <div style="margin-top: 12px;">
+                            <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 8px; color: #1e293b;">🔢 Clique nos números para selecionar:</label>
+                            <div id="gradeSelecaoIndividual" class="grade-numeros" style="max-width: 100%; display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px;">
+                                <!-- Gerado via JavaScript -->
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; flex-wrap: wrap; gap: 8px;">
+                                <span id="contadorSelecao" style="font-size: 14px; font-weight: 600; color: #3b82f6;">0 números selecionados</span>
+                                <div style="display: flex; gap: 8px;">
+                                    <button id="btnLimparSelecao" class="btn btn-sm btn-danger" style="padding: 4px 16px;">🗑️ LIMPAR</button>
+                                    <button id="btnAdicionarSelecao" class="btn btn-success btn-sm" style="padding: 4px 16px;">➕ ADICIONAR</button>
+                                </div>
+                            </div>
+                            <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px;" id="previaNumerosSelecionados">
+                                <span style="color: #94a3b8; font-size: 12px;">Nenhum número selecionado</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- GRADE DE NÚMEROS (6x10) -->
-    <div style="margin-top: 12px;">
-        <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 8px; color: #1e293b;">🔢 Clique nos números para selecionar:</label>
-        <div id="gradeSelecaoIndividual" class="grade-numeros" style="max-width: 100%; display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px;">
-            <!-- Gerado via JavaScript -->
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; flex-wrap: wrap; gap: 8px;">
-            <span id="contadorSelecao" style="font-size: 14px; font-weight: 600; color: #3b82f6;">0 números selecionados</span>
-            <div style="display: flex; gap: 8px;">
-                <button id="btnLimparSelecao" class="btn btn-sm btn-danger" style="padding: 4px 16px;">🗑️ LIMPAR</button>
-                <button id="btnAdicionarSelecao" class="btn btn-success btn-sm" style="padding: 4px 16px;">➕ ADICIONAR</button>
-            </div>
-        </div>
-        <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px;" id="previaNumerosSelecionados">
-            <span style="color: #94a3b8; font-size: 12px;">Nenhum número selecionado</span>
-        </div>
-    </div>
-</div>
 
                 <!-- ============================================ -->
                 <!-- 2. CADASTRO EM LOTE -->
@@ -1090,6 +1092,37 @@
                     </div>
                 </div>
 
+                <!-- ============================================ -->
+                <!-- 4. IMPORTAR CSV -->
+                <!-- ============================================ -->
+                <div class="card" style="border: 2px solid #f59e0b; background: #fffbeb;">
+                    <div class="card-header">
+                        📥 IMPORTAR CSV
+                        <span class="badge" style="background: #f59e0b;">BACKUP • BETA</span>
+                    </div>
+                    <div style="font-size: 12px; color: #92400e; margin-bottom: 14px; background: #fef3c7; padding: 10px 14px; border-radius: 10px;">
+                        📌 Importe um arquivo CSV com cartões da Lotofácil. <strong>Formato esperado:</strong> colunas com concurso_inicio, concurso_fim, numeros.
+                        <br>Exemplo: <code>concurso_inicio;concurso_fim;numeros</code> (separador ;)
+                    </div>
+                    
+                    <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+                        <label for="csvUpload" style="display: inline-block; padding: 12px 24px; background: #f59e0b; color: white; border-radius: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+                            📤 SELECIONAR CSV
+                        </label>
+                        <input type="file" id="csvUpload" accept=".csv" style="display: none;">
+                        <button id="btnImportarCSV" class="btn btn-success">🚀 IMPORTAR</button>
+                        <button id="btnLimparCSV" class="btn btn-secondary">🗑️ LIMPAR</button>
+                    </div>
+                    
+                    <div id="csvPreview" style="display: none; margin-top: 16px; background: #f8fafc; border-radius: 12px; padding: 14px; border: 1px solid #e2e8f0; max-height: 300px; overflow-y: auto;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <span style="font-weight: 700; color: #1e293b;">📋 PRÉVIA DO CSV</span>
+                            <span id="csvStatus" style="font-size: 12px; color: #64748b;">Aguardando arquivo</span>
+                        </div>
+                        <div id="csvConteudo" style="font-family: monospace; font-size: 12px; white-space: pre-wrap;"></div>
+                    </div>
+                </div>
+
             </div>
 
             <!-- ============================================ -->
@@ -1108,6 +1141,7 @@
                     <button id="btnRecarregarLista" class="btn btn-primary">🔄 RECARREGAR</button>
                     <button id="btnExportarExcel" class="btn btn-success">📊 EXPORTAR</button>
                     <button id="btnExcluirSelecionados" class="btn btn-danger">🗑️ EXCLUIR</button>
+                    <button id="btnAlterarTipo" class="btn btn-warning">🔄 ALTERAR TIPO</button>
                 </div>
                 <div id="cartoesLista" class="cartoes-grid">
                     <div class="empty-state">Nenhum cartão cadastrado</div>
@@ -1157,7 +1191,7 @@
             </div>
 
             <!-- ============================================ -->
-            <!-- ABA 5: RESERVAS (CORRIGIDA) -->
+            <!-- ABA 5: RESERVAS -->
             <!-- ============================================ -->
             <div class="tab-content" id="tab-reservas">
                 <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
@@ -1224,70 +1258,61 @@
         // SISTEMA DE ABAS (CORRIGIDO)
         // ============================================
         document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            // Remover active de todos os botões
-            document.querySelectorAll('.tab-btn').forEach(b => {
-                b.classList.remove('active');
-            });
-            
-            // Ocultar todos os conteúdos
-            document.querySelectorAll('.tab-content').forEach(c => {
-                c.classList.remove('active');
-                c.style.display = 'none';
-            });
-            
-            // Ativar o botão clicado
-            this.classList.add('active');
-            
-            // Mostrar o conteúdo correspondente
-            const tabId = this.dataset.tab;
-            const tabContent = document.getElementById(tabId);
-            if (tabContent) {
-                tabContent.classList.add('active');
-                tabContent.style.display = 'block';
+            btn.addEventListener('click', function() {
+                // Remover active de todos os botões
+                document.querySelectorAll('.tab-btn').forEach(b => {
+                    b.classList.remove('active');
+                });
                 
-                // Recarregar conteúdo da aba ao clicar
-                if (tabId === 'tab-boloes' && typeof carregarBoloesParaGerenciar === 'function') {
-                    setTimeout(carregarBoloesParaGerenciar, 200);
+                // Ocultar todos os conteúdos
+                document.querySelectorAll('.tab-content').forEach(c => {
+                    c.classList.remove('active');
+                    c.style.display = 'none';
+                });
+                
+                // Ativar o botão clicado
+                this.classList.add('active');
+                
+                // Mostrar o conteúdo correspondente
+                const tabId = this.dataset.tab;
+                const tabContent = document.getElementById(tabId);
+                if (tabContent) {
+                    tabContent.classList.add('active');
+                    tabContent.style.display = 'block';
+                    
+                    // Recarregar conteúdo da aba ao clicar
+                    if (tabId === 'tab-boloes' && typeof carregarBoloesParaGerenciar === 'function') {
+                        setTimeout(carregarBoloesParaGerenciar, 200);
+                    }
+                    if (tabId === 'tab-tokens' && typeof carregarTokens === 'function') {
+                        setTimeout(carregarTokens, 200);
+                    }
+                    if (tabId === 'tab-reservas' && typeof carregarReservas === 'function') {
+                        setTimeout(carregarReservas, 200);
+                    }
+                    if (tabId === 'tab-cartoes' && typeof exibirCartoesAdmin === 'function') {
+                        setTimeout(exibirCartoesAdmin, 200);
+                    }
+                    if (tabId === 'tab-cadastro' && typeof inicializarGradeNumeros === 'function') {
+                        setTimeout(inicializarGradeNumeros, 200);
+                    }
                 }
-                if (tabId === 'tab-tokens' && typeof carregarTokens === 'function') {
-                    setTimeout(carregarTokens, 200);
-                }
-                if (tabId === 'tab-reservas' && typeof carregarReservas === 'function') {
-                    setTimeout(carregarReservas, 200);
-                }
-                if (tabId === 'tab-cartoes' && typeof exibirCartoesAdmin === 'function') {
-                    setTimeout(exibirCartoesAdmin, 200);
-                }
-                if (tabId === 'tab-cadastro' && typeof inicializarGradeNumeros === 'function') {
-                    setTimeout(inicializarGradeNumeros, 200);
-                }
-            }
+            });
         });
-    });
-    
-    // Garantir que a primeira aba (CADASTRO) esteja ativa ao carregar
-    setTimeout(() => {
-        const primeiraAba = document.querySelector('.tab-btn.active');
-        if (primeiraAba) {
-            primeiraAba.click();
-        } else {
-            const primeiraAbaDefault = document.querySelector('.tab-btn');
-            if (primeiraAbaDefault) {
-                primeiraAbaDefault.classList.add('active');
-                primeiraAbaDefault.click();
-            }
-        }
         
-        // Pré-carregar dados das abas
+        // Garantir que a primeira aba (CADASTRO) esteja ativa ao carregar
         setTimeout(() => {
-            if (typeof carregarBoloesParaGerenciar === 'function') carregarBoloesParaGerenciar();
-            if (typeof carregarTokens === 'function') carregarTokens();
-            if (typeof carregarReservas === 'function') carregarReservas();
-            if (typeof exibirCartoesAdmin === 'function') exibirCartoesAdmin();
-        }, 500);
-        
-    }, 300);
+            const primeiraAba = document.querySelector('.tab-btn.active');
+            if (primeiraAba) {
+                primeiraAba.click();
+            } else {
+                const primeiraAbaDefault = document.querySelector('.tab-btn');
+                if (primeiraAbaDefault) {
+                    primeiraAbaDefault.classList.add('active');
+                    primeiraAbaDefault.click();
+                }
+            }
+        }, 300);
     </script>
 </body>
 </html>
