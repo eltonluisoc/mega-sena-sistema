@@ -1041,12 +1041,13 @@ function exibirCartoesAdmin() {
     
     const ordenarPor = document.getElementById('ordenarPorLista')?.value || 'concurso_desc';
     switch(ordenarPor) {
-        case 'concurso_desc': cartoesFiltrados.sort((a,b) => (b.concurso||0) - (a.concurso||0)); break;
-        case 'concurso_asc': cartoesFiltrados.sort((a,b) => (a.concurso||0) - (b.concurso||0)); break;
-        case 'bolao': cartoesFiltrados.sort((a,b) => (a.bolao||'Sem Bolão').localeCompare(b.bolao||'Sem Bolão')); break;
-        case 'data': cartoesFiltrados.sort((a,b) => new Date(b.dataCadastro||0) - new Date(a.dataCadastro||0)); break;
-        default: cartoesFiltrados.sort((a,b) => (b.concurso||0) - (a.concurso||0));
-    }
+    case 'concurso_desc': cartoesFiltrados.sort((a,b) => (b.concurso||0) - (a.concurso||0)); break;
+    case 'concurso_asc': cartoesFiltrados.sort((a,b) => (a.concurso||0) - (b.concurso||0)); break;
+    case 'bolao': cartoesFiltrados.sort((a,b) => (a.bolao||'Sem Bolão').localeCompare(b.bolao||'Sem Bolão')); break;
+    case 'data_desc': cartoesFiltrados.sort((a,b) => new Date(b.dataCadastro||0) - new Date(a.dataCadastro||0)); break;
+    case 'data_asc': cartoesFiltrados.sort((a,b) => new Date(a.dataCadastro||0) - new Date(b.dataCadastro||0)); break;
+    default: cartoesFiltrados.sort((a,b) => new Date(b.dataCadastro||0) - new Date(a.dataCadastro||0)); // PADRÃO: MAIS NOVO PRIMEIRO
+}
     
     const container = document.getElementById('cartoesLista');
     if (!container) return;
@@ -1470,47 +1471,88 @@ async function duplicarCartao(id) {
 }
 
 // ============================================
-// EXCLUIR SELECIONADOS (CORRIGIDO)
+// EXCLUIR CARTÕES SELECIONADOS (COM LOGS)
 // ============================================
 async function excluirSelecionados() {
     const selecionados = document.querySelectorAll('.checkbox-cartao:checked');
-    if (selecionados.length === 0) { 
-        showToast('⚠️ Selecione cartões para excluir', 'warning'); 
-        return; 
+    
+    if (selecionados.length === 0) {
+        showToast('⚠️ Selecione pelo menos um cartão para excluir', 'warning');
+        return;
     }
     
-    const confirmar = confirm(`⚠️ ATENÇÃO!\n\nDeseja excluir ${selecionados.length} cartão(ões)?\n\nEsta ação NÃO pode ser desfeita!`);
+    // Mostrar quantos cartões serão excluídos
+    const nomesBoloes = [];
+    const concursos = [];
+    selecionados.forEach(cb => {
+        const cartaoId = cb.dataset.id;
+        const cartao = cartoes.find(c => c.id === cartaoId);
+        if (cartao) {
+            if (!nomesBoloes.includes(cartao.bolao)) nomesBoloes.push(cartao.bolao);
+            if (!concursos.includes(cartao.concurso)) concursos.push(cartao.concurso);
+        }
+    });
     
-    if (!confirmar) {
+    const mensagemConfirmacao = 
+        `⚠️ ATENÇÃO! ⚠️\n\n` +
+        `Você está prestes a excluir ${selecionados.length} cartão(ões).\n\n` +
+        `📌 Bolões afetados: ${nomesBoloes.join(', ') || 'Não identificado'}\n` +
+        `📌 Concursos: ${concursos.join(', ') || 'Não identificado'}\n\n` +
+        `Esta ação NÃO pode ser desfeita!\n\n` +
+        `Deseja continuar?`;
+    
+    if (!confirm(mensagemConfirmacao)) {
         showToast('❌ Exclusão cancelada', 'info');
         return;
     }
     
-    showToast(`🗑️ Excluindo ${selecionados.length} cartão(ões)...`, 'info');
+    showLoading(`Excluindo ${selecionados.length} cartão(ões)...`);
     
     let excluidos = 0;
     let erros = 0;
+    const idsExcluidos = [];
     
+    // IMPORTANTE: Usar for...of com await para garantir que cada exclusão seja concluída
     for (const cb of selecionados) {
+        const id = cb.dataset.id;
+        console.log(`🗑️ Tentando excluir cartão: ${id}`);
+        
         try {
-            await db.collection('cartoes').doc(cb.dataset.id).delete();
+            await db.collection('cartoes').doc(id).delete();
+            console.log(`✅ Cartão ${id} excluído do Firebase`);
             excluidos++;
+            idsExcluidos.push(id);
         } catch (error) {
-            console.error('Erro ao excluir:', error);
+            console.error(`❌ Erro ao excluir ${id}:`, error);
             erros++;
         }
     }
     
-    if (excluidos > 0) {
-        showToast(`✅ ${excluidos} cartão(ões) excluído(s)! ${erros > 0 ? `⚠️ ${erros} erro(s)` : ''}`, 'success');
-    } else {
-        showToast(`❌ Nenhum cartão foi excluído`, 'error');
-    }
+    hideLoading();
     
-    await carregarDadosAdmin();
-    const tabCartoes = document.getElementById('tab-cartoes');
-    if (tabCartoes && tabCartoes.style.display === 'block') {
-        exibirCartoesAdmin();
+    if (excluidos > 0) {
+        showToast(`✅ ${excluidos} cartão(ões) excluído(s) com sucesso! ${erros > 0 ? `⚠️ ${erros} erro(s)` : ''}`, 'success');
+        
+        // REMOVER DO ARRAY GLOBAL
+        cartoes = cartoes.filter(c => !idsExcluidos.includes(c.id));
+        
+        // FORÇAR RECARREGAMENTO COMPLETO DA LISTA
+        await carregarDadosAdmin();
+        
+        // ATUALIZAR CONTADOR
+        const totalDiv = document.getElementById('totalCartoes');
+        if (totalDiv) {
+            const total = cartoes.filter(c => c.tipo === loteriaAdmin).length;
+            totalDiv.innerHTML = total + ' cartões';
+        }
+        
+        // ATUALIZAR CONTADOR DE SELECIONADOS
+        atualizarContadorSelecionados();
+        
+        showToast(`✅ ${excluidos} cartões removidos permanentemente!`, 'success');
+        
+    } else {
+        showToast('❌ Nenhum cartão foi excluído', 'error');
     }
 }
 
@@ -2831,6 +2873,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const adminBtnLotofacil = document.getElementById('adminBtnLotofacil');
     const adminBtnQuina = document.getElementById('adminBtnQuina');
     
+    // Botão FORÇAR RECARREGAR
+    const btnForcarRecarregar = document.getElementById('btnForcarRecarregar');
+    
     if (btnAutenticar) btnAutenticar.onclick = autenticar;
     if (btnSair) btnSair.onclick = sair;
     if (adminBtnMega) adminBtnMega.onclick = () => setLoteriaAdmin('mega');
@@ -2869,6 +2914,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     if (btnAtualizarReservas) btnAtualizarReservas.onclick = () => carregarReservas();
+    
+    // ============================================
+    // BOTÃO FORÇAR RECARREGAR (NOVO)
+    // ============================================
+    if (btnForcarRecarregar) {
+        btnForcarRecarregar.addEventListener('click', function() {
+            showToast('🔄 Forçando recarregamento da lista...', 'info');
+            carregarDadosAdmin();
+        });
+    }
     
     // ============================================
     // CARREGAR DADOS DAS ABAS (FORÇADO)
@@ -3084,35 +3139,71 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     // ============================================
-    // FORÇAR CARREGAMENTO DAS ABAS (UNIFICADO)
+    // EVENTOS DO IMPORTAR CSV
+    // ============================================
+    const csvUpload = document.getElementById('csvUpload');
+    if (csvUpload) {
+        csvUpload.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                if (!file.name.endsWith('.csv')) {
+                    showToast('⚠️ Selecione um arquivo CSV!', 'warning');
+                    this.value = '';
+                    return;
+                }
+                if (file.size > 5 * 1024 * 1024) {
+                    showToast('⚠️ Arquivo muito grande! Máx: 5MB', 'warning');
+                    this.value = '';
+                    return;
+                }
+                lerCSV(file);
+            }
+        });
+    }
+    
+    document.getElementById('btnImportarCSV')?.addEventListener('click', importarCSV);
+    
+    document.getElementById('btnLimparCSV')?.addEventListener('click', function() {
+        document.getElementById('csvPreview').style.display = 'none';
+        document.getElementById('csvUpload').value = '';
+        dadosCSV = [];
+        document.getElementById('csvStatus').textContent = 'Aguardando arquivo';
+        showToast('🧹 Limpo!', 'info');
+    });
+    
+    // ============================================
+    // FORÇAR CARREGAMENTO DAS ABAS (FALLBACK)
     // ============================================
     setTimeout(() => {
-        console.log('🔄 Forçando carregamento das abas...');
+        console.log('🔄 Fallback: forçando exibição das abas...');
+        
+        const tabCadastro = document.getElementById('tab-cadastro');
+        if (tabCadastro) {
+            tabCadastro.style.display = 'block';
+            tabCadastro.classList.add('active');
+            console.log('✅ Aba CADASTRO forçada pelo fallback');
+        }
         
         const primeiraAba = document.querySelector('.tab-btn.active');
-        if (primeiraAba) {
-            const tabId = primeiraAba.dataset.tab;
-            const tabContent = document.getElementById(tabId);
-            if (tabContent) {
-                tabContent.style.display = 'block';
-                tabContent.classList.add('active');
+        if (!primeiraAba) {
+            const btn = document.querySelector('.tab-btn');
+            if (btn) {
+                btn.classList.add('active');
+                const tabId = btn.dataset.tab;
+                const tabContent = document.getElementById(tabId);
+                if (tabContent) {
+                    tabContent.style.display = 'block';
+                    tabContent.classList.add('active');
+                }
             }
         }
         
-        const listaBoloes = document.getElementById('listaBoloes');
-        const listaTokens = document.getElementById('listaTokens');
-        const listaReservas = document.getElementById('listaReservas');
-        
-        console.log('📌 listaBoloes:', listaBoloes ? '✅ Encontrado' : '❌ NÃO ENCONTRADO');
-        console.log('📌 listaTokens:', listaTokens ? '✅ Encontrado' : '❌ NÃO ENCONTRADO');
-        console.log('📌 listaReservas:', listaReservas ? '✅ Encontrado' : '❌ NÃO ENCONTRADO');
-        
-        if (listaBoloes) carregarBoloesParaGerenciar();
-        if (listaTokens) carregarTokens();
-        if (listaReservas) carregarReservas();
+        carregarBoloesParaGerenciar();
+        carregarTokens();
+        carregarReservas();
         exibirCartoesAdmin();
         
-    }, 800);
+    }, 500);
     
     // Forçar login se a autenticação falhar
     setTimeout(() => {
