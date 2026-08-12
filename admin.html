@@ -97,74 +97,49 @@
         }
 
         /* ============================================ */
-/* SWITCH DE DESTAQUE - ESTILO BONITO E ÓBVIO */
-/* ============================================ */
-.switch-destaque {
-    position: relative;
-    display: inline-block;
-    width: 56px;
-    height: 30px;
-    flex-shrink: 0;
-}
+        /* SWITCH DE DESTAQUE */
+        /* ============================================ */
+        .switch-destaque {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+            flex-shrink: 0;
+        }
 
-.switch-destaque input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-}
+        .switch-destaque input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
 
-.slider-destaque {
-    position: absolute;
-    cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: #cbd5e1;
-    transition: 0.3s;
-    border-radius: 30px;
-    box-shadow: inset 0 2px 4px rgba(0,0,0,0.06);
-}
+        .slider-destaque {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #cbd5e1;
+            transition: 0.3s;
+            border-radius: 30px;
+        }
 
-.slider-destaque.active {
-    background: #f59e0b;
-    box-shadow: 0 0 16px rgba(245, 158, 11, 0.4);
-}
-
-.slider-destaque .thumb {
-    position: absolute;
-    height: 24px;
-    width: 24px;
-    left: 3px;
-    bottom: 3px;
-    background: white;
-    transition: 0.3s;
-    border-radius: 50%;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-}
-
-.slider-destaque .thumb.active {
-    left: 29px;
-}
-
-.destaque-label {
-    font-size: 12px;
-    font-weight: 700;
-    min-width: 50px;
-    transition: 0.3s;
-}
-
-.destaque-label.active {
-    color: #f59e0b;
-}
-
-.destaque-label.inactive {
-    color: #94a3b8;
-}
+        .slider-destaque .thumb {
+            position: absolute;
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background: white;
+            transition: 0.3s;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+        }
 
         /* ============================================ */
         /* LAYOUT PRINCIPAL (MENU LATERAL + CONTEÚDO) */
@@ -829,7 +804,6 @@
                         </div>
                     </div>
                 </div>
-                <!-- pequena nota de rodapé -->
                 <div style="font-size: 12px; color: #94a3b8; text-align: center; margin-top: 12px;">
                     Última atualização: <span id="ultimaAtualizacao">--</span>
                 </div>
@@ -897,7 +871,6 @@
 
                     <!-- MODO SELEÇÃO -->
                     <div id="modoSelecao" style="display: none;">
-                        <!-- CONFIGURAÇÃO FIXA -->
                         <div style="background: #f8fafc; padding: 12px; border-radius: 10px; margin-bottom: 16px; border: 1px solid #e2e8f0;">
                             <div style="font-weight: 700; margin-bottom: 10px; color: #1e293b; font-size: 14px;">📌 CONFIGURAÇÃO FIXA</div>
                             <div class="form-row">
@@ -929,12 +902,9 @@
                                 </div>
                             </div>
                         </div>
-                        <!-- GRADE DE NÚMEROS 6x10 -->
                         <div style="margin-top: 12px;">
                             <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 8px; color: #1e293b;">🔢 Clique nos números para selecionar:</label>
-                            <div id="gradeSelecaoIndividual" class="grade-numeros">
-                                <!-- gerado via JS -->
-                            </div>
+                            <div id="gradeSelecaoIndividual" class="grade-numeros"></div>
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; flex-wrap: wrap; gap: 8px;">
                                 <span id="contadorSelecao" style="font-size: 14px; font-weight: 600; color: #3b82f6;">0 números selecionados</span>
                                 <div style="display: flex; gap: 8px;">
@@ -949,7 +919,7 @@
                     </div>
                 </div>
 
-                <!-- CADASTRO EM LOTE (apenas Lotofácil) -->
+                <!-- CADASTRO EM LOTE -->
                 <div class="card" id="cardLote" style="border: 2px solid #10b981; background: #f0fdf4;">
                     <div class="card-header">
                         📦 CADASTRO EM LOTE
@@ -1082,26 +1052,26 @@
             </section>
 
             <!-- ============================================ -->
-<!-- SEÇÃO: BOLÕES -->
-<!-- ============================================ -->
-<section id="section-boloes" class="section">
-    <div class="card">
-        <div class="card-header">👥 GERENCIAR BOLÕES</div>
-        <div id="listaBoloes" style="max-height: 600px; overflow-y: auto;">
-            <div class="empty-state">Carregando bolões...</div>
-        </div>
-        <button id="btnSalvarSelecao" class="btn btn-primary btn-block" style="margin-top: 15px;">💾 SALVAR CONFIGURAÇÕES</button>
-    </div>
-    <div class="card">
-        <div class="card-header">👥 PARTICIPANTES POR BOLÃO</div>
-        <select id="bolaoSelectParticipantes" class="form-control" style="margin-bottom: 15px;">
-            <option value="">Selecione um bolão</option>
-        </select>
-        <div id="listaParticipantesAdmin" style="max-height: 400px; overflow-y: auto;">
-            <div class="empty-state">Selecione um bolão para ver os participantes</div>
-        </div>
-    </div>
-</section>
+            <!-- SEÇÃO: BOLÕES -->
+            <!-- ============================================ -->
+            <section id="section-boloes" class="section">
+                <div class="card">
+                    <div class="card-header">👥 GERENCIAR BOLÕES</div>
+                    <div id="listaBoloes" style="max-height: 600px; overflow-y: auto;">
+                        <div class="empty-state">Carregando bolões...</div>
+                    </div>
+                    <button id="btnSalvarSelecao" class="btn btn-primary btn-block" style="margin-top: 15px;">💾 SALVAR CONFIGURAÇÕES</button>
+                </div>
+                <div class="card">
+                    <div class="card-header">👥 PARTICIPANTES POR BOLÃO</div>
+                    <select id="bolaoSelectParticipantes" class="form-control" style="margin-bottom: 15px;">
+                        <option value="">Selecione um bolão</option>
+                    </select>
+                    <div id="listaParticipantesAdmin" style="max-height: 400px; overflow-y: auto;">
+                        <div class="empty-state">Selecione um bolão para ver os participantes</div>
+                    </div>
+                </div>
+            </section>
 
             <!-- ============================================ -->
             <!-- SEÇÃO: TOKENS -->
@@ -1192,23 +1162,18 @@
 
     <!-- Navegação por menu lateral -->
     <script>
-        // Alternar seções
         document.querySelectorAll('.sidebar-item').forEach(item => {
             item.addEventListener('click', function() {
-                // Remover active de todos
                 document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
                 this.classList.add('active');
 
                 const sectionId = this.dataset.section;
-                // Ocultar todas as seções
                 document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-                // Mostrar a seção correspondente
                 const target = document.getElementById('section-' + sectionId);
                 if (target) target.classList.add('active');
             });
         });
 
-        // Atualizar data/hora do dashboard
         document.getElementById('ultimaAtualizacao').textContent = new Date().toLocaleString('pt-BR');
     </script>
 </body>
