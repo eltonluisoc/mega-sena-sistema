@@ -1424,14 +1424,18 @@ async function verificarResultadoConferido(loteria, concurso) {
 }
 
 // ========== CARREGAR BOLÃO ABERTO (COM DESTAQUE) ==========
+// ========== CARREGAR BOLÃO ABERTO (COM DESTAQUE CORRIGIDO) ==========
 async function carregarBolaoAberto() {
     const card = document.getElementById('cardBolaoAberto');
     const container = document.getElementById('bolaoAbertoContainer');
     if (!card || !container) return;
 
     try {
+        console.log('🔄 Carregando bolão aberto...');
+        
         const configDoc = await db.collection('config_boloes').doc('ativos').get();
         if (!configDoc.exists) {
+            console.log('❌ Configuração de bolões não encontrada');
             card.style.display = 'none';
             return;
         }
@@ -1443,29 +1447,51 @@ async function carregarBolaoAberto() {
         const estrategiaMap = dados.estrategia || {};
         const dataLimiteMap = dados.dataLimite || {};
 
+        console.log('📌 IDs selecionados:', idsSelecionados);
+        console.log('📌 Status:', statusMap);
+        console.log('📌 Destaques:', destaqueMap);
+
         // Filtrar apenas os que estão abertos
         const boloesAbertos = [];
         for (const id of idsSelecionados) {
             if (statusMap[id] === 'aberto') {
-                const doc = await db.collection('participantes').doc(id).get();
-                if (doc.exists) {
-                    boloesAbertos.push({ id: id, data: doc.data() });
+                try {
+                    const doc = await db.collection('participantes').doc(id).get();
+                    if (doc.exists) {
+                        boloesAbertos.push({ id: id, data: doc.data() });
+                        console.log(`✅ Bolão aberto encontrado: ${doc.data().titulo} (${id})`);
+                    }
+                } catch (e) {
+                    console.warn(`⚠️ Erro ao buscar bolão ${id}:`, e);
                 }
             }
         }
 
         if (boloesAbertos.length === 0) {
+            console.log('❌ Nenhum bolão aberto encontrado');
             card.style.display = 'none';
             return;
         }
 
-        // Tentar encontrar o que está com destaque
-        let bolaoDestaque = boloesAbertos.find(b => destaqueMap[b.id] === true);
+        console.log(`📊 ${boloesAbertos.length} bolão(ões) aberto(s) encontrado(s)`);
+
+        // Tentar encontrar o que está com destaque (true)
+        let bolaoDestaque = null;
+        for (const b of boloesAbertos) {
+            if (destaqueMap[b.id] === true) {
+                bolaoDestaque = b;
+                console.log(`⭐ Bolão em destaque encontrado: ${b.data.titulo}`);
+                break;
+            }
+        }
+
         // Se não houver destaque, pega o primeiro
         const bolaoSelecionado = bolaoDestaque || boloesAbertos[0];
         const bolaoId = bolaoSelecionado.id;
         const bolao = bolaoSelecionado.data;
         const estrategia = estrategiaMap[bolaoId] || '';
+
+        console.log(`🎯 Bolão selecionado: ${bolao.titulo} (${bolaoId}) - ${bolaoDestaque ? '⭐ EM DESTAQUE' : 'PRIMEIRO DA LISTA'}`);
 
         card.style.display = 'block';
 
@@ -1487,26 +1513,43 @@ async function carregarBolaoAberto() {
             dataTexto = ` | 📅 Até ${dia}/${mes}/${ano}`;
         }
 
-        let html = `<div style="text-align:center;">
-            <strong>🎯 ${bolao.titulo} 🟢 ABERTO</strong>
-            <div>${bolao.loteria === 'mega' ? 'MEGA-SENA' : bolao.loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'} ${bolao.concurso ? `- Concurso ${bolao.concurso}` : ''}</div>
-            <div>💰 R$ ${bolao.valorPorCota || 0},00 por cota${dataTexto}</div>
-            ${vagasTexto ? `<div style="color:${vagasTexto.includes('LOTADO') ? '#ef4444' : '#059669'};">${vagasTexto}</div>` : ''}`;
+        // Nome da loteria
+        const loteriaNomes = {
+            'mega': 'MEGA-SENA',
+            'lotofacil': 'LOTOFÁCIL',
+            'quina': 'QUINA'
+        };
+        const loteriaNome = loteriaNomes[bolao.loteria] || bolao.loteria?.toUpperCase() || 'LOTERIA';
+
+        let html = `<div style="text-align:center; padding: 4px 0;">
+            <div style="font-size: 18px; font-weight: 700; color: #1e293b;">🎯 ${bolao.titulo}</div>
+            <div style="font-size: 14px; color: #475569; margin-top: 2px;">
+                ${loteriaNome} ${bolao.concurso ? `- Concurso ${bolao.concurso}` : ''}
+                <span style="display: inline-block; background: #d1fae5; color: #065f46; padding: 0 12px; border-radius: 30px; font-size: 12px; font-weight: 600; margin-left: 6px;">🟢 ABERTO</span>
+            </div>
+            <div style="font-size: 14px; color: #475569; margin-top: 4px;">
+                💰 R$ ${bolao.valorPorCota || 0},00 / cota${dataTexto}
+            </div>
+            ${vagasTexto ? `<div style="font-size: 13px; font-weight: 600; color:${vagasTexto.includes('LOTADO') ? '#ef4444' : '#059669'}; margin-top: 4px;">${vagasTexto}</div>` : ''}`;
 
         if (estrategia) {
             html += `
-                <div style="margin-top:10px;"><button id="btnVerEstrategia" style="background:transparent; border:1px solid #cbd5e1; border-radius:30px; padding:6px 16px; color:#3b82f6;">💡 VER ESTRATÉGIA</button></div>
+                <div style="margin-top: 8px;">
+                    <button id="btnVerEstrategia" style="background:transparent; border:1px solid #cbd5e1; border-radius:30px; padding:4px 16px; color:#3b82f6; cursor:pointer; font-size: 12px;">💡 VER ESTRATÉGIA</button>
+                </div>
                 <div id="modalEstrategia" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:10001; justify-content:center; align-items:center;">
                     <div style="background:white; border-radius:20px; max-width:350px; width:90%; padding:25px; text-align:center;">
                         <div style="font-size:24px;">💡</div>
-                        <div style="font-weight:bold;">ESTRATÉGIA DO BOLÃO</div>
-                        <div style="font-size:14px; text-align:left; margin:15px 0;">${estrategia.replace(/\n/g, '<br>')}</div>
-                        <button id="fecharModalEstrategia" style="background:#3b82f6; width:100%; padding:10px; border-radius:30px;">FECHAR</button>
+                        <div style="font-weight:bold; font-size:16px; margin:8px 0;">ESTRATÉGIA DO BOLÃO</div>
+                        <div style="font-size:14px; text-align:left; margin:12px 0; color: #1e293b;">${estrategia.replace(/\n/g, '<br>')}</div>
+                        <button id="fecharModalEstrategia" style="background:#3b82f6; color:white; border:none; width:100%; padding:10px; border-radius:30px; font-weight:600; cursor:pointer;">FECHAR</button>
                     </div>
                 </div>`;
         }
 
-        html += `<button id="btnParticiparAberto" style="background:#10b981; margin-top:12px; width:auto; padding:8px 25px;">📝 QUERO PARTICIPAR</button></div>`;
+        html += `
+            <button id="btnParticiparAberto" style="background:#10b981; color:white; border:none; margin-top:10px; padding:10px 30px; border-radius:30px; font-weight:600; font-size:15px; cursor:pointer;">📝 QUERO PARTICIPAR</button>
+        </div>`;
 
         container.innerHTML = html;
 
@@ -1519,7 +1562,7 @@ async function carregarBolaoAberto() {
         document.getElementById('btnParticiparAberto').onclick = () => mostrarModalParticipacao(bolao);
 
     } catch (error) {
-        console.error('Erro ao carregar bolão aberto:', error);
+        console.error('❌ Erro ao carregar bolão aberto:', error);
         card.style.display = 'none';
     }
 }
