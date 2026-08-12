@@ -97,6 +97,76 @@
         }
 
         /* ============================================ */
+/* SWITCH DE DESTAQUE - ESTILO BONITO E ÓBVIO */
+/* ============================================ */
+.switch-destaque {
+    position: relative;
+    display: inline-block;
+    width: 56px;
+    height: 30px;
+    flex-shrink: 0;
+}
+
+.switch-destaque input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider-destaque {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #cbd5e1;
+    transition: 0.3s;
+    border-radius: 30px;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.06);
+}
+
+.slider-destaque.active {
+    background: #f59e0b;
+    box-shadow: 0 0 16px rgba(245, 158, 11, 0.4);
+}
+
+.slider-destaque .thumb {
+    position: absolute;
+    height: 24px;
+    width: 24px;
+    left: 3px;
+    bottom: 3px;
+    background: white;
+    transition: 0.3s;
+    border-radius: 50%;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+}
+
+.slider-destaque .thumb.active {
+    left: 29px;
+}
+
+.destaque-label {
+    font-size: 12px;
+    font-weight: 700;
+    min-width: 50px;
+    transition: 0.3s;
+}
+
+.destaque-label.active {
+    color: #f59e0b;
+}
+
+.destaque-label.inactive {
+    color: #94a3b8;
+}
+
+        /* ============================================ */
         /* LAYOUT PRINCIPAL (MENU LATERAL + CONTEÚDO) */
         /* ============================================ */
         .app-container {

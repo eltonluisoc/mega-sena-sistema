@@ -2066,6 +2066,9 @@ async function adicionarCartaoIndividual() {
 // ============================================
 // CARREGAR BOLÕES PARA GERENCIAR (COM MELHORIAS VISUAIS)
 // ============================================
+// ============================================
+// CARREGAR BOLÕES PARA GERENCIAR (COM SWITCH DE DESTAQUE)
+// ============================================
 async function carregarBoloesParaGerenciar() {
     const container = document.getElementById('listaBoloes');
     if (!container) return;
@@ -2141,7 +2144,7 @@ async function carregarBoloesParaGerenciar() {
             }
             
             html += `
-                <div style="padding: 14px; border-bottom: 1px solid #e2e8f0; margin-bottom: 10px; background: ${isDestaque ? '#f0fdf4' : 'white'}; border-radius: 10px; border-left: 4px solid ${status === 'aberto' ? '#10b981' : status === 'andamento' ? '#f59e0b' : '#ef4444'};">
+                <div style="padding: 14px; border-bottom: 1px solid #e2e8f0; margin-bottom: 10px; background: ${isDestaque ? '#fef3c7' : 'white'}; border-radius: 10px; border-left: 4px solid ${status === 'aberto' ? '#10b981' : status === 'andamento' ? '#f59e0b' : '#ef4444'};">
                     
                     <!-- LINHA 1: Checkbox + Título + Status -->
                     <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
@@ -2149,14 +2152,26 @@ async function carregarBoloesParaGerenciar() {
                         <strong style="font-size: 15px; color: #1e293b;">${bolao.titulo || 'Sem título'}</strong>
                         <span style="font-size: 11px; background: ${statusBg}; color: ${statusColor}; padding: 2px 12px; border-radius: 30px; font-weight: 600;">${statusIcon} ${status.toUpperCase()}</span>
                         <span style="font-size: 12px; color: #64748b;">📌 ${bolao.participantes?.length || 0} participantes</span>
+                        ${isDestaque ? '<span style="font-size: 11px; background: #f59e0b; color: white; padding: 2px 10px; border-radius: 30px; font-weight: 700;">⭐ DESTAQUE</span>' : ''}
                     </div>
                     
                     <!-- LINHA 2: Configurações -->
                     <div style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding-left: 34px;">
-                        <label style="font-size: 12px; font-weight: 600; color: #1e293b; display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                            ⭐ DESTAQUE:
-                            <input type="checkbox" class="checkbox-destaque" data-id="${bolao.id}" ${isDestaque ? 'checked' : ''} style="width: 22px; height: 22px; cursor: pointer; accent-color: #f59e0b;">
-                        </label>
+                        
+                        <!-- SWITCH DE DESTAQUE (BOTÃO GRANDE E VISUAL) -->
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 12px; font-weight: 600; color: #1e293b;">⭐ DESTAQUE:</span>
+                            <label class="switch-destaque" style="position: relative; display: inline-block; width: 56px; height: 30px;">
+                                <input type="checkbox" class="checkbox-destaque" data-id="${bolao.id}" ${isDestaque ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;">
+                                <span class="slider-destaque" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: ${isDestaque ? '#f59e0b' : '#cbd5e1'}; transition: 0.3s; border-radius: 30px; box-shadow: ${isDestaque ? '0 0 12px rgba(245, 158, 11, 0.5)' : 'none'};">
+                                    <span style="position: absolute; content: ''; height: 24px; width: 24px; left: ${isDestaque ? '28px' : '3px'}; bottom: 3px; background: white; transition: 0.3s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">
+                                        ${isDestaque ? '⭐' : ''}
+                                    </span>
+                                </span>
+                            </label>
+                            <span id="destaque-label-${bolao.id}" style="font-size: 12px; font-weight: 700; color: ${isDestaque ? '#f59e0b' : '#94a3b8'}; min-width: 40px;">${isDestaque ? '✅ ATIVO' : '❌'}</span>
+                        </div>
+                        
                         <label style="font-size: 12px; font-weight: 600; color: #1e293b;">Status:</label>
                         <select class="status-select" data-id="${bolao.id}" style="padding: 4px 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
                             <option value="aberto" ${status === 'aberto' ? 'selected' : ''}>🟢 ABERTO</option>
@@ -2184,7 +2199,63 @@ async function carregarBoloesParaGerenciar() {
         
         container.innerHTML = html;
         
-        // Eventos
+        // ============================================
+        // EVENTO PARA O SWITCH DE DESTAQUE (ATUALIZA EM TEMPO REAL)
+        // ============================================
+        document.querySelectorAll('.checkbox-destaque').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const id = this.dataset.id;
+                const isChecked = this.checked;
+                
+                // Atualizar visual do switch
+                const slider = this.closest('.switch-destaque').querySelector('.slider-destaque');
+                const thumb = slider.querySelector('span');
+                const label = document.getElementById(`destaque-label-${id}`);
+                const card = this.closest('div[style*="border-left"]');
+                
+                if (isChecked) {
+                    slider.style.background = '#f59e0b';
+                    slider.style.boxShadow = '0 0 12px rgba(245, 158, 11, 0.5)';
+                    thumb.style.left = '28px';
+                    thumb.textContent = '⭐';
+                    label.textContent = '✅ ATIVO';
+                    label.style.color = '#f59e0b';
+                    if (card) {
+                        card.style.background = '#fef3c7';
+                        // Adicionar badge de destaque se não existir
+                        const titleDiv = card.querySelector('div:first-child');
+                        if (titleDiv && !titleDiv.querySelector('.badge-destaque')) {
+                            const badge = document.createElement('span');
+                            badge.className = 'badge-destaque';
+                            badge.style.cssText = 'font-size: 11px; background: #f59e0b; color: white; padding: 2px 10px; border-radius: 30px; font-weight: 700; margin-left: 6px;';
+                            badge.textContent = '⭐ DESTAQUE';
+                            titleDiv.appendChild(badge);
+                        }
+                    }
+                } else {
+                    slider.style.background = '#cbd5e1';
+                    slider.style.boxShadow = 'none';
+                    thumb.style.left = '3px';
+                    thumb.textContent = '';
+                    label.textContent = '❌';
+                    label.style.color = '#94a3b8';
+                    if (card) {
+                        card.style.background = 'white';
+                        const badge = card.querySelector('.badge-destaque');
+                        if (badge) badge.remove();
+                    }
+                }
+                
+                // Salvar configuração automaticamente
+                salvarConfigBoloes();
+            });
+        });
+        
+        // Eventos para outros campos
+        document.querySelectorAll('.status-select, .data-limite-input, .estrategia-textarea, .checkbox-bolao').forEach(el => {
+            el.addEventListener('change', () => salvarConfigBoloes());
+        });
+        
         document.querySelectorAll('.btn-excluir-bolao').forEach(btn => {
             btn.onclick = () => {
                 const bolaoId = btn.dataset.id;
@@ -2193,11 +2264,7 @@ async function carregarBoloesParaGerenciar() {
             };
         });
         
-        document.querySelectorAll('.status-select, .data-limite-input, .estrategia-textarea, .checkbox-bolao, .checkbox-destaque').forEach(el => {
-            el.addEventListener('change', () => salvarConfigBoloes());
-        });
-        
-        console.log(`✅ ${boloes.length} bolões carregados (ordenados: abertos > andamento > encerrados)`);
+        console.log(`✅ ${boloes.length} bolões carregados`);
         adicionarBotaoLinkParticipantes();
 
     } catch (error) {
