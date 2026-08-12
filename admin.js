@@ -2199,8 +2199,8 @@ async function carregarBoloesParaGerenciar() {
         
         container.innerHTML = html;
         
-        // ============================================
-// SWITCH DE DESTAQUE + SELECIONAR AUTOMATICAMENTE
+// ============================================
+// SWITCH DE DESTAQUE + SELECIONAR AUTOMATICAMENTE (CORRIGIDO)
 // ============================================
 document.querySelectorAll('.checkbox-destaque').forEach(checkbox => {
     checkbox.addEventListener('change', function() {
@@ -2222,46 +2222,69 @@ document.querySelectorAll('.checkbox-destaque').forEach(checkbox => {
         // ============================================
         // 2. ATUALIZAR VISUAL DO SWITCH
         // ============================================
-        const slider = this.closest('.switch-destaque').querySelector('.slider-destaque');
-        const thumb = slider.querySelector('.thumb');
-        const label = document.getElementById(`destaque-label-${id}`);
-        const card = this.closest('div[style*="border-left"]');
-        
-        if (isChecked) {
-            slider.style.background = '#f59e0b';
-            slider.style.boxShadow = '0 0 16px rgba(245, 158, 11, 0.5)';
-            thumb.style.left = '29px';
-            thumb.textContent = '⭐';
-            label.textContent = '✅ ATIVO';
-            label.style.color = '#f59e0b';
-            if (card) {
-                card.style.background = '#fef3c7';
-                // Adicionar badge de destaque se não existir
-                const titleDiv = card.querySelector('div:first-child');
-                if (titleDiv && !titleDiv.querySelector('.badge-destaque')) {
-                    const badge = document.createElement('span');
-                    badge.className = 'badge-destaque';
-                    badge.style.cssText = 'font-size: 11px; background: #f59e0b; color: white; padding: 2px 10px; border-radius: 30px; font-weight: 700; margin-left: 6px;';
-                    badge.textContent = '⭐ DESTAQUE';
-                    titleDiv.appendChild(badge);
+        const switchContainer = this.closest('.switch-destaque');
+        if (switchContainer) {
+            const slider = switchContainer.querySelector('.slider-destaque');
+            const thumb = slider ? slider.querySelector('.thumb') : null;
+            const label = document.getElementById(`destaque-label-${id}`);
+            const card = this.closest('div[style*="border-left"]');
+            
+            if (isChecked) {
+                if (slider) {
+                    slider.style.background = '#f59e0b';
+                    slider.style.boxShadow = '0 0 16px rgba(245, 158, 11, 0.5)';
+                }
+                if (thumb) {
+                    thumb.style.left = '29px';
+                    thumb.textContent = '⭐';
+                }
+                if (label) {
+                    label.textContent = '✅ ATIVO';
+                    label.style.color = '#f59e0b';
+                }
+                if (card) {
+                    card.style.background = '#fef3c7';
+                    const titleDiv = card.querySelector('div:first-child');
+                    if (titleDiv && !titleDiv.querySelector('.badge-destaque')) {
+                        const badge = document.createElement('span');
+                        badge.className = 'badge-destaque';
+                        badge.style.cssText = 'font-size: 11px; background: #f59e0b; color: white; padding: 2px 10px; border-radius: 30px; font-weight: 700; margin-left: 6px;';
+                        badge.textContent = '⭐ DESTAQUE';
+                        titleDiv.appendChild(badge);
+                    }
+                }
+            } else {
+                if (slider) {
+                    slider.style.background = '#cbd5e1';
+                    slider.style.boxShadow = 'none';
+                }
+                if (thumb) {
+                    thumb.style.left = '3px';
+                    thumb.textContent = '';
+                }
+                if (label) {
+                    label.textContent = '❌';
+                    label.style.color = '#94a3b8';
+                }
+                if (card) {
+                    card.style.background = 'white';
+                    const badge = card.querySelector('.badge-destaque');
+                    if (badge) badge.remove();
                 }
             }
-        } else {
-            slider.style.background = '#cbd5e1';
-            slider.style.boxShadow = 'none';
-            thumb.style.left = '3px';
-            thumb.textContent = '';
-            label.textContent = '❌';
-            label.style.color = '#94a3b8';
-            if (card) {
-                card.style.background = 'white';
-                const badge = card.querySelector('.badge-destaque');
-                if (badge) badge.remove();
-            }
         }
-
+        
         // ============================================
-// QUANDO MARCAR/ DESMARCAR SELEÇÃO, VERIFICAR DESTAQUE
+        // 3. SALVAR CONFIGURAÇÃO (COM PEQUENO DELAY PARA EVITAR CONFLITOS)
+        // ============================================
+        setTimeout(() => {
+            salvarConfigBoloes();
+        }, 100);
+    });
+});
+
+// ============================================
+// QUANDO MARCAR/DESMARCAR SELEÇÃO, VERIFICAR DESTAQUE
 // ============================================
 document.querySelectorAll('.checkbox-bolao').forEach(checkbox => {
     checkbox.addEventListener('change', function() {
@@ -2275,15 +2298,10 @@ document.querySelectorAll('.checkbox-bolao').forEach(checkbox => {
             destaqueCheck.dispatchEvent(new Event('change'));
         }
         
-        // Se marcou a seleção E o destaque está ativo, manter
-        // Se marcou a seleção e o destaque NÃO está ativo, não faz nada (deixa o usuário decidir)
-    });
-});
-        
-        // ============================================
-        // 3. SALVAR CONFIGURAÇÃO
-        // ============================================
-        salvarConfigBoloes();
+        // Salvar configuração
+        setTimeout(() => {
+            salvarConfigBoloes();
+        }, 100);
     });
 });
         
