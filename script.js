@@ -1423,26 +1423,28 @@ async function verificarResultadoConferido(loteria, concurso) {
     }
 }
 
+// ========== CARREGAR BOLÃO ABERTO (COM DESTAQUE) ==========
 async function carregarBolaoAberto() {
     const card = document.getElementById('cardBolaoAberto');
     const container = document.getElementById('bolaoAbertoContainer');
     if (!card || !container) return;
-    
+
     try {
         const configDoc = await db.collection('config_boloes').doc('ativos').get();
         if (!configDoc.exists) {
             card.style.display = 'none';
             return;
         }
-        
+
         const dados = configDoc.data();
         const idsSelecionados = dados.ids || [];
         const statusMap = dados.status || {};
-        const dataLimiteMap = dados.dataLimite || {};
         const destaqueMap = dados.destaque || {};
         const estrategiaMap = dados.estrategia || {};
-        
-        let boloesAbertos = [];
+        const dataLimiteMap = dados.dataLimite || {};
+
+        // Filtrar apenas os que estão abertos
+        const boloesAbertos = [];
         for (const id of idsSelecionados) {
             if (statusMap[id] === 'aberto') {
                 const doc = await db.collection('participantes').doc(id).get();
@@ -1451,21 +1453,24 @@ async function carregarBolaoAberto() {
                 }
             }
         }
-        
+
         if (boloesAbertos.length === 0) {
             card.style.display = 'none';
             return;
         }
-        
-        let primeiroBolao = boloesAbertos.find(b => destaqueMap[b.id]) || boloesAbertos[0];
-        const bolaoAberto = primeiroBolao.data;
-        const bolaoId = primeiroBolao.id;
+
+        // Tentar encontrar o que está com destaque
+        let bolaoDestaque = boloesAbertos.find(b => destaqueMap[b.id] === true);
+        // Se não houver destaque, pega o primeiro
+        const bolaoSelecionado = bolaoDestaque || boloesAbertos[0];
+        const bolaoId = bolaoSelecionado.id;
+        const bolao = bolaoSelecionado.data;
         const estrategia = estrategiaMap[bolaoId] || '';
-        
+
         card.style.display = 'block';
-        
-        const vagasDisponiveis = bolaoAberto.vagasDisponiveis || 0;
-        const vagasTotais = bolaoAberto.vagasTotais || 0;
+
+        const vagasDisponiveis = bolao.vagasDisponiveis || 0;
+        const vagasTotais = bolao.vagasTotais || 0;
         let vagasTexto = '';
         if (vagasTotais > 0 && vagasDisponiveis <= 5 && vagasDisponiveis > 0) {
             vagasTexto = `🔴 ÚLTIMAS ${vagasDisponiveis} VAGAS!`;
@@ -1474,20 +1479,20 @@ async function carregarBolaoAberto() {
         } else if (vagasDisponiveis === 0 && vagasTotais > 0) {
             vagasTexto = `🔴 LOTADO - Inscrições encerradas`;
         }
-        
+
         const dataLimite = dataLimiteMap[bolaoId] || '';
         let dataTexto = '';
         if (dataLimite && dataLimite.match(/^\d{4}-\d{2}-\d{2}$/)) {
             const [ano, mes, dia] = dataLimite.split('-');
             dataTexto = ` | 📅 Até ${dia}/${mes}/${ano}`;
         }
-        
+
         let html = `<div style="text-align:center;">
-            <strong>🎯 ${bolaoAberto.titulo} 🟢 ABERTO</strong>
-            <div>${bolaoAberto.loteria === 'mega' ? 'MEGA-SENA' : bolaoAberto.loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'} ${bolaoAberto.concurso ? `- Concurso ${bolaoAberto.concurso}` : ''}</div>
-            <div>💰 R$ ${bolaoAberto.valorPorCota || 0},00 por cota${dataTexto}</div>
+            <strong>🎯 ${bolao.titulo} 🟢 ABERTO</strong>
+            <div>${bolao.loteria === 'mega' ? 'MEGA-SENA' : bolao.loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'} ${bolao.concurso ? `- Concurso ${bolao.concurso}` : ''}</div>
+            <div>💰 R$ ${bolao.valorPorCota || 0},00 por cota${dataTexto}</div>
             ${vagasTexto ? `<div style="color:${vagasTexto.includes('LOTADO') ? '#ef4444' : '#059669'};">${vagasTexto}</div>` : ''}`;
-        
+
         if (estrategia) {
             html += `
                 <div style="margin-top:10px;"><button id="btnVerEstrategia" style="background:transparent; border:1px solid #cbd5e1; border-radius:30px; padding:6px 16px; color:#3b82f6;">💡 VER ESTRATÉGIA</button></div>
@@ -1500,21 +1505,21 @@ async function carregarBolaoAberto() {
                     </div>
                 </div>`;
         }
-        
+
         html += `<button id="btnParticiparAberto" style="background:#10b981; margin-top:12px; width:auto; padding:8px 25px;">📝 QUERO PARTICIPAR</button></div>`;
-        
+
         container.innerHTML = html;
-        
+
         document.getElementById('btnVerEstrategia')?.addEventListener('click', () => {
             document.getElementById('modalEstrategia').style.display = 'flex';
         });
         document.getElementById('fecharModalEstrategia')?.addEventListener('click', () => {
             document.getElementById('modalEstrategia').style.display = 'none';
         });
-        document.getElementById('btnParticiparAberto').onclick = () => mostrarModalParticipacao(bolaoAberto);
-        
+        document.getElementById('btnParticiparAberto').onclick = () => mostrarModalParticipacao(bolao);
+
     } catch (error) {
-        console.error('Erro:', error);
+        console.error('Erro ao carregar bolão aberto:', error);
         card.style.display = 'none';
     }
 }
