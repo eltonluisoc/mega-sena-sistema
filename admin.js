@@ -2064,7 +2064,7 @@ async function adicionarCartaoIndividual() {
 }
 
 // ============================================
-// CARREGAR BOLÕES PARA GERENCIAR
+// CARREGAR BOLÕES PARA GERENCIAR (COM ORDENAÇÃO)
 // ============================================
 async function carregarBoloesParaGerenciar() {
     const container = document.getElementById('listaBoloes');
@@ -2076,8 +2076,6 @@ async function carregarBoloesParaGerenciar() {
         snapshot.forEach(doc => {
             boloes.push({ id: doc.id, ...doc.data() });
         });
-        
-        boloes.sort((a, b) => a.titulo.localeCompare(b.titulo));
         
         if (boloes.length === 0) {
             container.innerHTML = '<div class="empty-state">Nenhum bolão encontrado.</div>';
@@ -2103,10 +2101,44 @@ async function carregarBoloesParaGerenciar() {
             console.log('Erro ao carregar seleção:', e);
         }
         
+        // ============================================
+        // ORDENAR BOLÕES: ABERTOS > ANDAMENTO > ENCERRADOS
+        // ============================================
+        const ordemStatus = { 'aberto': 0, 'andamento': 1, 'encerrado': 2 };
+        
+        boloes.sort((a, b) => {
+            const statusA = statusMap[a.id] || 'andamento';
+            const statusB = statusMap[b.id] || 'andamento';
+            
+            // Primeiro ordenar por status (aberto primeiro)
+            if (statusA !== statusB) {
+                return (ordemStatus[statusA] || 1) - (ordemStatus[statusB] || 1);
+            }
+            
+            // Depois por título (A-Z)
+            const tituloA = (a.titulo || '').toLowerCase();
+            const tituloB = (b.titulo || '').toLowerCase();
+            return tituloA.localeCompare(tituloB);
+        });
+        
         let html = '';
         for (const bolao of boloes) {
             const checked = selecionados.includes(bolao.id) ? 'checked' : '';
             const status = statusMap[bolao.id] || 'andamento';
+            
+            // Ícone e cor do status
+            let statusIcon = '';
+            let statusColor = '';
+            if (status === 'aberto') {
+                statusIcon = '🟢';
+                statusColor = '#065f46';
+            } else if (status === 'andamento') {
+                statusIcon = '🟡';
+                statusColor = '#92400e';
+            } else if (status === 'encerrado') {
+                statusIcon = '🔴';
+                statusColor = '#991b1b';
+            }
             
             html += `
                 <div style="padding: 12px; border-bottom: 1px solid #eee; margin-bottom: 8px;">
@@ -2114,6 +2146,7 @@ async function carregarBoloesParaGerenciar() {
                         <input type="checkbox" class="checkbox-bolao" data-id="${bolao.id}" ${checked} style="width: 20px; height: 20px;">
                         <strong>${bolao.titulo || 'Sem título'}</strong>
                         <span style="font-size: 11px; color: #666;">${bolao.participantes?.length || 0} participantes | ${bolao.loteria || '?'}</span>
+                        <span style="font-size: 11px; font-weight: 600; color: ${statusColor};">${statusIcon} ${status.toUpperCase()}</span>
                         <label style="font-size: 11px; margin-left: auto;">⭐ DESTAQUE:</label>
                         <input type="checkbox" class="checkbox-destaque" data-id="${bolao.id}" ${destaqueMap[bolao.id] ? 'checked' : ''} style="width: 18px; height: 18px;">
                         <button class="btn-excluir-bolao" data-id="${bolao.id}" data-titulo="${bolao.titulo}" style="background: #ef4444; color: white; border: none; padding: 4px 12px; border-radius: 20px; cursor: pointer; font-size: 11px;">🗑️ EXCLUIR</button>
@@ -2139,6 +2172,7 @@ async function carregarBoloesParaGerenciar() {
         
         container.innerHTML = html;
         
+        // Eventos
         document.querySelectorAll('.btn-excluir-bolao').forEach(btn => {
             btn.onclick = () => {
                 const bolaoId = btn.dataset.id;
@@ -2156,8 +2190,11 @@ async function carregarBoloesParaGerenciar() {
         document.querySelectorAll('.estrategia-textarea').forEach(textarea => {
             textarea.addEventListener('change', () => salvarConfigBoloes());
         });
+        document.querySelectorAll('.checkbox-bolao, .checkbox-destaque').forEach(el => {
+            el.addEventListener('change', () => salvarConfigBoloes());
+        });
         
-        console.log(`✅ ${boloes.length} bolões carregados`);
+        console.log(`✅ ${boloes.length} bolões carregados (ordenados: abertos > andamento > encerrados)`);
         adicionarBotaoLinkParticipantes();
 
     } catch (error) {
