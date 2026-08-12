@@ -2064,7 +2064,7 @@ async function adicionarCartaoIndividual() {
 }
 
 // ============================================
-// CARREGAR BOLÕES PARA GERENCIAR (COM ORDENAÇÃO)
+// CARREGAR BOLÕES PARA GERENCIAR (COM MELHORIAS VISUAIS)
 // ============================================
 async function carregarBoloesParaGerenciar() {
     const container = document.getElementById('listaBoloes');
@@ -2101,21 +2101,16 @@ async function carregarBoloesParaGerenciar() {
             console.log('Erro ao carregar seleção:', e);
         }
         
-        // ============================================
-        // ORDENAR BOLÕES: ABERTOS > ANDAMENTO > ENCERRADOS
-        // ============================================
+        // Ordenar: ABERTOS > ANDAMENTO > ENCERRADOS
         const ordemStatus = { 'aberto': 0, 'andamento': 1, 'encerrado': 2 };
         
         boloes.sort((a, b) => {
             const statusA = statusMap[a.id] || 'andamento';
             const statusB = statusMap[b.id] || 'andamento';
             
-            // Primeiro ordenar por status (aberto primeiro)
             if (statusA !== statusB) {
                 return (ordemStatus[statusA] || 1) - (ordemStatus[statusB] || 1);
             }
-            
-            // Depois por título (A-Z)
             const tituloA = (a.titulo || '').toLowerCase();
             const tituloB = (b.titulo || '').toLowerCase();
             return tituloA.localeCompare(tituloB);
@@ -2125,46 +2120,63 @@ async function carregarBoloesParaGerenciar() {
         for (const bolao of boloes) {
             const checked = selecionados.includes(bolao.id) ? 'checked' : '';
             const status = statusMap[bolao.id] || 'andamento';
+            const isDestaque = destaqueMap[bolao.id] === true;
             
-            // Ícone e cor do status
+            // Status com ícone e cor
             let statusIcon = '';
             let statusColor = '';
+            let statusBg = '';
             if (status === 'aberto') {
                 statusIcon = '🟢';
                 statusColor = '#065f46';
+                statusBg = '#d1fae5';
             } else if (status === 'andamento') {
                 statusIcon = '🟡';
                 statusColor = '#92400e';
+                statusBg = '#fef3c7';
             } else if (status === 'encerrado') {
                 statusIcon = '🔴';
                 statusColor = '#991b1b';
+                statusBg = '#fee2e2';
             }
             
             html += `
-                <div style="padding: 12px; border-bottom: 1px solid #eee; margin-bottom: 8px;">
-                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                        <input type="checkbox" class="checkbox-bolao" data-id="${bolao.id}" ${checked} style="width: 20px; height: 20px;">
-                        <strong>${bolao.titulo || 'Sem título'}</strong>
-                        <span style="font-size: 11px; color: #666;">${bolao.participantes?.length || 0} participantes | ${bolao.loteria || '?'}</span>
-                        <span style="font-size: 11px; font-weight: 600; color: ${statusColor};">${statusIcon} ${status.toUpperCase()}</span>
-                        <label style="font-size: 11px; margin-left: auto;">⭐ DESTAQUE:</label>
-                        <input type="checkbox" class="checkbox-destaque" data-id="${bolao.id}" ${destaqueMap[bolao.id] ? 'checked' : ''} style="width: 18px; height: 18px;">
-                        <button class="btn-excluir-bolao" data-id="${bolao.id}" data-titulo="${bolao.titulo}" style="background: #ef4444; color: white; border: none; padding: 4px 12px; border-radius: 20px; cursor: pointer; font-size: 11px;">🗑️ EXCLUIR</button>
-                        <button class="btn-link-participantes" data-id="${bolao.id}" data-titulo="${bolao.titulo}" style="background: #3b82f6; color: white; border: none; padding: 4px 12px; border-radius: 20px; cursor: pointer; font-size: 11px;">📋 LINK</button>
+                <div style="padding: 14px; border-bottom: 1px solid #e2e8f0; margin-bottom: 10px; background: ${isDestaque ? '#f0fdf4' : 'white'}; border-radius: 10px; border-left: 4px solid ${status === 'aberto' ? '#10b981' : status === 'andamento' ? '#f59e0b' : '#ef4444'};">
+                    
+                    <!-- LINHA 1: Checkbox + Título + Status -->
+                    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                        <input type="checkbox" class="checkbox-bolao" data-id="${bolao.id}" ${checked} style="width: 22px; height: 22px; cursor: pointer; accent-color: #3b82f6; flex-shrink: 0;">
+                        <strong style="font-size: 15px; color: #1e293b;">${bolao.titulo || 'Sem título'}</strong>
+                        <span style="font-size: 11px; background: ${statusBg}; color: ${statusColor}; padding: 2px 12px; border-radius: 30px; font-weight: 600;">${statusIcon} ${status.toUpperCase()}</span>
+                        <span style="font-size: 12px; color: #64748b;">📌 ${bolao.participantes?.length || 0} participantes</span>
                     </div>
-                    <div style="margin-left: 35px; margin-top: 8px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
-                        <label style="font-size: 12px;">Status:</label>
-                        <select class="status-select" data-id="${bolao.id}" style="padding: 4px 8px; border-radius: 6px;">
+                    
+                    <!-- LINHA 2: Configurações -->
+                    <div style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding-left: 34px;">
+                        <label style="font-size: 12px; font-weight: 600; color: #1e293b; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                            ⭐ DESTAQUE:
+                            <input type="checkbox" class="checkbox-destaque" data-id="${bolao.id}" ${isDestaque ? 'checked' : ''} style="width: 22px; height: 22px; cursor: pointer; accent-color: #f59e0b;">
+                        </label>
+                        <label style="font-size: 12px; font-weight: 600; color: #1e293b;">Status:</label>
+                        <select class="status-select" data-id="${bolao.id}" style="padding: 4px 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
                             <option value="aberto" ${status === 'aberto' ? 'selected' : ''}>🟢 ABERTO</option>
                             <option value="andamento" ${status === 'andamento' ? 'selected' : ''}>🟡 EM ANDAMENTO</option>
                             <option value="encerrado" ${status === 'encerrado' ? 'selected' : ''}>🔴 ENCERRADO</option>
                         </select>
-                        <label style="font-size: 12px;">Data limite:</label>
-                        <input type="date" class="data-limite-input" data-id="${bolao.id}" value="${dataLimiteMap[bolao.id] || ''}" style="padding: 4px 8px; border-radius: 6px;">
+                        <label style="font-size: 12px; font-weight: 600; color: #1e293b;">Data limite:</label>
+                        <input type="date" class="data-limite-input" data-id="${bolao.id}" value="${dataLimiteMap[bolao.id] || ''}" style="padding: 4px 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
                     </div>
-                    <div style="margin-left: 35px; margin-top: 8px;">
-                        <label style="font-size: 12px;">📝 Estratégia do Bolão (opcional):</label>
-                        <textarea class="estrategia-textarea" data-id="${bolao.id}" rows="2" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 12px; margin-top: 4px;" placeholder="Ex: 60 números distribuídos em 10 cartões...">${estrategiaMap[bolao.id] || ''}</textarea>
+                    
+                    <!-- LINHA 3: Estratégia -->
+                    <div style="margin-top: 8px; padding-left: 34px;">
+                        <label style="font-size: 12px; font-weight: 600; color: #1e293b;">📝 Estratégia do Bolão (opcional):</label>
+                        <textarea class="estrategia-textarea" data-id="${bolao.id}" rows="1" style="width: 100%; padding: 6px 10px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 12px; margin-top: 4px; resize: vertical;" placeholder="Ex: 60 números distribuídos em 10 cartões...">${estrategiaMap[bolao.id] || ''}</textarea>
+                    </div>
+                    
+                    <!-- LINHA 4: Botões (AGORA NO FINAL DO CARD) -->
+                    <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
+                        <button class="btn-link-participantes" data-id="${bolao.id}" data-titulo="${bolao.titulo}" style="background: #3b82f6; color: white; border: none; padding: 6px 16px; border-radius: 20px; cursor: pointer; font-size: 12px; font-weight: 600;">📋 LINK</button>
+                        <button class="btn-excluir-bolao" data-id="${bolao.id}" data-titulo="${bolao.titulo}" style="background: #ef4444; color: white; border: none; padding: 6px 16px; border-radius: 20px; cursor: pointer; font-size: 12px; font-weight: 600;">🗑️ EXCLUIR</button>
                     </div>
                 </div>
             `;
@@ -2181,16 +2193,7 @@ async function carregarBoloesParaGerenciar() {
             };
         });
         
-        document.querySelectorAll('.status-select').forEach(select => {
-            select.addEventListener('change', () => salvarConfigBoloes());
-        });
-        document.querySelectorAll('.data-limite-input').forEach(input => {
-            input.addEventListener('change', () => salvarConfigBoloes());
-        });
-        document.querySelectorAll('.estrategia-textarea').forEach(textarea => {
-            textarea.addEventListener('change', () => salvarConfigBoloes());
-        });
-        document.querySelectorAll('.checkbox-bolao, .checkbox-destaque').forEach(el => {
+        document.querySelectorAll('.status-select, .data-limite-input, .estrategia-textarea, .checkbox-bolao, .checkbox-destaque').forEach(el => {
             el.addEventListener('change', () => salvarConfigBoloes());
         });
         
