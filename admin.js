@@ -110,13 +110,6 @@ function verificarAutenticacao() {
         return;
     }
 
-    // Captura erros do retorno do signInWithRedirect (ex.: domínio não
-    // autorizado, popup fechado no meio do fluxo em navegadores antigos)
-    firebase.auth().getRedirectResult().catch(error => {
-        console.error('❌ Erro ao concluir login:', error);
-        showToast('❌ Não foi possível concluir o login. Tente novamente.', 'error');
-    });
-
     firebase.auth().onAuthStateChanged(user => {
         if (user && user.email === ADMIN_EMAIL) {
             console.log('✅ Usuário autenticado:', user.email);
@@ -136,15 +129,22 @@ function verificarAutenticacao() {
     });
 }
 
-function entrarComGoogle() {
-    const provider = new firebase.auth.GoogleAuthProvider();
-    // signInWithRedirect em vez de signInWithPopup: o popup depende de
-    // window.closed entre janelas, que navegadores recentes bloqueiam por
-    // Cross-Origin-Opener-Policy na própria página de login do Google,
-    // travando o login silenciosamente. Redirect evita esse problema.
-    firebase.auth().signInWithRedirect(provider).catch(error => {
+function entrarComSenha() {
+    const senhaInput = document.getElementById('senhaAdmin');
+    const senha = senhaInput ? senhaInput.value : '';
+
+    if (!senha) {
+        showToast('⚠️ Digite a senha', 'warning');
+        return;
+    }
+
+    firebase.auth().signInWithEmailAndPassword(ADMIN_EMAIL, senha).catch(error => {
         console.error('❌ Erro no login:', error);
-        showToast('❌ Não foi possível entrar. Tente novamente.', 'error');
+        showToast('❌ Senha incorreta ou erro no login', 'error');
+        if (senhaInput) {
+            senhaInput.value = '';
+            senhaInput.focus();
+        }
     });
 }
 
@@ -3365,7 +3365,7 @@ function atualizarDashboardEstatisticas(stats) {
         if (el) {
             if (melhor && melhor.totalCartoes > 0) {
                 el.textContent = melhor.nome;
-                el.title = `${melhor.nome} - Média: ${melhor.media.toFixed(1)} acertos | Max: ${melhor.maxAcertos} | ${melhor.totalCartoes} cartões`;
+                el.title = `${melhor.nome} - Max: ${melhor.maxAcertos} acertos | ${melhor.totalCartoes} cartões`;
             } else {
                 el.textContent = 'Nenhum';
             }
@@ -3373,7 +3373,7 @@ function atualizarDashboardEstatisticas(stats) {
         
         if (elDet) {
             if (melhor && melhor.totalCartoes > 0) {
-                elDet.textContent = `📊 ${melhor.totalCartoes} cartões | Média: ${melhor.media.toFixed(1)} | Max: ${melhor.maxAcertos}`;
+                elDet.textContent = `📊 ${melhor.totalCartoes} cartões | Max: ${melhor.maxAcertos} acertos`;
                 elDet.style.color = '#059669';
             } else {
                 elDet.textContent = 'Nenhum bolão cadastrado';
@@ -3516,7 +3516,8 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('📄 Admin inicializado');
     verificarAutenticacao();
     
-    const btnEntrarGoogle = document.getElementById('btnEntrarGoogle');
+    const btnEntrarSenha = document.getElementById('btnEntrarSenha');
+    const senhaAdminInput = document.getElementById('senhaAdmin');
     const btnSair = document.getElementById('btnSair');
     const btnAdicionar = document.getElementById('btnAdicionar');
     const btnLimpar = document.getElementById('btnLimpar');
@@ -3543,7 +3544,8 @@ document.addEventListener('DOMContentLoaded', () => {
         btnVerificarDuplicados.addEventListener('click', verificarDuplicados);
     }
     
-    if (btnEntrarGoogle) btnEntrarGoogle.onclick = entrarComGoogle;
+    if (btnEntrarSenha) btnEntrarSenha.onclick = entrarComSenha;
+    if (senhaAdminInput) senhaAdminInput.onkeypress = (e) => { if (e.key === 'Enter') entrarComSenha(); };
     if (btnSair) btnSair.onclick = sair;
     if (adminBtnMega) adminBtnMega.onclick = () => setLoteriaAdmin('mega');
     if (adminBtnLotofacil) adminBtnLotofacil.onclick = () => setLoteriaAdmin('lotofacil');
