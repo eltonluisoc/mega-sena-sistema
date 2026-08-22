@@ -295,6 +295,67 @@ function forcarLogin() {
 }
 
 // ============================================
+// FUNÇÕES DO DASHBOARD MELHORADAS
+// ============================================
+function atualizarDashboardAdmin() {
+    // Total de cartões
+    const totalCartoes = cartoes.length;
+    const totalPorLoteria = {
+        mega: cartoes.filter(c => c.tipo === 'mega').length,
+        lotofacil: cartoes.filter(c => c.tipo === 'lotofacil').length,
+        quina: cartoes.filter(c => c.tipo === 'quina').length
+    };
+    
+    // Total de bolões
+    const totalBoloes = boloes.length;
+    
+    // Atualizar elementos do dashboard
+    const elementos = {
+        'dashboardTotalCartoes': totalCartoes,
+        'dashboardMega': totalPorLoteria.mega,
+        'dashboardLotofacil': totalPorLoteria.lotofacil,
+        'dashboardQuina': totalPorLoteria.quina,
+        'dashboardTotalBoloes': totalBoloes
+    };
+    
+    for (const [id, valor] of Object.entries(elementos)) {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = valor;
+    }
+    
+    // Bolões ativos por status
+    db.collection('config_boloes').doc('ativos').get().then(configDoc => {
+        if (configDoc.exists) {
+            const dados = configDoc.data();
+            const statusMap = dados.status || {};
+            let abertos = 0, andamento = 0, encerrados = 0;
+            for (const id in statusMap) {
+                const status = statusMap[id];
+                if (status === 'aberto') abertos++;
+                else if (status === 'andamento') andamento++;
+                else if (status === 'encerrado') encerrados++;
+            }
+            
+            const abertosEl = document.getElementById('dashboardAbertos');
+            const andamentoEl = document.getElementById('dashboardAndamento');
+            const encerradosEl = document.getElementById('dashboardEncerrados');
+            
+            if (abertosEl) abertosEl.innerHTML = abertos;
+            if (andamentoEl) andamentoEl.innerHTML = andamento;
+            if (encerradosEl) encerradosEl.innerHTML = encerrados;
+        }
+    }).catch(error => {
+        console.error('Erro ao carregar status dos bolões:', error);
+    });
+    
+    // Atualizar timestamp
+    const ultimaAtualizacao = document.getElementById('ultimaAtualizacao');
+    if (ultimaAtualizacao) {
+        ultimaAtualizacao.textContent = new Date().toLocaleString('pt-BR');
+    }
+}
+
+// ============================================
 // INICIALIZAR GRADE DE SELEÇÃO INDIVIDUAL
 // ============================================
 function inicializarGradeSelecaoIndividual() {
@@ -720,57 +781,6 @@ function carregarConcursosAdmin() {
         filtro.innerHTML = '<option value="todos">Todos os concursos</option>';
         concursos.forEach(c => filtro.innerHTML += `<option value="${c}">Concurso ${c}</option>`);
     }
-}
-
-// ============================================
-// ATUALIZAR DASHBOARD
-// ============================================
-function atualizarDashboardAdmin() {
-    // Total de cartões
-    const totalCartoes = cartoes.length;
-    const totalPorLoteria = {
-        mega: cartoes.filter(c => c.tipo === 'mega').length,
-        lotofacil: cartoes.filter(c => c.tipo === 'lotofacil').length,
-        quina: cartoes.filter(c => c.tipo === 'quina').length
-    };
-    
-    // Atualizar resumo no dashboard
-    const totalCartoesEl = document.getElementById('dashboardTotalCartoes');
-    if (totalCartoesEl) totalCartoesEl.innerHTML = totalCartoes;
-    
-    const megaEl = document.getElementById('dashboardMega');
-    if (megaEl) megaEl.innerHTML = totalPorLoteria.mega;
-    
-    const lotofacilEl = document.getElementById('dashboardLotofacil');
-    if (lotofacilEl) lotofacilEl.innerHTML = totalPorLoteria.lotofacil;
-    
-    const quinaEl = document.getElementById('dashboardQuina');
-    if (quinaEl) quinaEl.innerHTML = totalPorLoteria.quina;
-    
-    // Bolões ativos
-    db.collection('config_boloes').doc('ativos').get().then(configDoc => {
-        if (configDoc.exists) {
-            const dados = configDoc.data();
-            const statusMap = dados.status || {};
-            let abertos = 0, andamento = 0, encerrados = 0;
-            for (const id in statusMap) {
-                const status = statusMap[id];
-                if (status === 'aberto') abertos++;
-                else if (status === 'andamento') andamento++;
-                else if (status === 'encerrado') encerrados++;
-            }
-            
-            const abertosEl = document.getElementById('dashboardAbertos');
-            const andamentoEl = document.getElementById('dashboardAndamento');
-            const encerradosEl = document.getElementById('dashboardEncerrados');
-            
-            if (abertosEl) abertosEl.innerHTML = abertos;
-            if (andamentoEl) andamentoEl.innerHTML = andamento;
-            if (encerradosEl) encerradosEl.innerHTML = encerrados;
-        }
-    }).catch(error => {
-        console.error('Erro ao carregar status dos bolões:', error);
-    });
 }
 
 // ============================================
@@ -2419,6 +2429,237 @@ async function adicionarCartaoIndividualSelecao() {
     } catch (error) {
         console.error('Erro:', error);
         showToast('❌ Erro ao adicionar', 'error');
+    }
+}
+
+// ============================================
+// FUNÇÕES PARA CADASTRO POR IMAGEM (OCR)
+// ============================================
+function mostrarPreviaImagem(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const preview = document.getElementById('imgPreview');
+        const img = document.getElementById('imgPreviewImg');
+        if (preview) preview.style.display = 'block';
+        if (img) img.src = e.target.result;
+        document.getElementById('imgStatus').textContent = '✅ Imagem carregada. Clique em "Processar"';
+        showToast('📸 Imagem carregada!', 'success');
+    };
+    reader.readAsDataURL(file);
+}
+
+function processarImagem(file) {
+    showLoading('🔍 Processando imagem...');
+    
+    // Simulação de OCR - Extrai números da imagem
+    setTimeout(() => {
+        // Simula números extraídos (para demonstração)
+        // Em produção, aqui viria uma API de OCR real
+        const numerosSimulados = [];
+        const maxNumeros = loteriaAdmin === 'mega' ? 60 : (loteriaAdmin === 'lotofacil' ? 25 : 80);
+        const qtdNumeros = loteriaAdmin === 'mega' ? 6 : (loteriaAdmin === 'lotofacil' ? 15 : 5);
+        
+        // Gera números aleatórios simulando OCR
+        const numerosGerados = [];
+        while (numerosGerados.length < qtdNumeros) {
+            const n = Math.floor(Math.random() * maxNumeros) + 1;
+            if (!numerosGerados.includes(n)) {
+                numerosGerados.push(n);
+            }
+        }
+        numerosGerados.sort((a,b) => a-b);
+        
+        numerosExtraidos = numerosGerados;
+        imagemProcessada = true;
+        
+        const resultado = document.getElementById('imgResultado');
+        if (resultado) {
+            resultado.style.display = 'block';
+            resultado.innerHTML = `
+                <div style="background: #f0fdf4; border: 2px solid #10b981; border-radius: 10px; padding: 16px; margin-top: 12px;">
+                    <div style="font-weight: 700; color: #065f46; margin-bottom: 8px;">✅ Números identificados:</div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                        ${numerosExtraidos.map(n => `<span style="background: #3b82f6; color: white; padding: 6px 14px; border-radius: 8px; font-family: monospace; font-size: 16px; font-weight: bold;">${n.toString().padStart(2, '0')}</span>`).join('')}
+                    </div>
+                    <div style="font-size: 12px; color: #64748b; margin-top: 8px;">
+                        ℹ️ ${numerosExtraidos.length} números extraídos (simulação OCR)
+                    </div>
+                </div>
+            `;
+        }
+        document.getElementById('imgStatus').textContent = '✅ Processado! Clique em "Cadastrar" para salvar';
+        hideLoading();
+        showToast('✅ Imagem processada!', 'success');
+    }, 1500);
+}
+
+async function cadastrarCartoesImagem() {
+    if (!imagemProcessada || numerosExtraidos.length === 0) {
+        showToast('⚠️ Processe uma imagem primeiro!', 'warning');
+        return;
+    }
+    
+    const concurso = document.getElementById('concursoImagem').value;
+    const bolao = document.getElementById('bolaoImagem').value || 'Bolão OCR';
+    const tipoParticipacao = document.getElementById('tipoCartaoImagem').value;
+    
+    if (!concurso) {
+        showToast('⚠️ Informe o concurso!', 'warning');
+        return;
+    }
+    
+    let minNumeros, maxNumeros, maxValor, label;
+    if (loteriaAdmin === 'mega') {
+        minNumeros = 6;
+        maxNumeros = 20;
+        maxValor = 60;
+        label = 'MEGA-SENA';
+    } else if (loteriaAdmin === 'lotofacil') {
+        minNumeros = 15;
+        maxNumeros = 20;
+        maxValor = 25;
+        label = 'LOTOFÁCIL';
+    } else if (loteriaAdmin === 'quina') {
+        minNumeros = 5;
+        maxNumeros = 15;
+        maxValor = 80;
+        label = 'QUINA';
+    } else {
+        showToast('⚠️ Loteria não reconhecida!', 'error');
+        return;
+    }
+    
+    if (numerosExtraidos.length < minNumeros || numerosExtraidos.length > maxNumeros) {
+        showToast(`❌ ${label}: precisa de ${minNumeros} a ${maxNumeros} números!`, 'error');
+        return;
+    }
+    
+    try {
+        await db.collection('cartoes').add({
+            concurso: concurso,
+            bolao: bolao,
+            numeros: numerosExtraidos,
+            tipo: loteriaAdmin,
+            tipoParticipacao: tipoParticipacao,
+            admin: true,
+            dataCadastro: new Date().toISOString(),
+            totalNumeros: numerosExtraidos.length,
+            origem: 'ocr'
+        });
+        showToast(`✅ Cartão da imagem cadastrado na ${label}!`, 'success');
+        numerosExtraidos = [];
+        imagemProcessada = false;
+        document.getElementById('imgResultado').style.display = 'none';
+        document.getElementById('imgPreview').style.display = 'none';
+        document.getElementById('imgUpload').value = '';
+        document.getElementById('imgUploadCamera').value = '';
+        document.getElementById('imgStatus').textContent = 'Aguardando processamento';
+        carregarDadosAdmin();
+    } catch (error) {
+        console.error('Erro:', error);
+        showToast('❌ Erro ao cadastrar', 'error');
+    }
+}
+
+// ============================================
+// FUNÇÕES PARA CSV
+// ============================================
+function lerCSV(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const texto = e.target.result;
+        const linhas = texto.split(/\r?\n/).filter(l => l.trim());
+        
+        if (linhas.length < 2) {
+            showToast('⚠️ CSV vazio ou inválido!', 'warning');
+            return;
+        }
+        
+        dadosCSV = [];
+        const cabecalho = linhas[0].split(';').map(h => h.trim().toLowerCase());
+        
+        for (let i = 1; i < linhas.length; i++) {
+            const colunas = linhas[i].split(';').map(c => c.trim());
+            if (colunas.length < 3) continue;
+            
+            const numeros = colunas[2].match(/\d+/g).map(Number);
+            if (numeros.length !== 15) continue;
+            
+            dadosCSV.push({
+                concursoInicio: parseInt(colunas[0]) || 0,
+                concursoFim: parseInt(colunas[1]) || 0,
+                numeros: numeros.sort((a,b) => a-b)
+            });
+        }
+        
+        if (dadosCSV.length === 0) {
+            showToast('⚠️ Nenhum cartão válido encontrado no CSV', 'warning');
+            return;
+        }
+        
+        document.getElementById('csvPreview').style.display = 'block';
+        document.getElementById('csvStatus').textContent = `✅ ${dadosCSV.length} cartões carregados`;
+        document.getElementById('csvConteudo').textContent = 
+            `📊 ${dadosCSV.length} cartões encontrados\n\n` +
+            dadosCSV.slice(0, 10).map((c, i) => 
+                `#${i+1}: Concurso ${c.concursoInicio}-${c.concursoFim} | ${c.numeros.join(' ')}`
+            ).join('\n') +
+            (dadosCSV.length > 10 ? `\n... e mais ${dadosCSV.length - 10} cartões` : '');
+        
+        showToast(`📥 ${dadosCSV.length} cartões carregados do CSV!`, 'success');
+    };
+    reader.readAsText(file);
+}
+
+async function importarCSV() {
+    if (dadosCSV.length === 0) {
+        showToast('⚠️ Carregue um CSV primeiro!', 'warning');
+        return;
+    }
+    
+    if (!confirm(
+        `⚠️ CONFIRMAR IMPORTAÇÃO CSV\n\n` +
+        `${dadosCSV.length} cartões serão importados.\n\n` +
+        `Esta ação NÃO pode ser desfeita!`
+    )) {
+        return;
+    }
+    
+    showLoading(`Importando ${dadosCSV.length} cartões...`);
+    
+    let adicionados = 0;
+    let erros = 0;
+    
+    for (const item of dadosCSV) {
+        try {
+            await db.collection('cartoes').add({
+                concurso: item.concursoInicio,
+                bolao: 'CSV Importado',
+                numeros: item.numeros,
+                tipo: 'lotofacil',
+                tipoParticipacao: 'exclusivo',
+                admin: true,
+                dataCadastro: new Date().toISOString(),
+                totalNumeros: item.numeros.length,
+                origem: 'csv'
+            });
+            adicionados++;
+        } catch (error) {
+            erros++;
+        }
+    }
+    
+    hideLoading();
+    
+    if (adicionados > 0) {
+        showToast(`✅ ${adicionados} cartões importados! ${erros > 0 ? `⚠️ ${erros} erros` : ''}`, 'success');
+        dadosCSV = [];
+        document.getElementById('csvPreview').style.display = 'none';
+        document.getElementById('csvUpload').value = '';
+        document.getElementById('csvStatus').textContent = 'Aguardando arquivo';
+        carregarDadosAdmin();
+    } else {
+        showToast('❌ Nenhum cartão foi importado', 'error');
     }
 }
 
