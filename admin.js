@@ -3386,8 +3386,9 @@ function calcularEstatisticas(cartoes, resultados) {
         quina: { acertos: 0, cartao: null, bolao: '', numeros: [] }
     };
     
-    // 2. Desempenho por bolão
-    const boloesStats = {};
+    // 2. Estatísticas por BOLÃO + LOTERIA (combinação única)
+    // Chave: "bolao_nome|loteria"
+    const boloesPorLoteria = {};
     
     for (const cartao of cartoes) {
         const tipo = cartao.tipo || 'mega';
@@ -3395,7 +3396,7 @@ function calcularEstatisticas(cartoes, resultados) {
         const acertos = dezenasSorteadas.length > 0 ? 
             cartao.numeros.filter(n => dezenasSorteadas.includes(n)).length : 0;
         
-        // Maiores acertos
+        // Maiores acertos (por loteria)
         if (acertos > maiores[tipo].acertos) {
             maiores[tipo] = { 
                 acertos, 
@@ -3405,38 +3406,50 @@ function calcularEstatisticas(cartoes, resultados) {
             };
         }
         
-        // Estatísticas por bolão
+        // Agrupar por BOLÃO + LOTERIA
         const bolaoNome = cartao.bolao || 'Sem Bolão';
-        if (!boloesStats[bolaoNome]) {
-            boloesStats[bolaoNome] = { 
-                totalAcertos: 0, 
-                totalCartoes: 0, 
+        const chave = `${bolaoNome}|${tipo}`;
+        
+        if (!boloesPorLoteria[chave]) {
+            boloesPorLoteria[chave] = {
+                nome: bolaoNome,
+                loteria: tipo,
+                totalAcertos: 0,
+                totalCartoes: 0,
                 maxAcertos: 0,
                 cartoes: []
             };
         }
-        boloesStats[bolaoNome].totalAcertos += acertos;
-        boloesStats[bolaoNome].totalCartoes++;
-        if (acertos > boloesStats[bolaoNome].maxAcertos) {
-            boloesStats[bolaoNome].maxAcertos = acertos;
+        
+        boloesPorLoteria[chave].totalAcertos += acertos;
+        boloesPorLoteria[chave].totalCartoes++;
+        if (acertos > boloesPorLoteria[chave].maxAcertos) {
+            boloesPorLoteria[chave].maxAcertos = acertos;
         }
-        boloesStats[bolaoNome].cartoes.push({ numeros: cartao.numeros, acertos });
+        boloesPorLoteria[chave].cartoes.push({ numeros: cartao.numeros, acertos });
     }
     
-    // 3. Melhor bolão (maior média de acertos)
-    let melhorBolao = { nome: 'Nenhum', media: 0, totalAcertos: 0, maxAcertos: 0, totalCartoes: 0 };
-    for (const [nome, dados] of Object.entries(boloesStats)) {
-        if (dados.totalCartoes > 0) {
-            const media = dados.totalAcertos / dados.totalCartoes;
-            if (media > melhorBolao.media) {
-                melhorBolao = { 
-                    nome, 
-                    media, 
-                    totalAcertos: dados.totalAcertos,
-                    maxAcertos: dados.maxAcertos,
-                    totalCartoes: dados.totalCartoes
-                };
-            }
+    // 3. Encontrar o MELHOR de cada loteria (por média de acertos)
+    const melhoresPorLoteria = {
+        mega: null,
+        lotofacil: null,
+        quina: null
+    };
+    
+    for (const chave in boloesPorLoteria) {
+        const dados = boloesPorLoteria[chave];
+        const media = dados.totalCartoes > 0 ? dados.totalAcertos / dados.totalCartoes : 0;
+        
+        // Verificar se esta é a melhor para a loteria
+        const loteria = dados.loteria;
+        if (!melhoresPorLoteria[loteria] || media > melhoresPorLoteria[loteria].media) {
+            melhoresPorLoteria[loteria] = {
+                nome: dados.nome,
+                media: media,
+                totalAcertos: dados.totalAcertos,
+                maxAcertos: dados.maxAcertos,
+                totalCartoes: dados.totalCartoes
+            };
         }
     }
     
@@ -3456,7 +3469,7 @@ function calcularEstatisticas(cartoes, resultados) {
     }
     const probMedia = count > 0 ? (totalProb / count) * 100 : 0;
     
-    // 5. Total de participantes (somar de todos os bolões)
+    // 5. Total de participantes
     let totalParticipantes = 0;
     for (const bolao of boloes) {
         if (bolao.participantes) totalParticipantes += bolao.participantes.length;
@@ -3464,54 +3477,61 @@ function calcularEstatisticas(cartoes, resultados) {
     
     return {
         maiores,
-        melhorBolao,
+        melhoresPorLoteria,  // ← NOVO: melhor de cada loteria
         probMedia,
         totalCartoes: cartoes.length,
         totalBoloes: boloes.length,
-        totalParticipantes,
-        boloesStats
+        totalParticipantes
     };
 }
 
 function atualizarDashboardEstatisticas(stats) {
+    console.log('📊 Atualizando dashboard com estatísticas...');
+    
     // ============================================
-    // 1. MELHOR BOLÃO POR LOTERIA
+    // 1. MELHOR DE CADA LOTERIA
     // ============================================
+    const loteriasMap = {
+        mega: { 
+            el: 'dashboardMelhorMega', 
+            det: 'dashboardMelhorMegaDetalhes',
+            label: 'MEGA-SENA'
+        },
+        lotofacil: { 
+            el: 'dashboardMelhorLotofacil', 
+            det: 'dashboardMelhorLotofacilDetalhes',
+            label: 'LOTOFÁCIL'
+        },
+        quina: { 
+            el: 'dashboardMelhorQuina', 
+            det: 'dashboardMelhorQuinaDetalhes',
+            label: 'QUINA'
+        }
+    };
     
-    // Mega-Sena
-    const melhorMega = encontrarMelhorPorLoteria(stats.boloesStats, 'mega');
-    const elMega = document.getElementById('dashboardMelhorMega');
-    const elMegaDet = document.getElementById('dashboardMelhorMegaDetalhes');
-    if (elMega) {
-        elMega.textContent = melhorMega ? melhorMega.nome : '-';
-        elMega.title = melhorMega ? `${melhorMega.nome} - Média: ${melhorMega.media.toFixed(1)} acertos` : 'Nenhum';
-    }
-    if (elMegaDet) {
-        elMegaDet.textContent = melhorMega ? `📊 ${melhorMega.totalCartoes} cartões | Média: ${melhorMega.media.toFixed(1)}` : 'Nenhum bolão na Mega';
-    }
-    
-    // Lotofácil
-    const melhorLoto = encontrarMelhorPorLoteria(stats.boloesStats, 'lotofacil');
-    const elLoto = document.getElementById('dashboardMelhorLotofacil');
-    const elLotoDet = document.getElementById('dashboardMelhorLotofacilDetalhes');
-    if (elLoto) {
-        elLoto.textContent = melhorLoto ? melhorLoto.nome : '-';
-        elLoto.title = melhorLoto ? `${melhorLoto.nome} - Média: ${melhorLoto.media.toFixed(1)} acertos` : 'Nenhum';
-    }
-    if (elLotoDet) {
-        elLotoDet.textContent = melhorLoto ? `📊 ${melhorLoto.totalCartoes} cartões | Média: ${melhorLoto.media.toFixed(1)}` : 'Nenhum bolão na Lotofácil';
-    }
-    
-    // Quina
-    const melhorQuina = encontrarMelhorPorLoteria(stats.boloesStats, 'quina');
-    const elQuina = document.getElementById('dashboardMelhorQuina');
-    const elQuinaDet = document.getElementById('dashboardMelhorQuinaDetalhes');
-    if (elQuina) {
-        elQuina.textContent = melhorQuina ? melhorQuina.nome : '-';
-        elQuina.title = melhorQuina ? `${melhorQuina.nome} - Média: ${melhorQuina.media.toFixed(1)} acertos` : 'Nenhum';
-    }
-    if (elQuinaDet) {
-        elQuinaDet.textContent = melhorQuina ? `📊 ${melhorQuina.totalCartoes} cartões | Média: ${melhorQuina.media.toFixed(1)}` : 'Nenhum bolão na Quina';
+    for (const [loteria, config] of Object.entries(loteriasMap)) {
+        const melhor = stats.melhoresPorLoteria?.[loteria];
+        const el = document.getElementById(config.el);
+        const elDet = document.getElementById(config.det);
+        
+        if (el) {
+            if (melhor && melhor.totalCartoes > 0) {
+                el.textContent = melhor.nome;
+                el.title = `${melhor.nome} - Média: ${melhor.media.toFixed(1)} acertos | Max: ${melhor.maxAcertos} | ${melhor.totalCartoes} cartões`;
+            } else {
+                el.textContent = 'Nenhum';
+            }
+        }
+        
+        if (elDet) {
+            if (melhor && melhor.totalCartoes > 0) {
+                elDet.textContent = `📊 ${melhor.totalCartoes} cartões | Média: ${melhor.media.toFixed(1)} | Max: ${melhor.maxAcertos}`;
+                elDet.style.color = '#059669';
+            } else {
+                elDet.textContent = 'Nenhum bolão cadastrado';
+                elDet.style.color = '#9ca3af';
+            }
+        }
     }
     
     // ============================================
@@ -3539,8 +3559,10 @@ function atualizarDashboardEstatisticas(stats) {
         if (maxAcertos > 0) {
             const tipoNome = melhorTipo === 'mega' ? 'MEGA' : melhorTipo === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA';
             elMaioresDet.textContent = `${melhorBolaoNome} (${tipoNome}) - ${maxAcertos} acertos`;
+            elMaioresDet.style.color = '#059669';
         } else {
             elMaioresDet.textContent = 'Nenhum acerto registrado';
+            elMaioresDet.style.color = '#9ca3af';
         }
     }
     
@@ -3564,6 +3586,24 @@ function atualizarDashboardEstatisticas(stats) {
     const participantesEl = document.getElementById('dashboardParticipantes');
     if (participantesEl) participantesEl.textContent = stats.totalParticipantes;
     
+    // Atualizar também os cards de loteria
+    const megaEl = document.getElementById('dashboardMega');
+    const lotoEl = document.getElementById('dashboardLotofacil');
+    const quinaEl = document.getElementById('dashboardQuina');
+    
+    if (megaEl) {
+        const megaCount = cartoes.filter(c => c.tipo === 'mega').length;
+        megaEl.textContent = megaCount;
+    }
+    if (lotoEl) {
+        const lotoCount = cartoes.filter(c => c.tipo === 'lotofacil').length;
+        lotoEl.textContent = lotoCount;
+    }
+    if (quinaEl) {
+        const quinaCount = cartoes.filter(c => c.tipo === 'quina').length;
+        quinaEl.textContent = quinaCount;
+    }
+    
     // ============================================
     // 5. ATUALIZAR TIMESTAMP
     // ============================================
@@ -3571,6 +3611,8 @@ function atualizarDashboardEstatisticas(stats) {
     if (ultimaAtualizacao) {
         ultimaAtualizacao.textContent = new Date().toLocaleString('pt-BR');
     }
+    
+    console.log('✅ Dashboard atualizado!');
 }
 
 // ============================================
