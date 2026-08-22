@@ -1051,64 +1051,80 @@
         <main class="main-content">
 
             <!-- ============================================ -->
-            <!-- SEÇÃO: DASHBOARD -->
-            <!-- ============================================ -->
-            <section id="section-dashboard" class="section active">
-                <div class="card" style="border: none; box-shadow: none; background: transparent; padding: 0;">
-                    <div style="font-weight: 700; font-size: 20px; margin-bottom: 16px; color: #1e293b;">📊 DASHBOARD</div>
-                    
-                    <!-- Status dos Bolões -->
-                    <div class="dashboard-cards">
-                        <div class="dashboard-card" style="background: #f0fdf4; border-color: #bbf7d0;">
-                            <div class="dashboard-number" style="color: #10b981;" id="dashboardAbertos">0</div>
-                            <div style="font-size: 14px; font-weight: 600; color: #065f46;">🟢 BOLÕES ABERTOS</div>
-                        </div>
-                        <div class="dashboard-card" style="background: #fef3c7; border-color: #fde68a;">
-                            <div class="dashboard-number" style="color: #f59e0b;" id="dashboardAndamento">0</div>
-                            <div style="font-size: 14px; font-weight: 600; color: #92400e;">🟡 EM ANDAMENTO</div>
-                        </div>
-                        <div class="dashboard-card" style="background: #fee2e2; border-color: #fca5a5;">
-                            <div class="dashboard-number" style="color: #ef4444;" id="dashboardEncerrados">0</div>
-                            <div style="font-size: 14px; font-weight: 600; color: #991b1b;">🔴 ENCERRADOS</div>
-                        </div>
-                    </div>
+<!-- SEÇÃO: DASHBOARD -->
+<!-- ============================================ -->
+<section id="section-dashboard" class="section active">
+    <div class="card" style="border: none; box-shadow: none; background: transparent; padding: 0;">
+        <div style="font-weight: 700; font-size: 20px; margin-bottom: 16px; color: #1e293b;">📊 DASHBOARD</div>
+        
+        <!-- Status dos Bolões -->
+        <div class="dashboard-cards">
+            <div class="dashboard-card" style="background: #f0fdf4; border-color: #bbf7d0;">
+                <div class="dashboard-number" style="color: #10b981;" id="dashboardAbertos">0</div>
+                <div style="font-size: 14px; font-weight: 600; color: #065f46;">🟢 BOLÕES ABERTOS</div>
+            </div>
+            <div class="dashboard-card" style="background: #fef3c7; border-color: #fde68a;">
+                <div class="dashboard-number" style="color: #f59e0b;" id="dashboardAndamento">0</div>
+                <div style="font-size: 14px; font-weight: 600; color: #92400e;">🟡 EM ANDAMENTO</div>
+            </div>
+            <div class="dashboard-card" style="background: #fee2e2; border-color: #fca5a5;">
+                <div class="dashboard-number" style="color: #ef4444;" id="dashboardEncerrados">0</div>
+                <div style="font-size: 14px; font-weight: 600; color: #991b1b;">🔴 ENCERRADOS</div>
+            </div>
+        </div>
 
-                    <!-- Totais Gerais -->
-                    <div class="dashboard-cards" style="margin-top: 16px;">
-                        <div class="dashboard-card" style="background: #eff6ff; border-color: #93c5fd;">
-                            <div class="dashboard-number" style="color: #3b82f6;" id="dashboardTotalCartoes">0</div>
-                            <div style="font-size: 14px; font-weight: 600; color: #1e3a5f;">📋 TOTAL DE CARTÕES</div>
-                        </div>
-                        <div class="dashboard-card" style="background: #ede9fe; border-color: #c4b5fd;">
-                            <div class="dashboard-number" style="color: #7c3aed;" id="dashboardTotalBoloes">0</div>
-                            <div style="font-size: 14px; font-weight: 600; color: #4c1d95;">👥 TOTAL DE BOLÕES</div>
-                        </div>
-                        <div class="dashboard-card" style="background: #fef2f2; border-color: #fca5a5;">
-                            <div class="dashboard-number" style="color: #ef4444;" id="dashboardParticipantes">0</div>
-                            <div style="font-size: 14px; font-weight: 600; color: #991b1b;">👤 PARTICIPANTES</div>
-                        </div>
-                    </div>
+        <!-- Totais Gerais -->
+        <div class="dashboard-cards" style="margin-top: 16px;">
+            <div class="dashboard-card" style="background: #eff6ff; border-color: #93c5fd;">
+                <div class="dashboard-number" style="color: #3b82f6;" id="dashboardTotalCartoes">0</div>
+                <div style="font-size: 14px; font-weight: 600; color: #1e3a5f;">📋 TOTAL DE CARTÕES</div>
+            </div>
+            <div class="dashboard-card" style="background: #ede9fe; border-color: #c4b5fd;">
+                <div class="dashboard-number" style="color: #7c3aed;" id="dashboardTotalBoloes">0</div>
+                <div style="font-size: 14px; font-weight: 600; color: #4c1d95;">👥 TOTAL DE BOLÕES</div>
+            </div>
+            <div class="dashboard-card" style="background: #fef2f2; border-color: #fca5a5;">
+                <div class="dashboard-number" style="color: #ef4444;" id="dashboardParticipantes">0</div>
+                <div style="font-size: 14px; font-weight: 600; color: #991b1b;">👤 PARTICIPANTES</div>
+            </div>
+        </div>
 
-                    <!-- Por Loteria -->
-                    <div class="dashboard-cards" style="margin-top: 16px;">
-                        <div class="dashboard-card" style="background: #fce7f3; border-color: #f9a8d4;">
-                            <div class="dashboard-number" style="color: #db2777;" id="dashboardMega">0</div>
-                            <div style="font-size: 14px; font-weight: 600; color: #831843;">🎯 MEGA-SENA</div>
-                        </div>
-                        <div class="dashboard-card" style="background: #d1fae5; border-color: #6ee7b7;">
-                            <div class="dashboard-number" style="color: #059669;" id="dashboardLotofacil">0</div>
-                            <div style="font-size: 14px; font-weight: 600; color: #064e3b;">🌟 LOTOFÁCIL</div>
-                        </div>
-                        <div class="dashboard-card" style="background: #fef3c7; border-color: #fcd34d;">
-                            <div class="dashboard-number" style="color: #d97706;" id="dashboardQuina">0</div>
-                            <div style="font-size: 14px; font-weight: 600; color: #78350f;">🎯 QUINA</div>
-                        </div>
-                    </div>
-                </div>
-                <div style="font-size: 12px; color: #94a3b8; text-align: center; margin-top: 12px;">
-                    Última atualização: <span id="ultimaAtualizacao">--</span>
-                </div>
-            </section>
+        <!-- Por Loteria -->
+        <div class="dashboard-cards" style="margin-top: 16px;">
+            <div class="dashboard-card" style="background: #fce7f3; border-color: #f9a8d4;">
+                <div class="dashboard-number" style="color: #db2777;" id="dashboardMega">0</div>
+                <div style="font-size: 14px; font-weight: 600; color: #831843;">🎯 MEGA-SENA</div>
+            </div>
+            <div class="dashboard-card" style="background: #d1fae5; border-color: #6ee7b7;">
+                <div class="dashboard-number" style="color: #059669;" id="dashboardLotofacil">0</div>
+                <div style="font-size: 14px; font-weight: 600; color: #064e3b;">🌟 LOTOFÁCIL</div>
+            </div>
+            <div class="dashboard-card" style="background: #fef3c7; border-color: #fcd34d;">
+                <div class="dashboard-number" style="color: #d97706;" id="dashboardQuina">0</div>
+                <div style="font-size: 14px; font-weight: 600; color: #78350f;">🎯 QUINA</div>
+            </div>
+        </div>
+
+        <!-- Estatísticas Avançadas -->
+        <div class="dashboard-cards" style="margin-top: 16px;">
+            <div class="dashboard-card" style="background: #fef2f2; border-color: #fca5a5;">
+                <div class="dashboard-number" style="color: #dc2626; font-size: 24px;" id="dashboardMaioresAcertos">0</div>
+                <div style="font-size: 14px; font-weight: 600; color: #991b1b;">🏆 MAIORES ACERTOS</div>
+            </div>
+            <div class="dashboard-card" style="background: #f0fdf4; border-color: #86efac;">
+                <div class="dashboard-number" style="color: #16a34a; font-size: 20px;" id="dashboardMelhorBolao">-</div>
+                <div style="font-size: 14px; font-weight: 600; color: #14532d;">⭐ MELHOR BOLÃO</div>
+            </div>
+            <div class="dashboard-card" style="background: #eff6ff; border-color: #93c5fd;">
+                <div class="dashboard-number" style="color: #2563eb;" id="dashboardProbabilidade">0%</div>
+                <div style="font-size: 14px; font-weight: 600; color: #1e3a5f;">📊 PROBABILIDADE MÉDIA</div>
+            </div>
+        </div>
+    </div>
+    <div style="font-size: 12px; color: #94a3b8; text-align: center; margin-top: 12px;">
+        Última atualização: <span id="ultimaAtualizacao">--</span>
+    </div>
+</section>
 
             <!-- ============================================ -->
             <!-- SEÇÃO: CADASTRO -->
