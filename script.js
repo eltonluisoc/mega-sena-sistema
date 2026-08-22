@@ -1058,17 +1058,17 @@ async function conferirResultados() {
     
     ultimoResultadoConcurso = concurso;
     ultimoResultadoDados = { numeros: numerosSorteados, dataSorteio, premios };
-    
+
     // Salvar no Firebase se não foi conferido
     if (!resultadoConferido) {
         await salvarResultadoConferido(loteriaAtual, concurso, numerosSorteados, dataSorteio);
     }
-    
+
     // ============================================================
-    // MONTAR RESUMO (APENAS ESTATÍSTICAS, SEM CARTÕES)
+    // MONTAR RESUMO (POTENCIAL DO BOLÃO + ESTATÍSTICAS, SEM CARTÕES)
     // ============================================================
-    let html = '';
-    
+    let html = calcularChancesBolao(cartoesConcurso, loteriaAtual);
+
     html += `<div class="resultado-resumo">`;
     if (loteriaAtual === 'mega') {
         html += `
