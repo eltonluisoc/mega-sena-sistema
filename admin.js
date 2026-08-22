@@ -3273,20 +3273,25 @@ async function carregarEstatisticasDashboard() {
         
         if (todosCartoes.length === 0) {
             console.log('⚠️ Nenhum cartão encontrado');
+            atualizarDashboardEstatisticasVazio();
             return;
         }
         
-        // Buscar resultados dos últimos concursos
-        const resultados = await buscarResultadosAPI();
+        // Buscar todos os resultados
+        const resultados = await buscarResultadosFirestore();
         
         // Calcular estatísticas
         const stats = calcularEstatisticas(todosCartoes, resultados);
+        
+        // Log dos resultados
+        console.log(`📊 Totais: ${stats.totalQuadras || 0} quadras, ${stats.totalTernos || 0} ternos`);
         
         // Atualizar dashboard
         atualizarDashboardEstatisticas(stats);
         
     } catch (error) {
         console.error('❌ Erro ao carregar estatísticas:', error);
+        atualizarDashboardEstatisticasVazio();
     }
 }
 
@@ -3483,7 +3488,7 @@ function getResultadoExemplo(loteria) {
 }
 
 function calcularEstatisticas(cartoes, resultados) {
-    // 1. Maiores acertos por loteria
+    // 1. Maiores acertos por loteria (usando o concurso de cada cartão)
     const maiores = {
         mega: { acertos: 0, cartao: null, bolao: '', numeros: [] },
         lotofacil: { acertos: 0, cartao: null, bolao: '', numeros: [] },
@@ -3491,14 +3496,35 @@ function calcularEstatisticas(cartoes, resultados) {
     };
     
     // 2. Estatísticas por BOLÃO + LOTERIA (combinação única)
-    // Chave: "bolao_nome|loteria"
     const boloesPorLoteria = {};
+    
+    // 3. Totais gerais
+    let totalQuadras = 0;
+    let totalTernos = 0;
+    let totalDuques = 0;
     
     for (const cartao of cartoes) {
         const tipo = cartao.tipo || 'mega';
-        const dezenasSorteadas = resultados[tipo]?.dezenas || [];
+        const concurso = cartao.concurso ? parseInt(cartao.concurso) : null;
+        
+        // Buscar o resultado específico para este concurso
+        let dezenasSorteadas = [];
+        if (concurso && resultados[tipo] && resultados[tipo][concurso]) {
+            dezenasSorteadas = resultados[tipo][concurso] || [];
+        }
+        
+        // Se não tiver resultado específico, tentar usar o último resultado
+        if (dezenasSorteadas.length === 0 && resultados[tipo] && resultados[tipo].ultimo) {
+            dezenasSorteadas = resultados[tipo].ultimo || [];
+        }
+        
         const acertos = dezenasSorteadas.length > 0 ? 
             cartao.numeros.filter(n => dezenasSorteadas.includes(n)).length : 0;
+        
+        // Contabilizar acertos
+        if (acertos >= 4) totalQuadras++;
+        if (acertos >= 3) totalTernos++;
+        if (acertos >= 2) totalDuques++;
         
         // Maiores acertos (por loteria)
         if (acertos > maiores[tipo].acertos) {
@@ -3506,7 +3532,8 @@ function calcularEstatisticas(cartoes, resultados) {
                 acertos, 
                 cartao: cartao.numeros, 
                 bolao: cartao.bolao || 'Sem Bolão',
-                numeros: cartao.numeros
+                numeros: cartao.numeros,
+                concurso: concurso
             };
         }
         
@@ -3521,19 +3548,26 @@ function calcularEstatisticas(cartoes, resultados) {
                 totalAcertos: 0,
                 totalCartoes: 0,
                 maxAcertos: 0,
-                cartoes: []
+                quadras: 0,
+                ternos: 0,
+                duques: 0,
+                concursos: new Set()
             };
         }
         
         boloesPorLoteria[chave].totalAcertos += acertos;
         boloesPorLoteria[chave].totalCartoes++;
+        boloesPorLoteria[chave].concursos.add(concurso);
+        
         if (acertos > boloesPorLoteria[chave].maxAcertos) {
             boloesPorLoteria[chave].maxAcertos = acertos;
         }
-        boloesPorLoteria[chave].cartoes.push({ numeros: cartao.numeros, acertos });
+        if (acertos >= 4) boloesPorLoteria[chave].quadras++;
+        if (acertos >= 3) boloesPorLoteria[chave].ternos++;
+        if (acertos >= 2) boloesPorLoteria[chave].duques++;
     }
     
-    // 3. Encontrar o MELHOR de cada loteria (por média de acertos)
+    // 4. Encontrar o MELHOR de cada loteria (por média de acertos)
     const melhoresPorLoteria = {
         mega: null,
         lotofacil: null,
@@ -3543,21 +3577,24 @@ function calcularEstatisticas(cartoes, resultados) {
     for (const chave in boloesPorLoteria) {
         const dados = boloesPorLoteria[chave];
         const media = dados.totalCartoes > 0 ? dados.totalAcertos / dados.totalCartoes : 0;
-        
-        // Verificar se esta é a melhor para a loteria
         const loteria = dados.loteria;
+        
         if (!melhoresPorLoteria[loteria] || media > melhoresPorLoteria[loteria].media) {
             melhoresPorLoteria[loteria] = {
                 nome: dados.nome,
                 media: media,
                 totalAcertos: dados.totalAcertos,
                 maxAcertos: dados.maxAcertos,
-                totalCartoes: dados.totalCartoes
+                totalCartoes: dados.totalCartoes,
+                quadras: dados.quadras,
+                ternos: dados.ternos,
+                duques: dados.duques,
+                concursos: dados.concursos.size
             };
         }
     }
     
-    // 4. Probabilidade média geral
+    // 5. Probabilidade média geral
     let totalProb = 0;
     let count = 0;
     for (const cartao of cartoes) {
@@ -3573,7 +3610,7 @@ function calcularEstatisticas(cartoes, resultados) {
     }
     const probMedia = count > 0 ? (totalProb / count) * 100 : 0;
     
-    // 5. Total de participantes
+    // 6. Total de participantes
     let totalParticipantes = 0;
     for (const bolao of boloes) {
         if (bolao.participantes) totalParticipantes += bolao.participantes.length;
@@ -3581,11 +3618,16 @@ function calcularEstatisticas(cartoes, resultados) {
     
     return {
         maiores,
-        melhoresPorLoteria,  // ← NOVO: melhor de cada loteria
+        melhoresPorLoteria,
         probMedia,
         totalCartoes: cartoes.length,
         totalBoloes: boloes.length,
-        totalParticipantes
+        totalParticipantes,
+        totais: {
+            quadras: totalQuadras,
+            ternos: totalTernos,
+            duques: totalDuques
+        }
     };
 }
 
