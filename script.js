@@ -347,7 +347,8 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         }
         
         const cartoesOrdenados = ordenarCartoesPorAcertos(cartoesFiltrados, numerosSorteados);
-        
+        const chancesHtml = calcularChancesBolao(cartoesFiltrados, loteria);
+
         let premios = {};
         if (loteria === 'mega') {
             premios = {
@@ -374,8 +375,9 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
             };
         }
         
-        let html = `<div class="resultado-resumo">`;
-        
+        let html = chancesHtml;
+        html += `<div class="resultado-resumo">`;
+
         if (loteria === 'mega') {
             html += `
                 <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#f59e0b">${premios.sena}</div><div class="resultado-resumo-label">SENA</div></div>
