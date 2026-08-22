@@ -1,7 +1,7 @@
 // ============================================
-// SEGURANÇA - SENHA COM HASH MD5
+// AUTENTICAÇÃO - Firebase Auth (Google)
 // ============================================
-const SENHA_HASH = '47cf2362b07097105d643ee5b1612df7';
+const ADMIN_EMAIL = 'eltonluisoc@gmail.com';
 
 // ============================================
 // VARIÁVEIS GLOBAIS
@@ -100,198 +100,46 @@ function hideLoading() {
 }
 
 // ============================================
-// FUNÇÃO MD5 COMPLETA
-// ============================================
-function md5(string) {
-    function rotateLeft(value, bits) {
-        return (value << bits) | (value >>> (32 - bits));
-    }
-
-    function addUnsigned(x, y) {
-        var x4 = x & 0x40000000;
-        var y4 = y & 0x40000000;
-        var x8 = x & 0x80000000;
-        var y8 = y & 0x80000000;
-        var result = (x & 0x3FFFFFFF) + (y & 0x3FFFFFFF);
-        if (x4 & y4) return (result ^ 0x80000000 ^ x8 ^ y8);
-        if (x4 | y4) {
-            if (result & 0x40000000) return (result ^ 0xC0000000 ^ x8 ^ y8);
-            else return (result ^ 0x40000000 ^ x8 ^ y8);
-        } else {
-            return (result ^ x8 ^ y8);
-        }
-    }
-
-    function md5Cycle(x, y, z, w, a, b, c, d, s, t) {
-        a = addUnsigned(a, addUnsigned(addUnsigned(y, z), addUnsigned(x, t)));
-        return addUnsigned(rotateLeft(a, s), b);
-    }
-
-    function md5Hex(byteArray) {
-        var hex = '';
-        for (var i = 0; i < byteArray.length; i++) {
-            var b = byteArray[i];
-            if (b < 0) b += 256;
-            hex += ('0' + b.toString(16)).slice(-2);
-        }
-        return hex;
-    }
-
-    function md5Binary(string) {
-        var stringBytes = [];
-        for (var i = 0; i < string.length; i++) {
-            stringBytes.push(string.charCodeAt(i));
-        }
-        return md5BinaryFromBytes(stringBytes);
-    }
-
-    function md5BinaryFromBytes(bytes) {
-        var msg = bytes.slice();
-        var originalLength = msg.length * 8;
-        msg.push(0x80);
-        while ((msg.length * 8) % 512 !== 448) {
-            msg.push(0x00);
-        }
-        for (var i = 0; i < 8; i++) {
-            var byte = (originalLength >>> (i * 8)) & 0xFF;
-            msg.push(byte);
-        }
-        var state = [0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476];
-        for (var blockStart = 0; blockStart < msg.length; blockStart += 64) {
-            var X = [];
-            for (var i = 0; i < 16; i++) {
-                var offset = blockStart + i * 4;
-                X[i] = (msg[offset] | (msg[offset + 1] << 8) | (msg[offset + 2] << 16) | (msg[offset + 3] << 24)) >>> 0;
-            }
-            var A = state[0], B = state[1], C = state[2], D = state[3];
-            var S = [7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
-                5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
-                4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
-                6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21];
-            var T = [];
-            for (var i = 1; i <= 64; i++) {
-                var t = Math.abs(Math.sin(i)) * 0x100000000;
-                T[i] = Math.floor(t) & 0xFFFFFFFF;
-            }
-            var F = [
-                function(x, y, z) { return (x & y) | (~x & z); },
-                function(x, y, z) { return (x & z) | (y & ~z); },
-                function(x, y, z) { return x ^ y ^ z; },
-                function(x, y, z) { return y ^ (x | ~z); }
-            ];
-            var g = [
-                function(i) { return i; },
-                function(i) { return (5 * i + 1) % 16; },
-                function(i) { return (3 * i + 5) % 16; },
-                function(i) { return (7 * i) % 16; }
-            ];
-            for (var round = 0; round < 4; round++) {
-                for (var i = 0; i < 16; i++) {
-                    var idx = round * 16 + i;
-                    var gIdx = g[round](i);
-                    var a = [A, B, C, D];
-                    var aIdx = [0, 1, 2, 3];
-                    var result = md5Cycle(X[gIdx], F[round](B, C, D), a[0], a[1], a[2], a[3], aIdx[round % 4] === 0 ? a[0] : a[1], S[idx], T[idx + 1]);
-                    if (round % 4 === 0) {
-                        A = result;
-                    } else if (round % 4 === 1) {
-                        B = result;
-                    } else if (round % 4 === 2) {
-                        C = result;
-                    } else if (round % 4 === 3) {
-                        D = result;
-                    }
-                }
-            }
-            state[0] = (state[0] + A) >>> 0;
-            state[1] = (state[1] + B) >>> 0;
-            state[2] = (state[2] + C) >>> 0;
-            state[3] = (state[3] + D) >>> 0;
-        }
-        var result = [];
-        for (var i = 0; i < 4; i++) {
-            result.push((state[i] >>> 0) & 0xFF);
-            result.push((state[i] >>> 8) & 0xFF);
-            result.push((state[i] >>> 16) & 0xFF);
-            result.push((state[i] >>> 24) & 0xFF);
-        }
-        return result;
-    }
-
-    var bytes = md5Binary(string);
-    return md5Hex(bytes);
-}
-
-// ============================================
 // AUTENTICAÇÃO
 // ============================================
 function verificarAutenticacao() {
-    const autenticado = localStorage.getItem('admin_autenticado');
     const modal = document.getElementById('authModal');
-    const senhaInput = document.getElementById('senhaAdmin');
-    
-    console.log('🔐 Verificando autenticação...');
-    console.log('📌 localStorage.admin_autenticado =', autenticado);
-    console.log('📌 Modal encontrado?', modal ? 'SIM' : 'NÃO');
-    
+
     if (!modal) {
         console.error('❌ Modal de autenticação não encontrado!');
         return;
     }
-    
-    if (!autenticado) {
-        console.log('🔐 Usuário NÃO autenticado. Exibindo modal...');
-        modal.classList.add('show');
-        modal.style.display = 'flex';
-        if (senhaInput) {
-            senhaInput.value = '';
-            setTimeout(() => {
-                senhaInput.focus();
-                if (navigator.userAgent.match(/iPhone|iPad|iPod|Android/i)) {
-                    senhaInput.click();
-                }
-            }, 300);
+
+    firebase.auth().onAuthStateChanged(user => {
+        if (user && user.email === ADMIN_EMAIL) {
+            console.log('✅ Usuário autenticado:', user.email);
+            modal.classList.remove('show');
+            modal.style.display = 'none';
+            carregarPixConfig();
+            carregarDadosAdmin();
+        } else {
+            if (user) {
+                console.warn('⛔ Conta sem permissão de acesso:', user.email);
+                showToast('⛔ Esta conta não tem acesso ao painel', 'error');
+                firebase.auth().signOut();
+            }
+            modal.classList.add('show');
+            modal.style.display = 'flex';
         }
-    } else {
-        console.log('✅ Usuário já autenticado. Ocultando modal...');
-        modal.classList.remove('show');
-        modal.style.display = 'none';
-        carregarPixConfig();
-        carregarDadosAdmin();
-    }
+    });
 }
 
-function autenticar() {
-    const senha = document.getElementById('senhaAdmin').value;
-    console.log('🔑 Tentando autenticar...');
-    
-    const hashDigitado = md5(senha);
-    console.log('📌 Hash digitado:', hashDigitado);
-    console.log('📌 Hash esperado:', SENHA_HASH);
-    
-    if (hashDigitado === SENHA_HASH) {
-        localStorage.setItem('admin_autenticado', 'true');
-        console.log('✅ Login realizado com sucesso!');
-        showToast('✅ Login realizado!', 'success');
-        verificarAutenticacao();
-    } else {
-        console.log('❌ Senha incorreta!');
-        showToast('❌ Senha incorreta!', 'error');
-        document.getElementById('senhaAdmin').value = '';
-        document.getElementById('senhaAdmin').focus();
-    }
+function entrarComGoogle() {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    firebase.auth().signInWithPopup(provider).catch(error => {
+        console.error('❌ Erro no login:', error);
+        showToast('❌ Não foi possível entrar. Tente novamente.', 'error');
+    });
 }
 
 function sair() {
-    localStorage.removeItem('admin_autenticado');
+    firebase.auth().signOut();
     showToast('🔒 Saiu do sistema', 'info');
-    verificarAutenticacao();
-}
-
-function forcarLogin() {
-    localStorage.removeItem('admin_autenticado');
-    showToast('🔐 Forçando login...', 'info');
-    verificarAutenticacao();
 }
 
 // ============================================
@@ -3964,7 +3812,7 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('📄 Admin inicializado');
     verificarAutenticacao();
     
-    const btnAutenticar = document.getElementById('btnAutenticar');
+    const btnEntrarGoogle = document.getElementById('btnEntrarGoogle');
     const btnSair = document.getElementById('btnSair');
     const btnAdicionar = document.getElementById('btnAdicionar');
     const btnLimpar = document.getElementById('btnLimpar');
@@ -3978,7 +3826,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnExportar = document.getElementById('btnExportarExcel');
     const filtroConcurso = document.getElementById('filtroConcursoLista');
     const ordenarPor = document.getElementById('ordenarPorLista');
-    const senhaAdmin = document.getElementById('senhaAdmin');
     const btnGerarToken = document.getElementById('btnGerarToken');
     const btnAtualizarReservas = document.getElementById('btnAtualizarReservas');
     
@@ -3992,7 +3839,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btnVerificarDuplicados.addEventListener('click', verificarDuplicados);
     }
     
-    if (btnAutenticar) btnAutenticar.onclick = autenticar;
+    if (btnEntrarGoogle) btnEntrarGoogle.onclick = entrarComGoogle;
     if (btnSair) btnSair.onclick = sair;
     if (adminBtnMega) adminBtnMega.onclick = () => setLoteriaAdmin('mega');
     if (adminBtnLotofacil) adminBtnLotofacil.onclick = () => setLoteriaAdmin('lotofacil');
@@ -4009,8 +3856,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnExportar) btnExportar.onclick = exportarCartoes;
     if (filtroConcurso) filtroConcurso.onchange = exibirCartoesAdmin;
     if (ordenarPor) ordenarPor.onchange = exibirCartoesAdmin;
-    if (senhaAdmin) senhaAdmin.onkeypress = (e) => { if (e.key === 'Enter') autenticar(); };
-    
+
     if (btnGerarToken) {
         btnGerarToken.addEventListener('click', async () => {
             const nome = document.getElementById('tokenNome').value.trim();
