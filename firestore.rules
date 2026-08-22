@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Leitura pública — necessária hoje porque index.html, consulta.html,
+    // meus-boloes.html e participantes.html leem o Firestore direto do
+    // navegador, sem backend intermediário.
+    match /{document=**} {
+      allow read: if true;
+    }
+
+    // Cache de resultados oficiais das loterias: gravado pelo público
+    // (script.js) toda vez que alguém confere um resultado no site. Dado
+    // público e de baixo risco, por isso continua com escrita aberta.
+    match /resultados_conferidos/{document} {
+      allow write, delete: if true;
+    }
+
+    // Todo o resto é gerenciado exclusivamente pelo admin — escrita e
+    // exclusão exigem estar autenticado com a conta Google autorizada.
+    match /cartoes/{document} {
+      allow write, delete: if request.auth != null && request.auth.token.email == 'eltonluisoc@gmail.com';
+    }
+    match /resultados_mega/{document} {
+      allow write, delete: if request.auth != null && request.auth.token.email == 'eltonluisoc@gmail.com';
+    }
+    match /resultados_lotofacil/{document} {
+      allow write, delete: if request.auth != null && request.auth.token.email == 'eltonluisoc@gmail.com';
+    }
+    match /resultados_quina/{document} {
+      allow write, delete: if request.auth != null && request.auth.token.email == 'eltonluisoc@gmail.com';
+    }
+    match /config_boloes/{document} {
+      allow write, delete: if request.auth != null && request.auth.token.email == 'eltonluisoc@gmail.com';
+    }
+    match /config_geral/{document} {
+      allow write, delete: if request.auth != null && request.auth.token.email == 'eltonluisoc@gmail.com';
+    }
+    match /participantes/{document} {
+      allow write, delete: if request.auth != null && request.auth.token.email == 'eltonluisoc@gmail.com';
+    }
+    match /participantes_tokens/{document} {
+      allow write, delete: if request.auth != null && request.auth.token.email == 'eltonluisoc@gmail.com';
+    }
+    match /reservas_participantes/{document} {
+      allow write, delete: if request.auth != null && request.auth.token.email == 'eltonluisoc@gmail.com';
+    }
+    match /participantes_pendentes/{document} {
+      allow write, delete: if request.auth != null && request.auth.token.email == 'eltonluisoc@gmail.com';
+    }
+  }
+}
