@@ -357,10 +357,130 @@ function limparTodosCartoesSelecao() {
 // ============================================
 // FUNÇÃO MD5
 // ============================================
+// ============================================
+// FUNÇÃO MD5
+// ============================================
 function md5(string) {
-    // Função MD5 completa... (mantenha a que você já tem)
-    // Por questões de espaço, mantive a sua função existente
-    // Certifique-se de que ela está completa no seu arquivo
+    function rotateLeft(value, bits) {
+        return (value << bits) | (value >>> (32 - bits));
+    }
+
+    function addUnsigned(x, y) {
+        var x4 = x & 0x40000000;
+        var y4 = y & 0x40000000;
+        var x8 = x & 0x80000000;
+        var y8 = y & 0x80000000;
+        var result = (x & 0x3FFFFFFF) + (y & 0x3FFFFFFF);
+        if (x4 & y4) return (result ^ 0x80000000 ^ x8 ^ y8);
+        if (x4 | y4) {
+            if (result & 0x40000000) return (result ^ 0xC0000000 ^ x8 ^ y8);
+            else return (result ^ 0x40000000 ^ x8 ^ y8);
+        } else {
+            return (result ^ x8 ^ y8);
+        }
+    }
+
+    function md5Cycle(x, y, z, w, a, b, c, d, s, t) {
+        a = addUnsigned(a, addUnsigned(addUnsigned(y, z), addUnsigned(x, t)));
+        return addUnsigned(rotateLeft(a, s), b);
+    }
+
+    function md5Hex(byteArray) {
+        var hex = '';
+        for (var i = 0; i < byteArray.length; i++) {
+            var b = byteArray[i];
+            if (b < 0) b += 256;
+            hex += ('0' + b.toString(16)).slice(-2);
+        }
+        return hex;
+    }
+
+    function md5Binary(string) {
+        var stringBytes = [];
+        for (var i = 0; i < string.length; i++) {
+            stringBytes.push(string.charCodeAt(i));
+        }
+        return md5BinaryFromBytes(stringBytes);
+    }
+
+    function md5BinaryFromBytes(bytes) {
+        var msg = bytes.slice();
+        var originalLength = msg.length * 8;
+        msg.push(0x80);
+        while ((msg.length * 8) % 512 !== 448) {
+            msg.push(0x00);
+        }
+        for (var i = 0; i < 8; i++) {
+            var byte = (originalLength >>> (i * 8)) & 0xFF;
+            msg.push(byte);
+        }
+        var state = [0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476];
+        for (var blockStart = 0; blockStart < msg.length; blockStart += 64) {
+            var X = [];
+            for (var i = 0; i < 16; i++) {
+                var offset = blockStart + i * 4;
+                X[i] = (msg[offset] | (msg[offset + 1] << 8) | (msg[offset + 2] << 16) | (msg[offset + 3] << 24)) >>> 0;
+            }
+            var A = state[0],
+                B = state[1],
+                C = state[2],
+                D = state[3];
+            var S = [7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
+                5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
+                4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
+                6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21];
+            var T = [];
+            for (var i = 1; i <= 64; i++) {
+                var t = Math.abs(Math.sin(i)) * 0x100000000;
+                T[i] = Math.floor(t) & 0xFFFFFFFF;
+            }
+            var F = [
+                function(x, y, z) { return (x & y) | (~x & z); },
+                function(x, y, z) { return (x & z) | (y & ~z); },
+                function(x, y, z) { return x ^ y ^ z; },
+                function(x, y, z) { return y ^ (x | ~z); }
+            ];
+            var g = [
+                function(i) { return i; },
+                function(i) { return (5 * i + 1) % 16; },
+                function(i) { return (3 * i + 5) % 16; },
+                function(i) { return (7 * i) % 16; }
+            ];
+            for (var round = 0; round < 4; round++) {
+                for (var i = 0; i < 16; i++) {
+                    var idx = round * 16 + i;
+                    var gIdx = g[round](i);
+                    var a = [A, B, C, D];
+                    var aIdx = [0, 1, 2, 3];
+                    var result = md5Cycle(X[gIdx], F[round](B, C, D), a[0], a[1], a[2], a[3], aIdx[round % 4] === 0 ? a[0] : a[1], S[idx], T[idx + 1]);
+                    if (round % 4 === 0) {
+                        A = result;
+                    } else if (round % 4 === 1) {
+                        B = result;
+                    } else if (round % 4 === 2) {
+                        C = result;
+                    } else if (round % 4 === 3) {
+                        D = result;
+                    }
+                }
+            }
+            state[0] = (state[0] + A) >>> 0;
+            state[1] = (state[1] + B) >>> 0;
+            state[2] = (state[2] + C) >>> 0;
+            state[3] = (state[3] + D) >>> 0;
+        }
+        var result = [];
+        for (var i = 0; i < 4; i++) {
+            result.push((state[i] >>> 0) & 0xFF);
+            result.push((state[i] >>> 8) & 0xFF);
+            result.push((state[i] >>> 16) & 0xFF);
+            result.push((state[i] >>> 24) & 0xFF);
+        }
+        return result;
+    }
+
+    var bytes = md5Binary(string);
+    return md5Hex(bytes);
 }
 
 // ============================================
@@ -2355,6 +2475,158 @@ async function verificarDuplicados() {
     }
 }
 
+// ============================================
+// VERIFICAR DUPLICADOS
+// ============================================
+let cartoesDuplicadosSelecionados = {};
+
+async function verificarDuplicados() {
+    const concurso = document.getElementById('filtroConcursoLista').value;
+    const container = document.getElementById('duplicadosResultado');
+    
+    if (!concurso || concurso === 'todos') {
+        showToast('Selecione um concurso especifico!', 'warning');
+        return;
+    }
+    
+    showLoading('Verificando cartoes do concurso ' + concurso + '...');
+    
+    try {
+        const snapshot = await db.collection('cartoes').where('concurso', '==', concurso).get();
+        
+        if (snapshot.size === 0) {
+            hideLoading();
+            container.innerHTML = '<div style="text-align:center;padding:20px;color:#10b981;"><div style="font-size:32px;">OK</div><div style="font-weight:600;margin-top:8px;">Nenhum cartao encontrado para o concurso ' + concurso + '</div></div>';
+            container.style.display = 'block';
+            return;
+        }
+        
+        const numerosMap = {};
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const numerosStr = data.numeros.slice().sort((a,b) => a-b).join('|');
+            const numerosDisplay = data.numeros.slice().sort((a,b) => a-b).join(', ');
+            if (!numerosMap[numerosStr]) numerosMap[numerosStr] = [];
+            numerosMap[numerosStr].push({
+                id: doc.id,
+                bolao: data.bolao || 'Sem Bolao',
+                numeros: data.numeros,
+                numerosDisplay: numerosDisplay,
+                tipoParticipacao: data.tipoParticipacao || 'exclusivo',
+                dataCadastro: data.dataCadastro || new Date(0).toISOString()
+            });
+        });
+        
+        const duplicados = {};
+        let totalDuplicados = 0;
+        Object.keys(numerosMap).forEach(key => {
+            if (numerosMap[key].length > 1) {
+                duplicados[key] = numerosMap[key];
+                totalDuplicados += numerosMap[key].length;
+            }
+        });
+        
+        const gruposDuplicados = Object.keys(duplicados).length;
+        
+        if (gruposDuplicados === 0) {
+            hideLoading();
+            container.innerHTML = '<div style="text-align:center;padding:20px;color:#10b981;"><div style="font-size:32px;">OK</div><div style="font-weight:600;margin-top:8px;">Nenhum cartao duplicado encontrado!</div></div>';
+            container.style.display = 'block';
+            return;
+        }
+        
+        let html = '<div style="background:#fef3c7;padding:12px 16px;border-radius:12px;margin-bottom:16px;border:1px solid #f59e0b;"><div style="font-weight:700;color:#92400e;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;"><span>ATENCAO: ' + gruposDuplicados + ' grupo(s) de cartoes duplicados</span><span>' + snapshot.size + ' cartoes totais | ' + totalDuplicados + ' duplicados</span></div><div style="font-size:12px;color:#78350f;margin-top:4px;">Selecione UM cartao por grupo para manter. Os demais serao excluidos.</div></div><div style="max-height:400px;overflow-y:auto;margin-bottom:16px;">';
+        
+        let grupoIndex = 0;
+        for (const [numerosStr, cartoes] of Object.entries(duplicados)) {
+            grupoIndex++;
+            const grupoId = 'grupo-' + grupoIndex;
+            html += '<div style="background:white;border-radius:12px;padding:14px;margin-bottom:12px;border:2px solid #f59e0b;border-left:4px solid #f59e0b;"><div style="font-weight:600;color:#1e293b;margin-bottom:8px;">Grupo ' + grupoIndex + ' - Numeros: <span style="font-family:monospace;background:#f1f5f9;padding:2px 8px;border-radius:4px;">' + cartoes[0].numerosDisplay + '</span><span style="font-size:12px;color:#64748b;font-weight:normal;"> (' + cartoes.length + ' cartoes)</span></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+            
+            cartoes.forEach((cartao, idx) => {
+                const isFirst = idx === 0;
+                const dataCadastro = cartao.dataCadastro ? new Date(cartao.dataCadastro).toLocaleDateString('pt-BR') : '---';
+                const tipoLabel = cartao.tipoParticipacao === 'cota' ? 'Cota' : 'Exclusivo';
+                html += '<div style="background:' + (isFirst ? '#d1fae5' : '#f8fafc') + ';border-radius:8px;padding:10px;border:1px solid ' + (isFirst ? '#10b981' : '#e2e8f0') + ';"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;"><input type="radio" name="' + grupoId + '" value="' + cartao.id + '" ' + (isFirst ? 'checked' : '') + ' style="width:18px;height:18px;accent-color:#3b82f6;cursor:pointer;"><span style="font-weight:500;">ID: ' + cartao.id.slice(0,8) + '</span>' + (isFirst ? '<span style="font-size:10px;background:#10b981;color:white;padding:1px 8px;border-radius:30px;">MANTER</span>' : '') + '</label><div style="font-size:11px;color:#64748b;margin-top:4px;padding-left:26px;">' + cartao.bolao + ' | ' + tipoLabel + ' | ' + dataCadastro + '</div></div>';
+            });
+            
+            html += '</div></div>';
+            cartoesDuplicadosSelecionados[grupoId] = cartoes[0].id;
+        }
+        
+        html += '</div><div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end;"><button id="btnExcluirDuplicados" class="btn btn-danger" style="flex:1;min-width:150px;padding:12px;">EXCLUIR DUPLICADOS (' + (totalDuplicados - gruposDuplicados) + ' cartoes)</button><button id="btnFecharDuplicados" class="btn btn-secondary" style="flex:1;min-width:120px;padding:12px;">FECHAR</button></div>';
+        
+        container.innerHTML = html;
+        container.style.display = 'block';
+        
+        document.querySelectorAll('input[type="radio"][name^="grupo-"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                const grupoId = this.name;
+                cartoesDuplicadosSelecionados[grupoId] = this.value;
+                const parentDiv = this.closest('div[style*="border-radius: 8px"]');
+                const allItems = parentDiv.closest('.bolao-card').querySelectorAll('div[style*="border-radius: 8px"]');
+                allItems.forEach(item => { item.style.background = '#f8fafc'; item.style.borderColor = '#e2e8f0'; });
+                parentDiv.style.background = '#d1fae5';
+                parentDiv.style.borderColor = '#10b981';
+                const groupDiv = parentDiv.closest('.bolao-card');
+                const badgeElements = groupDiv.querySelectorAll('span[style*="background: #10b981"]');
+                badgeElements.forEach(b => b.remove());
+                const checkedRadio = groupDiv.querySelector('input[type="radio"]:checked');
+                if (checkedRadio) {
+                    const label = checkedRadio.closest('label');
+                    if (label) {
+                        const badge = document.createElement('span');
+                        badge.style.cssText = 'font-size: 10px; background: #10b981; color: white; padding: 1px 8px; border-radius: 30px; margin-left: 6px;';
+                        badge.textContent = 'MANTER';
+                        label.appendChild(badge);
+                    }
+                }
+            });
+        });
+        
+        document.getElementById('btnExcluirDuplicados').addEventListener('click', function() {
+            const idsParaExcluir = [];
+            for (const [grupoId, idManter] of Object.entries(cartoesDuplicadosSelecionados)) {
+                const cartoesDoGrupo = Object.values(duplicados).flat();
+                const idsDoGrupo = cartoesDoGrupo.map(c => c.id);
+                const idsParaExcluirGrupo = idsDoGrupo.filter(id => id !== idManter);
+                idsParaExcluir.push(...idsParaExcluirGrupo);
+            }
+            if (idsParaExcluir.length === 0) { showToast('Nenhum cartao para excluir', 'warning'); return; }
+            if (!confirm('Excluir ' + idsParaExcluir.length + ' cartoes duplicados?')) return;
+            showLoading('Excluindo ' + idsParaExcluir.length + ' cartoes...');
+            let excluidos = 0, erros = 0;
+            idsParaExcluir.forEach(id => {
+                db.collection('cartoes').doc(id).delete().then(() => {
+                    excluidos++;
+                    if (excluidos + erros === idsParaExcluir.length) {
+                        hideLoading();
+                        showToast(excluidos + ' cartoes excluidos!', 'success');
+                        container.style.display = 'none';
+                        carregarDadosAdmin();
+                    }
+                }).catch(err => {
+                    erros++;
+                    if (excluidos + erros === idsParaExcluir.length) {
+                        hideLoading();
+                        showToast(excluidos + ' excluidos, ' + erros + ' erros', 'warning');
+                    }
+                });
+            });
+        });
+        
+        document.getElementById('btnFecharDuplicados').addEventListener('click', function() {
+            container.style.display = 'none';
+        });
+        
+        hideLoading();
+        
+    } catch (error) {
+        console.error('Erro:', error);
+        hideLoading();
+        showToast('Erro ao verificar duplicados', 'error');
+    }
+}
 
 // ============================================
 // DEMAS FUNÇÕES (excluirBolao, salvarConfigBoloes, etc.)
