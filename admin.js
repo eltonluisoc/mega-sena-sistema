@@ -3330,9 +3330,16 @@ async function buscarResultadosFirestore() {
     const loterias = ['mega', 'lotofacil', 'quina'];
     const resultados = {};
     
+    // Mapeamento para os nomes da API
+    const apiNomes = {
+        mega: 'megasena',
+        lotofacil: 'lotofacil',
+        quina: 'quina'
+    };
+    
     for (const loteria of loterias) {
         try {
-            // 1. Tentar buscar do Firestore primeiro
+            // 1. TENTAR BUSCAR DO FIRESTORE PRIMEIRO
             const snapshot = await db.collection(`resultados_${loteria}`)
                 .orderBy('concurso', 'desc')
                 .limit(1)
@@ -3341,16 +3348,59 @@ async function buscarResultadosFirestore() {
             if (!snapshot.empty) {
                 const doc = snapshot.docs[0];
                 const data = doc.data();
-                resultados[loteria] = {
-                    concurso: data.concurso || doc.id,
-                    dezenas: data.numeros || [],
-                    data: data.dataSorteio || data.data || ''
-                };
-                console.log(`✅ Resultado ${loteria} encontrado no Firestore: concurso ${resultados[loteria].concurso}`);
-                continue;
+                if (data.numeros && data.numeros.length > 0) {
+                    resultados[loteria] = {
+                        concurso: data.concurso || doc.id,
+                        dezenas: data.numeros,
+                        data: data.dataSorteio || ''
+                    };
+                    console.log(`✅ Resultado ${loteria} encontrado no Firestore: concurso ${resultados[loteria].concurso}`);
+                    continue;
+                }
             }
             
-            // 2. Tentar buscar da coleção resultados_conferidos
+            // 2. TENTAR BUSCAR DA API DA CAIXA
+            try {
+                console.log(`🔍 Buscando ${loteria} da API...`);
+                const url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/${apiNomes[loteria]}/ultimo`;
+                const response = await fetch(url);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data && data.dezenasSorteadas && data.dezenasSorteadas.length > 0) {
+                        const numeros = data.dezenasSorteadas.map(n => parseInt(n));
+                        const concurso = data.concurso || data.numero || 0;
+                        
+                        resultados[loteria] = {
+                            concurso: concurso,
+                            dezenas: numeros,
+                            data: data.dataApuracao || data.dataDoConcurso || ''
+                        };
+                        console.log(`✅ Resultado ${loteria} encontrado na API: concurso ${concurso}`);
+                        
+                        // SALVAR NO FIRESTORE PARA USO FUTURO
+                        try {
+                            await db.collection(`resultados_${loteria}`).doc(concurso.toString()).set({
+                                concurso: concurso,
+                                numeros: numeros,
+                                dataSorteio: data.dataApuracao || data.dataDoConcurso || '',
+                                dataBusca: new Date().toISOString(),
+                                admin: true
+                            });
+                            console.log(`💾 Resultado ${loteria} salvo no Firestore`);
+                        } catch (saveError) {
+                            console.warn(`⚠️ Não foi possível salvar ${loteria} no Firestore:`, saveError.message);
+                        }
+                        continue;
+                    }
+                } else {
+                    console.log(`⚠️ API da ${loteria} retornou status ${response.status}`);
+                }
+            } catch (apiError) {
+                console.log(`⚠️ Erro na API da ${loteria}:`, apiError.message);
+            }
+            
+            // 3. TENTAR BUSCAR DA COLEÇÃO RESULTADOS_CONFERIDOS
             const conferidosSnapshot = await db.collection('resultados_conferidos')
                 .where('loteria', '==', loteria)
                 .orderBy('concurso', 'desc')
@@ -3360,60 +3410,52 @@ async function buscarResultadosFirestore() {
             if (!conferidosSnapshot.empty) {
                 const doc = conferidosSnapshot.docs[0];
                 const data = doc.data();
-                resultados[loteria] = {
-                    concurso: data.concurso,
-                    dezenas: data.numeros || [],
-                    data: data.dataSorteio || ''
-                };
-                console.log(`✅ Resultado ${loteria} encontrado em conferidos: concurso ${resultados[loteria].concurso}`);
-                continue;
-            }
-            
-            // 3. Tentar buscar da API da Caixa (com User-Agent)
-            try {
-                const url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/${loteria}/ultimo`;
-                const response = await fetch(url, {
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                    }
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data && data.dezenasSorteadas && data.dezenasSorteadas.length > 0) {
-                        const numeros = data.dezenasSorteadas.map(n => parseInt(n));
-                        resultados[loteria] = {
-                            concurso: data.concurso,
-                            dezenas: numeros,
-                            data: data.dataDoConcurso || ''
-                        };
-                        console.log(`✅ Resultado ${loteria} encontrado na API: concurso ${data.concurso}`);
-                        
-                        // Salvar no Firestore para uso futuro
-                        await db.collection(`resultados_${loteria}`).doc(data.concurso.toString()).set({
-                            concurso: data.concurso,
-                            numeros: numeros,
-                            dataSorteio: data.dataDoConcurso || '',
-                            dataBusca: new Date().toISOString()
-                        });
-                        continue;
-                    }
+                if (data.numeros && data.numeros.length > 0) {
+                    resultados[loteria] = {
+                        concurso: data.concurso,
+                        dezenas: data.numeros,
+                        data: data.dataSorteio || ''
+                    };
+                    console.log(`✅ Resultado ${loteria} encontrado em conferidos: concurso ${resultados[loteria].concurso}`);
+                    continue;
                 }
-            } catch (apiError) {
-                console.log(`⚠️ API da ${loteria} indisponível:`, apiError.message);
             }
             
-            // 4. Se nada funcionar, usar resultados de exemplo
+            // 4. SE NADA FUNCIONAR, USAR DADOS DE EXEMPLO (MAS NÃO SALVA)
             console.log(`⚠️ Nenhum resultado encontrado para ${loteria}, usando dados de exemplo`);
             resultados[loteria] = getResultadoExemplo(loteria);
             
         } catch (error) {
-            console.error(`Erro ao buscar resultado ${loteria}:`, error);
+            console.error(`❌ Erro ao buscar resultado ${loteria}:`, error);
             resultados[loteria] = getResultadoExemplo(loteria);
         }
     }
     
     return resultados;
+}
+
+// ============================================
+// RESULTADOS DE EXEMPLO
+// ============================================
+function getResultadoExemplo(loteria) {
+    const exemplos = {
+        mega: {
+            concurso: 2700,
+            dezenas: [12, 23, 34, 45, 56, 60],
+            data: '2026-01-15'
+        },
+        lotofacil: {
+            concurso: 3200,
+            dezenas: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+            data: '2026-01-16'
+        },
+        quina: {
+            concurso: 6500,
+            dezenas: [5, 15, 25, 35, 45],
+            data: '2026-01-17'
+        }
+    };
+    return exemplos[loteria] || { concurso: 0, dezenas: [], data: '' };
 }
 
 // ============================================
