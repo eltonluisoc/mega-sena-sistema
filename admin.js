@@ -3290,28 +3290,266 @@ async function carregarEstatisticasDashboard() {
     }
 }
 
-async function buscarResultadosAPI() {
-    const loterias = ['megasena', 'lotofacil', 'quina'];
+// ============================================
+// ESTATÍSTICAS AVANÇADAS DO DASHBOARD
+// ============================================
+
+async function carregarEstatisticasDashboard() {
+    console.log('📊 Carregando estatísticas avançadas...');
+    
+    try {
+        // Buscar todos os cartões
+        const snapshot = await db.collection('cartoes').get();
+        const todosCartoes = [];
+        snapshot.forEach(doc => {
+            todosCartoes.push({ id: doc.id, ...doc.data() });
+        });
+        
+        if (todosCartoes.length === 0) {
+            console.log('⚠️ Nenhum cartão encontrado');
+            atualizarDashboardEstatisticasVazio();
+            return;
+        }
+        
+        // Buscar resultados dos Firestore (já salvos anteriormente)
+        const resultados = await buscarResultadosFirestore();
+        
+        // Calcular estatísticas
+        const stats = calcularEstatisticas(todosCartoes, resultados);
+        
+        // Atualizar dashboard
+        atualizarDashboardEstatisticas(stats);
+        
+    } catch (error) {
+        console.error('❌ Erro ao carregar estatísticas:', error);
+        atualizarDashboardEstatisticasVazio();
+    }
+}
+
+async function buscarResultadosFirestore() {
+    const loterias = ['mega', 'lotofacil', 'quina'];
     const resultados = {};
     
     for (const loteria of loterias) {
         try {
-            const url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/${loteria}/ultimo`;
-            const response = await fetch(url);
-            const data = await response.json();
-            if (data && data.dezenasSorteadas) {
+            // Buscar o último resultado conferido no Firestore
+            const snapshot = await db.collection(`resultados_${loteria}`)
+                .orderBy('concurso', 'desc')
+                .limit(1)
+                .get();
+            
+            if (!snapshot.empty) {
+                const doc = snapshot.docs[0];
+                const data = doc.data();
                 resultados[loteria] = {
-                    concurso: data.concurso,
-                    dezenas: data.dezenasSorteadas.map(n => parseInt(n)),
-                    data: data.dataDoConcurso
+                    concurso: data.concurso || doc.id,
+                    dezenas: data.numeros || [],
+                    data: data.dataSorteio || data.data || ''
                 };
+                console.log(`✅ Resultado ${loteria} encontrado: concurso ${resultados[loteria].concurso}`);
+            } else {
+                // Tentar buscar da coleção resultados_conferidos
+                const conferidosSnapshot = await db.collection('resultados_conferidos')
+                    .where('loteria', '==', loteria)
+                    .orderBy('concurso', 'desc')
+                    .limit(1)
+                    .get();
+                
+                if (!conferidosSnapshot.empty) {
+                    const doc = conferidosSnapshot.docs[0];
+                    const data = doc.data();
+                    resultados[loteria] = {
+                        concurso: data.concurso,
+                        dezenas: data.numeros || [],
+                        data: data.dataSorteio || ''
+                    };
+                    console.log(`✅ Resultado ${loteria} encontrado em conferidos: concurso ${resultados[loteria].concurso}`);
+                } else {
+                    console.log(`⚠️ Nenhum resultado encontrado para ${loteria}`);
+                    resultados[loteria] = { concurso: 0, dezenas: [], data: '' };
+                }
             }
         } catch (error) {
-            console.error(`Erro ao buscar ${loteria}:`, error);
+            console.error(`Erro ao buscar resultado ${loteria}:`, error);
+            resultados[loteria] = { concurso: 0, dezenas: [], data: '' };
         }
     }
     
     return resultados;
+}
+
+function calcularEstatisticas(cartoes, resultados) {
+    // 1. Maiores acertos por loteria
+    const maiores = {
+        mega: { acertos: 0, cartao: null, bolao: '', numeros: [] },
+        lotofacil: { acertos: 0, cartao: null, bolao: '', numeros: [] },
+        quina: { acertos: 0, cartao: null, bolao: '', numeros: [] }
+    };
+    
+    // 2. Desempenho por bolão
+    const boloesStats = {};
+    
+    for (const cartao of cartoes) {
+        const tipo = cartao.tipo || 'mega';
+        const dezenasSorteadas = resultados[tipo]?.dezenas || [];
+        const acertos = dezenasSorteadas.length > 0 ? 
+            cartao.numeros.filter(n => dezenasSorteadas.includes(n)).length : 0;
+        
+        // Maiores acertos
+        if (acertos > maiores[tipo].acertos) {
+            maiores[tipo] = { 
+                acertos, 
+                cartao: cartao.numeros, 
+                bolao: cartao.bolao || 'Sem Bolão',
+                numeros: cartao.numeros
+            };
+        }
+        
+        // Estatísticas por bolão
+        const bolaoNome = cartao.bolao || 'Sem Bolão';
+        if (!boloesStats[bolaoNome]) {
+            boloesStats[bolaoNome] = { 
+                totalAcertos: 0, 
+                totalCartoes: 0, 
+                maxAcertos: 0,
+                cartoes: []
+            };
+        }
+        boloesStats[bolaoNome].totalAcertos += acertos;
+        boloesStats[bolaoNome].totalCartoes++;
+        if (acertos > boloesStats[bolaoNome].maxAcertos) {
+            boloesStats[bolaoNome].maxAcertos = acertos;
+        }
+        boloesStats[bolaoNome].cartoes.push({ numeros: cartao.numeros, acertos });
+    }
+    
+    // 3. Melhor bolão (maior média de acertos)
+    let melhorBolao = { nome: 'Nenhum', media: 0, totalAcertos: 0, maxAcertos: 0, totalCartoes: 0 };
+    for (const [nome, dados] of Object.entries(boloesStats)) {
+        if (dados.totalCartoes > 0) {
+            const media = dados.totalAcertos / dados.totalCartoes;
+            if (media > melhorBolao.media) {
+                melhorBolao = { 
+                    nome, 
+                    media, 
+                    totalAcertos: dados.totalAcertos,
+                    maxAcertos: dados.maxAcertos,
+                    totalCartoes: dados.totalCartoes
+                };
+            }
+        }
+    }
+    
+    // 4. Probabilidade média geral
+    let totalProb = 0;
+    let count = 0;
+    for (const cartao of cartoes) {
+        const numeros = cartao.numeros || [];
+        if (numeros.length > 0) {
+            let prob = 0;
+            if (cartao.tipo === 'mega') prob = numeros.length / 60;
+            else if (cartao.tipo === 'lotofacil') prob = numeros.length / 25;
+            else prob = numeros.length / 80;
+            totalProb += prob;
+            count++;
+        }
+    }
+    const probMedia = count > 0 ? (totalProb / count) * 100 : 0;
+    
+    // 5. Total de participantes (somar de todos os bolões)
+    let totalParticipantes = 0;
+    for (const bolao of boloes) {
+        if (bolao.participantes) totalParticipantes += bolao.participantes.length;
+    }
+    
+    return {
+        maiores,
+        melhorBolao,
+        probMedia,
+        totalCartoes: cartoes.length,
+        totalBoloes: boloes.length,
+        totalParticipantes,
+        boloesStats
+    };
+}
+
+function atualizarDashboardEstatisticas(stats) {
+    // Maiores acertos - pegar o maior entre todas as loterias
+    let maxAcertos = 0;
+    let melhorTipo = '';
+    let melhorBolaoNome = '';
+    let melhoresNumeros = [];
+    for (const [tipo, dados] of Object.entries(stats.maiores)) {
+        if (dados.acertos > maxAcertos) {
+            maxAcertos = dados.acertos;
+            melhorTipo = tipo;
+            melhorBolaoNome = dados.bolao;
+            melhoresNumeros = dados.numeros || [];
+        }
+    }
+    
+    const elMaiores = document.getElementById('dashboardMaioresAcertos');
+    if (elMaiores) {
+        if (maxAcertos > 0) {
+            elMaiores.textContent = `${maxAcertos} 🎯`;
+            elMaiores.title = `${maxAcertos} acertos no ${melhorTipo.toUpperCase()} (${melhorBolaoNome})`;
+        } else {
+            elMaiores.textContent = '0';
+        }
+    }
+    
+    // Melhor bolão
+    const elMelhor = document.getElementById('dashboardMelhorBolao');
+    if (elMelhor) {
+        if (stats.melhorBolao.nome !== 'Nenhum') {
+            const media = stats.melhorBolao.media.toFixed(1);
+            elMelhor.textContent = `${stats.melhorBolao.nome}`;
+            elMelhor.title = `Média: ${media} acertos | Max: ${stats.melhorBolao.maxAcertos} | ${stats.melhorBolao.totalCartoes} cartões`;
+        } else {
+            elMelhor.textContent = 'Nenhum';
+        }
+    }
+    
+    // Probabilidade média
+    const elProb = document.getElementById('dashboardProbabilidade');
+    if (elProb) {
+        elProb.textContent = stats.probMedia > 0 ? `${stats.probMedia.toFixed(1)}%` : '0%';
+    }
+    
+    // Atualizar também os totais gerais
+    const totalCartoesEl = document.getElementById('dashboardTotalCartoes');
+    if (totalCartoesEl) totalCartoesEl.textContent = stats.totalCartoes;
+    
+    const totalBoloesEl = document.getElementById('dashboardTotalBoloes');
+    if (totalBoloesEl) totalBoloesEl.textContent = stats.totalBoloes;
+    
+    const participantesEl = document.getElementById('dashboardParticipantes');
+    if (participantesEl) participantesEl.textContent = stats.totalParticipantes;
+}
+
+function atualizarDashboardEstatisticasVazio() {
+    const elementos = [
+        'dashboardMaioresAcertos',
+        'dashboardMelhorBolao',
+        'dashboardProbabilidade',
+        'dashboardTotalCartoes',
+        'dashboardTotalBoloes',
+        'dashboardParticipantes'
+    ];
+    
+    const valores = {
+        'dashboardMaioresAcertos': '0',
+        'dashboardMelhorBolao': 'Nenhum',
+        'dashboardProbabilidade': '0%',
+        'dashboardTotalCartoes': '0',
+        'dashboardTotalBoloes': '0',
+        'dashboardParticipantes': '0'
+    };
+    
+    for (const id of elementos) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = valores[id] || '0';
+    }
 }
 
 function calcularEstatisticas(cartoes, resultados) {
