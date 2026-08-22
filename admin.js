@@ -3837,14 +3837,6 @@ document.addEventListener('DOMContentLoaded', () => {
         exibirCartoesAdmin();
     }, 500);
     
-    setTimeout(() => {
-        const modal = document.getElementById('authModal');
-        if (modal && !modal.classList.contains('show') && !localStorage.getItem('admin_autenticado')) {
-            console.log('⚠️ Forçando exibição do modal de autenticação...');
-            modal.classList.add('show');
-            modal.style.display = 'flex';
-        }
-    }, 500);
     // Carregar estatísticas avançadas
 setTimeout(() => {
     carregarEstatisticasDashboard();
