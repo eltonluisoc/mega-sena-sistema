@@ -2788,6 +2788,51 @@ async function copiarHistoricoWhatsApp(id, nome) {
 }
 
 // ============================================
+// SALVAR CONFIG BOLOES
+// ============================================
+async function salvarConfigBoloes() {
+    const checkboxes = document.querySelectorAll('.checkbox-bolao:checked');
+    const idsSelecionados = Array.from(checkboxes).map(cb => cb.dataset.id);
+    
+    const statusMap = {};
+    document.querySelectorAll('.status-select').forEach(select => {
+        statusMap[select.dataset.id] = select.value;
+    });
+    
+    const dataLimiteMap = {};
+    document.querySelectorAll('.data-limite-input').forEach(input => {
+        dataLimiteMap[input.dataset.id] = input.value;
+    });
+    
+    const destaqueMap = {};
+    document.querySelectorAll('.checkbox-destaque:checked').forEach(cb => {
+        destaqueMap[cb.dataset.id] = true;
+    });
+    
+    const estrategiaMap = {};
+    document.querySelectorAll('.estrategia-textarea').forEach(textarea => {
+        const valor = textarea.value.trim();
+        if (valor) {
+            estrategiaMap[textarea.dataset.id] = valor;
+        }
+    });
+    
+    try {
+        await db.collection('config_boloes').doc('ativos').set({ 
+            ids: idsSelecionados,
+            status: statusMap,
+            dataLimite: dataLimiteMap,
+            destaque: destaqueMap,
+            estrategia: estrategiaMap
+        }, { merge: true });
+        showToast('✅ Configurações salvas!', 'success');
+    } catch (error) {
+        console.error('Erro ao salvar:', error);
+        showToast('❌ Erro ao salvar', 'error');
+    }
+}
+
+// ============================================
 // INICIALIZAÇÃO (DOMContentLoaded)
 // ============================================
 document.addEventListener('DOMContentLoaded', () => {
@@ -2817,6 +2862,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const adminBtnQuina = document.getElementById('adminBtnQuina');
     const btnForcarRecarregar = document.getElementById('btnForcarRecarregar');
     const btnVerificarDuplicados = document.getElementById('btnVerificarDuplicados');
+if (btnVerificarDuplicados) {
+    btnVerificarDuplicados.addEventListener('click', verificarDuplicados);
+}
     
     if (btnAutenticar) btnAutenticar.onclick = autenticar;
     if (btnSair) btnSair.onclick = sair;
