@@ -1147,6 +1147,8 @@ async function carregarBoloesParaGerenciar() {
 // ============================================
 let cartoesDuplicadosSelecionados = {};
 
+let cartoesDuplicadosSelecionados = {};
+
 async function verificarDuplicados() {
     const concurso = document.getElementById('filtroConcursoLista').value;
     const container = document.getElementById('duplicadosResultado');
@@ -1168,7 +1170,6 @@ async function verificarDuplicados() {
             return;
         }
         
-        // Agrupar por números
         const numerosMap = {};
         snapshot.forEach(doc => {
             const data = doc.data();
@@ -1185,7 +1186,6 @@ async function verificarDuplicados() {
             });
         });
         
-        // Filtrar duplicados
         const duplicados = {};
         let totalDuplicados = 0;
         Object.keys(numerosMap).forEach(key => {
@@ -1204,7 +1204,6 @@ async function verificarDuplicados() {
             return;
         }
         
-        // Resetar seleções
         cartoesDuplicadosSelecionados = {};
         
         let html = `
@@ -1214,7 +1213,7 @@ async function verificarDuplicados() {
                     <span>📊 ${snapshot.size} cartões | 🔁 ${totalDuplicados} duplicados</span>
                 </div>
                 <div style="font-size:13px;color:#78350f;margin-top:6px;">
-                    💡 <strong>Clique no cartão</strong> que deseja manter. Os outros serão excluídos.
+                    💡 <strong>Clique no cartão</strong> que deseja manter. O selecionado fica <strong style="color:#3b82f6;">AZUL</strong>.
                 </div>
             </div>
             <div style="max-height:450px;overflow-y:auto;margin-bottom:16px;">
@@ -1243,38 +1242,45 @@ async function verificarDuplicados() {
                 const isFirst = idx === 0;
                 const dataCadastro = cartao.dataCadastro ? new Date(cartao.dataCadastro).toLocaleDateString('pt-BR') : '---';
                 const tipoLabel = cartao.tipoParticipacao === 'cota' ? '🎟️ Cota' : '👥 Exclusivo';
-                const isChecked = isFirst ? 'checked' : '';
+                
+                // ID do cartão para identificar
+                const cartaoId = cartao.id;
                 
                 html += `
                     <div class="duplicado-item" 
                          data-grupo="${grupoId}" 
-                         data-id="${cartao.id}"
-                         onclick="selecionarDuplicado('${grupoId}', '${cartao.id}')"
+                         data-id="${cartaoId}"
                          style="
-                             background: ${isFirst ? '#dbeafe' : '#ffffff'};
-                             border: 3px solid ${isFirst ? '#3b82f6' : '#e2e8f0'};
+                             background: ${isFirst ? '#3b82f6' : '#ffffff'};
+                             border: 3px solid ${isFirst ? '#1d4ed8' : '#e2e8f0'};
                              border-radius: 10px;
-                             padding: 12px 14px;
+                             padding: 14px 16px;
                              cursor: pointer;
                              transition: all 0.2s;
-                             box-shadow: ${isFirst ? '0 0 0 2px #3b82f640' : 'none'};
-                         ">
+                             box-shadow: ${isFirst ? '0 4px 12px rgba(59,130,246,0.3)' : 'none'};
+                         "
+                         onclick="selecionarDuplicado('${grupoId}', '${cartaoId}')"
+                         onmouseover="this.style.transform='scale(1.02)'"
+                         onmouseout="this.style.transform='scale(1)'"
+                    >
                         <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-                            <span style="font-weight:600;color:#1e293b;font-size:14px;">
+                            <span style="font-weight:700;color:${isFirst ? '#ffffff' : '#1e293b'};font-size:15px;">
                                 #${idx + 1}
                             </span>
-                            ${isFirst ? '<span style="background:#3b82f6;color:white;padding:2px 12px;border-radius:30px;font-size:11px;font-weight:600;">✅ SELECIONADO</span>' : ''}
-                            <span style="font-size:11px;color:#64748b;margin-left:auto;">ID: ${cartao.id.slice(0,8)}</span>
+                            ${isFirst ? '<span style="background:#ffffff;color:#1d4ed8;padding:2px 14px;border-radius:30px;font-size:12px;font-weight:700;">✅ SELECIONADO</span>' : ''}
+                            <span style="font-size:11px;color:${isFirst ? '#bfdbfe' : '#64748b'};margin-left:auto;">
+                                ID: ${cartaoId.slice(0,8)}
+                            </span>
                         </div>
-                        <div style="font-size:12px;color:#475569;padding-left:4px;">
+                        <div style="font-size:12px;color:${isFirst ? '#bfdbfe' : '#475569'};padding-left:4px;">
                             📌 ${cartao.bolao} | ${tipoLabel} | 📅 ${dataCadastro}
                         </div>
+                        ${isFirst ? '<div style="font-size:11px;color:#93c5fd;margin-top:4px;padding-left:4px;">🔹 Este cartão será mantido</div>' : '<div style="font-size:11px;color:#94a3b8;margin-top:4px;padding-left:4px;">🔸 Clique para manter este</div>'}
                     </div>
                 `;
                 
-                // Guardar seleção inicial
                 if (isFirst) {
-                    cartoesDuplicadosSelecionados[grupoId] = cartao.id;
+                    cartoesDuplicadosSelecionados[grupoId] = cartaoId;
                 }
             });
             
@@ -1284,11 +1290,17 @@ async function verificarDuplicados() {
             `;
         }
         
+        // Calcular total para excluir
+        let totalParaExcluir = 0;
+        for (const [key, cartoes] of Object.entries(duplicados)) {
+            totalParaExcluir += cartoes.length - 1;
+        }
+        
         html += `
             </div>
             <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end;padding-top:12px;border-top:2px solid #e2e8f0;">
                 <button id="btnExcluirDuplicados" class="btn btn-danger" style="flex:1;min-width:180px;padding:14px;font-size:16px;font-weight:700;">
-                    🗑️ EXCLUIR DUPLICADOS (${totalDuplicados - gruposDuplicados} cartões)
+                    🗑️ EXCLUIR DUPLICADOS (${totalParaExcluir} cartões)
                 </button>
                 <button id="btnFecharDuplicados" class="btn btn-secondary" style="flex:1;min-width:120px;padding:14px;font-size:14px;">
                     FECHAR
@@ -1304,18 +1316,19 @@ async function verificarDuplicados() {
         // EVENTO: Excluir duplicados
         // ============================================
         document.getElementById('btnExcluirDuplicados').addEventListener('click', function() {
-            // Coletar IDs para excluir
-            const idsParaExcluir = [];
             const idsManter = Object.values(cartoesDuplicadosSelecionados);
+            const idsParaExcluir = [];
             
-            console.log('📌 IDs para manter:', idsManter);
-            
+            // Coletar todos os IDs dos cartões duplicados
+            const todosIds = [];
             for (const [numerosStr, cartoes] of Object.entries(duplicados)) {
-                const idsDoGrupo = cartoes.map(c => c.id);
-                const idsParaExcluirGrupo = idsDoGrupo.filter(id => !idsManter.includes(id));
-                idsParaExcluir.push(...idsParaExcluirGrupo);
+                cartoes.forEach(c => todosIds.push(c.id));
             }
             
+            // Filtrar os que não estão na lista de manter
+            idsParaExcluir.push(...todosIds.filter(id => !idsManter.includes(id)));
+            
+            console.log('📌 IDs para manter:', idsManter);
             console.log('📌 IDs para excluir:', idsParaExcluir);
             
             if (idsParaExcluir.length === 0) {
@@ -1337,6 +1350,12 @@ async function verificarDuplicados() {
             
             let excluidos = 0;
             let erros = 0;
+            
+            if (idsParaExcluir.length === 0) {
+                hideLoading();
+                showToast('✅ Nenhum cartão para excluir', 'info');
+                return;
+            }
             
             idsParaExcluir.forEach(id => {
                 db.collection('cartoes').doc(id).delete()
@@ -1374,6 +1393,88 @@ async function verificarDuplicados() {
         showToast('❌ Erro ao verificar duplicados: ' + error.message, 'error');
         container.innerHTML = '<div style="text-align:center;padding:20px;color:#ef4444;"><div style="font-size:32px;">❌</div><div style="font-weight:600;margin-top:8px;">Erro ao verificar duplicados</div><div style="font-size:13px;color:#64748b;margin-top:4px;">' + error.message + '</div></div>';
         container.style.display = 'block';
+    }
+}
+
+// ============================================
+// FUNÇÃO PARA SELECIONAR DUPLICADO (GLOBAL)
+// ============================================
+function selecionarDuplicado(grupoId, cartaoId) {
+    // Salvar seleção
+    cartoesDuplicadosSelecionados[grupoId] = cartaoId;
+    
+    // Atualizar visual de todos os itens do grupo
+    const items = document.querySelectorAll(`.duplicado-item[data-grupo="${grupoId}"]`);
+    items.forEach(item => {
+        const id = item.dataset.id;
+        const isSelected = id === cartaoId;
+        
+        // Fundo e borda
+        item.style.background = isSelected ? '#3b82f6' : '#ffffff';
+        item.style.borderColor = isSelected ? '#1d4ed8' : '#e2e8f0';
+        item.style.boxShadow = isSelected ? '0 4px 12px rgba(59,130,246,0.3)' : 'none';
+        
+        // Cores dos textos
+        const textSpans = item.querySelectorAll('span');
+        textSpans.forEach(span => {
+            if (span.style.color !== '') {
+                span.style.color = isSelected ? '#ffffff' : '#1e293b';
+            }
+        });
+        
+        // Atualizar badge de selecionado
+        const badge = item.querySelector('span[style*="background:#ffffff"]');
+        const existingBadge = item.querySelector('span[style*="background:#ffffff"]');
+        
+        // Remover badges antigos
+        const allBadges = item.querySelectorAll('span[style*="background:#ffffff"]');
+        allBadges.forEach(b => {
+            if (b.textContent.includes('SELECIONADO')) b.remove();
+        });
+        
+        if (isSelected) {
+            // Adicionar badge de selecionado se não existir
+            if (!item.querySelector('span:contains("SELECIONADO")')) {
+                const firstDiv = item.querySelector('div:first-child');
+                if (firstDiv) {
+                    const newBadge = document.createElement('span');
+                    newBadge.style.cssText = 'background:#ffffff;color:#1d4ed8;padding:2px 14px;border-radius:30px;font-size:12px;font-weight:700;';
+                    newBadge.textContent = '✅ SELECIONADO';
+                    firstDiv.appendChild(newBadge);
+                }
+            }
+            // Atualizar texto "será mantido"
+            const infoDivs = item.querySelectorAll('div[style*="font-size:11px"]');
+            infoDivs.forEach(div => {
+                if (div.textContent.includes('mantido') || div.textContent.includes('Clique para manter')) {
+                    div.textContent = '🔹 Este cartão será MANTIDO';
+                    div.style.color = '#93c5fd';
+                }
+            });
+        } else {
+            // Remover badge de selecionado
+            const badgeToRemove = item.querySelector('span:contains("SELECIONADO")');
+            if (badgeToRemove) badgeToRemove.remove();
+            
+            // Atualizar texto "Clique para manter"
+            const infoDivs = item.querySelectorAll('div[style*="font-size:11px"]');
+            infoDivs.forEach(div => {
+                if (div.textContent.includes('mantido') || div.textContent.includes('Clique para manter')) {
+                    div.textContent = '🔸 Clique para manter este';
+                    div.style.color = '#94a3b8';
+                }
+            });
+        }
+    });
+    
+    // Atualizar contador do botão
+    const btnExcluir = document.getElementById('btnExcluirDuplicados');
+    if (btnExcluir) {
+        const todosItems = document.querySelectorAll('.duplicado-item');
+        const idsManter = Object.values(cartoesDuplicadosSelecionados);
+        const idsTodos = Array.from(todosItems).map(el => el.dataset.id);
+        const idsParaExcluir = idsTodos.filter(id => !idsManter.includes(id));
+        btnExcluir.textContent = '🗑️ EXCLUIR DUPLICADOS (' + idsParaExcluir.length + ' cartões)';
     }
 }
 
