@@ -37,6 +37,16 @@ let numerosExtraidos = [];
 let imagemProcessada = false;
 
 // ============================================
+// VARIÁVEIS CSV
+// ============================================
+let dadosCSV = [];
+
+// ============================================
+// VARIÁVEIS DUPLICADOS
+// ============================================
+let cartoesDuplicadosSelecionados = {};
+
+// ============================================
 // TOAST
 // ============================================
 function showToast(message, type = 'info') {
@@ -716,29 +726,48 @@ function carregarConcursosAdmin() {
 // ATUALIZAR DASHBOARD
 // ============================================
 function atualizarDashboardAdmin() {
-    let abertos = 0;
-    let andamento = 0;
-    let encerrados = 0;
+    // Total de cartões
+    const totalCartoes = cartoes.length;
+    const totalPorLoteria = {
+        mega: cartoes.filter(c => c.tipo === 'mega').length,
+        lotofacil: cartoes.filter(c => c.tipo === 'lotofacil').length,
+        quina: cartoes.filter(c => c.tipo === 'quina').length
+    };
     
+    // Atualizar resumo no dashboard
+    const totalCartoesEl = document.getElementById('dashboardTotalCartoes');
+    if (totalCartoesEl) totalCartoesEl.innerHTML = totalCartoes;
+    
+    const megaEl = document.getElementById('dashboardMega');
+    if (megaEl) megaEl.innerHTML = totalPorLoteria.mega;
+    
+    const lotofacilEl = document.getElementById('dashboardLotofacil');
+    if (lotofacilEl) lotofacilEl.innerHTML = totalPorLoteria.lotofacil;
+    
+    const quinaEl = document.getElementById('dashboardQuina');
+    if (quinaEl) quinaEl.innerHTML = totalPorLoteria.quina;
+    
+    // Bolões ativos
     db.collection('config_boloes').doc('ativos').get().then(configDoc => {
         if (configDoc.exists) {
             const dados = configDoc.data();
             const statusMap = dados.status || {};
+            let abertos = 0, andamento = 0, encerrados = 0;
             for (const id in statusMap) {
                 const status = statusMap[id];
                 if (status === 'aberto') abertos++;
                 else if (status === 'andamento') andamento++;
                 else if (status === 'encerrado') encerrados++;
             }
+            
+            const abertosEl = document.getElementById('dashboardAbertos');
+            const andamentoEl = document.getElementById('dashboardAndamento');
+            const encerradosEl = document.getElementById('dashboardEncerrados');
+            
+            if (abertosEl) abertosEl.innerHTML = abertos;
+            if (andamentoEl) andamentoEl.innerHTML = andamento;
+            if (encerradosEl) encerradosEl.innerHTML = encerrados;
         }
-        
-        const abertosEl = document.getElementById('dashboardAbertos');
-        const andamentoEl = document.getElementById('dashboardAndamento');
-        const encerradosEl = document.getElementById('dashboardEncerrados');
-        
-        if (abertosEl) abertosEl.innerHTML = abertos;
-        if (andamentoEl) andamentoEl.innerHTML = andamento;
-        if (encerradosEl) encerradosEl.innerHTML = encerrados;
     }).catch(error => {
         console.error('Erro ao carregar status dos bolões:', error);
     });
@@ -1143,12 +1172,8 @@ async function carregarBoloesParaGerenciar() {
 }
 
 // ============================================
-// VERIFICAR DUPLICADOS (VERSÃO MELHORADA)
+// VERIFICAR DUPLICADOS
 // ============================================
-let cartoesDuplicadosSelecionados = {};
-
-let cartoesDuplicadosSelecionados = {};
-
 async function verificarDuplicados() {
     const concurso = document.getElementById('filtroConcursoLista').value;
     const container = document.getElementById('duplicadosResultado');
@@ -1242,8 +1267,6 @@ async function verificarDuplicados() {
                 const isFirst = idx === 0;
                 const dataCadastro = cartao.dataCadastro ? new Date(cartao.dataCadastro).toLocaleDateString('pt-BR') : '---';
                 const tipoLabel = cartao.tipoParticipacao === 'cota' ? '🎟️ Cota' : '👥 Exclusivo';
-                
-                // ID do cartão para identificar
                 const cartaoId = cartao.id;
                 
                 html += `
@@ -1312,24 +1335,17 @@ async function verificarDuplicados() {
         container.style.display = 'block';
         hideLoading();
         
-        // ============================================
-        // EVENTO: Excluir duplicados
-        // ============================================
+        // Evento: Excluir duplicados
         document.getElementById('btnExcluirDuplicados').addEventListener('click', function() {
             const idsManter = Object.values(cartoesDuplicadosSelecionados);
             const idsParaExcluir = [];
             
-            // Coletar todos os IDs dos cartões duplicados
             const todosIds = [];
             for (const [numerosStr, cartoes] of Object.entries(duplicados)) {
                 cartoes.forEach(c => todosIds.push(c.id));
             }
             
-            // Filtrar os que não estão na lista de manter
             idsParaExcluir.push(...todosIds.filter(id => !idsManter.includes(id)));
-            
-            console.log('📌 IDs para manter:', idsManter);
-            console.log('📌 IDs para excluir:', idsParaExcluir);
             
             if (idsParaExcluir.length === 0) {
                 showToast('⚠️ Nenhum cartão para excluir', 'warning');
@@ -1350,12 +1366,6 @@ async function verificarDuplicados() {
             
             let excluidos = 0;
             let erros = 0;
-            
-            if (idsParaExcluir.length === 0) {
-                hideLoading();
-                showToast('✅ Nenhum cartão para excluir', 'info');
-                return;
-            }
             
             idsParaExcluir.forEach(id => {
                 db.collection('cartoes').doc(id).delete()
@@ -1380,9 +1390,7 @@ async function verificarDuplicados() {
             });
         });
         
-        // ============================================
-        // EVENTO: Fechar
-        // ============================================
+        // Evento: Fechar
         document.getElementById('btnFecharDuplicados').addEventListener('click', function() {
             container.style.display = 'none';
         });
@@ -1400,21 +1408,17 @@ async function verificarDuplicados() {
 // FUNÇÃO PARA SELECIONAR DUPLICADO (GLOBAL)
 // ============================================
 function selecionarDuplicado(grupoId, cartaoId) {
-    // Salvar seleção
     cartoesDuplicadosSelecionados[grupoId] = cartaoId;
     
-    // Atualizar visual de todos os itens do grupo
     const items = document.querySelectorAll(`.duplicado-item[data-grupo="${grupoId}"]`);
     items.forEach(item => {
         const id = item.dataset.id;
         const isSelected = id === cartaoId;
         
-        // Fundo e borda
         item.style.background = isSelected ? '#3b82f6' : '#ffffff';
         item.style.borderColor = isSelected ? '#1d4ed8' : '#e2e8f0';
         item.style.boxShadow = isSelected ? '0 4px 12px rgba(59,130,246,0.3)' : 'none';
         
-        // Cores dos textos
         const textSpans = item.querySelectorAll('span');
         textSpans.forEach(span => {
             if (span.style.color !== '') {
@@ -1422,18 +1426,12 @@ function selecionarDuplicado(grupoId, cartaoId) {
             }
         });
         
-        // Atualizar badge de selecionado
-        const badge = item.querySelector('span[style*="background:#ffffff"]');
-        const existingBadge = item.querySelector('span[style*="background:#ffffff"]');
-        
-        // Remover badges antigos
         const allBadges = item.querySelectorAll('span[style*="background:#ffffff"]');
         allBadges.forEach(b => {
             if (b.textContent.includes('SELECIONADO')) b.remove();
         });
         
         if (isSelected) {
-            // Adicionar badge de selecionado se não existir
             if (!item.querySelector('span:contains("SELECIONADO")')) {
                 const firstDiv = item.querySelector('div:first-child');
                 if (firstDiv) {
@@ -1443,7 +1441,6 @@ function selecionarDuplicado(grupoId, cartaoId) {
                     firstDiv.appendChild(newBadge);
                 }
             }
-            // Atualizar texto "será mantido"
             const infoDivs = item.querySelectorAll('div[style*="font-size:11px"]');
             infoDivs.forEach(div => {
                 if (div.textContent.includes('mantido') || div.textContent.includes('Clique para manter')) {
@@ -1452,11 +1449,9 @@ function selecionarDuplicado(grupoId, cartaoId) {
                 }
             });
         } else {
-            // Remover badge de selecionado
             const badgeToRemove = item.querySelector('span:contains("SELECIONADO")');
             if (badgeToRemove) badgeToRemove.remove();
             
-            // Atualizar texto "Clique para manter"
             const infoDivs = item.querySelectorAll('div[style*="font-size:11px"]');
             infoDivs.forEach(div => {
                 if (div.textContent.includes('mantido') || div.textContent.includes('Clique para manter')) {
@@ -1467,7 +1462,6 @@ function selecionarDuplicado(grupoId, cartaoId) {
         }
     });
     
-    // Atualizar contador do botão
     const btnExcluir = document.getElementById('btnExcluirDuplicados');
     if (btnExcluir) {
         const todosItems = document.querySelectorAll('.duplicado-item');
@@ -1475,122 +1469,6 @@ function selecionarDuplicado(grupoId, cartaoId) {
         const idsTodos = Array.from(todosItems).map(el => el.dataset.id);
         const idsParaExcluir = idsTodos.filter(id => !idsManter.includes(id));
         btnExcluir.textContent = '🗑️ EXCLUIR DUPLICADOS (' + idsParaExcluir.length + ' cartões)';
-    }
-}
-
-// ============================================
-// FUNÇÃO PARA SELECIONAR DUPLICADO (GLOBAL)
-// ============================================
-function selecionarDuplicado(grupoId, cartaoId) {
-    // Salvar seleção
-    cartoesDuplicadosSelecionados[grupoId] = cartaoId;
-    
-    // Atualizar visual
-    const items = document.querySelectorAll(`.duplicado-item[data-grupo="${grupoId}"]`);
-    items.forEach(item => {
-        const id = item.dataset.id;
-        const isSelected = id === cartaoId;
-        
-        item.style.background = isSelected ? '#dbeafe' : '#ffffff';
-        item.style.borderColor = isSelected ? '#3b82f6' : '#e2e8f0';
-        item.style.boxShadow = isSelected ? '0 0 0 3px #3b82f640' : 'none';
-        
-        // Atualizar badge
-        const badge = item.querySelector('span[style*="background:#3b82f6"]');
-        if (isSelected) {
-            if (!badge) {
-                const firstDiv = item.querySelector('div:first-child');
-                if (firstDiv) {
-                    const newBadge = document.createElement('span');
-                    newBadge.style.cssText = 'background:#3b82f6;color:white;padding:2px 12px;border-radius:30px;font-size:11px;font-weight:600;';
-                    newBadge.textContent = '✅ SELECIONADO';
-                    firstDiv.appendChild(newBadge);
-                }
-            }
-        } else {
-            if (badge) badge.remove();
-        }
-    });
-    
-    // Atualizar contador do botão
-    const btnExcluir = document.getElementById('btnExcluirDuplicados');
-    if (btnExcluir) {
-        const totalGrupos = Object.keys(cartoesDuplicadosSelecionados).length;
-        const totalCartoes = document.querySelectorAll('.duplicado-item').length;
-        const idsManter = Object.values(cartoesDuplicadosSelecionados);
-        const idsTodos = Array.from(document.querySelectorAll('.duplicado-item')).map(el => el.dataset.id);
-        const idsParaExcluir = idsTodos.filter(id => !idsManter.includes(id));
-        btnExcluir.textContent = '🗑️ EXCLUIR DUPLICADOS (' + idsParaExcluir.length + ' cartões)';
-    }
-}
-        
-        // ============================================
-        // EVENTO: Excluir duplicados
-        // ============================================
-        document.getElementById('btnExcluirDuplicados').addEventListener('click', function() {
-            // Coletar IDs para excluir
-            const idsParaExcluir = [];
-            const idsManter = Object.values(cartoesDuplicadosSelecionados);
-            
-            for (const [numerosStr, cartoes] of Object.entries(duplicados)) {
-                const idsDoGrupo = cartoes.map(c => c.id);
-                const idsParaExcluirGrupo = idsDoGrupo.filter(id => !idsManter.includes(id));
-                idsParaExcluir.push(...idsParaExcluirGrupo);
-            }
-            
-            console.log('📌 IDs para excluir:', idsParaExcluir);
-            console.log('📌 IDs para manter:', idsManter);
-            
-            if (idsParaExcluir.length === 0) {
-                showToast('⚠️ Nenhum cartão para excluir', 'warning');
-                return;
-            }
-            
-            if (!confirm('⚠️ ATENÇÃO!\n\nVocê está prestes a excluir ' + idsParaExcluir.length + ' cartões duplicados.\n\n' + idsManter.length + ' cartões serão mantidos.\n\nEsta ação NÃO pode ser desfeita!\n\nDeseja continuar?')) {
-                return;
-            }
-            
-            showLoading('Excluindo ' + idsParaExcluir.length + ' cartões...');
-            
-            let excluidos = 0;
-            let erros = 0;
-            
-            idsParaExcluir.forEach(id => {
-                db.collection('cartoes').doc(id).delete()
-                    .then(() => {
-                        excluidos++;
-                        console.log('✅ ' + id + ' excluído');
-                        if (excluidos + erros === idsParaExcluir.length) {
-                            hideLoading();
-                            showToast('✅ ' + excluidos + ' cartões duplicados excluídos!', 'success');
-                            container.style.display = 'none';
-                            carregarDadosAdmin();
-                        }
-                    })
-                    .catch(err => {
-                        erros++;
-                        console.error('❌ Erro ao excluir ' + id + ':', err);
-                        if (excluidos + erros === idsParaExcluir.length) {
-                            hideLoading();
-                            showToast('✅ ' + excluidos + ' excluídos, ⚠️ ' + erros + ' erros', 'warning');
-                        }
-                    });
-            });
-        });
-        
-        // ============================================
-        // EVENTO: Fechar
-        // ============================================
-        document.getElementById('btnFecharDuplicados').addEventListener('click', function() {
-            container.style.display = 'none';
-        });
-        
-    } catch (error) {
-        console.error('Erro:', error);
-        hideLoading();
-        showToast('❌ Erro ao verificar duplicados: ' + error.message, 'error');
-        container.innerHTML = '<div style="text-align:center;padding:20px;color:#ef4444;"><div style="font-size:32px;">❌</div><div style="font-weight:600;margin-top:8px;">Erro ao verificar duplicados</div><div style="font-size:13px;color:#64748b;margin-top:4px;">' + error.message + '</div></div>';
-        container.style.display = 'block';
     }
 }
 
@@ -2473,6 +2351,77 @@ async function adicionarCartaoIndividual() {
     }
 }
 
+async function adicionarCartaoIndividualSelecao() {
+    const concurso = document.getElementById('concursoIndividualSelecao').value;
+    const bolao = document.getElementById('bolaoIndividualSelecao').value || 'Bolão Seleção';
+    const tipoParticipacao = document.getElementById('tipoCartaoIndividualSelecao').value;
+    
+    if (!concurso) {
+        showToast('⚠️ Informe o concurso!', 'warning');
+        return;
+    }
+    
+    if (numerosSelecionados.length === 0) {
+        showToast('⚠️ Selecione pelo menos um número!', 'warning');
+        return;
+    }
+    
+    let minNumeros, maxNumeros, maxValor, label;
+    if (loteriaAdmin === 'mega') {
+        minNumeros = 6;
+        maxNumeros = 20;
+        maxValor = 60;
+        label = 'MEGA-SENA';
+    } else if (loteriaAdmin === 'lotofacil') {
+        minNumeros = 15;
+        maxNumeros = 20;
+        maxValor = 25;
+        label = 'LOTOFÁCIL';
+    } else if (loteriaAdmin === 'quina') {
+        minNumeros = 5;
+        maxNumeros = 15;
+        maxValor = 80;
+        label = 'QUINA';
+    } else {
+        showToast('⚠️ Loteria não reconhecida!', 'error');
+        return;
+    }
+    
+    if (numerosSelecionados.length < minNumeros) {
+        showToast(`❌ ${label}: mínimo ${minNumeros} números!`, 'error');
+        return;
+    }
+    
+    if (numerosSelecionados.length > maxNumeros) {
+        showToast(`❌ ${label}: máximo ${maxNumeros} números!`, 'error');
+        return;
+    }
+    
+    const numeros = [...numerosSelecionados].sort((a, b) => a - b);
+    
+    try {
+        await db.collection('cartoes').add({
+            concurso: concurso,
+            bolao: bolao,
+            numeros: numeros,
+            tipo: loteriaAdmin,
+            tipoParticipacao: tipoParticipacao,
+            admin: true,
+            dataCadastro: new Date().toISOString(),
+            totalNumeros: numeros.length
+        });
+        showToast(`✅ Cartão adicionado à ${label}!`, 'success');
+        numerosSelecionados = [];
+        atualizarGradeSelecaoVisual();
+        atualizarContadorSelecao();
+        atualizarPreviaSelecao();
+        carregarDadosAdmin();
+    } catch (error) {
+        console.error('Erro:', error);
+        showToast('❌ Erro ao adicionar', 'error');
+    }
+}
+
 // ============================================
 // PARTICIPANTE RÁPIDO
 // ============================================
@@ -2820,7 +2769,6 @@ async function carregarReservas() {
         for (const reserva of reservas) {
             const dataAtualizacao = reserva.dataAtualizacao ? new Date(reserva.dataAtualizacao).toLocaleString('pt-BR') : '---';
             const saldo = (reserva.saldoReserva || 0).toFixed(2);
-            const saldoClass = reserva.saldoReserva > 0 ? 'positivo' : (reserva.saldoReserva < 0 ? 'negativo' : 'zero');
             
             html += `
                 <div class="reserva-card" style="background: #f8fafc; border-radius: 12px; padding: 14px; border: 1px solid #e2e8f0;">
@@ -3063,51 +3011,6 @@ async function copiarHistoricoWhatsApp(id, nome) {
 }
 
 // ============================================
-// SALVAR CONFIG BOLOES
-// ============================================
-async function salvarConfigBoloes() {
-    const checkboxes = document.querySelectorAll('.checkbox-bolao:checked');
-    const idsSelecionados = Array.from(checkboxes).map(cb => cb.dataset.id);
-    
-    const statusMap = {};
-    document.querySelectorAll('.status-select').forEach(select => {
-        statusMap[select.dataset.id] = select.value;
-    });
-    
-    const dataLimiteMap = {};
-    document.querySelectorAll('.data-limite-input').forEach(input => {
-        dataLimiteMap[input.dataset.id] = input.value;
-    });
-    
-    const destaqueMap = {};
-    document.querySelectorAll('.checkbox-destaque:checked').forEach(cb => {
-        destaqueMap[cb.dataset.id] = true;
-    });
-    
-    const estrategiaMap = {};
-    document.querySelectorAll('.estrategia-textarea').forEach(textarea => {
-        const valor = textarea.value.trim();
-        if (valor) {
-            estrategiaMap[textarea.dataset.id] = valor;
-        }
-    });
-    
-    try {
-        await db.collection('config_boloes').doc('ativos').set({ 
-            ids: idsSelecionados,
-            status: statusMap,
-            dataLimite: dataLimiteMap,
-            destaque: destaqueMap,
-            estrategia: estrategiaMap
-        }, { merge: true });
-        showToast('✅ Configurações salvas!', 'success');
-    } catch (error) {
-        console.error('Erro ao salvar:', error);
-        showToast('❌ Erro ao salvar', 'error');
-    }
-}
-
-// ============================================
 // INICIALIZAÇÃO (DOMContentLoaded)
 // ============================================
 document.addEventListener('DOMContentLoaded', () => {
@@ -3137,9 +3040,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const adminBtnQuina = document.getElementById('adminBtnQuina');
     const btnForcarRecarregar = document.getElementById('btnForcarRecarregar');
     const btnVerificarDuplicados = document.getElementById('btnVerificarDuplicados');
-if (btnVerificarDuplicados) {
-    btnVerificarDuplicados.addEventListener('click', verificarDuplicados);
-}
+    
+    if (btnVerificarDuplicados) {
+        btnVerificarDuplicados.addEventListener('click', verificarDuplicados);
+    }
     
     if (btnAutenticar) btnAutenticar.onclick = autenticar;
     if (btnSair) btnSair.onclick = sair;
@@ -3184,10 +3088,6 @@ if (btnVerificarDuplicados) {
         });
     }
     
-    if (btnVerificarDuplicados) {
-        btnVerificarDuplicados.addEventListener('click', verificarDuplicados);
-    }
-    
     setTimeout(() => {
         console.log('🔄 Carregando dados das abas...');
         carregarBoloesParaGerenciar();
@@ -3216,13 +3116,13 @@ if (btnVerificarDuplicados) {
     
     setTimeout(atualizarVisibilidadeLote, 200);
     
-    adminBtnMega.addEventListener('click', () => {
+    if (adminBtnMega) adminBtnMega.addEventListener('click', () => {
         setTimeout(atualizarVisibilidadeLote, 200);
     });
-    adminBtnLotofacil.addEventListener('click', () => {
+    if (adminBtnLotofacil) adminBtnLotofacil.addEventListener('click', () => {
         setTimeout(atualizarVisibilidadeLote, 200);
     });
-    adminBtnQuina.addEventListener('click', () => {
+    if (adminBtnQuina) adminBtnQuina.addEventListener('click', () => {
         setTimeout(atualizarVisibilidadeLote, 200);
     });
     
