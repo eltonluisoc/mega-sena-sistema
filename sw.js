@@ -13,14 +13,6 @@ const urlsToCache = [
   BASE_PATH + 'manifest.json'
 ];
 
-// URLs externas (não tentar cache durante a instalação)
-const externalUrls = [
-  'https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js',
-  'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js',
-  'https://www.gstatic.com/firebasejs/9.22.0/firebase-analytics-compat.js',
-  'https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js'
-];
-
 // Instalação do Service Worker
 self.addEventListener('install', event => {
   console.log('[SW] Instalando...');
@@ -53,33 +45,26 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Intercepta requisições
+// Intercepta requisições: rede primeiro, cache só como fallback offline
+// (evita que deploys novos fiquem escondidos atrás de conteúdo cacheado)
 self.addEventListener('fetch', event => {
   const url = event.request.url;
-  
-  // Ignorar requisições do Firebase
-  if (url.includes('firebaseio.com') || url.includes('googleapis.com') || url.includes('gstatic.com')) {
+
+  // Ignorar requisições externas (Firebase, CDNs)
+  if (url.includes('firebaseio.com') || url.includes('googleapis.com') || url.includes('gstatic.com') || url.includes('cdn.sheetjs.com')) {
     event.respondWith(fetch(event.request));
     return;
   }
-  
+
   event.respondWith(
-    caches.match(event.request)
+    fetch(event.request)
       .then(response => {
-        if (response) {
-          return response;
-        }
-        return fetch(event.request).then(response => {
-          if (!response || response.status !== 200 || response.type !== 'basic') {
-            return response;
-          }
+        if (response && response.status === 200 && response.type === 'basic') {
           const responseToCache = response.clone();
-          caches.open(CACHE_NAME)
-            .then(cache => {
-              cache.put(event.request, responseToCache);
-            });
-          return response;
-        });
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseToCache));
+        }
+        return response;
       })
+      .catch(() => caches.match(event.request))
   );
 });
