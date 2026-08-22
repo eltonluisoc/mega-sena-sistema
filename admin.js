@@ -90,7 +90,202 @@ function hideLoading() {
 }
 
 // ============================================
-// INICIALIZAR GRADE DE SELEÇÃO INDIVIDUAL (6x10)
+// FUNÇÃO MD5 COMPLETA
+// ============================================
+function md5(string) {
+    function rotateLeft(value, bits) {
+        return (value << bits) | (value >>> (32 - bits));
+    }
+
+    function addUnsigned(x, y) {
+        var x4 = x & 0x40000000;
+        var y4 = y & 0x40000000;
+        var x8 = x & 0x80000000;
+        var y8 = y & 0x80000000;
+        var result = (x & 0x3FFFFFFF) + (y & 0x3FFFFFFF);
+        if (x4 & y4) return (result ^ 0x80000000 ^ x8 ^ y8);
+        if (x4 | y4) {
+            if (result & 0x40000000) return (result ^ 0xC0000000 ^ x8 ^ y8);
+            else return (result ^ 0x40000000 ^ x8 ^ y8);
+        } else {
+            return (result ^ x8 ^ y8);
+        }
+    }
+
+    function md5Cycle(x, y, z, w, a, b, c, d, s, t) {
+        a = addUnsigned(a, addUnsigned(addUnsigned(y, z), addUnsigned(x, t)));
+        return addUnsigned(rotateLeft(a, s), b);
+    }
+
+    function md5Hex(byteArray) {
+        var hex = '';
+        for (var i = 0; i < byteArray.length; i++) {
+            var b = byteArray[i];
+            if (b < 0) b += 256;
+            hex += ('0' + b.toString(16)).slice(-2);
+        }
+        return hex;
+    }
+
+    function md5Binary(string) {
+        var stringBytes = [];
+        for (var i = 0; i < string.length; i++) {
+            stringBytes.push(string.charCodeAt(i));
+        }
+        return md5BinaryFromBytes(stringBytes);
+    }
+
+    function md5BinaryFromBytes(bytes) {
+        var msg = bytes.slice();
+        var originalLength = msg.length * 8;
+        msg.push(0x80);
+        while ((msg.length * 8) % 512 !== 448) {
+            msg.push(0x00);
+        }
+        for (var i = 0; i < 8; i++) {
+            var byte = (originalLength >>> (i * 8)) & 0xFF;
+            msg.push(byte);
+        }
+        var state = [0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476];
+        for (var blockStart = 0; blockStart < msg.length; blockStart += 64) {
+            var X = [];
+            for (var i = 0; i < 16; i++) {
+                var offset = blockStart + i * 4;
+                X[i] = (msg[offset] | (msg[offset + 1] << 8) | (msg[offset + 2] << 16) | (msg[offset + 3] << 24)) >>> 0;
+            }
+            var A = state[0], B = state[1], C = state[2], D = state[3];
+            var S = [7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
+                5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
+                4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
+                6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21];
+            var T = [];
+            for (var i = 1; i <= 64; i++) {
+                var t = Math.abs(Math.sin(i)) * 0x100000000;
+                T[i] = Math.floor(t) & 0xFFFFFFFF;
+            }
+            var F = [
+                function(x, y, z) { return (x & y) | (~x & z); },
+                function(x, y, z) { return (x & z) | (y & ~z); },
+                function(x, y, z) { return x ^ y ^ z; },
+                function(x, y, z) { return y ^ (x | ~z); }
+            ];
+            var g = [
+                function(i) { return i; },
+                function(i) { return (5 * i + 1) % 16; },
+                function(i) { return (3 * i + 5) % 16; },
+                function(i) { return (7 * i) % 16; }
+            ];
+            for (var round = 0; round < 4; round++) {
+                for (var i = 0; i < 16; i++) {
+                    var idx = round * 16 + i;
+                    var gIdx = g[round](i);
+                    var a = [A, B, C, D];
+                    var aIdx = [0, 1, 2, 3];
+                    var result = md5Cycle(X[gIdx], F[round](B, C, D), a[0], a[1], a[2], a[3], aIdx[round % 4] === 0 ? a[0] : a[1], S[idx], T[idx + 1]);
+                    if (round % 4 === 0) {
+                        A = result;
+                    } else if (round % 4 === 1) {
+                        B = result;
+                    } else if (round % 4 === 2) {
+                        C = result;
+                    } else if (round % 4 === 3) {
+                        D = result;
+                    }
+                }
+            }
+            state[0] = (state[0] + A) >>> 0;
+            state[1] = (state[1] + B) >>> 0;
+            state[2] = (state[2] + C) >>> 0;
+            state[3] = (state[3] + D) >>> 0;
+        }
+        var result = [];
+        for (var i = 0; i < 4; i++) {
+            result.push((state[i] >>> 0) & 0xFF);
+            result.push((state[i] >>> 8) & 0xFF);
+            result.push((state[i] >>> 16) & 0xFF);
+            result.push((state[i] >>> 24) & 0xFF);
+        }
+        return result;
+    }
+
+    var bytes = md5Binary(string);
+    return md5Hex(bytes);
+}
+
+// ============================================
+// AUTENTICAÇÃO
+// ============================================
+function verificarAutenticacao() {
+    const autenticado = localStorage.getItem('admin_autenticado');
+    const modal = document.getElementById('authModal');
+    const senhaInput = document.getElementById('senhaAdmin');
+    
+    console.log('🔐 Verificando autenticação...');
+    console.log('📌 localStorage.admin_autenticado =', autenticado);
+    console.log('📌 Modal encontrado?', modal ? 'SIM' : 'NÃO');
+    
+    if (!modal) {
+        console.error('❌ Modal de autenticação não encontrado!');
+        return;
+    }
+    
+    if (!autenticado) {
+        console.log('🔐 Usuário NÃO autenticado. Exibindo modal...');
+        modal.classList.add('show');
+        modal.style.display = 'flex';
+        if (senhaInput) {
+            senhaInput.value = '';
+            setTimeout(() => {
+                senhaInput.focus();
+                if (navigator.userAgent.match(/iPhone|iPad|iPod|Android/i)) {
+                    senhaInput.click();
+                }
+            }, 300);
+        }
+    } else {
+        console.log('✅ Usuário já autenticado. Ocultando modal...');
+        modal.classList.remove('show');
+        modal.style.display = 'none';
+        carregarPixConfig();
+        carregarDadosAdmin();
+    }
+}
+
+function autenticar() {
+    const senha = document.getElementById('senhaAdmin').value;
+    console.log('🔑 Tentando autenticar...');
+    
+    const hashDigitado = md5(senha);
+    console.log('📌 Hash digitado:', hashDigitado);
+    console.log('📌 Hash esperado:', SENHA_HASH);
+    
+    if (hashDigitado === SENHA_HASH) {
+        localStorage.setItem('admin_autenticado', 'true');
+        console.log('✅ Login realizado com sucesso!');
+        showToast('✅ Login realizado!', 'success');
+        verificarAutenticacao();
+    } else {
+        console.log('❌ Senha incorreta!');
+        showToast('❌ Senha incorreta!', 'error');
+        document.getElementById('senhaAdmin').value = '';
+        document.getElementById('senhaAdmin').focus();
+    }
+}
+
+function sair() {
+    localStorage.removeItem('admin_autenticado');
+    showToast('🔒 Saiu do sistema', 'info');
+    verificarAutenticacao();
+}
+
+function forcarLogin() {
+    localStorage.removeItem('admin_autenticado');
+    showToast('🔐 Forçando login...', 'info');
+    verificarAutenticacao();
+}
+
+// ============================================
+// INICIALIZAR GRADE DE SELEÇÃO INDIVIDUAL
 // ============================================
 function inicializarGradeSelecaoIndividual() {
     const grade = document.getElementById('gradeSelecaoIndividual');
@@ -225,7 +420,8 @@ function atualizarPreviaSelecao() {
 // ATUALIZAR TOTAL DE CARTÕES DA SELEÇÃO
 // ============================================
 function atualizarTotalCartoesSelecao() {
-    document.getElementById('totalCartoesSelecao').textContent = todosCartoesSelecao.length || 1;
+    const el = document.getElementById('totalCartoesSelecao');
+    if (el) el.textContent = todosCartoesSelecao.length || 1;
 }
 
 // ============================================
@@ -237,8 +433,10 @@ function navegarSelecao(direcao) {
     if (cartaoAtualSelecao < 0) cartaoAtualSelecao = total - 1;
     if (cartaoAtualSelecao >= total) cartaoAtualSelecao = 0;
     
-    document.getElementById('cartaoSelecaoAtual').textContent = cartaoAtualSelecao + 1;
-    document.getElementById('totalCartoesSelecao').textContent = total;
+    const elAtual = document.getElementById('cartaoSelecaoAtual');
+    const elTotal = document.getElementById('totalCartoesSelecao');
+    if (elAtual) elAtual.textContent = cartaoAtualSelecao + 1;
+    if (elTotal) elTotal.textContent = total;
     
     if (todosCartoesSelecao.length > 0 && cartaoAtualSelecao < todosCartoesSelecao.length) {
         const cartao = todosCartoesSelecao[cartaoAtualSelecao];
@@ -355,609 +553,6 @@ function limparTodosCartoesSelecao() {
 }
 
 // ============================================
-// FUNÇÃO MD5
-// ============================================
-// ============================================
-// FUNÇÃO MD5
-// ============================================
-function md5(string) {
-    function rotateLeft(value, bits) {
-        return (value << bits) | (value >>> (32 - bits));
-    }
-
-    function addUnsigned(x, y) {
-        var x4 = x & 0x40000000;
-        var y4 = y & 0x40000000;
-        var x8 = x & 0x80000000;
-        var y8 = y & 0x80000000;
-        var result = (x & 0x3FFFFFFF) + (y & 0x3FFFFFFF);
-        if (x4 & y4) return (result ^ 0x80000000 ^ x8 ^ y8);
-        if (x4 | y4) {
-            if (result & 0x40000000) return (result ^ 0xC0000000 ^ x8 ^ y8);
-            else return (result ^ 0x40000000 ^ x8 ^ y8);
-        } else {
-            return (result ^ x8 ^ y8);
-        }
-    }
-
-    function md5Cycle(x, y, z, w, a, b, c, d, s, t) {
-        a = addUnsigned(a, addUnsigned(addUnsigned(y, z), addUnsigned(x, t)));
-        return addUnsigned(rotateLeft(a, s), b);
-    }
-
-    function md5Hex(byteArray) {
-        var hex = '';
-        for (var i = 0; i < byteArray.length; i++) {
-            var b = byteArray[i];
-            if (b < 0) b += 256;
-            hex += ('0' + b.toString(16)).slice(-2);
-        }
-        return hex;
-    }
-
-    function md5Binary(string) {
-        var stringBytes = [];
-        for (var i = 0; i < string.length; i++) {
-            stringBytes.push(string.charCodeAt(i));
-        }
-        return md5BinaryFromBytes(stringBytes);
-    }
-
-    function md5BinaryFromBytes(bytes) {
-        var msg = bytes.slice();
-        var originalLength = msg.length * 8;
-        msg.push(0x80);
-        while ((msg.length * 8) % 512 !== 448) {
-            msg.push(0x00);
-        }
-        for (var i = 0; i < 8; i++) {
-            var byte = (originalLength >>> (i * 8)) & 0xFF;
-            msg.push(byte);
-        }
-        var state = [0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476];
-        for (var blockStart = 0; blockStart < msg.length; blockStart += 64) {
-            var X = [];
-            for (var i = 0; i < 16; i++) {
-                var offset = blockStart + i * 4;
-                X[i] = (msg[offset] | (msg[offset + 1] << 8) | (msg[offset + 2] << 16) | (msg[offset + 3] << 24)) >>> 0;
-            }
-            var A = state[0],
-                B = state[1],
-                C = state[2],
-                D = state[3];
-            var S = [7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
-                5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
-                4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
-                6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21];
-            var T = [];
-            for (var i = 1; i <= 64; i++) {
-                var t = Math.abs(Math.sin(i)) * 0x100000000;
-                T[i] = Math.floor(t) & 0xFFFFFFFF;
-            }
-            var F = [
-                function(x, y, z) { return (x & y) | (~x & z); },
-                function(x, y, z) { return (x & z) | (y & ~z); },
-                function(x, y, z) { return x ^ y ^ z; },
-                function(x, y, z) { return y ^ (x | ~z); }
-            ];
-            var g = [
-                function(i) { return i; },
-                function(i) { return (5 * i + 1) % 16; },
-                function(i) { return (3 * i + 5) % 16; },
-                function(i) { return (7 * i) % 16; }
-            ];
-            for (var round = 0; round < 4; round++) {
-                for (var i = 0; i < 16; i++) {
-                    var idx = round * 16 + i;
-                    var gIdx = g[round](i);
-                    var a = [A, B, C, D];
-                    var aIdx = [0, 1, 2, 3];
-                    var result = md5Cycle(X[gIdx], F[round](B, C, D), a[0], a[1], a[2], a[3], aIdx[round % 4] === 0 ? a[0] : a[1], S[idx], T[idx + 1]);
-                    if (round % 4 === 0) {
-                        A = result;
-                    } else if (round % 4 === 1) {
-                        B = result;
-                    } else if (round % 4 === 2) {
-                        C = result;
-                    } else if (round % 4 === 3) {
-                        D = result;
-                    }
-                }
-            }
-            state[0] = (state[0] + A) >>> 0;
-            state[1] = (state[1] + B) >>> 0;
-            state[2] = (state[2] + C) >>> 0;
-            state[3] = (state[3] + D) >>> 0;
-        }
-        var result = [];
-        for (var i = 0; i < 4; i++) {
-            result.push((state[i] >>> 0) & 0xFF);
-            result.push((state[i] >>> 8) & 0xFF);
-            result.push((state[i] >>> 16) & 0xFF);
-            result.push((state[i] >>> 24) & 0xFF);
-        }
-        return result;
-    }
-
-    var bytes = md5Binary(string);
-    return md5Hex(bytes);
-}
-
-// ============================================
-// AUTENTICAÇÃO
-// ============================================
-function verificarAutenticacao() {
-    const autenticado = localStorage.getItem('admin_autenticado');
-    const modal = document.getElementById('authModal');
-    const senhaInput = document.getElementById('senhaAdmin');
-    
-    console.log('🔐 Verificando autenticação...');
-    console.log('📌 localStorage.admin_autenticado =', autenticado);
-    console.log('📌 Modal encontrado?', modal ? 'SIM' : 'NÃO');
-    
-    if (!modal) {
-        console.error('❌ Modal de autenticação não encontrado!');
-        return;
-    }
-    
-    if (!autenticado) {
-        console.log('🔐 Usuário NÃO autenticado. Exibindo modal...');
-        modal.classList.add('show');
-        modal.style.display = 'flex';
-        if (senhaInput) {
-            senhaInput.value = '';
-            setTimeout(() => {
-                senhaInput.focus();
-                if (navigator.userAgent.match(/iPhone|iPad|iPod|Android/i)) {
-                    senhaInput.click();
-                }
-            }, 300);
-        }
-    } else {
-        console.log('✅ Usuário já autenticado. Ocultando modal...');
-        modal.classList.remove('show');
-        modal.style.display = 'none';
-        carregarPixConfig();
-        carregarDadosAdmin();
-    }
-}
-
-function autenticar() {
-    const senha = document.getElementById('senhaAdmin').value;
-    console.log('🔑 Tentando autenticar...');
-    
-    const hashDigitado = md5(senha);
-    console.log('📌 Hash digitado:', hashDigitado);
-    console.log('📌 Hash esperado:', SENHA_HASH);
-    
-    if (hashDigitado === SENHA_HASH) {
-        localStorage.setItem('admin_autenticado', 'true');
-        console.log('✅ Login realizado com sucesso!');
-        showToast('✅ Login realizado!', 'success');
-        verificarAutenticacao();
-    } else {
-        console.log('❌ Senha incorreta!');
-        showToast('❌ Senha incorreta!', 'error');
-        document.getElementById('senhaAdmin').value = '';
-        document.getElementById('senhaAdmin').focus();
-    }
-}
-
-function sair() {
-    localStorage.removeItem('admin_autenticado');
-    showToast('🔒 Saiu do sistema', 'info');
-    verificarAutenticacao();
-}
-
-function forcarLogin() {
-    localStorage.removeItem('admin_autenticado');
-    showToast('🔐 Forçando login...', 'info');
-    verificarAutenticacao();
-}
-
-// ============================================
-// SELECIONAR LOTERIA
-// ============================================
-function setLoteriaAdmin(loteria) {
-    console.log(`🔄 Mudando loteria admin para: ${loteria}`);
-    loteriaAdmin = loteria;
-    
-    const btnMega = document.getElementById('adminBtnMega');
-    const btnLotofacil = document.getElementById('adminBtnLotofacil');
-    const btnQuina = document.getElementById('adminBtnQuina');
-    
-    [btnMega, btnLotofacil, btnQuina].forEach(btn => {
-        if (btn) {
-            btn.classList.remove('active');
-            btn.style.transform = 'scale(1)';
-            btn.style.filter = 'brightness(1)';
-            btn.style.boxShadow = 'none';
-        }
-    });
-    
-    let btnSelecionado = null;
-    if (loteria === 'mega') btnSelecionado = btnMega;
-    else if (loteria === 'lotofacil') btnSelecionado = btnLotofacil;
-    else if (loteria === 'quina') btnSelecionado = btnQuina;
-    
-    if (btnSelecionado) {
-        btnSelecionado.classList.add('active');
-        btnSelecionado.style.transform = 'scale(0.98)';
-        btnSelecionado.style.filter = 'brightness(0.9)';
-        btnSelecionado.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.1)';
-    }
-    
-    const cardLote = document.getElementById('cardLote');
-    if (cardLote) {
-        if (loteria === 'lotofacil') {
-            cardLote.style.display = 'block';
-            cardLote.style.opacity = '1';
-        } else {
-            cardLote.style.display = 'none';
-            cardLote.style.opacity = '0.5';
-        }
-    }
-    
-    const labelIndividual = document.getElementById('labelNumerosIndividual');
-    const dicaIndividual = document.getElementById('dicaNumerosIndividual');
-    const inputIndividual = document.getElementById('numerosIndividual');
-    
-    if (labelIndividual) {
-        if (loteria === 'mega') {
-            labelIndividual.innerHTML = '🔢 Números (6 a 20 números separados por espaço)';
-            if (dicaIndividual) dicaIndividual.innerHTML = '💡 MEGA: 6 a 20 números (1-60)';
-            if (inputIndividual) inputIndividual.placeholder = 'Ex: 12 15 23 34 45 56 (6 a 20)';
-        } else if (loteria === 'lotofacil') {
-            labelIndividual.innerHTML = '🔢 Números (15 a 20 números separados por espaço)';
-            if (dicaIndividual) dicaIndividual.innerHTML = '💡 LOTOFÁCIL: 15 a 20 números (1-25)';
-            if (inputIndividual) inputIndividual.placeholder = 'Ex: 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 (15 a 20)';
-        } else if (loteria === 'quina') {
-            labelIndividual.innerHTML = '🔢 Números (5 a 15 números separados por espaço)';
-            if (dicaIndividual) dicaIndividual.innerHTML = '💡 QUINA: 5 a 15 números (1-80)';
-            if (inputIndividual) inputIndividual.placeholder = 'Ex: 12 15 23 34 45 (5 a 15)';
-        }
-    }
-    
-    inicializarGradeSelecaoIndividual();
-    
-    todosCartoesSelecao = [];
-    cartaoAtualSelecao = 0;
-    numerosSelecionados = [];
-    atualizarTotalCartoesSelecao();
-    atualizarContadorSelecao();
-    atualizarPreviaSelecao();
-    atualizarGradeSelecaoVisual();
-    
-    carregarDadosAdmin();
-    showToast(`🔄 Mudou para ${loteria.toUpperCase()}`, 'info');
-}
-
-// ============================================
-// ADICIONAR CARTÃO VIA SELEÇÃO
-// ============================================
-async function adicionarCartaoIndividualSelecao() {
-    const concurso = document.getElementById('concursoIndividualSelecao').value;
-    const bolao = document.getElementById('bolaoIndividualSelecao').value || 'Sem Bolão';
-    const tipoParticipacao = document.getElementById('tipoCartaoIndividualSelecao').value;
-    
-    if (!concurso) {
-        showToast('⚠️ Informe o concurso!', 'warning');
-        return;
-    }
-    
-    if (numerosSelecionados.length === 0) {
-        showToast('⚠️ Selecione pelo menos um número!', 'warning');
-        return;
-    }
-    
-    let minNumeros, maxNumeros, maxValor, label;
-    if (loteriaAdmin === 'mega') {
-        minNumeros = 6;
-        maxNumeros = 20;
-        maxValor = 60;
-        label = 'MEGA-SENA';
-    } else if (loteriaAdmin === 'lotofacil') {
-        minNumeros = 15;
-        maxNumeros = 20;
-        maxValor = 25;
-        label = 'LOTOFÁCIL';
-    } else if (loteriaAdmin === 'quina') {
-        minNumeros = 5;
-        maxNumeros = 15;
-        maxValor = 80;
-        label = 'QUINA';
-    } else {
-        showToast('⚠️ Loteria não reconhecida!', 'error');
-        return;
-    }
-    
-    if (numerosSelecionados.length < minNumeros) {
-        showToast(`❌ ${label}: mínimo ${minNumeros} números!`, 'error');
-        return;
-    }
-    
-    if (numerosSelecionados.length > maxNumeros) {
-        showToast(`❌ ${label}: máximo ${maxNumeros} números!`, 'error');
-        return;
-    }
-    
-    const numeros = [...numerosSelecionados].sort((a, b) => a - b);
-    
-    try {
-        await db.collection('cartoes').add({
-            concurso: concurso,
-            bolao: bolao,
-            numeros: numeros,
-            tipo: loteriaAdmin,
-            tipoParticipacao: tipoParticipacao,
-            admin: true,
-            dataCadastro: new Date().toISOString(),
-            totalNumeros: numeros.length
-        });
-        showToast(`✅ Cartão adicionado à ${label}!`, 'success');
-        numerosSelecionados = [];
-        atualizarGradeSelecaoVisual();
-        atualizarContadorSelecao();
-        atualizarPreviaSelecao();
-        document.getElementById('concursoIndividualSelecao').value = '';
-        document.getElementById('bolaoIndividualSelecao').value = '';
-        carregarDadosAdmin();
-    } catch (error) {
-        console.error('Erro:', error);
-        showToast('❌ Erro ao adicionar', 'error');
-    }
-}
-
-// ============================================
-// FUNÇÕES DO CADASTRO POR IMAGEM (OCR)
-// ============================================
-function mostrarPreviaImagem(file) {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        const img = document.getElementById('imgPreviewSrc');
-        img.src = e.target.result;
-        document.getElementById('imgPreview').style.display = 'block';
-        document.getElementById('imgResultado').style.display = 'none';
-        document.getElementById('imgLoading').style.display = 'none';
-    };
-    reader.readAsDataURL(file);
-}
-
-async function processarImagem(file) {
-    const loading = document.getElementById('imgLoading');
-    const resultado = document.getElementById('imgResultado');
-    const status = document.getElementById('imgStatus');
-    const container = document.getElementById('imgNumerosExtracao');
-    
-    loading.style.display = 'block';
-    resultado.style.display = 'none';
-    status.textContent = '🔄 Processando...';
-    
-    try {
-        const imageUrl = URL.createObjectURL(file);
-        const result = await Tesseract.recognize(imageUrl, 'por', {
-            logger: (m) => {
-                if (m.status === 'recognizing text') {
-                    status.textContent = `🔄 ${Math.round(m.progress * 100)}% concluído...`;
-                }
-            }
-        });
-        
-        URL.revokeObjectURL(imageUrl);
-        
-        const texto = result.data.text;
-        console.log('📝 Texto extraído:', texto);
-        
-        const numeros = extrairNumerosDoTexto(texto);
-        
-        if (numeros.length === 0) {
-            status.textContent = '❌ Nenhum número encontrado! Tente outra imagem.';
-            container.innerHTML = '<div style="color: #ef4444;">Nenhum número foi identificado. Verifique a qualidade da imagem.</div>';
-            loading.style.display = 'none';
-            return;
-        }
-        
-        numerosExtraidos = numeros;
-        imagemProcessada = true;
-        
-        let html = '';
-        const linhas = agruparNumerosEmLinhas(numeros);
-        
-        html += `<div style="margin-bottom: 10px; color: #10b981; font-weight: 600;">✅ ${linhas.length} cartões identificados</div>`;
-        html += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">`;
-        
-        linhas.forEach((linha, index) => {
-            const numsStr = linha.map(n => n.toString().padStart(2, '0')).join(' ');
-            html += `
-                <div style="background: white; border-radius: 8px; padding: 6px 10px; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 6px;">
-                    <span style="font-weight: 600; color: #64748b; font-size: 11px;">#${index+1}</span>
-                    <input type="text" class="img-cartao-edit" data-index="${index}" value="${numsStr}" style="flex: 1; border: none; background: transparent; font-family: monospace; font-size: 12px; outline: none; padding: 4px;">
-                </div>
-            `;
-        });
-        html += `</div>`;
-        html += `<div style="margin-top: 12px; font-size: 11px; color: #64748b;">💡 Clique nos números para editar se necessário.</div>`;
-        
-        container.innerHTML = html;
-        status.textContent = `✅ ${linhas.length} cartões extraídos`;
-        resultado.style.display = 'block';
-        loading.style.display = 'none';
-        
-        showToast(`✅ ${linhas.length} cartões identificados!`, 'success');
-        
-    } catch (error) {
-        console.error('Erro no OCR:', error);
-        status.textContent = '❌ Erro ao processar imagem';
-        container.innerHTML = `<div style="color: #ef4444;">Erro: ${error.message}</div>`;
-        loading.style.display = 'none';
-        showToast('❌ Erro ao processar imagem', 'error');
-    }
-}
-
-function extrairNumerosDoTexto(texto) {
-    const numeros = [];
-    const matches = texto.match(/\b\d{1,2}\b/g);
-    if (matches) {
-        for (const m of matches) {
-            const num = parseInt(m);
-            if (num >= 1 && num <= 99) {
-                numeros.push(num);
-            }
-        }
-    }
-    return numeros;
-}
-
-function agruparNumerosEmLinhas(numeros) {
-    const loteria = document.getElementById('imgLoteria').value;
-    let porLinha = 15;
-    if (loteria === 'mega') porLinha = 6;
-    else if (loteria === 'quina') porLinha = 5;
-    
-    const linhas = [];
-    for (let i = 0; i < numeros.length; i += porLinha) {
-        const linha = numeros.slice(i, i + porLinha);
-        if (linha.length >= porLinha) {
-            linhas.push(linha);
-        } else {
-            if (linhas.length > 0 && linhas[linhas.length - 1].length < porLinha * 2) {
-                const ultima = linhas[linhas.length - 1];
-                const faltam = porLinha - ultima.length;
-                for (let j = 0; j < Math.min(faltam, linha.length); j++) {
-                    ultima.push(linha[j]);
-                }
-            } else if (linha.length > 0) {
-                linhas.push(linha);
-            }
-        }
-    }
-    return linhas;
-}
-
-function getCartoesEditados() {
-    const inputs = document.querySelectorAll('.img-cartao-edit');
-    const cartoes = [];
-    inputs.forEach(input => {
-        const numeros = input.value.trim().split(/\s+/).map(Number).filter(n => n > 0);
-        if (numeros.length > 0) {
-            cartoes.push(numeros);
-        }
-    });
-    return cartoes;
-}
-
-async function cadastrarCartoesImagem() {
-    const loteria = document.getElementById('imgLoteria').value;
-    const concurso = document.getElementById('imgConcurso').value.trim();
-    const bolao = document.getElementById('imgBolao').value.trim() || 'Bolão por Imagem';
-    const tipo = document.getElementById('imgTipo').value;
-    
-    if (!concurso) {
-        showToast('⚠️ Informe o concurso!', 'warning');
-        return;
-    }
-    
-    const cartoes = getCartoesEditados();
-    if (cartoes.length === 0) {
-        showToast('⚠️ Nenhum cartão válido para cadastrar', 'warning');
-        return;
-    }
-    
-    let minNumeros, maxNumeros, maxValor;
-    if (loteria === 'mega') {
-        minNumeros = 6; maxNumeros = 20; maxValor = 60;
-    } else if (loteria === 'lotofacil') {
-        minNumeros = 15; maxNumeros = 20; maxValor = 25;
-    } else {
-        minNumeros = 5; maxNumeros = 15; maxValor = 80;
-    }
-    
-    let validos = 0;
-    let erros = 0;
-    let mensagemErro = '';
-    
-    for (const cartao of cartoes) {
-        if (cartao.length < minNumeros) {
-            erros++;
-            mensagemErro += `Cartão com ${cartao.length} números (mínimo ${minNumeros})\n`;
-            continue;
-        }
-        if (cartao.length > maxNumeros) {
-            erros++;
-            mensagemErro += `Cartão com ${cartao.length} números (máximo ${maxNumeros})\n`;
-            continue;
-        }
-        if (cartao.some(n => n < 1 || n > maxValor)) {
-            erros++;
-            mensagemErro += `Cartão com número fora do range (1-${maxValor})\n`;
-            continue;
-        }
-        const unicos = new Set(cartao);
-        if (unicos.size !== cartao.length) {
-            erros++;
-            mensagemErro += `Cartão com números duplicados\n`;
-            continue;
-        }
-        validos++;
-    }
-    
-    if (erros > 0) {
-        showToast(`⚠️ ${erros} cartão(ões) inválidos!`, 'warning');
-        return;
-    }
-    
-    const confirmar = confirm(
-        `📌 CONFIRMAR CADASTRO\n\n` +
-        `🎯 ${cartoes.length} cartões\n` +
-        `📌 Concurso: ${concurso}\n` +
-        `👥 Bolão: ${bolao}\n` +
-        `🎲 ${loteria.toUpperCase()}\n\n` +
-        `Confirmar?`
-    );
-    if (!confirmar) return;
-    
-    showLoading('Cadastrando cartões...');
-    
-    let adicionados = 0;
-    let errosCadastro = 0;
-    
-    for (const cartao of cartoes) {
-        const numeros = [...cartao].sort((a,b) => a-b);
-        try {
-            await db.collection('cartoes').add({
-                concurso: concurso,
-                bolao: bolao,
-                numeros: numeros,
-                tipo: loteria,
-                tipoParticipacao: tipo,
-                admin: true,
-                dataCadastro: new Date().toISOString(),
-                totalNumeros: numeros.length
-            });
-            adicionados++;
-        } catch (error) {
-            errosCadastro++;
-        }
-    }
-    
-    hideLoading();
-    
-    if (adicionados > 0) {
-        showToast(`✅ ${adicionados} cartões cadastrados! ${errosCadastro > 0 ? `⚠️ ${errosCadastro} erros` : ''}`, 'success');
-        document.getElementById('imgConcurso').value = '';
-        document.getElementById('imgResultado').style.display = 'none';
-        document.getElementById('imgPreview').style.display = 'none';
-        document.getElementById('imgUpload').value = '';
-        document.getElementById('imgUploadCamera').value = '';
-        numerosExtraidos = [];
-        imagemProcessada = false;
-        carregarDadosAdmin();
-    } else {
-        showToast('❌ Nenhum cartão foi cadastrado', 'error');
-    }
-}
-
-// ============================================
 // PIX CONFIG
 // ============================================
 async function carregarPixConfig() {
@@ -1006,26 +601,6 @@ async function carregarDadosAdmin() {
         if (totalDiv) totalDiv.innerHTML = total + ' cartões';
         showToast('✅ Dados carregados!', 'success');
         
-        // ============================================
-        // APÓS CARREGAR OS DADOS, ATUALIZAR AS ABAS SE ESTIVEREM VISÍVEIS
-        // ============================================
-        const tabBoloes = document.getElementById('tab-boloes');
-        if (tabBoloes && tabBoloes.style.display === 'block') {
-            carregarBoloesParaGerenciar();
-        }
-        const tabTokens = document.getElementById('tab-tokens');
-        if (tabTokens && tabTokens.style.display === 'block') {
-            carregarTokens();
-        }
-        const tabReservas = document.getElementById('tab-reservas');
-        if (tabReservas && tabReservas.style.display === 'block') {
-            carregarReservas();
-        }
-        const tabCartoes = document.getElementById('tab-cartoes');
-        if (tabCartoes && tabCartoes.style.display === 'block') {
-            exibirCartoesAdmin();
-        }
-        
     } catch (error) {
         console.error('Erro:', error);
         showToast('❌ Erro ao carregar: ' + error.message, 'error');
@@ -1045,15 +620,15 @@ function exibirCartoesAdmin() {
         cartoesFiltrados = cartoesFiltrados.filter(c => c.concurso == filtro);
     }
     
-    const ordenarPor = document.getElementById('ordenarPorLista')?.value || 'concurso_desc';
+    const ordenarPor = document.getElementById('ordenarPorLista')?.value || 'data_desc';
     switch(ordenarPor) {
-    case 'concurso_desc': cartoesFiltrados.sort((a,b) => (b.concurso||0) - (a.concurso||0)); break;
-    case 'concurso_asc': cartoesFiltrados.sort((a,b) => (a.concurso||0) - (b.concurso||0)); break;
-    case 'bolao': cartoesFiltrados.sort((a,b) => (a.bolao||'Sem Bolão').localeCompare(b.bolao||'Sem Bolão')); break;
-    case 'data_desc': cartoesFiltrados.sort((a,b) => new Date(b.dataCadastro||0) - new Date(a.dataCadastro||0)); break;
-    case 'data_asc': cartoesFiltrados.sort((a,b) => new Date(a.dataCadastro||0) - new Date(b.dataCadastro||0)); break;
-    default: cartoesFiltrados.sort((a,b) => new Date(b.dataCadastro||0) - new Date(a.dataCadastro||0));
-}
+        case 'concurso_desc': cartoesFiltrados.sort((a,b) => (b.concurso||0) - (a.concurso||0)); break;
+        case 'concurso_asc': cartoesFiltrados.sort((a,b) => (a.concurso||0) - (b.concurso||0)); break;
+        case 'bolao': cartoesFiltrados.sort((a,b) => (a.bolao||'Sem Bolão').localeCompare(b.bolao||'Sem Bolão')); break;
+        case 'data_desc': cartoesFiltrados.sort((a,b) => new Date(b.dataCadastro||0) - new Date(a.dataCadastro||0)); break;
+        case 'data_asc': cartoesFiltrados.sort((a,b) => new Date(a.dataCadastro||0) - new Date(b.dataCadastro||0)); break;
+        default: cartoesFiltrados.sort((a,b) => new Date(b.dataCadastro||0) - new Date(a.dataCadastro||0));
+    }
     
     const container = document.getElementById('cartoesLista');
     if (!container) return;
@@ -1167,6 +742,581 @@ function atualizarDashboardAdmin() {
     }).catch(error => {
         console.error('Erro ao carregar status dos bolões:', error);
     });
+}
+
+// ============================================
+// SELECIONAR LOTERIA
+// ============================================
+function setLoteriaAdmin(loteria) {
+    console.log(`🔄 Mudando loteria admin para: ${loteria}`);
+    loteriaAdmin = loteria;
+    
+    const btnMega = document.getElementById('adminBtnMega');
+    const btnLotofacil = document.getElementById('adminBtnLotofacil');
+    const btnQuina = document.getElementById('adminBtnQuina');
+    
+    [btnMega, btnLotofacil, btnQuina].forEach(btn => {
+        if (btn) {
+            btn.classList.remove('active');
+            btn.style.transform = 'scale(1)';
+            btn.style.filter = 'brightness(1)';
+            btn.style.boxShadow = 'none';
+        }
+    });
+    
+    let btnSelecionado = null;
+    if (loteria === 'mega') btnSelecionado = btnMega;
+    else if (loteria === 'lotofacil') btnSelecionado = btnLotofacil;
+    else if (loteria === 'quina') btnSelecionado = btnQuina;
+    
+    if (btnSelecionado) {
+        btnSelecionado.classList.add('active');
+        btnSelecionado.style.transform = 'scale(0.98)';
+        btnSelecionado.style.filter = 'brightness(0.9)';
+        btnSelecionado.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.1)';
+    }
+    
+    const cardLote = document.getElementById('cardLote');
+    if (cardLote) {
+        if (loteria === 'lotofacil') {
+            cardLote.style.display = 'block';
+            cardLote.style.opacity = '1';
+        } else {
+            cardLote.style.display = 'none';
+            cardLote.style.opacity = '0.5';
+        }
+    }
+    
+    const labelIndividual = document.getElementById('labelNumerosIndividual');
+    const dicaIndividual = document.getElementById('dicaNumerosIndividual');
+    const inputIndividual = document.getElementById('numerosIndividual');
+    
+    if (labelIndividual) {
+        if (loteria === 'mega') {
+            labelIndividual.innerHTML = '🔢 Números (6 a 20 números separados por espaço)';
+            if (dicaIndividual) dicaIndividual.innerHTML = '💡 MEGA: 6 a 20 números (1-60)';
+            if (inputIndividual) inputIndividual.placeholder = 'Ex: 12 15 23 34 45 56 (6 a 20)';
+        } else if (loteria === 'lotofacil') {
+            labelIndividual.innerHTML = '🔢 Números (15 a 20 números separados por espaço)';
+            if (dicaIndividual) dicaIndividual.innerHTML = '💡 LOTOFÁCIL: 15 a 20 números (1-25)';
+            if (inputIndividual) inputIndividual.placeholder = 'Ex: 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 (15 a 20)';
+        } else if (loteria === 'quina') {
+            labelIndividual.innerHTML = '🔢 Números (5 a 15 números separados por espaço)';
+            if (dicaIndividual) dicaIndividual.innerHTML = '💡 QUINA: 5 a 15 números (1-80)';
+            if (inputIndividual) inputIndividual.placeholder = 'Ex: 12 15 23 34 45 (5 a 15)';
+        }
+    }
+    
+    inicializarGradeSelecaoIndividual();
+    
+    todosCartoesSelecao = [];
+    cartaoAtualSelecao = 0;
+    numerosSelecionados = [];
+    atualizarTotalCartoesSelecao();
+    atualizarContadorSelecao();
+    atualizarPreviaSelecao();
+    atualizarGradeSelecaoVisual();
+    
+    carregarDadosAdmin();
+    showToast(`🔄 Mudou para ${loteria.toUpperCase()}`, 'info');
+}
+
+// ============================================
+// SALVAR CONFIG BOLÕES
+// ============================================
+async function salvarConfigBoloes() {
+    const checkboxes = document.querySelectorAll('.checkbox-bolao:checked');
+    const idsSelecionados = Array.from(checkboxes).map(cb => cb.dataset.id);
+    
+    const statusMap = {};
+    document.querySelectorAll('.status-select').forEach(select => {
+        statusMap[select.dataset.id] = select.value;
+    });
+    
+    const dataLimiteMap = {};
+    document.querySelectorAll('.data-limite-input').forEach(input => {
+        dataLimiteMap[input.dataset.id] = input.value;
+    });
+    
+    const destaqueMap = {};
+    document.querySelectorAll('.checkbox-destaque:checked').forEach(cb => {
+        destaqueMap[cb.dataset.id] = true;
+    });
+    
+    const estrategiaMap = {};
+    document.querySelectorAll('.estrategia-textarea').forEach(textarea => {
+        const valor = textarea.value.trim();
+        if (valor) {
+            estrategiaMap[textarea.dataset.id] = valor;
+        }
+    });
+    
+    try {
+        await db.collection('config_boloes').doc('ativos').set({ 
+            ids: idsSelecionados,
+            status: statusMap,
+            dataLimite: dataLimiteMap,
+            destaque: destaqueMap,
+            estrategia: estrategiaMap
+        }, { merge: true });
+        showToast('✅ Configurações salvas!', 'success');
+    } catch (error) {
+        console.error('Erro ao salvar:', error);
+        showToast('❌ Erro ao salvar', 'error');
+    }
+}
+
+// ============================================
+// EXCLUIR BOLÃO
+// ============================================
+async function excluirBolao(bolaoId, bolaoTitulo) {
+    if (!confirm(`⚠️ ATENÇÃO!\n\nDeseja excluir o bolão "${bolaoTitulo}"?\n\nEsta ação NÃO pode ser desfeita!`)) {
+        return;
+    }
+    
+    try {
+        await db.collection('participantes').doc(bolaoId).delete();
+        
+        const configRef = db.collection('config_boloes').doc('ativos');
+        const configDoc = await configRef.get();
+        
+        if (configDoc.exists) {
+            const dados = configDoc.data();
+            const statusMap = dados.status || {};
+            const dataLimiteMap = dados.dataLimite || {};
+            const destaqueMap = dados.destaque || {};
+            const estrategiaMap = dados.estrategia || {};
+            
+            delete statusMap[bolaoId];
+            delete dataLimiteMap[bolaoId];
+            delete destaqueMap[bolaoId];
+            delete estrategiaMap[bolaoId];
+            
+            let ids = dados.ids || [];
+            ids = ids.filter(id => id !== bolaoId);
+            
+            await configRef.update({
+                ids: ids,
+                status: statusMap,
+                dataLimite: dataLimiteMap,
+                destaque: destaqueMap,
+                estrategia: estrategiaMap,
+                admin: true
+            });
+        }
+        
+        showToast(`✅ Bolão "${bolaoTitulo}" excluído com sucesso!`, 'success');
+        carregarDadosAdmin();
+        carregarBoloesParaGerenciar();
+        
+    } catch (error) {
+        console.error('Erro ao excluir bolão:', error);
+        showToast('❌ Erro ao excluir bolão', 'error');
+    }
+}
+
+// ============================================
+// CARREGAR BOLÕES PARA GERENCIAR
+// ============================================
+async function carregarBoloesParaGerenciar() {
+    const container = document.getElementById('listaBoloes');
+    if (!container) return;
+    
+    try {
+        const snapshot = await db.collection('participantes').get();
+        const boloes = [];
+        snapshot.forEach(doc => {
+            boloes.push({ id: doc.id, ...doc.data() });
+        });
+        
+        if (boloes.length === 0) {
+            container.innerHTML = '<div class="empty-state">Nenhum bolão encontrado.</div>';
+            return;
+        }
+        
+        let selecionados = [];
+        let statusMap = {};
+        let dataLimiteMap = {};
+        let destaqueMap = {};
+        let estrategiaMap = {};
+
+        try {
+            const configDoc = await db.collection('config_boloes').doc('ativos').get();
+            if (configDoc.exists) {
+                selecionados = configDoc.data().ids || [];
+                statusMap = configDoc.data().status || {};
+                dataLimiteMap = configDoc.data().dataLimite || {};
+                destaqueMap = configDoc.data().destaque || {};
+                estrategiaMap = configDoc.data().estrategia || {};
+            }
+        } catch (e) {
+            console.log('Erro ao carregar seleção:', e);
+        }
+        
+        const ordemStatus = { 'aberto': 0, 'andamento': 1, 'encerrado': 2 };
+        
+        boloes.sort((a, b) => {
+            const statusA = statusMap[a.id] || 'andamento';
+            const statusB = statusMap[b.id] || 'andamento';
+            if (statusA !== statusB) {
+                return (ordemStatus[statusA] || 1) - (ordemStatus[statusB] || 1);
+            }
+            const tituloA = (a.titulo || '').toLowerCase();
+            const tituloB = (b.titulo || '').toLowerCase();
+            return tituloA.localeCompare(tituloB);
+        });
+        
+        let html = '';
+        for (const bolao of boloes) {
+            const checked = selecionados.includes(bolao.id) ? 'checked' : '';
+            const status = statusMap[bolao.id] || 'andamento';
+            const isDestaque = destaqueMap[bolao.id] === true;
+            
+            let statusIcon = '';
+            let statusColor = '';
+            let statusBg = '';
+            if (status === 'aberto') {
+                statusIcon = '🟢';
+                statusColor = '#065f46';
+                statusBg = '#d1fae5';
+            } else if (status === 'andamento') {
+                statusIcon = '🟡';
+                statusColor = '#92400e';
+                statusBg = '#fef3c7';
+            } else if (status === 'encerrado') {
+                statusIcon = '🔴';
+                statusColor = '#991b1b';
+                statusBg = '#fee2e2';
+            }
+            
+            html += `
+                <div style="padding: 12px 14px; border-bottom: 1px solid #e2e8f0; margin-bottom: 8px; background: ${isDestaque ? '#fef3c7' : 'white'}; border-radius: 10px; border-left: 4px solid ${status === 'aberto' ? '#10b981' : status === 'andamento' ? '#f59e0b' : '#ef4444'};">
+                    
+                    <!-- LINHA 1: Checkbox + Título + Status + Destaque Badge -->
+                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <input type="checkbox" class="checkbox-bolao" data-id="${bolao.id}" ${checked} style="width: 20px; height: 20px; cursor: pointer; accent-color: #3b82f6; flex-shrink: 0;">
+                        <strong style="font-size: 14px; color: #1e293b;">${bolao.titulo || 'Sem título'}</strong>
+                        <span style="font-size: 11px; background: ${statusBg}; color: ${statusColor}; padding: 2px 10px; border-radius: 30px; font-weight: 600;">${statusIcon} ${status.toUpperCase()}</span>
+                        <span style="font-size: 11px; color: #64748b;">👥 ${bolao.participantes?.length || 0}</span>
+                        ${isDestaque ? '<span style="font-size: 10px; background: #f59e0b; color: white; padding: 2px 8px; border-radius: 30px; font-weight: 700;">⭐</span>' : ''}
+                    </div>
+                    
+                    <!-- LINHA 2: Configurações em GRID -->
+                    <div style="margin-top: 8px; display: grid; grid-template-columns: auto 1fr auto 1fr auto; gap: 6px 10px; align-items: center; padding-left: 30px;">
+                        
+                        <!-- DESTAQUE - SWITCH -->
+                        <span style="font-size: 12px; font-weight: 600; color: #1e293b;">⭐</span>
+                        <label class="switch-destaque" style="position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0;">
+                            <input type="checkbox" class="checkbox-destaque" data-id="${bolao.id}" ${isDestaque ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;">
+                            <span class="slider-destaque" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: ${isDestaque ? '#f59e0b' : '#cbd5e1'}; transition: 0.3s; border-radius: 30px;">
+                                <span class="thumb" style="position: absolute; height: 18px; width: 18px; left: ${isDestaque ? '23px' : '3px'}; bottom: 3px; background: white; transition: 0.3s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.15); display: flex; align-items: center; justify-content: center; font-size: 10px;">
+                                    ${isDestaque ? '⭐' : ''}
+                                </span>
+                            </span>
+                        </label>
+                        <span id="destaque-label-${bolao.id}" style="font-size: 11px; font-weight: 600; color: ${isDestaque ? '#f59e0b' : '#94a3b8'}; min-width: 35px;">${isDestaque ? 'ON' : 'OFF'}</span>
+                        
+                        <!-- STATUS -->
+                        <span style="font-size: 12px; font-weight: 600; color: #1e293b;">Status</span>
+                        <select class="status-select" data-id="${bolao.id}" style="padding: 3px 8px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 12px;">
+                            <option value="aberto" ${status === 'aberto' ? 'selected' : ''}>🟢 ABERTO</option>
+                            <option value="andamento" ${status === 'andamento' ? 'selected' : ''}>🟡 ANDAMENTO</option>
+                            <option value="encerrado" ${status === 'encerrado' ? 'selected' : ''}>🔴 ENCERRADO</option>
+                        </select>
+                    </div>
+                    
+                    <!-- LINHA 3: Data + Estratégia -->
+                    <div style="margin-top: 6px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-left: 30px;">
+                        <span style="font-size: 12px; font-weight: 600; color: #1e293b;">📅</span>
+                        <input type="date" class="data-limite-input" data-id="${bolao.id}" value="${dataLimiteMap[bolao.id] || ''}" style="padding: 3px 8px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 12px; max-width: 140px;">
+                        
+                        <span style="font-size: 12px; font-weight: 600; color: #1e293b; margin-left: 4px;">📝</span>
+                        <input type="text" class="estrategia-textarea" data-id="${bolao.id}" value="${estrategiaMap[bolao.id] || ''}" style="flex: 1; min-width: 120px; padding: 3px 8px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 12px;" placeholder="Estratégia...">
+                    </div>
+                    
+                    <!-- LINHA 4: Botões (Final do card) -->
+                    <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
+                        <button class="btn-link-participantes" data-id="${bolao.id}" data-titulo="${bolao.titulo}" style="background: #3b82f6; color: white; border: none; padding: 4px 14px; border-radius: 20px; cursor: pointer; font-size: 11px; font-weight: 600;">📋 LINK</button>
+                        <button class="btn-excluir-bolao" data-id="${bolao.id}" data-titulo="${bolao.titulo}" style="background: #ef4444; color: white; border: none; padding: 4px 14px; border-radius: 20px; cursor: pointer; font-size: 11px; font-weight: 600;">🗑️ EXCLUIR</button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        container.innerHTML = html;
+        
+        // EVENTOS
+        document.querySelectorAll('.checkbox-destaque').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const id = this.dataset.id;
+                const isChecked = this.checked;
+                
+                const switchContainer = this.closest('.switch-destaque');
+                if (switchContainer) {
+                    const slider = switchContainer.querySelector('.slider-destaque');
+                    const thumb = slider ? slider.querySelector('.thumb') : null;
+                    const label = document.getElementById(`destaque-label-${id}`);
+                    const card = this.closest('div[style*="border-left"]');
+                    
+                    if (isChecked) {
+                        if (slider) slider.style.background = '#f59e0b';
+                        if (thumb) {
+                            thumb.style.left = '23px';
+                            thumb.textContent = '⭐';
+                        }
+                        if (label) {
+                            label.textContent = 'ON';
+                            label.style.color = '#f59e0b';
+                        }
+                        if (card) {
+                            card.style.background = '#fef3c7';
+                            const titleDiv = card.querySelector('div:first-child');
+                            const oldBadge = card.querySelector('.badge-destaque');
+                            if (oldBadge) oldBadge.remove();
+                            if (titleDiv) {
+                                const badge = document.createElement('span');
+                                badge.className = 'badge-destaque';
+                                badge.style.cssText = 'font-size: 10px; background: #f59e0b; color: white; padding: 2px 8px; border-radius: 30px; font-weight: 700; margin-left: 4px;';
+                                badge.textContent = '⭐';
+                                titleDiv.appendChild(badge);
+                            }
+                        }
+                        const checkboxSelecao = document.querySelector(`.checkbox-bolao[data-id="${id}"]`);
+                        if (checkboxSelecao && !checkboxSelecao.checked) {
+                            checkboxSelecao.checked = true;
+                        }
+                    } else {
+                        if (slider) slider.style.background = '#cbd5e1';
+                        if (thumb) {
+                            thumb.style.left = '3px';
+                            thumb.textContent = '';
+                        }
+                        if (label) {
+                            label.textContent = 'OFF';
+                            label.style.color = '#94a3b8';
+                        }
+                        if (card) {
+                            card.style.background = 'white';
+                            const badge = card.querySelector('.badge-destaque');
+                            if (badge) badge.remove();
+                        }
+                    }
+                }
+                setTimeout(() => salvarConfigBoloes(), 100);
+            });
+        });
+        
+        document.querySelectorAll('.checkbox-bolao').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const id = this.dataset.id;
+                const isChecked = this.checked;
+                const destaqueCheck = document.querySelector(`.checkbox-destaque[data-id="${id}"]`);
+                if (!isChecked && destaqueCheck && destaqueCheck.checked) {
+                    destaqueCheck.checked = false;
+                    destaqueCheck.dispatchEvent(new Event('change'));
+                }
+                setTimeout(() => salvarConfigBoloes(), 100);
+            });
+        });
+        
+        document.querySelectorAll('.status-select, .data-limite-input, .estrategia-textarea').forEach(el => {
+            el.addEventListener('change', () => {
+                setTimeout(() => salvarConfigBoloes(), 100);
+            });
+        });
+        
+        document.querySelectorAll('.btn-excluir-bolao').forEach(btn => {
+            btn.onclick = () => {
+                const bolaoId = btn.dataset.id;
+                const bolaoTitulo = btn.dataset.titulo;
+                excluirBolao(bolaoId, bolaoTitulo);
+            };
+        });
+        
+        console.log(`✅ ${boloes.length} bolões carregados`);
+        adicionarBotaoLinkParticipantes();
+
+    } catch (error) {
+        console.error('Erro ao carregar bolões:', error);
+        container.innerHTML = '<div class="empty-state">Erro ao carregar bolões.</div>';
+    }
+}
+
+// ============================================
+// VERIFICAR DUPLICADOS
+// ============================================
+let cartoesDuplicadosSelecionados = {};
+
+async function verificarDuplicados() {
+    const concurso = document.getElementById('filtroConcursoLista').value;
+    const container = document.getElementById('duplicadosResultado');
+    
+    if (!concurso || concurso === 'todos') {
+        showToast('⚠️ Selecione um concurso específico!', 'warning');
+        return;
+    }
+    
+    showLoading(`Verificando cartões do concurso ${concurso}...`);
+    
+    try {
+        const snapshot = await db.collection('cartoes').where('concurso', '==', concurso).get();
+        
+        if (snapshot.size === 0) {
+            hideLoading();
+            container.innerHTML = `<div style="text-align:center;padding:20px;color:#10b981;"><div style="font-size:32px;">✅</div><div style="font-weight:600;margin-top:8px;">Nenhum cartão encontrado para o concurso ${concurso}</div></div>`;
+            container.style.display = 'block';
+            return;
+        }
+        
+        const numerosMap = {};
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const numerosStr = data.numeros.slice().sort((a,b) => a-b).join('|');
+            const numerosDisplay = data.numeros.slice().sort((a,b) => a-b).join(', ');
+            if (!numerosMap[numerosStr]) numerosMap[numerosStr] = [];
+            numerosMap[numerosStr].push({
+                id: doc.id,
+                bolao: data.bolao || 'Sem Bolão',
+                numeros: data.numeros,
+                numerosDisplay: numerosDisplay,
+                tipoParticipacao: data.tipoParticipacao || 'exclusivo',
+                dataCadastro: data.dataCadastro || new Date(0).toISOString()
+            });
+        });
+        
+        const duplicados = {};
+        let totalDuplicados = 0;
+        Object.keys(numerosMap).forEach(key => {
+            if (numerosMap[key].length > 1) {
+                duplicados[key] = numerosMap[key];
+                totalDuplicados += numerosMap[key].length;
+            }
+        });
+        
+        const gruposDuplicados = Object.keys(duplicados).length;
+        
+        if (gruposDuplicados === 0) {
+            hideLoading();
+            container.innerHTML = `<div style="text-align:center;padding:20px;color:#10b981;"><div style="font-size:32px;">✅</div><div style="font-weight:600;margin-top:8px;">Nenhum cartão duplicado encontrado!</div></div>`;
+            container.style.display = 'block';
+            return;
+        }
+        
+        let html = `<div style="background:#fef3c7;padding:12px 16px;border-radius:12px;margin-bottom:16px;border:1px solid #f59e0b;">
+            <div style="font-weight:700;color:#92400e;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                <span>⚠️ ${gruposDuplicados} grupo(s) de cartões duplicados</span>
+                <span>📊 ${snapshot.size} cartões | 🔁 ${totalDuplicados} duplicados</span>
+            </div>
+            <div style="font-size:12px;color:#78350f;margin-top:4px;">💡 Selecione UM cartão por grupo para manter.</div>
+        </div>
+        <div style="max-height:400px;overflow-y:auto;margin-bottom:16px;">`;
+        
+        let grupoIndex = 0;
+        for (const [numerosStr, cartoes] of Object.entries(duplicados)) {
+            grupoIndex++;
+            const grupoId = `grupo-${grupoIndex}`;
+            html += `<div style="background:white;border-radius:12px;padding:14px;margin-bottom:12px;border:2px solid #f59e0b;border-left:4px solid #f59e0b;">
+                <div style="font-weight:600;color:#1e293b;margin-bottom:8px;">
+                    🎯 Grupo ${grupoIndex} - Números: <span style="font-family:monospace;background:#f1f5f9;padding:2px 8px;border-radius:4px;">${cartoes[0].numerosDisplay}</span>
+                    <span style="font-size:12px;color:#64748b;font-weight:normal;"> (${cartoes.length} cartões)</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">`;
+            
+            cartoes.forEach((cartao, idx) => {
+                const isFirst = idx === 0;
+                const dataCadastro = cartao.dataCadastro ? new Date(cartao.dataCadastro).toLocaleDateString('pt-BR') : '---';
+                const tipoLabel = cartao.tipoParticipacao === 'cota' ? '🎟️ Cota' : '👥 Exclusivo';
+                html += `<div style="background:${isFirst ? '#d1fae5' : '#f8fafc'};border-radius:8px;padding:10px;border:1px solid ${isFirst ? '#10b981' : '#e2e8f0'};">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+                        <input type="radio" name="${grupoId}" value="${cartao.id}" ${isFirst ? 'checked' : ''} style="width:18px;height:18px;accent-color:#3b82f6;cursor:pointer;">
+                        <span style="font-weight:500;">ID: ${cartao.id.slice(0,8)}</span>
+                        ${isFirst ? '<span style="font-size:10px;background:#10b981;color:white;padding:1px 8px;border-radius:30px;">✅ MANTER</span>' : ''}
+                    </label>
+                    <div style="font-size:11px;color:#64748b;margin-top:4px;padding-left:26px;">
+                        📌 ${cartao.bolao} | ${tipoLabel} | 📅 ${dataCadastro}
+                    </div>
+                </div>`;
+            });
+            
+            html += `</div></div>`;
+        }
+        
+        html += `</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end;">
+            <button id="btnExcluirDuplicados" class="btn btn-danger" style="flex:1;min-width:150px;padding:12px;">🗑️ EXCLUIR DUPLICADOS (${totalDuplicados - gruposDuplicados} cartões)</button>
+            <button id="btnFecharDuplicados" class="btn btn-secondary" style="flex:1;min-width:120px;padding:12px;">FECHAR</button>
+        </div>`;
+        
+        container.innerHTML = html;
+        container.style.display = 'block';
+        
+        // Eventos dos radios
+        document.querySelectorAll('input[type="radio"][name^="grupo-"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                const grupoId = this.name;
+                const parentDiv = this.closest('div[style*="border-radius: 8px"]');
+                const allItems = parentDiv.closest('.bolao-card').querySelectorAll('div[style*="border-radius: 8px"]');
+                allItems.forEach(item => { item.style.background = '#f8fafc'; item.style.borderColor = '#e2e8f0'; });
+                parentDiv.style.background = '#d1fae5';
+                parentDiv.style.borderColor = '#10b981';
+                const groupDiv = parentDiv.closest('.bolao-card');
+                const badgeElements = groupDiv.querySelectorAll('span[style*="background: #10b981"]');
+                badgeElements.forEach(b => b.remove());
+                const checkedRadio = groupDiv.querySelector('input[type="radio"]:checked');
+                if (checkedRadio) {
+                    const label = checkedRadio.closest('label');
+                    if (label) {
+                        const badge = document.createElement('span');
+                        badge.style.cssText = 'font-size: 10px; background: #10b981; color: white; padding: 1px 8px; border-radius: 30px; margin-left: 6px;';
+                        badge.textContent = '✅ MANTER';
+                        label.appendChild(badge);
+                    }
+                }
+            });
+        });
+        
+        document.getElementById('btnExcluirDuplicados').addEventListener('click', function() {
+            const idsParaExcluir = [];
+            for (const [grupoId, idManter] of Object.entries(cartoesDuplicadosSelecionados)) {
+                const cartoesDoGrupo = Object.values(duplicados).flat();
+                const idsDoGrupo = cartoesDoGrupo.map(c => c.id);
+                const idsParaExcluirGrupo = idsDoGrupo.filter(id => id !== idManter);
+                idsParaExcluir.push(...idsParaExcluirGrupo);
+            }
+            if (idsParaExcluir.length === 0) { showToast('⚠️ Nenhum cartão para excluir', 'warning'); return; }
+            if (!confirm(`⚠️ Excluir ${idsParaExcluir.length} cartões duplicados?`)) return;
+            showLoading(`Excluindo ${idsParaExcluir.length} cartões...`);
+            let excluidos = 0, erros = 0;
+            idsParaExcluir.forEach(id => {
+                db.collection('cartoes').doc(id).delete().then(() => {
+                    excluidos++;
+                    if (excluidos + erros === idsParaExcluir.length) {
+                        hideLoading();
+                        showToast(`✅ ${excluidos} cartões excluídos!`, 'success');
+                        container.style.display = 'none';
+                        carregarDadosAdmin();
+                    }
+                }).catch(err => {
+                    erros++;
+                    if (excluidos + erros === idsParaExcluir.length) {
+                        hideLoading();
+                        showToast(`✅ ${excluidos} excluídos, ⚠️ ${erros} erros`, 'warning');
+                    }
+                });
+            });
+        });
+        
+        document.getElementById('btnFecharDuplicados').addEventListener('click', function() {
+            container.style.display = 'none';
+        });
+        
+        hideLoading();
+        
+    } catch (error) {
+        console.error('Erro:', error);
+        hideLoading();
+        showToast('❌ Erro ao verificar duplicados', 'error');
+    }
 }
 
 // ============================================
@@ -1487,22 +1637,9 @@ async function excluirSelecionados() {
         return;
     }
     
-    const nomesBoloes = [];
-    const concursos = [];
-    selecionados.forEach(cb => {
-        const cartaoId = cb.dataset.id;
-        const cartao = cartoes.find(c => c.id === cartaoId);
-        if (cartao) {
-            if (!nomesBoloes.includes(cartao.bolao)) nomesBoloes.push(cartao.bolao);
-            if (!concursos.includes(cartao.concurso)) concursos.push(cartao.concurso);
-        }
-    });
-    
     const mensagemConfirmacao = 
         `⚠️ ATENÇÃO! ⚠️\n\n` +
         `Você está prestes a excluir ${selecionados.length} cartão(ões).\n\n` +
-        `📌 Bolões afetados: ${nomesBoloes.join(', ') || 'Não identificado'}\n` +
-        `📌 Concursos: ${concursos.join(', ') || 'Não identificado'}\n\n` +
         `Esta ação NÃO pode ser desfeita!\n\n` +
         `Deseja continuar?`;
     
@@ -1519,15 +1656,11 @@ async function excluirSelecionados() {
     
     for (const cb of selecionados) {
         const id = cb.dataset.id;
-        console.log(`🗑️ Tentando excluir cartão: ${id}`);
-        
         try {
             await db.collection('cartoes').doc(id).delete();
-            console.log(`✅ Cartão ${id} excluído do Firebase`);
             excluidos++;
             idsExcluidos.push(id);
         } catch (error) {
-            console.error(`❌ Erro ao excluir ${id}:`, error);
             erros++;
         }
     }
@@ -1535,7 +1668,7 @@ async function excluirSelecionados() {
     hideLoading();
     
     if (excluidos > 0) {
-        showToast(`✅ ${excluidos} cartão(ões) excluído(s) com sucesso! ${erros > 0 ? `⚠️ ${erros} erro(s)` : ''}`, 'success');
+        showToast(`✅ ${excluidos} cartão(ões) excluído(s)! ${erros > 0 ? `⚠️ ${erros} erro(s)` : ''}`, 'success');
         cartoes = cartoes.filter(c => !idsExcluidos.includes(c.id));
         await carregarDadosAdmin();
         const totalDiv = document.getElementById('totalCartoes');
@@ -1544,7 +1677,6 @@ async function excluirSelecionados() {
             totalDiv.innerHTML = total + ' cartões';
         }
         atualizarContadorSelecionados();
-        showToast(`✅ ${excluidos} cartões removidos permanentemente!`, 'success');
     } else {
         showToast('❌ Nenhum cartão foi excluído', 'error');
     }
@@ -2067,11 +2199,11 @@ async function adicionarCartaoIndividual() {
 }
 
 // ============================================
-// CARREGAR BOLÕES PARA GERENCIAR (CORRIGIDO)
+// PARTICIPANTE RÁPIDO
 // ============================================
-async function carregarBoloesParaGerenciar() {
-    const container = document.getElementById('listaBoloes');
-    if (!container) return;
+async function carregarBoloesNoSelectRapido() {
+    const select = document.getElementById('rapidoBolaoSelect');
+    if (!select) return;
     
     try {
         const snapshot = await db.collection('participantes').get();
@@ -2080,563 +2212,580 @@ async function carregarBoloesParaGerenciar() {
             boloes.push({ id: doc.id, ...doc.data() });
         });
         
-        if (boloes.length === 0) {
-            container.innerHTML = '<div class="empty-state">Nenhum bolão encontrado.</div>';
+        select.innerHTML = '<option value="">Selecione um bolão</option>';
+        for (const bolao of boloes) {
+            const option = document.createElement('option');
+            option.value = bolao.id;
+            option.textContent = `${bolao.titulo} (${bolao.loteria || '?'})`;
+            select.appendChild(option);
+        }
+    } catch (error) {
+        console.error('Erro ao carregar bolões:', error);
+    }
+}
+
+async function adicionarParticipanteRapido() {
+    const nome = document.getElementById('rapidoNome').value.trim();
+    const bolaoId = document.getElementById('rapidoBolaoSelect').value;
+    const valorPago = parseInt(document.getElementById('rapidoValor').value);
+    const loteria = document.getElementById('rapidoLoteria').value;
+    
+    if (!nome) { showToast('⚠️ Digite o nome do participante', 'warning'); return; }
+    if (!bolaoId) { showToast('⚠️ Selecione um bolão', 'warning'); return; }
+    if (!valorPago || valorPago <= 0) { showToast('⚠️ Digite um valor válido', 'warning'); return; }
+    
+    const bolaoDoc = await db.collection('participantes').doc(bolaoId).get();
+    const bolaoTitulo = bolaoDoc.exists ? bolaoDoc.data().titulo : 'Bolão';
+    
+    await db.collection('participantes_pendentes').add({
+        nome: nome,
+        bolaoId: bolaoId,
+        bolaoTitulo: bolaoTitulo,
+        valorPago: valorPago,
+        loteria: loteria,
+        data: new Date().toISOString(),
+        sincronizado: false,
+        status: 'pendente_validacao',
+        admin: true
+    });
+    
+    showToast(`✅ ${nome} adicionado para sincronização!`, 'success');
+    
+    document.getElementById('rapidoNome').value = '';
+    document.getElementById('rapidoValor').value = '';
+}
+
+async function gerarListaWhatsApp() {
+    const bolaoId = document.getElementById('rapidoBolaoSelect').value;
+    if (!bolaoId) { showToast('⚠️ Selecione um bolão', 'warning'); return; }
+    
+    const bolaoDoc = await db.collection('participantes').doc(bolaoId).get();
+    if (!bolaoDoc.exists) { showToast('❌ Bolão não encontrado', 'error'); return; }
+    
+    const bolao = bolaoDoc.data();
+    const participantes = bolao.participantes || [];
+    const confirmados = participantes.filter(p => p.situacao === 'quitado' || p.situacao === 'pago');
+    const confirmadosLista = confirmados.map(p => `✅ ${p.nome} - R$ ${p.valorPago},00`).join('\n');
+    
+    const mensagem = `*${bolao.titulo}*\n\n` +
+        `💰 *Valor da Cota:* R$ ${bolao.valorPorCota || 0},00\n` +
+        `💳 *PIX:* 61998507770\n\n` +
+        `*✅ CONFIRMADOS:*\n${confirmadosLista || 'Nenhum participante confirmado ainda'}\n\n` +
+        `🔹 *Não precisa enviar comprovante, confirmação feita no extrato.*`;
+    
+    window.open(`https://wa.me/?text=${encodeURIComponent(mensagem)}`, '_blank');
+    showToast('📱 Abrindo WhatsApp...', 'info');
+}
+
+// ============================================
+// TOKENS DE ACESSO
+// ============================================
+function gerarTokenUnico() {
+    return Math.random().toString(36).substring(2, 18) + Math.random().toString(36).substring(2, 8);
+}
+
+async function salvarToken(participanteId, nome, telefone) {
+    const token = gerarTokenUnico();
+    const link = `${window.location.origin}/mega-sena-sistema/consulta.html?token=${token}`;
+    const telefoneNumeros = telefone.replace(/\D/g, '');
+    
+    await db.collection('participantes_tokens').doc(token).set({
+        participanteId: participanteId,
+        nome: nome,
+        telefone: telefoneNumeros,
+        token: token,
+        ativo: true,
+        dataCriacao: new Date().toISOString(),
+        admin: true
+    });
+    
+    showToast(`✅ Token gerado para ${nome}!`, 'success');
+    carregarTokens();
+}
+
+async function carregarTokens() {
+    try {
+        const snapshot = await db.collection('participantes_tokens').where('ativo', '==', true).get();
+        const tokens = [];
+        snapshot.forEach(doc => {
+            tokens.push({ id: doc.id, ...doc.data() });
+        });
+        
+        const container = document.getElementById('listaTokens');
+        if (!container) return;
+        
+        if (tokens.length === 0) {
+            container.innerHTML = '<div class="empty-state">🔑 Nenhum token ativo. Gere o primeiro acima.</div>';
             return;
         }
         
-        let selecionados = [];
-        let statusMap = {};
-        let dataLimiteMap = {};
-        let destaqueMap = {};
-        let estrategiaMap = {};
-
-        try {
-            const configDoc = await db.collection('config_boloes').doc('ativos').get();
-            if (configDoc.exists) {
-                selecionados = configDoc.data().ids || [];
-                statusMap = configDoc.data().status || {};
-                dataLimiteMap = configDoc.data().dataLimite || {};
-                destaqueMap = configDoc.data().destaque || {};
-                estrategiaMap = configDoc.data().estrategia || {};
-            }
-        } catch (e) {
-            console.log('Erro ao carregar seleção:', e);
-        }
+        let html = '<div class="tokens-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px;">';
         
-        const ordemStatus = { 'aberto': 0, 'andamento': 1, 'encerrado': 2 };
-        
-        boloes.sort((a, b) => {
-            const statusA = statusMap[a.id] || 'andamento';
-            const statusB = statusMap[b.id] || 'andamento';
-            if (statusA !== statusB) {
-                return (ordemStatus[statusA] || 1) - (ordemStatus[statusB] || 1);
-            }
-            const tituloA = (a.titulo || '').toLowerCase();
-            const tituloB = (b.titulo || '').toLowerCase();
-            return tituloA.localeCompare(tituloB);
-        });
-        
-        let html = '';
-        for (const bolao of boloes) {
-            const checked = selecionados.includes(bolao.id) ? 'checked' : '';
-            const status = statusMap[bolao.id] || 'andamento';
-            const isDestaque = destaqueMap[bolao.id] === true;
-            
-            let statusIcon = '';
-            let statusColor = '';
-            let statusBg = '';
-            if (status === 'aberto') {
-                statusIcon = '🟢';
-                statusColor = '#065f46';
-                statusBg = '#d1fae5';
-            } else if (status === 'andamento') {
-                statusIcon = '🟡';
-                statusColor = '#92400e';
-                statusBg = '#fef3c7';
-            } else if (status === 'encerrado') {
-                statusIcon = '🔴';
-                statusColor = '#991b1b';
-                statusBg = '#fee2e2';
-            }
+        for (const token of tokens) {
+            const link = `${window.location.origin}/mega-sena-sistema/consulta.html?token=${token.token}`;
+            const dataCriacao = token.dataCriacao ? new Date(token.dataCriacao).toLocaleDateString('pt-BR') : '---';
             
             html += `
-                <div style="padding: 12px 14px; border-bottom: 1px solid #e2e8f0; margin-bottom: 8px; background: ${isDestaque ? '#fef3c7' : 'white'}; border-radius: 10px; border-left: 4px solid ${status === 'aberto' ? '#10b981' : status === 'andamento' ? '#f59e0b' : '#ef4444'};">
-                    
-                    <!-- LINHA 1: Checkbox + Título + Status + Destaque Badge -->
-                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                        <input type="checkbox" class="checkbox-bolao" data-id="${bolao.id}" ${checked} style="width: 20px; height: 20px; cursor: pointer; accent-color: #3b82f6; flex-shrink: 0;">
-                        <strong style="font-size: 14px; color: #1e293b;">${bolao.titulo || 'Sem título'}</strong>
-                        <span style="font-size: 11px; background: ${statusBg}; color: ${statusColor}; padding: 2px 10px; border-radius: 30px; font-weight: 600;">${statusIcon} ${status.toUpperCase()}</span>
-                        <span style="font-size: 11px; color: #64748b;">👥 ${bolao.participantes?.length || 0}</span>
-                        ${isDestaque ? '<span style="font-size: 10px; background: #f59e0b; color: white; padding: 2px 8px; border-radius: 30px; font-weight: 700;">⭐</span>' : ''}
+                <div class="token-card" style="background: #ffffff; border-radius: 16px; padding: 14px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <strong style="font-size: 15px;">👤 ${token.nome}</strong>
+                        <span style="background: #d1fae5; color: #065f46; padding: 2px 10px; border-radius: 30px; font-size: 10px;">✅ ATIVO</span>
                     </div>
-                    
-                    <!-- LINHA 2: Configurações em GRID -->
-                    <div style="margin-top: 8px; display: grid; grid-template-columns: auto 1fr auto 1fr auto; gap: 6px 10px; align-items: center; padding-left: 30px;">
-                        
-                        <!-- DESTAQUE - SWITCH -->
-                        <span style="font-size: 12px; font-weight: 600; color: #1e293b;">⭐</span>
-                        <label class="switch-destaque" style="position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0;">
-                            <input type="checkbox" class="checkbox-destaque" data-id="${bolao.id}" ${isDestaque ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;">
-                            <span class="slider-destaque" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: ${isDestaque ? '#f59e0b' : '#cbd5e1'}; transition: 0.3s; border-radius: 30px;">
-                                <span class="thumb" style="position: absolute; height: 18px; width: 18px; left: ${isDestaque ? '23px' : '3px'}; bottom: 3px; background: white; transition: 0.3s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.15); display: flex; align-items: center; justify-content: center; font-size: 10px;">
-                                    ${isDestaque ? '⭐' : ''}
-                                </span>
-                            </span>
-                        </label>
-                        <span id="destaque-label-${bolao.id}" style="font-size: 11px; font-weight: 600; color: ${isDestaque ? '#f59e0b' : '#94a3b8'}; min-width: 35px;">${isDestaque ? 'ON' : 'OFF'}</span>
-                        
-                        <!-- STATUS -->
-                        <span style="font-size: 12px; font-weight: 600; color: #1e293b;">Status</span>
-                        <select class="status-select" data-id="${bolao.id}" style="padding: 3px 8px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 12px;">
-                            <option value="aberto" ${status === 'aberto' ? 'selected' : ''}>🟢 ABERTO</option>
-                            <option value="andamento" ${status === 'andamento' ? 'selected' : ''}>🟡 ANDAMENTO</option>
-                            <option value="encerrado" ${status === 'encerrado' ? 'selected' : ''}>🔴 ENCERRADO</option>
-                        </select>
+                    <div style="font-size: 12px; color: #64748b; margin-bottom: 8px;">📞 ${formatarTelefone(token.telefone)}</div>
+                    <div style="font-size: 10px; color: #64748b; margin-bottom: 10px;">📅 Criado em: ${dataCriacao}</div>
+                    <div style="background: #f8fafc; padding: 8px; border-radius: 8px; margin-bottom: 10px;">
+                        <code style="font-size: 9px; word-break: break-all;">${link}</code>
                     </div>
-                    
-                    <!-- LINHA 3: Data + Estratégia -->
-                    <div style="margin-top: 6px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-left: 30px;">
-                        <span style="font-size: 12px; font-weight: 600; color: #1e293b;">📅</span>
-                        <input type="date" class="data-limite-input" data-id="${bolao.id}" value="${dataLimiteMap[bolao.id] || ''}" style="padding: 3px 8px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 12px; max-width: 140px;">
-                        
-                        <span style="font-size: 12px; font-weight: 600; color: #1e293b; margin-left: 4px;">📝</span>
-                        <input type="text" class="estrategia-textarea" data-id="${bolao.id}" value="${estrategiaMap[bolao.id] || ''}" style="flex: 1; min-width: 120px; padding: 3px 8px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 12px;" placeholder="Estratégia...">
-                    </div>
-                    
-                    <!-- LINHA 4: Botões (Final do card) -->
-                    <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
-                        <button class="btn-link-participantes" data-id="${bolao.id}" data-titulo="${bolao.titulo}" style="background: #3b82f6; color: white; border: none; padding: 4px 14px; border-radius: 20px; cursor: pointer; font-size: 11px; font-weight: 600;">📋 LINK</button>
-                        <button class="btn-excluir-bolao" data-id="${bolao.id}" data-titulo="${bolao.titulo}" style="background: #ef4444; color: white; border: none; padding: 4px 14px; border-radius: 20px; cursor: pointer; font-size: 11px; font-weight: 600;">🗑️ EXCLUIR</button>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn-copiar-link btn-sm" data-link="${link}" style="background: #3b82f6; border: none; padding: 6px 12px; border-radius: 20px; color: white; cursor: pointer; font-size: 11px;">📋 COPIAR LINK</button>
+                        <button class="btn-revogar-token btn-sm" data-token="${token.token}" style="background: #ef4444; border: none; padding: 6px 12px; border-radius: 20px; color: white; cursor: pointer; font-size: 11px;">❌ REVOGAR</button>
                     </div>
                 </div>
             `;
         }
-        
+        html += '</div>';
         container.innerHTML = html;
         
-        // ============================================
-        // EVENTOS
-        // ============================================
-        
-        // 1. Switch de Destaque
-        document.querySelectorAll('.checkbox-destaque').forEach(checkbox => {
-            checkbox.addEventListener('change', function() {
-                const id = this.dataset.id;
-                const isChecked = this.checked;
-                
-                const switchContainer = this.closest('.switch-destaque');
-                if (switchContainer) {
-                    const slider = switchContainer.querySelector('.slider-destaque');
-                    const thumb = slider ? slider.querySelector('.thumb') : null;
-                    const label = document.getElementById(`destaque-label-${id}`);
-                    const card = this.closest('div[style*="border-left"]');
-                    
-                    if (isChecked) {
-                        if (slider) slider.style.background = '#f59e0b';
-                        if (thumb) {
-                            thumb.style.left = '23px';
-                            thumb.textContent = '⭐';
-                        }
-                        if (label) {
-                            label.textContent = 'ON';
-                            label.style.color = '#f59e0b';
-                        }
-                        if (card) {
-                            card.style.background = '#fef3c7';
-                            const titleDiv = card.querySelector('div:first-child');
-                            const oldBadge = card.querySelector('.badge-destaque');
-                            if (oldBadge) oldBadge.remove();
-                            if (titleDiv) {
-                                const badge = document.createElement('span');
-                                badge.className = 'badge-destaque';
-                                badge.style.cssText = 'font-size: 10px; background: #f59e0b; color: white; padding: 2px 8px; border-radius: 30px; font-weight: 700; margin-left: 4px;';
-                                badge.textContent = '⭐';
-                                titleDiv.appendChild(badge);
-                            }
-                        }
-                        const checkboxSelecao = document.querySelector(`.checkbox-bolao[data-id="${id}"]`);
-                        if (checkboxSelecao && !checkboxSelecao.checked) {
-                            checkboxSelecao.checked = true;
-                        }
-                    } else {
-                        if (slider) slider.style.background = '#cbd5e1';
-                        if (thumb) {
-                            thumb.style.left = '3px';
-                            thumb.textContent = '';
-                        }
-                        if (label) {
-                            label.textContent = 'OFF';
-                            label.style.color = '#94a3b8';
-                        }
-                        if (card) {
-                            card.style.background = 'white';
-                            const badge = card.querySelector('.badge-destaque');
-                            if (badge) badge.remove();
-                        }
-                    }
-                }
-                setTimeout(() => salvarConfigBoloes(), 100);
-            });
-        });
-        
-        // 2. Checkbox de seleção
-        document.querySelectorAll('.checkbox-bolao').forEach(checkbox => {
-            checkbox.addEventListener('change', function() {
-                const id = this.dataset.id;
-                const isChecked = this.checked;
-                const destaqueCheck = document.querySelector(`.checkbox-destaque[data-id="${id}"]`);
-                if (!isChecked && destaqueCheck && destaqueCheck.checked) {
-                    destaqueCheck.checked = false;
-                    destaqueCheck.dispatchEvent(new Event('change'));
-                }
-                setTimeout(() => salvarConfigBoloes(), 100);
-            });
-        });
-        
-        // 3. Status, Data e Estratégia
-        document.querySelectorAll('.status-select, .data-limite-input, .estrategia-textarea').forEach(el => {
-            el.addEventListener('change', () => {
-                setTimeout(() => salvarConfigBoloes(), 100);
-            });
-        });
-        
-        // 4. Botões de excluir
-        document.querySelectorAll('.btn-excluir-bolao').forEach(btn => {
+        document.querySelectorAll('.btn-copiar-link').forEach(btn => {
             btn.onclick = () => {
-                const bolaoId = btn.dataset.id;
-                const bolaoTitulo = btn.dataset.titulo;
-                excluirBolao(bolaoId, bolaoTitulo);
+                navigator.clipboard.writeText(btn.dataset.link);
+                showToast('📋 Link copiado!', 'success');
             };
         });
         
-        console.log(`✅ ${boloes.length} bolões carregados`);
-        adicionarBotaoLinkParticipantes();
+        document.querySelectorAll('.btn-revogar-token').forEach(btn => {
+            btn.onclick = async () => {
+                if (confirm('REVOGAR este token? O participante perderá o acesso imediatamente.')) {
+                    await db.collection('participantes_tokens').doc(btn.dataset.token).update({ 
+                        ativo: false,
+                        admin: true
+                    });
+                    showToast('❌ Token revogado!', 'info');
+                    carregarTokens();
+                }
+            };
+        });
+        
+    } catch (error) {
+        console.error('Erro ao carregar tokens:', error);
+        const container = document.getElementById('listaTokens');
+        if (container) container.innerHTML = '<div class="empty-state">❌ Erro ao carregar tokens</div>';
+    }
+}
 
+function formatarTelefone(telefone) {
+    const numeros = telefone.replace(/\D/g, '');
+    if (numeros.length === 11) {
+        return `${numeros.substring(0, 2)}-${numeros.substring(2)}`;
+    } else if (numeros.length === 10) {
+        return `${numeros.substring(0, 2)}-${numeros.substring(2)}`;
+    }
+    return numeros;
+}
+
+// ============================================
+// PARTICIPANTES POR BOLÃO
+// ============================================
+async function carregarBoloesSelectParticipantes() {
+    const select = document.getElementById('bolaoSelectParticipantes');
+    if (!select) return;
+    
+    try {
+        const snapshot = await db.collection('participantes').get();
+        const boloes = [];
+        snapshot.forEach(doc => {
+            boloes.push({ id: doc.id, ...doc.data() });
+        });
+        
+        select.innerHTML = '<option value="">Selecione um bolão</option>';
+        for (const bolao of boloes) {
+            const option = document.createElement('option');
+            option.value = bolao.id;
+            option.textContent = `${bolao.titulo} (${bolao.loteria || '?'}) - ${bolao.participantes?.length || 0} participantes`;
+            select.appendChild(option);
+        }
+        
+        select.removeEventListener('change', handleSelectChange);
+        select.addEventListener('change', handleSelectChange);
+        
+        console.log(`✅ ${boloes.length} bolões carregados no select`);
+        
     } catch (error) {
         console.error('Erro ao carregar bolões:', error);
-        container.innerHTML = '<div class="empty-state">Erro ao carregar bolões.</div>';
     }
 }
 
-// ============================================
-// VERIFICAR DUPLICADOS
-// ============================================
-async function verificarDuplicados() {
-    const concurso = document.getElementById('filtroConcursoLista').value;
-    const container = document.getElementById('duplicadosResultado');
+function handleSelectChange(event) {
+    const id = event.target.value;
+    console.log('📌 Bolão selecionado:', id);
+    if (id) {
+        carregarParticipantesAdmin(id);
+    } else {
+        document.getElementById('listaParticipantesAdmin').innerHTML = '<div class="empty-state">Selecione um bolão para ver os participantes</div>';
+    }
+}
+
+async function carregarParticipantesAdmin(bolaoId) {
+    const container = document.getElementById('listaParticipantesAdmin');
+    if (!container) return;
     
-    if (!concurso || concurso === 'todos') {
-        showToast('⚠️ Selecione um concurso específico!', 'warning');
+    if (!bolaoId) {
+        container.innerHTML = '<div class="empty-state">Selecione um bolão para ver os participantes</div>';
         return;
     }
     
-    showLoading(`Verificando cartões do concurso ${concurso}...`);
+    container.innerHTML = '<div class="loading">🔍 Carregando participantes...</div>';
     
     try {
-        const snapshot = await db.collection('cartoes').where('concurso', '==', concurso).get();
-        
-        if (snapshot.size === 0) {
-            hideLoading();
-            container.innerHTML = `<div style="text-align:center;padding:20px;color:#10b981;"><div style="font-size:32px;">✅</div><div style="font-weight:600;margin-top:8px;">Nenhum cartão encontrado para o concurso ${concurso}</div></div>`;
-            container.style.display = 'block';
+        const doc = await db.collection('participantes').doc(bolaoId).get();
+        if (!doc.exists) {
+            container.innerHTML = '<div class="empty-state">Bolão não encontrado</div>';
             return;
         }
         
-        const numerosMap = {};
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            const numerosStr = data.numeros.slice().sort((a,b) => a-b).join('|');
-            const numerosDisplay = data.numeros.slice().sort((a,b) => a-b).join(', ');
-            if (!numerosMap[numerosStr]) numerosMap[numerosStr] = [];
-            numerosMap[numerosStr].push({
-                id: doc.id,
-                bolao: data.bolao || 'Sem Bolão',
-                numeros: data.numeros,
-                numerosDisplay: numerosDisplay,
-                tipoParticipacao: data.tipoParticipacao || 'exclusivo',
-                dataCadastro: data.dataCadastro || new Date(0).toISOString()
-            });
-        });
+        const bolao = doc.data();
+        const participantes = bolao.participantes || [];
+        const valorPorCota = bolao.valorPorCota || 0;
         
-        const duplicados = {};
-        let totalDuplicados = 0;
-        Object.keys(numerosMap).forEach(key => {
-            if (numerosMap[key].length > 1) {
-                duplicados[key] = numerosMap[key];
-                totalDuplicados += numerosMap[key].length;
-            }
-        });
-        
-        const gruposDuplicados = Object.keys(duplicados).length;
-        
-        if (gruposDuplicados === 0) {
-            hideLoading();
-            container.innerHTML = `<div style="text-align:center;padding:20px;color:#10b981;"><div style="font-size:32px;">✅</div><div style="font-weight:600;margin-top:8px;">Nenhum cartão duplicado encontrado!</div></div>`;
-            container.style.display = 'block';
+        if (participantes.length === 0) {
+            container.innerHTML = '<div class="empty-state">Nenhum participante neste bolão</div>';
             return;
         }
         
-        let html = `<div style="background:#fef3c7;padding:12px 16px;border-radius:12px;margin-bottom:16px;border:1px solid #f59e0b;">
-            <div style="font-weight:700;color:#92400e;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-                <span>⚠️ ${gruposDuplicados} grupo(s) de cartões duplicados</span>
-                <span>📊 ${snapshot.size} cartões | 🔁 ${totalDuplicados} duplicados</span>
-            </div>
-            <div style="font-size:12px;color:#78350f;margin-top:4px;">💡 Selecione UM cartão por grupo para manter.</div>
-        </div>
-        <div style="max-height:400px;overflow-y:auto;margin-bottom:16px;">`;
-        
-        let grupoIndex = 0;
-        for (const [numerosStr, cartoes] of Object.entries(duplicados)) {
-            grupoIndex++;
-            const grupoId = `grupo-${grupoIndex}`;
-            html += `<div style="background:white;border-radius:12px;padding:14px;margin-bottom:12px;border:2px solid #f59e0b;border-left:4px solid #f59e0b;">
-                <div style="font-weight:600;color:#1e293b;margin-bottom:8px;">
-                    🎯 Grupo ${grupoIndex} - Números: <span style="font-family:monospace;background:#f1f5f9;padding:2px 8px;border-radius:4px;">${cartoes[0].numerosDisplay}</span>
-                    <span style="font-size:12px;color:#64748b;font-weight:normal;"> (${cartoes.length} cartões)</span>
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">`;
+        const participantesFormatados = participantes.map(p => {
+            let statusClass = 'pago';
+            let statusText = 'PAGO';
+            let quantidadeCotas = p.quantidadeCotas || 1;
+            let valorPago = p.valorPago || 0;
             
-            cartoes.forEach((cartao, idx) => {
-                const isFirst = idx === 0;
-                const dataCadastro = cartao.dataCadastro ? new Date(cartao.dataCadastro).toLocaleDateString('pt-BR') : '---';
-                const tipoLabel = cartao.tipoParticipacao === 'cota' ? '🎟️ Cota' : '👥 Exclusivo';
-                html += `<div style="background:${isFirst ? '#d1fae5' : '#f8fafc'};border-radius:8px;padding:10px;border:1px solid ${isFirst ? '#10b981' : '#e2e8f0'};">
-                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
-                        <input type="radio" name="${grupoId}" value="${cartao.id}" ${isFirst ? 'checked' : ''} style="width:18px;height:18px;accent-color:#3b82f6;cursor:pointer;">
-                        <span style="font-weight:500;">ID: ${cartao.id.slice(0,8)}</span>
-                        ${isFirst ? '<span style="font-size:10px;background:#10b981;color:white;padding:1px 8px;border-radius:30px;">✅ MANTER</span>' : ''}
-                    </label>
-                    <div style="font-size:11px;color:#64748b;margin-top:4px;padding-left:26px;">
-                        📌 ${cartao.bolao} | ${tipoLabel} | 📅 ${dataCadastro}
+            if (p.situacao !== 'quitado' && p.situacao !== 'pago') {
+                statusClass = 'pendente';
+                statusText = 'EM ANDAMENTO';
+            }
+            
+            return {
+                nome: p.nome,
+                telefone: p.telefone || '---',
+                statusClass: statusClass,
+                statusText: statusText,
+                quantidadeCotas: quantidadeCotas,
+                valorPago: valorPago,
+                valorPorCota: valorPorCota
+            };
+        });
+        
+        participantesFormatados.sort((a, b) => {
+            if (a.statusClass === 'pago' && b.statusClass !== 'pago') return -1;
+            if (a.statusClass !== 'pago' && b.statusClass === 'pago') return 1;
+            return 0;
+        });
+        
+        let html = `<div style="margin-bottom: 15px; padding: 10px; background: #f1f5f9; border-radius: 12px; display: flex; justify-content: space-between; flex-wrap: wrap;">
+                        <span><strong>📊 TOTAL:</strong> ${participantes.length} participantes</span>
+                        <span><strong>💰 VALOR POR COTA:</strong> R$ ${valorPorCota.toFixed(2)}</span>
+                    </div>`;
+        html += '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">';
+        
+        participantesFormatados.forEach(p => {
+            const totalEsperado = p.valorPorCota * p.quantidadeCotas;
+            html += `
+                <div style="background: #ffffff; border-radius: 12px; padding: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0;">
+                        <strong style="font-size: 14px;">${p.nome}</strong>
+                        <span style="background: ${p.statusClass === 'pago' ? '#10b981' : '#f59e0b'}; color: white; font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 30px;">${p.statusText}</span>
                     </div>
-                </div>`;
-            });
-            
-            html += `</div></div>`;
-        }
-        
-        html += `</div>
-        <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end;">
-            <button id="btnExcluirDuplicados" class="btn btn-danger" style="flex:1;min-width:150px;padding:12px;">🗑️ EXCLUIR DUPLICADOS (${totalDuplicados - gruposDuplicados} cartões)</button>
-            <button id="btnFecharDuplicados" class="btn btn-secondary" style="flex:1;min-width:120px;padding:12px;">FECHAR</button>
-        </div>`;
+                    <div style="display: flex; justify-content: space-between; font-size: 12px; color: #475569;">
+                        <span>📞 ${p.telefone}</span>
+                        <span>🎟️ ${p.quantidadeCotas} cota${p.quantidadeCotas > 1 ? 's' : ''}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 12px; color: #475569; margin-top: 6px;">
+                        <span>💵 Pago: <strong style="color: #10b981;">R$ ${p.valorPago.toFixed(2)}</strong></span>
+                        <span>Total: R$ ${totalEsperado.toFixed(2)}</span>
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
         
         container.innerHTML = html;
-        container.style.display = 'block';
-        
-        // Eventos
-        document.querySelectorAll('input[type="radio"][name^="grupo-"]').forEach(radio => {
-            radio.addEventListener('change', function() {
-                const grupoId = this.name;
-                const parentDiv = this.closest('div[style*="border-radius: 8px"]');
-                const allItems = parentDiv.closest('.bolao-card').querySelectorAll('div[style*="border-radius: 8px"]');
-                allItems.forEach(item => { item.style.background = '#f8fafc'; item.style.borderColor = '#e2e8f0'; });
-                parentDiv.style.background = '#d1fae5';
-                parentDiv.style.borderColor = '#10b981';
-                const groupDiv = parentDiv.closest('.bolao-card');
-                const badgeElements = groupDiv.querySelectorAll('span[style*="background: #10b981"]');
-                badgeElements.forEach(b => b.remove());
-                const checkedRadio = groupDiv.querySelector('input[type="radio"]:checked');
-                if (checkedRadio) {
-                    const label = checkedRadio.closest('label');
-                    if (label) {
-                        const badge = document.createElement('span');
-                        badge.style.cssText = 'font-size: 10px; background: #10b981; color: white; padding: 1px 8px; border-radius: 30px; margin-left: 6px;';
-                        badge.textContent = '✅ MANTER';
-                        label.appendChild(badge);
-                    }
-                }
-            });
-        });
-        
-        document.getElementById('btnExcluirDuplicados').addEventListener('click', function() {
-            const idsParaExcluir = [];
-            for (const [grupoId, idManter] of Object.entries(cartoesDuplicadosSelecionados)) {
-                const cartoesDoGrupo = Object.values(duplicados).flat();
-                const idsDoGrupo = cartoesDoGrupo.map(c => c.id);
-                const idsParaExcluirGrupo = idsDoGrupo.filter(id => id !== idManter);
-                idsParaExcluir.push(...idsParaExcluirGrupo);
-            }
-            if (idsParaExcluir.length === 0) { showToast('⚠️ Nenhum cartão para excluir', 'warning'); return; }
-            if (!confirm(`⚠️ Excluir ${idsParaExcluir.length} cartões duplicados?`)) return;
-            showLoading(`Excluindo ${idsParaExcluir.length} cartões...`);
-            let excluidos = 0, erros = 0;
-            idsParaExcluir.forEach(id => {
-                db.collection('cartoes').doc(id).delete().then(() => {
-                    excluidos++;
-                    if (excluidos + erros === idsParaExcluir.length) {
-                        hideLoading();
-                        showToast(`✅ ${excluidos} cartões excluídos!`, 'success');
-                        container.style.display = 'none';
-                        carregarDadosAdmin();
-                    }
-                }).catch(err => {
-                    erros++;
-                    if (excluidos + erros === idsParaExcluir.length) {
-                        hideLoading();
-                        showToast(`✅ ${excluidos} excluídos, ⚠️ ${erros} erros`, 'warning');
-                    }
-                });
-            });
-        });
-        
-        document.getElementById('btnFecharDuplicados').addEventListener('click', function() {
-            container.style.display = 'none';
-        });
-        
-        hideLoading();
         
     } catch (error) {
-        console.error('Erro:', error);
-        hideLoading();
-        showToast('❌ Erro ao verificar duplicados', 'error');
+        console.error('Erro ao carregar participantes:', error);
+        container.innerHTML = '<div class="empty-state">❌ Erro ao carregar participantes</div>';
     }
 }
 
 // ============================================
-// VERIFICAR DUPLICADOS
+// RESERVAS
 // ============================================
-let cartoesDuplicadosSelecionados = {};
+async function carregarReservas() {
+    try {
+        const snapshot = await db.collection('reservas_participantes').get();
+        const reservas = [];
+        let totalSaldo = 0;
+        
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            reservas.push({ id: doc.id, ...data });
+            totalSaldo += data.saldoReserva || 0;
+        });
+        
+        reservas.sort((a, b) => (b.saldoReserva || 0) - (a.saldoReserva || 0));
+        
+        document.getElementById('totalReservas').innerHTML = `R$ ${totalSaldo.toFixed(2)}`;
+        
+        const container = document.getElementById('listaReservas');
+        
+        if (reservas.length === 0) {
+            container.innerHTML = '<div class="empty-state">📭 Nenhuma reserva encontrada</div>';
+            return;
+        }
+        
+        let html = '<div class="reservas-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">';
+        for (const reserva of reservas) {
+            const dataAtualizacao = reserva.dataAtualizacao ? new Date(reserva.dataAtualizacao).toLocaleString('pt-BR') : '---';
+            const saldo = (reserva.saldoReserva || 0).toFixed(2);
+            const saldoClass = reserva.saldoReserva > 0 ? 'positivo' : (reserva.saldoReserva < 0 ? 'negativo' : 'zero');
+            
+            html += `
+                <div class="reserva-card" style="background: #f8fafc; border-radius: 12px; padding: 14px; border: 1px solid #e2e8f0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <div style="font-weight: bold; font-size: 15px; color: #1e293b;">👤 ${reserva.nome}</div>
+                        <div style="font-weight: bold; font-size: 16px; color: ${reserva.saldoReserva > 0 ? '#10b981' : reserva.saldoReserva < 0 ? '#ef4444' : '#64748b'};">R$ ${saldo}</div>
+                    </div>
+                    <div style="font-size: 12px; color: #64748b; margin-bottom: 8px;">
+                        🆔 ${reserva.participanteId || reserva.id.substring(0, 8)} • 📅 ${dataAtualizacao}
+                    </div>
+                    <button class="btn-ver-historico" data-id="${reserva.id}" data-nome="${reserva.nome}" style="background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; width: 100%; touch-action: manipulation;">
+                        📜 VER HISTÓRICO
+                    </button>
+                    <div id="historico-${reserva.id}" style="display: none; margin-top: 12px; background: white; border-radius: 8px; padding: 12px; font-size: 13px; max-height: 200px; overflow-y: auto; border: 1px solid #e2e8f0;"></div>
+                </div>
+            `;
+        }
+        html += '</div>';
+        container.innerHTML = html;
+        
+        document.querySelectorAll('.btn-ver-historico').forEach(btn => {
+            btn.removeEventListener('click', handlerHistorico);
+            btn.addEventListener('click', handlerHistorico);
+        });
+        
+    } catch (error) {
+        console.error('Erro ao carregar reservas:', error);
+        document.getElementById('listaReservas').innerHTML = '<div class="empty-state">❌ Erro ao carregar reservas</div>';
+        showToast('❌ Erro ao carregar reservas', 'error');
+    }
+}
 
-async function verificarDuplicados() {
-    const concurso = document.getElementById('filtroConcursoLista').value;
-    const container = document.getElementById('duplicadosResultado');
+function handlerHistorico(event) {
+    const btn = event.currentTarget;
+    const id = btn.dataset.id;
+    const nome = btn.dataset.nome;
+    mostrarHistorico(id, nome);
+}
+
+async function mostrarHistorico(id, nome) {
+    const div = document.getElementById(`historico-${id}`);
+    const btn = document.querySelector(`.btn-ver-historico[data-id="${id}"]`);
     
-    if (!concurso || concurso === 'todos') {
-        showToast('Selecione um concurso especifico!', 'warning');
+    if (!div) {
+        console.error('Div do histórico não encontrada para ID:', id);
         return;
     }
     
-    showLoading('Verificando cartoes do concurso ' + concurso + '...');
+    if (div.style.display === 'block') {
+        div.style.display = 'none';
+        if (btn) btn.textContent = '📜 VER HISTÓRICO';
+        return;
+    }
+    
+    div.style.display = 'block';
+    div.innerHTML = '<div style="text-align: center; color: #94a3b8;">🔄 Carregando histórico...</div>';
+    if (btn) btn.textContent = '⏳ CARREGANDO...';
     
     try {
-        const snapshot = await db.collection('cartoes').where('concurso', '==', concurso).get();
+        const doc = await db.collection('reservas_participantes').doc(id).get();
         
-        if (snapshot.size === 0) {
-            hideLoading();
-            container.innerHTML = '<div style="text-align:center;padding:20px;color:#10b981;"><div style="font-size:32px;">OK</div><div style="font-weight:600;margin-top:8px;">Nenhum cartao encontrado para o concurso ' + concurso + '</div></div>';
-            container.style.display = 'block';
+        if (!doc.exists) {
+            div.innerHTML = '<div style="color: #ef4444;">❌ Reserva não encontrada</div>';
+            if (btn) btn.textContent = '📜 VER HISTÓRICO';
             return;
         }
         
-        const numerosMap = {};
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            const numerosStr = data.numeros.slice().sort((a,b) => a-b).join('|');
-            const numerosDisplay = data.numeros.slice().sort((a,b) => a-b).join(', ');
-            if (!numerosMap[numerosStr]) numerosMap[numerosStr] = [];
-            numerosMap[numerosStr].push({
-                id: doc.id,
-                bolao: data.bolao || 'Sem Bolao',
-                numeros: data.numeros,
-                numerosDisplay: numerosDisplay,
-                tipoParticipacao: data.tipoParticipacao || 'exclusivo',
-                dataCadastro: data.dataCadastro || new Date(0).toISOString()
+        const data = doc.data();
+        const historico = data.historico || [];
+        const saldoAtual = data.saldoReserva || 0;
+        
+        if (historico.length === 0) {
+            div.innerHTML = `
+                <div style="text-align: center; color: #64748b;">📭 Nenhuma movimentação registrada</div>
+                <button class="btn-copiar-historico" data-id="${id}" data-nome="${nome}" style="margin-top: 12px; background: #25D366; color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; width: 100%; touch-action: manipulation;">
+                    📤 COPIAR HISTÓRICO
+                </button>
+            `;
+            if (btn) btn.textContent = '📜 VER HISTÓRICO';
+            document.querySelector(`.btn-copiar-historico[data-id="${id}"]`)?.addEventListener('click', function() {
+                copiarHistoricoWhatsApp(id, nome);
             });
-        });
-        
-        const duplicados = {};
-        let totalDuplicados = 0;
-        Object.keys(numerosMap).forEach(key => {
-            if (numerosMap[key].length > 1) {
-                duplicados[key] = numerosMap[key];
-                totalDuplicados += numerosMap[key].length;
-            }
-        });
-        
-        const gruposDuplicados = Object.keys(duplicados).length;
-        
-        if (gruposDuplicados === 0) {
-            hideLoading();
-            container.innerHTML = '<div style="text-align:center;padding:20px;color:#10b981;"><div style="font-size:32px;">OK</div><div style="font-weight:600;margin-top:8px;">Nenhum cartao duplicado encontrado!</div></div>';
-            container.style.display = 'block';
             return;
         }
         
-        let html = '<div style="background:#fef3c7;padding:12px 16px;border-radius:12px;margin-bottom:16px;border:1px solid #f59e0b;"><div style="font-weight:700;color:#92400e;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;"><span>ATENCAO: ' + gruposDuplicados + ' grupo(s) de cartoes duplicados</span><span>' + snapshot.size + ' cartoes totais | ' + totalDuplicados + ' duplicados</span></div><div style="font-size:12px;color:#78350f;margin-top:4px;">Selecione UM cartao por grupo para manter. Os demais serao excluidos.</div></div><div style="max-height:400px;overflow-y:auto;margin-bottom:16px;">';
+        const historicoOrdenado = [...historico].reverse();
         
-        let grupoIndex = 0;
-        for (const [numerosStr, cartoes] of Object.entries(duplicados)) {
-            grupoIndex++;
-            const grupoId = 'grupo-' + grupoIndex;
-            html += '<div style="background:white;border-radius:12px;padding:14px;margin-bottom:12px;border:2px solid #f59e0b;border-left:4px solid #f59e0b;"><div style="font-weight:600;color:#1e293b;margin-bottom:8px;">Grupo ' + grupoIndex + ' - Numeros: <span style="font-family:monospace;background:#f1f5f9;padding:2px 8px;border-radius:4px;">' + cartoes[0].numerosDisplay + '</span><span style="font-size:12px;color:#64748b;font-weight:normal;"> (' + cartoes.length + ' cartoes)</span></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+        let html = '<div style="font-weight: bold; margin-bottom: 8px; color: #1e293b;">📋 MOVIMENTAÇÕES</div>';
+        html += `<div style="font-size: 13px; color: #475569; margin-bottom: 10px;">💰 Saldo atual: <strong style="color: ${saldoAtual >= 0 ? '#10b981' : '#ef4444'};">R$ ${saldoAtual.toFixed(2)}</strong></div>`;
+        html += '<div style="max-height: 180px; overflow-y: auto;">';
+        
+        for (const item of historicoOrdenado) {
+            const dataItem = item.data ? new Date(item.data).toLocaleString('pt-BR') : 'Data não disponível';
+            const tipoIcon = item.tipo === 'deposito' ? '💰 DEPÓSITO' : (item.tipo === 'saque' ? '💸 SAQUE' : '🎯 USO');
+            const valorClass = item.tipo === 'deposito' ? 'color: #10b981;' : 'color: #ef4444;';
+            const valorSinal = item.tipo === 'deposito' ? '+' : '-';
             
-            cartoes.forEach((cartao, idx) => {
-                const isFirst = idx === 0;
-                const dataCadastro = cartao.dataCadastro ? new Date(cartao.dataCadastro).toLocaleDateString('pt-BR') : '---';
-                const tipoLabel = cartao.tipoParticipacao === 'cota' ? 'Cota' : 'Exclusivo';
-                html += '<div style="background:' + (isFirst ? '#d1fae5' : '#f8fafc') + ';border-radius:8px;padding:10px;border:1px solid ' + (isFirst ? '#10b981' : '#e2e8f0') + ';"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;"><input type="radio" name="' + grupoId + '" value="' + cartao.id + '" ' + (isFirst ? 'checked' : '') + ' style="width:18px;height:18px;accent-color:#3b82f6;cursor:pointer;"><span style="font-weight:500;">ID: ' + cartao.id.slice(0,8) + '</span>' + (isFirst ? '<span style="font-size:10px;background:#10b981;color:white;padding:1px 8px;border-radius:30px;">MANTER</span>' : '') + '</label><div style="font-size:11px;color:#64748b;margin-top:4px;padding-left:26px;">' + cartao.bolao + ' | ' + tipoLabel + ' | ' + dataCadastro + '</div></div>';
-            });
-            
-            html += '</div></div>';
-            cartoesDuplicadosSelecionados[grupoId] = cartoes[0].id;
+            html += `
+                <div style="border-bottom: 1px solid #e2e8f0; padding: 8px 0; font-size: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-weight: 600;">${tipoIcon}</span>
+                        <span style="font-weight: bold; ${valorClass}">${valorSinal} R$ ${(item.valor || 0).toFixed(2)}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; color: #64748b; font-size: 11px;">
+                        <span>${dataItem}</span>
+                        <span>Saldo: R$ ${(item.saldoNovo || 0).toFixed(2)}</span>
+                    </div>
+                    ${item.descricao ? `<div style="color: #475569; font-size: 11px; margin-top: 2px;">📝 ${item.descricao}</div>` : ''}
+                </div>
+            `;
         }
+        html += '</div>';
         
-        html += '</div><div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end;"><button id="btnExcluirDuplicados" class="btn btn-danger" style="flex:1;min-width:150px;padding:12px;">EXCLUIR DUPLICADOS (' + (totalDuplicados - gruposDuplicados) + ' cartoes)</button><button id="btnFecharDuplicados" class="btn btn-secondary" style="flex:1;min-width:120px;padding:12px;">FECHAR</button></div>';
+        html += `
+            <button class="btn-copiar-historico" data-id="${id}" data-nome="${nome}" style="margin-top: 12px; background: #25D366; color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; width: 100%; touch-action: manipulation; font-weight: 600;">
+                📤 COPIAR HISTÓRICO PARA WHATSAPP
+            </button>
+        `;
         
-        container.innerHTML = html;
-        container.style.display = 'block';
-        
-        document.querySelectorAll('input[type="radio"][name^="grupo-"]').forEach(radio => {
-            radio.addEventListener('change', function() {
-                const grupoId = this.name;
-                cartoesDuplicadosSelecionados[grupoId] = this.value;
-                const parentDiv = this.closest('div[style*="border-radius: 8px"]');
-                const allItems = parentDiv.closest('.bolao-card').querySelectorAll('div[style*="border-radius: 8px"]');
-                allItems.forEach(item => { item.style.background = '#f8fafc'; item.style.borderColor = '#e2e8f0'; });
-                parentDiv.style.background = '#d1fae5';
-                parentDiv.style.borderColor = '#10b981';
-                const groupDiv = parentDiv.closest('.bolao-card');
-                const badgeElements = groupDiv.querySelectorAll('span[style*="background: #10b981"]');
-                badgeElements.forEach(b => b.remove());
-                const checkedRadio = groupDiv.querySelector('input[type="radio"]:checked');
-                if (checkedRadio) {
-                    const label = checkedRadio.closest('label');
-                    if (label) {
-                        const badge = document.createElement('span');
-                        badge.style.cssText = 'font-size: 10px; background: #10b981; color: white; padding: 1px 8px; border-radius: 30px; margin-left: 6px;';
-                        badge.textContent = 'MANTER';
-                        label.appendChild(badge);
-                    }
-                }
-            });
+        div.innerHTML = html;
+        if (btn) btn.textContent = '🙈 OCULTAR HISTÓRICO';
+        document.querySelector(`.btn-copiar-historico[data-id="${id}"]`)?.addEventListener('click', function() {
+            copiarHistoricoWhatsApp(id, nome);
         });
-        
-        document.getElementById('btnExcluirDuplicados').addEventListener('click', function() {
-            const idsParaExcluir = [];
-            for (const [grupoId, idManter] of Object.entries(cartoesDuplicadosSelecionados)) {
-                const cartoesDoGrupo = Object.values(duplicados).flat();
-                const idsDoGrupo = cartoesDoGrupo.map(c => c.id);
-                const idsParaExcluirGrupo = idsDoGrupo.filter(id => id !== idManter);
-                idsParaExcluir.push(...idsParaExcluirGrupo);
-            }
-            if (idsParaExcluir.length === 0) { showToast('Nenhum cartao para excluir', 'warning'); return; }
-            if (!confirm('Excluir ' + idsParaExcluir.length + ' cartoes duplicados?')) return;
-            showLoading('Excluindo ' + idsParaExcluir.length + ' cartoes...');
-            let excluidos = 0, erros = 0;
-            idsParaExcluir.forEach(id => {
-                db.collection('cartoes').doc(id).delete().then(() => {
-                    excluidos++;
-                    if (excluidos + erros === idsParaExcluir.length) {
-                        hideLoading();
-                        showToast(excluidos + ' cartoes excluidos!', 'success');
-                        container.style.display = 'none';
-                        carregarDadosAdmin();
-                    }
-                }).catch(err => {
-                    erros++;
-                    if (excluidos + erros === idsParaExcluir.length) {
-                        hideLoading();
-                        showToast(excluidos + ' excluidos, ' + erros + ' erros', 'warning');
-                    }
-                });
-            });
-        });
-        
-        document.getElementById('btnFecharDuplicados').addEventListener('click', function() {
-            container.style.display = 'none';
-        });
-        
-        hideLoading();
         
     } catch (error) {
-        console.error('Erro:', error);
-        hideLoading();
-        showToast('Erro ao verificar duplicados', 'error');
+        console.error('Erro ao carregar histórico:', error);
+        div.innerHTML = `<div style="color: #ef4444;">❌ Erro ao carregar histórico: ${error.message}</div>`;
+        if (btn) btn.textContent = '📜 VER HISTÓRICO';
+        showToast('❌ Erro ao carregar histórico', 'error');
     }
 }
 
-// ============================================
-// DEMAS FUNÇÕES (excluirBolao, salvarConfigBoloes, etc.)
-// ============================================
-// [Mantenha todas as funções que já existem no seu arquivo]
-// Incluindo: excluirBolao, salvarConfigBoloes, carregarBoloesNoSelectRapido, 
-// adicionarParticipanteRapido, gerarListaWhatsApp, carregarTokens, salvarToken,
-// formatarTelefone, carregarBoloesSelectParticipantes, handleSelectChange,
-// carregarParticipantesAdmin, carregarReservas, handlerHistorico,
-// mostrarHistorico, copiarHistoricoWhatsApp
+async function copiarHistoricoWhatsApp(id, nome) {
+    try {
+        showToast('📋 Gerando mensagem...', 'info');
+        
+        const doc = await db.collection('reservas_participantes').doc(id).get();
+        
+        if (!doc.exists) {
+            showToast('❌ Reserva não encontrada', 'error');
+            return;
+        }
+        
+        const data = doc.data();
+        const historico = data.historico || [];
+        const saldoAtual = data.saldoReserva || 0;
+        
+        if (historico.length === 0) {
+            showToast('📭 Nenhuma movimentação para copiar', 'warning');
+            return;
+        }
+        
+        const historicoOrdenado = [...historico].reverse();
+        let ultimoDepositoIndex = -1;
+        
+        for (let i = 0; i < historicoOrdenado.length; i++) {
+            if (historicoOrdenado[i].tipo === 'deposito') {
+                ultimoDepositoIndex = i;
+                break;
+            }
+        }
+        
+        let historicoFiltrado;
+        if (ultimoDepositoIndex === -1) {
+            historicoFiltrado = [...historico];
+        } else {
+            const historicoApartirDeposito = historicoOrdenado.slice(0, ultimoDepositoIndex + 1);
+            historicoFiltrado = historicoApartirDeposito.reverse();
+        }
+        
+        const linha = '──────────────────';
+        const dataAtual = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const horaAtual = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        
+        let mensagem = `📊 *EXTRATO DE RESERVAS*\n`;
+        mensagem += `👤 *Participante:* ${nome}\n`;
+        mensagem += `📅 *Data:* ${dataAtual} às ${horaAtual}\n`;
+        if (ultimoDepositoIndex !== -1) {
+            mensagem += `📌 *Mostrando movimentações a partir do último depósito*\n`;
+        }
+        mensagem += `${linha}\n\n`;
+        
+        let totalDepositos = 0;
+        let totalSaques = 0;
+        let totalUso = 0;
+        
+        for (const item of historicoFiltrado) {
+            if (item.tipo === 'deposito') totalDepositos += item.valor || 0;
+            else if (item.tipo === 'saque') totalSaques += item.valor || 0;
+            else if (item.tipo === 'uso') totalUso += item.valor || 0;
+        }
+        
+        mensagem += `📋 *MOVIMENTAÇÕES:*\n\n`;
+        
+        for (const item of historicoFiltrado) {
+            const dataItem = item.data ? new Date(item.data).toLocaleString('pt-BR') : 'Data não disponível';
+            const tipoIcon = item.tipo === 'deposito' ? '💰' : (item.tipo === 'saque' ? '💸' : '🎯');
+            const tipoNome = item.tipo === 'deposito' ? 'DEPÓSITO' : (item.tipo === 'saque' ? 'SAQUE' : 'USO');
+            const valorSinal = item.tipo === 'deposito' ? '+' : '-';
+            const valorFormatado = (item.valor || 0).toFixed(2);
+            const saldoFormatado = (item.saldoNovo || 0).toFixed(2);
+            
+            mensagem += `${tipoIcon} *${tipoNome}*\n`;
+            mensagem += `   📅 ${dataItem}\n`;
+            mensagem += `   💰 ${valorSinal} R$ ${valorFormatado}\n`;
+            mensagem += `   💵 Saldo: R$ ${saldoFormatado}\n`;
+            if (item.descricao) {
+                mensagem += `   📝 ${item.descricao}\n`;
+            }
+            mensagem += `\n`;
+        }
+        
+        mensagem += `${linha}\n`;
+        mensagem += `📊 *RESUMO (a partir do último depósito):*\n`;
+        mensagem += `   💰 Total de depósitos: R$ ${totalDepositos.toFixed(2)}\n`;
+        mensagem += `   💸 Total de saques: R$ ${totalSaques.toFixed(2)}\n`;
+        mensagem += `   🎯 Total de uso: R$ ${totalUso.toFixed(2)}\n`;
+        mensagem += `   ──────────────────\n`;
+        mensagem += `   💵 *Saldo atual: R$ ${saldoAtual.toFixed(2)}*\n`;
+        mensagem += `   ──────────────────\n`;
+        mensagem += `   📊 *${historicoFiltrado.length} movimentações* (a partir do último depósito)\n\n`;
+        mensagem += `${linha}\n`;
+        mensagem += `🔗 *Bolões Aleatórios*\n`;
+        mensagem += `https://rebrand.ly/boloesaleatorios`;
+        
+        try {
+            await navigator.clipboard.writeText(mensagem);
+            showToast('✅ Mensagem copiada! Cole no WhatsApp', 'success');
+        } catch (error) {
+            console.error('Erro ao copiar:', error);
+            prompt('Copie a mensagem abaixo:', mensagem);
+            showToast('📋 Mensagem pronta para copiar!', 'info');
+        }
+        
+    } catch (error) {
+        console.error('Erro ao gerar mensagem:', error);
+        showToast('❌ Erro ao gerar mensagem', 'error');
+    }
+}
 
 // ============================================
 // INICIALIZAÇÃO (DOMContentLoaded)
@@ -2666,8 +2815,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const adminBtnMega = document.getElementById('adminBtnMega');
     const adminBtnLotofacil = document.getElementById('adminBtnLotofacil');
     const adminBtnQuina = document.getElementById('adminBtnQuina');
-    
     const btnForcarRecarregar = document.getElementById('btnForcarRecarregar');
+    const btnVerificarDuplicados = document.getElementById('btnVerificarDuplicados');
     
     if (btnAutenticar) btnAutenticar.onclick = autenticar;
     if (btnSair) btnSair.onclick = sair;
@@ -2710,6 +2859,10 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast('🔄 Forçando recarregamento da lista...', 'info');
             carregarDadosAdmin();
         });
+    }
+    
+    if (btnVerificarDuplicados) {
+        btnVerificarDuplicados.addEventListener('click', verificarDuplicados);
     }
     
     setTimeout(() => {
@@ -2767,40 +2920,26 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const qtdConcursos = document.getElementById('qtdConcursos');
     if (qtdConcursos) qtdConcursos.addEventListener('change', atualizarResumo);
-    
     const concursoInicial = document.getElementById('concursoInicial');
     if (concursoInicial) concursoInicial.addEventListener('change', atualizarResumo);
     
     const btnCartaoAnterior = document.getElementById('btnCartaoAnterior');
     if (btnCartaoAnterior) btnCartaoAnterior.addEventListener('click', () => navegarCartao(-1));
-    
     const btnCartaoProximo = document.getElementById('btnCartaoProximo');
     if (btnCartaoProximo) btnCartaoProximo.addEventListener('click', () => navegarCartao(1));
     
     const btnDuplicarCartao = document.getElementById('btnDuplicarCartao');
     if (btnDuplicarCartao) btnDuplicarCartao.addEventListener('click', duplicarCartaoLote);
-    
     const btnLimparCartao = document.getElementById('btnLimparCartao');
     if (btnLimparCartao) btnLimparCartao.addEventListener('click', limparCartaoLote);
-    
     const btnGerarLote = document.getElementById('btnGerarLote');
     if (btnGerarLote) btnGerarLote.addEventListener('click', gerarLote);
-    
     const btnLimparLote = document.getElementById('btnLimparLote');
     if (btnLimparLote) btnLimparLote.addEventListener('click', limparLote);
-    
     const btnAdicionarIndividual = document.getElementById('btnAdicionarIndividual');
     if (btnAdicionarIndividual) btnAdicionarIndividual.addEventListener('click', adicionarCartaoIndividual);
     
     navegarCartao(0);
-
-    // ============================================
-// BOTÃO VERIFICAR DUPLICADOS
-// ============================================
-const btnVerificarDuplicados = document.getElementById('btnVerificarDuplicados');
-if (btnVerificarDuplicados) {
-    btnVerificarDuplicados.addEventListener('click', verificarDuplicados);
-}
     
     const toggleModo = document.getElementById('toggleModoSelecao');
     const modoDigitacao = document.getElementById('modoDigitacao');
