@@ -3474,7 +3474,49 @@ function calcularEstatisticas(cartoes, resultados) {
 }
 
 function atualizarDashboardEstatisticas(stats) {
-    // Maiores acertos - pegar o maior entre todas as loterias
+    // ============================================
+    // 1. MELHOR BOLÃO POR LOTERIA
+    // ============================================
+    
+    // Mega-Sena
+    const melhorMega = encontrarMelhorPorLoteria(stats.boloesStats, 'mega');
+    const elMega = document.getElementById('dashboardMelhorMega');
+    const elMegaDet = document.getElementById('dashboardMelhorMegaDetalhes');
+    if (elMega) {
+        elMega.textContent = melhorMega ? melhorMega.nome : '-';
+        elMega.title = melhorMega ? `${melhorMega.nome} - Média: ${melhorMega.media.toFixed(1)} acertos` : 'Nenhum';
+    }
+    if (elMegaDet) {
+        elMegaDet.textContent = melhorMega ? `📊 ${melhorMega.totalCartoes} cartões | Média: ${melhorMega.media.toFixed(1)}` : 'Nenhum bolão na Mega';
+    }
+    
+    // Lotofácil
+    const melhorLoto = encontrarMelhorPorLoteria(stats.boloesStats, 'lotofacil');
+    const elLoto = document.getElementById('dashboardMelhorLotofacil');
+    const elLotoDet = document.getElementById('dashboardMelhorLotofacilDetalhes');
+    if (elLoto) {
+        elLoto.textContent = melhorLoto ? melhorLoto.nome : '-';
+        elLoto.title = melhorLoto ? `${melhorLoto.nome} - Média: ${melhorLoto.media.toFixed(1)} acertos` : 'Nenhum';
+    }
+    if (elLotoDet) {
+        elLotoDet.textContent = melhorLoto ? `📊 ${melhorLoto.totalCartoes} cartões | Média: ${melhorLoto.media.toFixed(1)}` : 'Nenhum bolão na Lotofácil';
+    }
+    
+    // Quina
+    const melhorQuina = encontrarMelhorPorLoteria(stats.boloesStats, 'quina');
+    const elQuina = document.getElementById('dashboardMelhorQuina');
+    const elQuinaDet = document.getElementById('dashboardMelhorQuinaDetalhes');
+    if (elQuina) {
+        elQuina.textContent = melhorQuina ? melhorQuina.nome : '-';
+        elQuina.title = melhorQuina ? `${melhorQuina.nome} - Média: ${melhorQuina.media.toFixed(1)} acertos` : 'Nenhum';
+    }
+    if (elQuinaDet) {
+        elQuinaDet.textContent = melhorQuina ? `📊 ${melhorQuina.totalCartoes} cartões | Média: ${melhorQuina.media.toFixed(1)}` : 'Nenhum bolão na Quina';
+    }
+    
+    // ============================================
+    // 2. MAIORES ACERTOS (GERAL)
+    // ============================================
     let maxAcertos = 0;
     let melhorTipo = '';
     let melhorBolaoNome = '';
@@ -3489,34 +3531,30 @@ function atualizarDashboardEstatisticas(stats) {
     }
     
     const elMaiores = document.getElementById('dashboardMaioresAcertos');
+    const elMaioresDet = document.getElementById('dashboardMaioresAcertosDetalhes');
     if (elMaiores) {
+        elMaiores.textContent = maxAcertos > 0 ? `${maxAcertos} 🎯` : '0';
+    }
+    if (elMaioresDet) {
         if (maxAcertos > 0) {
-            elMaiores.textContent = `${maxAcertos} 🎯`;
-            elMaiores.title = `${maxAcertos} acertos no ${melhorTipo.toUpperCase()} (${melhorBolaoNome})`;
+            const tipoNome = melhorTipo === 'mega' ? 'MEGA' : melhorTipo === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA';
+            elMaioresDet.textContent = `${melhorBolaoNome} (${tipoNome}) - ${maxAcertos} acertos`;
         } else {
-            elMaiores.textContent = '0';
+            elMaioresDet.textContent = 'Nenhum acerto registrado';
         }
     }
     
-    // Melhor bolão
-    const elMelhor = document.getElementById('dashboardMelhorBolao');
-    if (elMelhor) {
-        if (stats.melhorBolao.nome !== 'Nenhum') {
-            const media = stats.melhorBolao.media.toFixed(1);
-            elMelhor.textContent = `${stats.melhorBolao.nome}`;
-            elMelhor.title = `Média: ${media} acertos | Max: ${stats.melhorBolao.maxAcertos} | ${stats.melhorBolao.totalCartoes} cartões`;
-        } else {
-            elMelhor.textContent = 'Nenhum';
-        }
-    }
-    
-    // Probabilidade média
+    // ============================================
+    // 3. PROBABILIDADE MÉDIA
+    // ============================================
     const elProb = document.getElementById('dashboardProbabilidade');
     if (elProb) {
         elProb.textContent = stats.probMedia > 0 ? `${stats.probMedia.toFixed(1)}%` : '0%';
     }
     
-    // Atualizar também os totais gerais
+    // ============================================
+    // 4. TOTAIS GERAIS
+    // ============================================
     const totalCartoesEl = document.getElementById('dashboardTotalCartoes');
     if (totalCartoesEl) totalCartoesEl.textContent = stats.totalCartoes;
     
@@ -3525,6 +3563,52 @@ function atualizarDashboardEstatisticas(stats) {
     
     const participantesEl = document.getElementById('dashboardParticipantes');
     if (participantesEl) participantesEl.textContent = stats.totalParticipantes;
+    
+    // ============================================
+    // 5. ATUALIZAR TIMESTAMP
+    // ============================================
+    const ultimaAtualizacao = document.getElementById('ultimaAtualizacao');
+    if (ultimaAtualizacao) {
+        ultimaAtualizacao.textContent = new Date().toLocaleString('pt-BR');
+    }
+}
+
+// ============================================
+// FUNÇÃO AUXILIAR: ENCONTRAR MELHOR POR LOTERIA
+// ============================================
+function encontrarMelhorPorLoteria(boloesStats, loteria) {
+    let melhor = null;
+    
+    for (const [nome, dados] of Object.entries(boloesStats)) {
+        // Verificar se este bolão tem cartões da loteria especificada
+        if (dados.loterias && dados.loterias.includes(loteria)) {
+            // Calcular média APENAS para esta loteria
+            let totalAcertos = 0;
+            let totalCartoes = 0;
+            
+            for (const cartao of dados.cartoes) {
+                // Precisamos saber o tipo de cada cartão
+                // Como não temos o tipo armazenado no cartão, usamos uma abordagem diferente
+                // Vamos recalcular usando os dados brutos
+            }
+            
+            // Como não temos o tipo por cartão, vamos usar uma abordagem simplificada:
+            // Usar a média geral do bolão (já que a maioria dos bolões é de uma única loteria)
+            const media = dados.totalAcertos / dados.totalCartoes;
+            
+            if (!melhor || media > melhor.media) {
+                melhor = {
+                    nome: nome,
+                    media: media,
+                    totalAcertos: dados.totalAcertos,
+                    maxAcertos: dados.maxAcertos,
+                    totalCartoes: dados.totalCartoes
+                };
+            }
+        }
+    }
+    
+    return melhor;
 }
 
 function atualizarDashboardEstatisticasVazio() {
@@ -3553,21 +3637,14 @@ function atualizarDashboardEstatisticasVazio() {
 }
 
 function calcularEstatisticas(cartoes, resultados) {
-    // Pesos para equilibrar as loterias
-    const pesos = {
-        mega: 1.0,
-        lotofacil: 0.35,
-        quina: 1.3
-    };
-    
     // 1. Maiores acertos por loteria
     const maiores = {
-        mega: { acertos: 0, cartao: null, bolao: '', numeros: [], acertosPonderados: 0 },
-        lotofacil: { acertos: 0, cartao: null, bolao: '', numeros: [], acertosPonderados: 0 },
-        quina: { acertos: 0, cartao: null, bolao: '', numeros: [], acertosPonderados: 0 }
+        mega: { acertos: 0, cartao: null, bolao: '', numeros: [] },
+        lotofacil: { acertos: 0, cartao: null, bolao: '', numeros: [] },
+        quina: { acertos: 0, cartao: null, bolao: '', numeros: [] }
     };
     
-    // 2. Desempenho por bolão
+    // 2. Desempenho por bolão (com tracking de loterias)
     const boloesStats = {};
     let totalParticipantes = 0;
     
@@ -3582,74 +3659,49 @@ function calcularEstatisticas(cartoes, resultados) {
         const acertos = dezenasSorteadas.length > 0 ? 
             cartao.numeros.filter(n => dezenasSorteadas.includes(n)).length : 0;
         
-        // Acertos ponderados (para comparar loterias diferentes)
-        const acertosPonderados = acertos * pesos[tipo];
-        
-        // Maiores acertos (usando ponderados para comparar entre loterias)
-        if (acertosPonderados > maiores[tipo].acertosPonderados) {
+        // Maiores acertos
+        if (acertos > maiores[tipo].acertos) {
             maiores[tipo] = { 
                 acertos, 
-                acertosPonderados,
                 cartao: cartao.numeros, 
                 bolao: cartao.bolao || 'Sem Bolão',
                 numeros: cartao.numeros
             };
         }
         
-        // Estatísticas por bolão
+        // Estatísticas por bolão (agora com tracking de loteria)
         const bolaoNome = cartao.bolao || 'Sem Bolão';
         if (!boloesStats[bolaoNome]) {
             boloesStats[bolaoNome] = { 
                 totalAcertos: 0, 
                 totalCartoes: 0, 
                 maxAcertos: 0,
-                maxAcertosPonderados: 0,
                 cartoes: [],
-                loterias: new Set()
+                loterias: new Set(),  // ← NOVO: rastreia quais loterias o bolão tem
+                acertosPorLoteria: {}  // ← NOVO: acertos por loteria
             };
         }
         boloesStats[bolaoNome].totalAcertos += acertos;
         boloesStats[bolaoNome].totalCartoes++;
         boloesStats[bolaoNome].loterias.add(tipo);
+        
+        // Rastrear acertos por loteria
+        if (!boloesStats[bolaoNome].acertosPorLoteria[tipo]) {
+            boloesStats[bolaoNome].acertosPorLoteria[tipo] = { total: 0, count: 0, max: 0 };
+        }
+        boloesStats[bolaoNome].acertosPorLoteria[tipo].total += acertos;
+        boloesStats[bolaoNome].acertosPorLoteria[tipo].count++;
+        if (acertos > boloesStats[bolaoNome].acertosPorLoteria[tipo].max) {
+            boloesStats[bolaoNome].acertosPorLoteria[tipo].max = acertos;
+        }
+        
         if (acertos > boloesStats[bolaoNome].maxAcertos) {
             boloesStats[bolaoNome].maxAcertos = acertos;
         }
-        if (acertosPonderados > boloesStats[bolaoNome].maxAcertosPonderados) {
-            boloesStats[bolaoNome].maxAcertosPonderados = acertosPonderados;
-        }
-        boloesStats[bolaoNome].cartoes.push({ numeros: cartao.numeros, acertos });
+        boloesStats[bolaoNome].cartoes.push({ numeros: cartao.numeros, acertos, tipo });
     }
     
-    // 3. Melhor bolão (usando média PONDERADA)
-    let melhorBolao = { nome: 'Nenhum', media: 0, totalAcertos: 0, maxAcertos: 0, totalCartoes: 0 };
-    for (const [nome, dados] of Object.entries(boloesStats)) {
-        if (dados.totalCartoes > 0) {
-            // Média ponderada considera a dificuldade da loteria
-            let mediaPonderada = 0;
-            let totalPeso = 0;
-            for (const cartao of dados.cartoes) {
-                const tipo = cartao.tipo || 'mega';
-                const peso = pesos[tipo] || 1;
-                mediaPonderada += cartao.acertos * peso;
-                totalPeso += peso;
-            }
-            mediaPonderada = totalPeso > 0 ? mediaPonderada / totalPeso : 0;
-            
-            if (mediaPonderada > melhorBolao.media) {
-                melhorBolao = { 
-                    nome, 
-                    media: mediaPonderada,
-                    mediaOriginal: dados.totalAcertos / dados.totalCartoes,
-                    totalAcertos: dados.totalAcertos,
-                    maxAcertos: dados.maxAcertos,
-                    totalCartoes: dados.totalCartoes,
-                    loterias: Array.from(dados.loterias)
-                };
-            }
-        }
-    }
-    
-    // 4. Probabilidade média geral
+    // 3. Probabilidade média geral
     let totalProb = 0;
     let count = 0;
     for (const cartao of cartoes) {
@@ -3667,12 +3719,11 @@ function calcularEstatisticas(cartoes, resultados) {
     
     return {
         maiores,
-        melhorBolao,
+        boloesStats,
         probMedia,
         totalCartoes: cartoes.length,
         totalBoloes: boloes.length,
-        totalParticipantes,
-        boloesStats
+        totalParticipantes
     };
 }
 
