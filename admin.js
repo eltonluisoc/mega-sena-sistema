@@ -110,6 +110,13 @@ function verificarAutenticacao() {
         return;
     }
 
+    // Captura erros do retorno do signInWithRedirect (ex.: domínio não
+    // autorizado, popup fechado no meio do fluxo em navegadores antigos)
+    firebase.auth().getRedirectResult().catch(error => {
+        console.error('❌ Erro ao concluir login:', error);
+        showToast('❌ Não foi possível concluir o login. Tente novamente.', 'error');
+    });
+
     firebase.auth().onAuthStateChanged(user => {
         if (user && user.email === ADMIN_EMAIL) {
             console.log('✅ Usuário autenticado:', user.email);
@@ -131,7 +138,11 @@ function verificarAutenticacao() {
 
 function entrarComGoogle() {
     const provider = new firebase.auth.GoogleAuthProvider();
-    firebase.auth().signInWithPopup(provider).catch(error => {
+    // signInWithRedirect em vez de signInWithPopup: o popup depende de
+    // window.closed entre janelas, que navegadores recentes bloqueiam por
+    // Cross-Origin-Opener-Policy na própria página de login do Google,
+    // travando o login silenciosamente. Redirect evita esse problema.
+    firebase.auth().signInWithRedirect(provider).catch(error => {
         console.error('❌ Erro no login:', error);
         showToast('❌ Não foi possível entrar. Tente novamente.', 'error');
     });
