@@ -309,7 +309,7 @@ function atualizarDashboardAdmin() {
     // Total de bolões
     const totalBoloes = boloes.length;
     
-    // Atualizar elementos do dashboard
+    // Atualizar elementos do dashboard (com verificação de existência)
     const elementos = {
         'dashboardTotalCartoes': totalCartoes,
         'dashboardMega': totalPorLoteria.mega,
@@ -320,7 +320,12 @@ function atualizarDashboardAdmin() {
     
     for (const [id, valor] of Object.entries(elementos)) {
         const el = document.getElementById(id);
-        if (el) el.innerHTML = valor;
+        if (el) {
+            el.textContent = valor;
+            console.log(`✅ Atualizado ${id}: ${valor}`);
+        } else {
+            console.warn(`⚠️ Elemento ${id} não encontrado`);
+        }
     }
     
     // Bolões ativos por status
@@ -340,9 +345,9 @@ function atualizarDashboardAdmin() {
             const andamentoEl = document.getElementById('dashboardAndamento');
             const encerradosEl = document.getElementById('dashboardEncerrados');
             
-            if (abertosEl) abertosEl.innerHTML = abertos;
-            if (andamentoEl) andamentoEl.innerHTML = andamento;
-            if (encerradosEl) encerradosEl.innerHTML = encerrados;
+            if (abertosEl) abertosEl.textContent = abertos;
+            if (andamentoEl) andamentoEl.textContent = andamento;
+            if (encerradosEl) encerradosEl.textContent = encerrados;
         }
     }).catch(error => {
         console.error('Erro ao carregar status dos bolões:', error);
