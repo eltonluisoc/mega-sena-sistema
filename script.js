@@ -456,9 +456,11 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
 }
 
 // ========== MOSTRAR CARTÕES COM FILTRO POR BOLÃO ==========
+// ========== MOSTRAR CARTÕES COM FILTRO POR BOLÃO E PROBABILIDADES ==========
 async function mostrarCartoes(numerosSorteados = null) {
     const concurso = document.getElementById('concursoSelect').value;
     const container = document.getElementById('cartoesArea');
+    const bolaoSelect = document.getElementById('bolaoSelect');
     
     if (!container) return;
     
@@ -474,7 +476,6 @@ async function mostrarCartoes(numerosSorteados = null) {
         return;
     }
     
-    const bolaoSelect = document.getElementById('bolaoSelect');
     const bolaoFiltro = bolaoSelect ? bolaoSelect.value : 'todos';
     
     container.innerHTML = '<div class="loading-skeleton">🔄 Carregando cartões...</div>';
@@ -509,12 +510,12 @@ async function mostrarCartoes(numerosSorteados = null) {
             return;
         }
         
-        const cartoesParaExibir = numerosSorteados ? ordenarCartoesPorAcertos(filtrados, numerosSorteados) : filtrados;
-        
+        // --- CALCULAR PROBABILIDADES DO BOLÃO FILTRADO ---
         const chancesHtml = calcularChancesBolao(filtrados, loteriaAtual);
         
+        // --- ORDENAR POR BOLÃO ---
         const porBolao = {};
-        cartoesParaExibir.forEach(c => {
+        filtrados.forEach(c => {
             const b = c.bolao || 'Sem Bolão';
             if (!porBolao[b]) porBolao[b] = [];
             porBolao[b].push(c);
@@ -546,6 +547,14 @@ async function mostrarCartoes(numerosSorteados = null) {
             html += `</div></div>`;
         }
         container.innerHTML = html;
+        
+        // --- ATUALIZAR PROBABILIDADES NO TÍTULO DO CARD ---
+        const cardHeader = document.getElementById('cardHeaderConferencia');
+        if (cardHeader) {
+            const totalCartoes = filtrados.length;
+            const loteriaNome = loteriaAtual === 'mega' ? 'MEGA' : loteriaAtual === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA';
+            cardHeader.innerHTML = `🎯 CONFERIR RESULTADOS - ${loteriaNome} (${totalCartoes} cartões)`;
+        }
         
     } catch (error) {
         console.error('Erro ao carregar cartões:', error);
