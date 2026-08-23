@@ -31,11 +31,6 @@ let cartaoAtualSelecao = 0;
 let todosCartoesSelecao = [];
 
 // ============================================
-// VARIÁVEIS CSV
-// ============================================
-let dadosCSV = [];
-
-// ============================================
 // VARIÁVEIS DUPLICADOS
 // ============================================
 let cartoesDuplicadosSelecionados = {};
@@ -2106,108 +2101,6 @@ async function adicionarCartaoIndividualSelecao() {
 }
 
 // ============================================
-// FUNÇÕES PARA CSV
-// ============================================
-function lerCSV(file) {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        const texto = e.target.result;
-        const linhas = texto.split(/\r?\n/).filter(l => l.trim());
-        
-        if (linhas.length < 2) {
-            showToast('⚠️ CSV vazio ou inválido!', 'warning');
-            return;
-        }
-        
-        dadosCSV = [];
-        const cabecalho = linhas[0].split(';').map(h => h.trim().toLowerCase());
-        
-        for (let i = 1; i < linhas.length; i++) {
-            const colunas = linhas[i].split(';').map(c => c.trim());
-            if (colunas.length < 3) continue;
-            
-            const numeros = colunas[2].match(/\d+/g).map(Number);
-            if (numeros.length !== 15) continue;
-            
-            dadosCSV.push({
-                concursoInicio: parseInt(colunas[0]) || 0,
-                concursoFim: parseInt(colunas[1]) || 0,
-                numeros: numeros.sort((a,b) => a-b)
-            });
-        }
-        
-        if (dadosCSV.length === 0) {
-            showToast('⚠️ Nenhum cartão válido encontrado no CSV', 'warning');
-            return;
-        }
-        
-        document.getElementById('csvPreview').style.display = 'block';
-        document.getElementById('csvStatus').textContent = `✅ ${dadosCSV.length} cartões carregados`;
-        document.getElementById('csvConteudo').textContent = 
-            `📊 ${dadosCSV.length} cartões encontrados\n\n` +
-            dadosCSV.slice(0, 10).map((c, i) => 
-                `#${i+1}: Concurso ${c.concursoInicio}-${c.concursoFim} | ${c.numeros.join(' ')}`
-            ).join('\n') +
-            (dadosCSV.length > 10 ? `\n... e mais ${dadosCSV.length - 10} cartões` : '');
-        
-        showToast(`📥 ${dadosCSV.length} cartões carregados do CSV!`, 'success');
-    };
-    reader.readAsText(file);
-}
-
-async function importarCSV() {
-    if (dadosCSV.length === 0) {
-        showToast('⚠️ Carregue um CSV primeiro!', 'warning');
-        return;
-    }
-    
-    if (!confirm(
-        `⚠️ CONFIRMAR IMPORTAÇÃO CSV\n\n` +
-        `${dadosCSV.length} cartões serão importados.\n\n` +
-        `Esta ação NÃO pode ser desfeita!`
-    )) {
-        return;
-    }
-    
-    showLoading(`Importando ${dadosCSV.length} cartões...`);
-    
-    let adicionados = 0;
-    let erros = 0;
-    
-    for (const item of dadosCSV) {
-        try {
-            await db.collection('cartoes').add({
-                concurso: item.concursoInicio,
-                bolao: 'CSV Importado',
-                numeros: item.numeros,
-                tipo: 'lotofacil',
-                tipoParticipacao: 'exclusivo',
-                admin: true,
-                dataCadastro: new Date().toISOString(),
-                totalNumeros: item.numeros.length,
-                origem: 'csv'
-            });
-            adicionados++;
-        } catch (error) {
-            erros++;
-        }
-    }
-    
-    hideLoading();
-    
-    if (adicionados > 0) {
-        showToast(`✅ ${adicionados} cartões importados! ${erros > 0 ? `⚠️ ${erros} erros` : ''}`, 'success');
-        dadosCSV = [];
-        document.getElementById('csvPreview').style.display = 'none';
-        document.getElementById('csvUpload').value = '';
-        document.getElementById('csvStatus').textContent = 'Aguardando arquivo';
-        carregarDadosAdmin();
-    } else {
-        showToast('❌ Nenhum cartão foi importado', 'error');
-    }
-}
-
-// ============================================
 // TOKENS DE ACESSO
 // ============================================
 function gerarTokenUnico() {
@@ -2886,21 +2779,19 @@ function calcularEstatisticas(cartoes, resultados) {
             .slice(0, 3);
     }
 
-    // 5. Probabilidade média geral
-    let totalProb = 0;
-    let count = 0;
+    // 5. Bilhetes jogados por loteria: um cartão com mais números que o
+    // mínimo (ex.: 8 na Mega em vez de 6) equivale a vários bilhetes
+    // simples. Mesma matemática combinatória do "POTENCIAL DO BOLÃO" do
+    // site público, só que somada por loteria em vez de por bolão.
+    const minPicks = { mega: 6, lotofacil: 15, quina: 5 };
+    const bilhetesPorLoteria = { mega: 0, lotofacil: 0, quina: 0 };
     for (const cartao of cartoes) {
-        const numeros = cartao.numeros || [];
-        if (numeros.length > 0) {
-            let prob = 0;
-            if (cartao.tipo === 'mega') prob = numeros.length / 60;
-            else if (cartao.tipo === 'lotofacil') prob = numeros.length / 25;
-            else prob = numeros.length / 80;
-            totalProb += prob;
-            count++;
+        const tipo = cartao.tipo || 'mega';
+        const qtd = (cartao.numeros || []).length;
+        if (qtd > 0 && minPicks[tipo] && bilhetesPorLoteria[tipo] !== undefined) {
+            bilhetesPorLoteria[tipo] += combinacaoAdmin(qtd, minPicks[tipo]);
         }
     }
-    const probMedia = count > 0 ? (totalProb / count) * 100 : 0;
 
     // 6. Total de bolões = total de instâncias (nome+loteria+concurso)
     // distintas encontradas nos cartões. Um mesmo nome de bolão usado em
@@ -2920,7 +2811,7 @@ function calcularEstatisticas(cartoes, resultados) {
         maiores,
         top3PorLoteria,
         maiorBolao,
-        probMedia,
+        bilhetesPorLoteria,
         totalCartoes: cartoes.length,
         totalBoloes: totalBoloesDistintos,
         totais: {
@@ -2929,6 +2820,18 @@ function calcularEstatisticas(cartoes, resultados) {
             duques: totalDuques
         }
     };
+}
+
+// Combinação (n escolhe k) - quantos bilhetes simples um cartão de n
+// números equivale, para uma loteria que sorteia k números
+function combinacaoAdmin(n, k) {
+    if (k > n) return 0;
+    if (k === 0 || k === n) return 1;
+    let resultado = 1;
+    for (let i = 1; i <= k; i++) {
+        resultado *= (n - k + i) / i;
+    }
+    return Math.round(resultado);
 }
 
 // Formata "2 ternos" / "1 quadra" / "3 pontos" para o ranking top-3
@@ -3010,11 +2913,15 @@ function atualizarDashboardEstatisticas(stats) {
     }
 
     // ============================================
-    // 3. PROBABILIDADE MÉDIA
+    // 3. BILHETES JOGADOS (equivalente em apostas simples)
     // ============================================
-    const elProb = document.getElementById('dashboardProbabilidade');
-    if (elProb) {
-        elProb.textContent = stats.probMedia > 0 ? `${stats.probMedia.toFixed(1)}%` : '0%';
+    const bp = stats.bilhetesPorLoteria || { mega: 0, lotofacil: 0, quina: 0 };
+    const totalBilhetes = bp.mega + bp.lotofacil + bp.quina;
+    const elBilhetes = document.getElementById('dashboardBilhetes');
+    const elBilhetesDet = document.getElementById('dashboardBilhetesDetalhes');
+    if (elBilhetes) elBilhetes.textContent = totalBilhetes.toLocaleString('pt-BR');
+    if (elBilhetesDet) {
+        elBilhetesDet.textContent = `Mega: ${bp.mega.toLocaleString('pt-BR')} · Lotofácil: ${bp.lotofacil.toLocaleString('pt-BR')} · Quina: ${bp.quina.toLocaleString('pt-BR')}`;
     }
 
     // ============================================
@@ -3083,7 +2990,8 @@ function atualizarDashboardEstatisticasVazio() {
         'dashboardMaioresAcertosDetalhes': 'Nenhum',
         'dashboardMaiorBolao': 'Nenhum',
         'dashboardMaiorBolaoDetalhes': 'Nenhum',
-        'dashboardProbabilidade': '0%',
+        'dashboardBilhetes': '0',
+        'dashboardBilhetesDetalhes': 'Mega: 0 · Lotofácil: 0 · Quina: 0',
         'dashboardTotalCartoes': '0',
         'dashboardTotalBoloes': '0'
     };
@@ -3290,63 +3198,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     inicializarGradeSelecaoIndividual();
     atualizarTotalCartoesSelecao();
-    
-    const csvUpload = document.getElementById('csvUpload');
-    if (csvUpload) {
-        csvUpload.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                if (!file.name.endsWith('.csv')) {
-                    showToast('⚠️ Selecione um arquivo CSV!', 'warning');
-                    this.value = '';
-                    return;
-                }
-                if (file.size > 5 * 1024 * 1024) {
-                    showToast('⚠️ Arquivo muito grande! Máx: 5MB', 'warning');
-                    this.value = '';
-                    return;
-                }
-                lerCSV(file);
-            }
-        });
-    }
-    
-    document.getElementById('btnImportarCSV')?.addEventListener('click', importarCSV);
-    document.getElementById('btnLimparCSV')?.addEventListener('click', function() {
-        document.getElementById('csvPreview').style.display = 'none';
-        document.getElementById('csvUpload').value = '';
-        dadosCSV = [];
-        document.getElementById('csvStatus').textContent = 'Aguardando arquivo';
-        showToast('🧹 Limpo!', 'info');
-    });
-    
-    setTimeout(() => {
-        console.log('🔄 Fallback: forçando exibição das abas...');
-        const tabCadastro = document.getElementById('tab-cadastro');
-        if (tabCadastro) {
-            tabCadastro.style.display = 'block';
-            tabCadastro.classList.add('active');
-            console.log('✅ Aba CADASTRO forçada pelo fallback');
-        }
-        const primeiraAba = document.querySelector('.tab-btn.active');
-        if (!primeiraAba) {
-            const btn = document.querySelector('.tab-btn');
-            if (btn) {
-                btn.classList.add('active');
-                const tabId = btn.dataset.tab;
-                const tabContent = document.getElementById(tabId);
-                if (tabContent) {
-                    tabContent.style.display = 'block';
-                    tabContent.classList.add('active');
-                }
-            }
-        }
-        carregarBoloesParaGerenciar();
-        carregarTokens();
-        carregarReservas();
-        exibirCartoesAdmin();
-    }, 500);
-    
+
     // Carregar estatísticas avançadas
 setTimeout(() => {
     carregarEstatisticasDashboard();

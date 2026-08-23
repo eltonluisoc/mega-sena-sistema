@@ -1125,8 +1125,9 @@
         <div style="font-size: 10px; color: #9ca3af; margin-top: 4px;" id="dashboardMaioresAcertosDetalhes">Nenhum</div>
     </div>
     <div class="dashboard-card" style="background: #eff6ff; border-color: #93c5fd;">
-        <div class="dashboard-number" style="color: #2563eb;" id="dashboardProbabilidade">0%</div>
-        <div style="font-size: 14px; font-weight: 600; color: #1e3a5f;">📊 PROBABILIDADE MÉDIA</div>
+        <div class="dashboard-number" style="color: #2563eb; font-size: 22px;" id="dashboardBilhetes">0</div>
+        <div style="font-size: 14px; font-weight: 600; color: #1e3a5f;">🎫 BILHETES JOGADOS</div>
+        <div style="font-size: 10px; color: #9ca3af; margin-top: 4px;" id="dashboardBilhetesDetalhes">Mega: 0 · Lotofácil: 0 · Quina: 0</div>
     </div>
     <div class="dashboard-card" style="background: #ede9fe; border-color: #c4b5fd;">
         <div class="dashboard-number" style="color: #7c3aed; font-size: 18px;" id="dashboardMaiorBolao">-</div>
@@ -1323,31 +1324,6 @@
                     <div style="background: #f8fafc; padding: 12px; border-radius: 12px; margin-top: 16px; max-height: 150px; overflow-y: auto; border: 1px solid #e2e8f0;">
                         <div style="font-weight: 600; margin-bottom: 6px; color: #1e293b; font-size: 12px;">📋 PRÉVIA DOS CARTÕES</div>
                         <div id="previaCartoes" style="font-size: 11px; font-family: monospace;"><div style="color: #94a3b8;">Nenhum cartão cadastrado ainda</div></div>
-                    </div>
-                </div>
-
-                <!-- IMPORTAR CSV -->
-                <div class="card" style="border: 2px solid #f59e0b; background: #fffbeb;">
-                    <div class="card-header">
-                        📥 IMPORTAR CSV
-                        <span class="badge" style="background: #f59e0b;">BACKUP</span>
-                    </div>
-                    <div style="font-size: 12px; color: #92400e; margin-bottom: 14px; background: #fef3c7; padding: 10px 14px; border-radius: 10px;">
-                        📌 Importe um arquivo CSV com cartões da Lotofácil. <strong>Formato esperado:</strong> colunas com concurso_inicio, concurso_fim, numeros.
-                        <br>Exemplo: <code>concurso_inicio;concurso_fim;numeros</code> (separador ;)
-                    </div>
-                    <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
-                        <label for="csvUpload" style="display: inline-block; padding: 12px 24px; background: #f59e0b; color: white; border-radius: 12px; font-weight: 600; cursor: pointer;">📤 SELECIONAR CSV</label>
-                        <input type="file" id="csvUpload" accept=".csv" style="display: none;">
-                        <button id="btnImportarCSV" class="btn btn-success">🚀 IMPORTAR</button>
-                        <button id="btnLimparCSV" class="btn btn-secondary">🗑️ LIMPAR</button>
-                    </div>
-                    <div id="csvPreview" style="display: none; margin-top: 16px; background: #f8fafc; border-radius: 12px; padding: 14px; border: 1px solid #e2e8f0; max-height: 300px; overflow-y: auto;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                            <span style="font-weight: 700;">📋 PRÉVIA DO CSV</span>
-                            <span id="csvStatus" style="font-size: 12px; color: #64748b;">Aguardando arquivo</span>
-                        </div>
-                        <div id="csvConteudo" style="font-family: monospace; font-size: 12px; white-space: pre-wrap;"></div>
                     </div>
                 </div>
 
