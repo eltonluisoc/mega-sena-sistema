@@ -2833,28 +2833,30 @@ function calcularEstatisticas(cartoes, resultados) {
             };
         }
         
-        // Agrupar por BOLÃO + LOTERIA
+        // Agrupar por BOLÃO + LOTERIA + CONCURSO: cada concurso cadastrado é
+        // um bolão à parte, mesmo que reaproveite o mesmo nome de outro
+        // concurso (ex.: "Lotofácil 24 Concursos" cadastrado em lote gera
+        // 24 bolões distintos, um por concurso, não um único bolão gigante)
         const bolaoNome = cartao.bolao || 'Sem Bolão';
-        const chave = `${bolaoNome}|${tipo}`;
-        
+        const chave = `${bolaoNome}|${tipo}|${concurso}`;
+
         if (!boloesPorLoteria[chave]) {
             boloesPorLoteria[chave] = {
                 nome: bolaoNome,
                 loteria: tipo,
+                concurso: concurso,
                 totalAcertos: 0,
                 totalCartoes: 0,
                 maxAcertos: 0,
                 quadras: 0,
                 ternos: 0,
-                duques: 0,
-                concursos: new Set()
+                duques: 0
             };
         }
-        
+
         boloesPorLoteria[chave].totalAcertos += acertos;
         boloesPorLoteria[chave].totalCartoes++;
-        boloesPorLoteria[chave].concursos.add(concurso);
-        
+
         if (acertos > boloesPorLoteria[chave].maxAcertos) {
             boloesPorLoteria[chave].maxAcertos = acertos;
         }
@@ -2900,29 +2902,17 @@ function calcularEstatisticas(cartoes, resultados) {
     }
     const probMedia = count > 0 ? (totalProb / count) * 100 : 0;
 
-    // 6. Média de participantes por bolão (só entre os bolões com lista de
-    // participantes cadastrada — somar participantes sem dividir pelo
-    // número de bolões conta a mesma pessoa várias vezes e infla o número)
-    let somaParticipantes = 0;
-    let boloesComParticipantes = 0;
-    for (const bolao of boloes) {
-        if (bolao.participantes && bolao.participantes.length > 0) {
-            somaParticipantes += bolao.participantes.length;
-            boloesComParticipantes++;
-        }
-    }
-    const mediaParticipantes = boloesComParticipantes > 0 ? somaParticipantes / boloesComParticipantes : 0;
+    // 6. Total de bolões = total de instâncias (nome+loteria+concurso)
+    // distintas encontradas nos cartões. Um mesmo nome de bolão usado em
+    // vários concursos (ex.: cadastro em lote) conta um bolão por concurso.
+    const totalBoloesDistintos = Object.keys(boloesPorLoteria).length;
 
-    // 7. Total de bolões distintos (pelo nome usado nos cartões — cobre
-    // também bolões que nunca foram formalizados na aba "Bolões")
-    const totalBoloesDistintos = new Set(cartoes.map(c => c.bolao || 'Sem Bolão')).size;
-
-    // 8. Maior bolão (mais cartões = maior cobertura/probabilidade de acerto)
-    let maiorBolao = { nome: 'Nenhum', totalCartoes: 0, loteria: '' };
+    // 7. Maior bolão (mais cartões = maior cobertura/probabilidade de acerto)
+    let maiorBolao = { nome: 'Nenhum', totalCartoes: 0, loteria: '', concurso: null };
     for (const chave in boloesPorLoteria) {
         const dados = boloesPorLoteria[chave];
         if (dados.totalCartoes > maiorBolao.totalCartoes) {
-            maiorBolao = { nome: dados.nome, totalCartoes: dados.totalCartoes, loteria: dados.loteria };
+            maiorBolao = { nome: dados.nome, totalCartoes: dados.totalCartoes, loteria: dados.loteria, concurso: dados.concurso };
         }
     }
 
@@ -2933,7 +2923,6 @@ function calcularEstatisticas(cartoes, resultados) {
         probMedia,
         totalCartoes: cartoes.length,
         totalBoloes: totalBoloesDistintos,
-        mediaParticipantes,
         totais: {
             quadras: totalQuadras,
             ternos: totalTernos,
@@ -3039,7 +3028,7 @@ function atualizarDashboardEstatisticas(stats) {
     if (elMaiorBolaoDet) {
         if (stats.maiorBolao?.totalCartoes > 0) {
             const loteriaNome = stats.maiorBolao.loteria === 'mega' ? 'MEGA' : stats.maiorBolao.loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA';
-            elMaiorBolaoDet.textContent = `${stats.maiorBolao.totalCartoes} cartões (${loteriaNome})`;
+            elMaiorBolaoDet.textContent = `${stats.maiorBolao.totalCartoes} cartões · Concurso ${stats.maiorBolao.concurso} (${loteriaNome})`;
             elMaiorBolaoDet.style.color = '#7c3aed';
         } else {
             elMaiorBolaoDet.textContent = 'Nenhum bolão cadastrado';
@@ -3055,10 +3044,7 @@ function atualizarDashboardEstatisticas(stats) {
     
     const totalBoloesEl = document.getElementById('dashboardTotalBoloes');
     if (totalBoloesEl) totalBoloesEl.textContent = stats.totalBoloes;
-    
-    const participantesEl = document.getElementById('dashboardParticipantes');
-    if (participantesEl) participantesEl.textContent = stats.mediaParticipantes.toFixed(1);
-    
+
     // Atualizar também os cards de loteria
     const megaEl = document.getElementById('dashboardMega');
     const lotoEl = document.getElementById('dashboardLotofacil');
@@ -3099,8 +3085,7 @@ function atualizarDashboardEstatisticasVazio() {
         'dashboardMaiorBolaoDetalhes': 'Nenhum',
         'dashboardProbabilidade': '0%',
         'dashboardTotalCartoes': '0',
-        'dashboardTotalBoloes': '0',
-        'dashboardParticipantes': '0.0'
+        'dashboardTotalBoloes': '0'
     };
 
     for (const id in valores) {
