@@ -1085,7 +1085,7 @@
             </div>
             <div class="dashboard-card" style="background: #fef2f2; border-color: #fca5a5;">
                 <div class="dashboard-number" style="color: #ef4444;" id="dashboardParticipantes">0</div>
-                <div style="font-size: 14px; font-weight: 600; color: #991b1b;">👤 PARTICIPANTES</div>
+                <div style="font-size: 14px; font-weight: 600; color: #991b1b;">👤 MÉDIA DE PARTICIPANTES/BOLÃO</div>
             </div>
         </div>
 
@@ -1093,34 +1093,31 @@
         <div class="dashboard-cards" style="margin-top: 16px;">
             <div class="dashboard-card" style="background: #fce7f3; border-color: #f9a8d4;">
                 <div class="dashboard-number" style="color: #db2777;" id="dashboardMega">0</div>
-                <div style="font-size: 14px; font-weight: 600; color: #831843;">🎯 MEGA-SENA</div>
+                <div style="font-size: 14px; font-weight: 600; color: #831843;">🎯 CARTÕES MEGA-SENA</div>
             </div>
             <div class="dashboard-card" style="background: #d1fae5; border-color: #6ee7b7;">
                 <div class="dashboard-number" style="color: #059669;" id="dashboardLotofacil">0</div>
-                <div style="font-size: 14px; font-weight: 600; color: #064e3b;">🌟 LOTOFÁCIL</div>
+                <div style="font-size: 14px; font-weight: 600; color: #064e3b;">🌟 CARTÕES LOTOFÁCIL</div>
             </div>
             <div class="dashboard-card" style="background: #fef3c7; border-color: #fcd34d;">
                 <div class="dashboard-number" style="color: #d97706;" id="dashboardQuina">0</div>
-                <div style="font-size: 14px; font-weight: 600; color: #78350f;">🎯 QUINA</div>
+                <div style="font-size: 14px; font-weight: 600; color: #78350f;">🎯 CARTÕES QUINA</div>
             </div>
         </div>
 
         <!-- Estatísticas Avançadas - Melhor de Cada Loteria -->
 <div class="dashboard-cards" style="margin-top: 16px;">
-    <div class="dashboard-card" style="background: #fce7f3; border-color: #f9a8d4;">
-        <div class="dashboard-number" style="color: #db2777; font-size: 20px;" id="dashboardMelhorMega">-</div>
-        <div style="font-size: 13px; font-weight: 600; color: #831843;">🏆 MELHOR MEGA-SENA</div>
-        <div style="font-size: 10px; color: #9ca3af; margin-top: 4px;" id="dashboardMelhorMegaDetalhes">Nenhum</div>
+    <div class="dashboard-card" style="background: #fce7f3; border-color: #f9a8d4; text-align: left;">
+        <div style="font-size: 13px; font-weight: 600; color: #831843; text-align: center;">🏆 TOP CONCURSOS MEGA-SENA</div>
+        <div style="font-size: 12px; color: #831843; margin-top: 8px; line-height: 1.7;" id="dashboardMelhorMegaDetalhes">Nenhum resultado ainda</div>
     </div>
-    <div class="dashboard-card" style="background: #d1fae5; border-color: #6ee7b7;">
-        <div class="dashboard-number" style="color: #059669; font-size: 20px;" id="dashboardMelhorLotofacil">-</div>
-        <div style="font-size: 13px; font-weight: 600; color: #064e3b;">🌟 MELHOR LOTOFÁCIL</div>
-        <div style="font-size: 10px; color: #9ca3af; margin-top: 4px;" id="dashboardMelhorLotofacilDetalhes">Nenhum</div>
+    <div class="dashboard-card" style="background: #d1fae5; border-color: #6ee7b7; text-align: left;">
+        <div style="font-size: 13px; font-weight: 600; color: #064e3b; text-align: center;">🌟 TOP CONCURSOS LOTOFÁCIL</div>
+        <div style="font-size: 12px; color: #064e3b; margin-top: 8px; line-height: 1.7;" id="dashboardMelhorLotofacilDetalhes">Nenhum resultado ainda</div>
     </div>
-    <div class="dashboard-card" style="background: #fef3c7; border-color: #fcd34d;">
-        <div class="dashboard-number" style="color: #d97706; font-size: 20px;" id="dashboardMelhorQuina">-</div>
-        <div style="font-size: 13px; font-weight: 600; color: #78350f;">🎯 MELHOR QUINA</div>
-        <div style="font-size: 10px; color: #9ca3af; margin-top: 4px;" id="dashboardMelhorQuinaDetalhes">Nenhum</div>
+    <div class="dashboard-card" style="background: #fef3c7; border-color: #fcd34d; text-align: left;">
+        <div style="font-size: 13px; font-weight: 600; color: #78350f; text-align: center;">🎯 TOP CONCURSOS QUINA</div>
+        <div style="font-size: 12px; color: #78350f; margin-top: 8px; line-height: 1.7;" id="dashboardMelhorQuinaDetalhes">Nenhum resultado ainda</div>
     </div>
 </div>
 
@@ -1378,7 +1375,6 @@
                             <option value="bolao">👥 Bolão (A-Z)</option>
                         </select>
                         <button id="btnRecarregarLista" class="btn btn-primary">🔄 RECARREGAR</button>
-                        <button id="btnForcarRecarregar" class="btn btn-purple">🔄 FORÇAR RECARREGAR</button>
                         <button id="btnExportarExcel" class="btn btn-success">📊 EXPORTAR</button>
                         <button id="btnExcluirSelecionados" class="btn btn-danger">🗑️ EXCLUIR</button>
                         <button id="btnAlterarTipo" class="btn btn-warning">🔄 ALTERAR TIPO</button>

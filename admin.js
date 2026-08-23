@@ -586,7 +586,6 @@ function exibirCartoesAdmin() {
                             </div>
                             <div style="display:flex; gap:6px;">
                                 <button class="btn-editar" data-id="${cartao.id}" style="background:#3b82f6; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px;">✏️ Editar</button>
-                                <button class="btn-duplicar" data-id="${cartao.id}" style="background:#8b5cf6; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px;">📋 Duplicar</button>
                             </div>
                         </div>
                         <div style="font-size:12px; color:#666; margin:5px 0;">
@@ -605,12 +604,6 @@ function exibirCartoesAdmin() {
     document.querySelectorAll('.btn-editar').forEach(btn => {
         btn.addEventListener('click', function() {
             editarCartao(this.dataset.id);
-        });
-    });
-    
-    document.querySelectorAll('.btn-duplicar').forEach(btn => {
-        btn.addEventListener('click', function() {
-            duplicarCartao(this.dataset.id);
         });
     });
     
@@ -1514,34 +1507,6 @@ async function editarCartao(id) {
         console.error('Erro ao abrir edição:', error);
         showToast('❌ Erro ao carregar cartão para edição', 'error');
     }
-}
-
-// ============================================
-// DUPLICAR CARTÃO
-// ============================================
-async function duplicarCartao(id) {
-    const doc = await db.collection('cartoes').doc(id).get();
-    const original = doc.data();
-
-    const novoConcurso = prompt('Novo Concurso:', original.concurso);
-    if (!novoConcurso) return;
-    const novoBolao = prompt('Novo Bolão:', original.bolao || 'Sem Bolão');
-    if (!novoBolao) return;
-
-    if (!confirm(`Confirmar duplicação?\nConcurso: ${novoConcurso}\nBolão: ${novoBolao}\nNúmeros: ${original.numeros.join(', ')}`)) return;
-
-    await db.collection('cartoes').add({
-        concurso: novoConcurso,
-        bolao: novoBolao,
-        numeros: original.numeros,
-        tipo: original.tipo || loteriaAdmin,
-        tipoParticipacao: original.tipoParticipacao || 'exclusivo',
-        admin: true,
-        dataCadastro: new Date().toISOString(),
-        totalNumeros: original.numeros.length
-    });
-    showToast('✅ Cartão duplicado!', 'success');
-    carregarDadosAdmin();
 }
 
 // ============================================
@@ -2830,12 +2795,15 @@ function calcularEstatisticas(cartoes, resultados) {
     
     // 2. Estatísticas por BOLÃO + LOTERIA (combinação única)
     const boloesPorLoteria = {};
-    
+
     // 3. Totais gerais
     let totalQuadras = 0;
     let totalTernos = 0;
     let totalDuques = 0;
-    
+
+    // 4. Melhor resultado por CONCURSO (para o ranking top-3 por loteria)
+    const porConcursoPorLoteria = { mega: {}, lotofacil: {}, quina: {} };
+
     for (const cartao of cartoes) {
         const tipo = cartao.tipo || 'mega';
         const concurso = cartao.concurso ? parseInt(cartao.concurso) : null;
@@ -2893,38 +2861,29 @@ function calcularEstatisticas(cartoes, resultados) {
         if (acertos >= 4) boloesPorLoteria[chave].quadras++;
         if (acertos >= 3) boloesPorLoteria[chave].ternos++;
         if (acertos >= 2) boloesPorLoteria[chave].duques++;
-    }
-    
-    // 4. Encontrar o MELHOR de cada loteria (pelo maior acerto único do
-    // bolão, não pela média — média penaliza bolões com muitos cartões e
-    // pode esconder um bolão que teve quadra/quina atrás de um bolão
-    // pequeno com sorte melhor "na média")
-    const melhoresPorLoteria = {
-        mega: null,
-        lotofacil: null,
-        quina: null
-    };
 
-    for (const chave in boloesPorLoteria) {
-        const dados = boloesPorLoteria[chave];
-        const media = dados.totalCartoes > 0 ? dados.totalAcertos / dados.totalCartoes : 0;
-        const loteria = dados.loteria;
-
-        if (!melhoresPorLoteria[loteria] || dados.maxAcertos > melhoresPorLoteria[loteria].maxAcertos) {
-            melhoresPorLoteria[loteria] = {
-                nome: dados.nome,
-                media: media,
-                totalAcertos: dados.totalAcertos,
-                maxAcertos: dados.maxAcertos,
-                totalCartoes: dados.totalCartoes,
-                quadras: dados.quadras,
-                ternos: dados.ternos,
-                duques: dados.duques,
-                concursos: dados.concursos.size
-            };
+        // Melhor resultado do concurso (para o ranking top-3)
+        if (concurso !== null && porConcursoPorLoteria[tipo]) {
+            const pc = porConcursoPorLoteria[tipo];
+            if (!pc[concurso]) pc[concurso] = { maxAcertos: 0, quantidade: 0 };
+            if (acertos > pc[concurso].maxAcertos) {
+                pc[concurso] = { maxAcertos: acertos, quantidade: 1 };
+            } else if (acertos > 0 && acertos === pc[concurso].maxAcertos) {
+                pc[concurso].quantidade++;
+            }
         }
     }
-    
+
+    // Top 3 concursos por loteria (só concursos com resultado conferido)
+    const top3PorLoteria = { mega: [], lotofacil: [], quina: [] };
+    for (const tipo of ['mega', 'lotofacil', 'quina']) {
+        top3PorLoteria[tipo] = Object.keys(porConcursoPorLoteria[tipo])
+            .map(concurso => ({ concurso, ...porConcursoPorLoteria[tipo][concurso] }))
+            .filter(item => item.maxAcertos > 0)
+            .sort((a, b) => b.maxAcertos - a.maxAcertos || Number(a.concurso) - Number(b.concurso))
+            .slice(0, 3);
+    }
+
     // 5. Probabilidade média geral
     let totalProb = 0;
     let count = 0;
@@ -2941,13 +2900,24 @@ function calcularEstatisticas(cartoes, resultados) {
     }
     const probMedia = count > 0 ? (totalProb / count) * 100 : 0;
 
-    // 6. Total de participantes
-    let totalParticipantes = 0;
+    // 6. Média de participantes por bolão (só entre os bolões com lista de
+    // participantes cadastrada — somar participantes sem dividir pelo
+    // número de bolões conta a mesma pessoa várias vezes e infla o número)
+    let somaParticipantes = 0;
+    let boloesComParticipantes = 0;
     for (const bolao of boloes) {
-        if (bolao.participantes) totalParticipantes += bolao.participantes.length;
+        if (bolao.participantes && bolao.participantes.length > 0) {
+            somaParticipantes += bolao.participantes.length;
+            boloesComParticipantes++;
+        }
     }
+    const mediaParticipantes = boloesComParticipantes > 0 ? somaParticipantes / boloesComParticipantes : 0;
 
-    // 7. Maior bolão (mais cartões = maior cobertura/probabilidade de acerto)
+    // 7. Total de bolões distintos (pelo nome usado nos cartões — cobre
+    // também bolões que nunca foram formalizados na aba "Bolões")
+    const totalBoloesDistintos = new Set(cartoes.map(c => c.bolao || 'Sem Bolão')).size;
+
+    // 8. Maior bolão (mais cartões = maior cobertura/probabilidade de acerto)
     let maiorBolao = { nome: 'Nenhum', totalCartoes: 0, loteria: '' };
     for (const chave in boloesPorLoteria) {
         const dados = boloesPorLoteria[chave];
@@ -2958,12 +2928,12 @@ function calcularEstatisticas(cartoes, resultados) {
 
     return {
         maiores,
-        melhoresPorLoteria,
+        top3PorLoteria,
         maiorBolao,
         probMedia,
         totalCartoes: cartoes.length,
-        totalBoloes: boloes.length,
-        totalParticipantes,
+        totalBoloes: totalBoloesDistintos,
+        mediaParticipantes,
         totais: {
             quadras: totalQuadras,
             ternos: totalTernos,
@@ -2972,55 +2942,49 @@ function calcularEstatisticas(cartoes, resultados) {
     };
 }
 
+// Formata "2 ternos" / "1 quadra" / "3 pontos" para o ranking top-3
+function formatarTierAcerto(loteria, acertos, quantidade) {
+    let nome;
+    if (loteria === 'lotofacil') {
+        nome = `${acertos} pontos`;
+    } else {
+        const nomes = { 6: 'sena', 5: 'quina', 4: 'quadra', 3: 'terno', 2: 'duque' };
+        nome = nomes[acertos];
+        if (!nome) return `${quantidade} cartão(ões) com ${acertos} acertos`;
+        if (quantidade > 1) nome += 's';
+    }
+    return `${quantidade} ${nome}`;
+}
+
 function atualizarDashboardEstatisticas(stats) {
     console.log('📊 Atualizando dashboard com estatísticas...');
     
     // ============================================
-    // 1. MELHOR DE CADA LOTERIA
+    // 1. TOP 3 CONCURSOS POR LOTERIA
     // ============================================
-    const loteriasMap = {
-        mega: { 
-            el: 'dashboardMelhorMega', 
-            det: 'dashboardMelhorMegaDetalhes',
-            label: 'MEGA-SENA'
-        },
-        lotofacil: { 
-            el: 'dashboardMelhorLotofacil', 
-            det: 'dashboardMelhorLotofacilDetalhes',
-            label: 'LOTOFÁCIL'
-        },
-        quina: { 
-            el: 'dashboardMelhorQuina', 
-            det: 'dashboardMelhorQuinaDetalhes',
-            label: 'QUINA'
-        }
+    const medalhas = ['🥇', '🥈', '🥉'];
+    const detalhesIdPorLoteria = {
+        mega: 'dashboardMelhorMegaDetalhes',
+        lotofacil: 'dashboardMelhorLotofacilDetalhes',
+        quina: 'dashboardMelhorQuinaDetalhes'
     };
-    
-    for (const [loteria, config] of Object.entries(loteriasMap)) {
-        const melhor = stats.melhoresPorLoteria?.[loteria];
-        const el = document.getElementById(config.el);
-        const elDet = document.getElementById(config.det);
-        
-        if (el) {
-            if (melhor && melhor.totalCartoes > 0) {
-                el.textContent = melhor.nome;
-                el.title = `${melhor.nome} - Max: ${melhor.maxAcertos} acertos | ${melhor.totalCartoes} cartões`;
-            } else {
-                el.textContent = 'Nenhum';
-            }
+
+    for (const [loteria, detId] of Object.entries(detalhesIdPorLoteria)) {
+        const elDet = document.getElementById(detId);
+        if (!elDet) continue;
+
+        const top3 = stats.top3PorLoteria?.[loteria] || [];
+        if (top3.length === 0) {
+            elDet.textContent = 'Nenhum resultado conferido ainda';
+            continue;
         }
-        
-        if (elDet) {
-            if (melhor && melhor.totalCartoes > 0) {
-                elDet.textContent = `📊 ${melhor.totalCartoes} cartões | Max: ${melhor.maxAcertos} acertos`;
-                elDet.style.color = '#059669';
-            } else {
-                elDet.textContent = 'Nenhum bolão cadastrado';
-                elDet.style.color = '#9ca3af';
-            }
-        }
+
+        elDet.innerHTML = top3.map((item, i) => {
+            const texto = formatarTierAcerto(loteria, item.maxAcertos, item.quantidade);
+            return `${medalhas[i] || '•'} Concurso ${item.concurso} — ${texto}`;
+        }).join('<br>');
     }
-    
+
     // ============================================
     // 2. MAIORES ACERTOS (GERAL)
     // ============================================
@@ -3093,7 +3057,7 @@ function atualizarDashboardEstatisticas(stats) {
     if (totalBoloesEl) totalBoloesEl.textContent = stats.totalBoloes;
     
     const participantesEl = document.getElementById('dashboardParticipantes');
-    if (participantesEl) participantesEl.textContent = stats.totalParticipantes;
+    if (participantesEl) participantesEl.textContent = stats.mediaParticipantes.toFixed(1);
     
     // Atualizar também os cards de loteria
     const megaEl = document.getElementById('dashboardMega');
@@ -3126,12 +3090,9 @@ function atualizarDashboardEstatisticas(stats) {
 
 function atualizarDashboardEstatisticasVazio() {
     const valores = {
-        'dashboardMelhorMega': 'Nenhum',
-        'dashboardMelhorMegaDetalhes': 'Nenhum',
-        'dashboardMelhorLotofacil': 'Nenhum',
-        'dashboardMelhorLotofacilDetalhes': 'Nenhum',
-        'dashboardMelhorQuina': 'Nenhum',
-        'dashboardMelhorQuinaDetalhes': 'Nenhum',
+        'dashboardMelhorMegaDetalhes': 'Nenhum resultado conferido ainda',
+        'dashboardMelhorLotofacilDetalhes': 'Nenhum resultado conferido ainda',
+        'dashboardMelhorQuinaDetalhes': 'Nenhum resultado conferido ainda',
         'dashboardMaioresAcertos': '0',
         'dashboardMaioresAcertosDetalhes': 'Nenhum',
         'dashboardMaiorBolao': 'Nenhum',
@@ -3139,7 +3100,7 @@ function atualizarDashboardEstatisticasVazio() {
         'dashboardProbabilidade': '0%',
         'dashboardTotalCartoes': '0',
         'dashboardTotalBoloes': '0',
-        'dashboardParticipantes': '0'
+        'dashboardParticipantes': '0.0'
     };
 
     for (const id in valores) {
@@ -3170,7 +3131,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const adminBtnMega = document.getElementById('adminBtnMega');
     const adminBtnLotofacil = document.getElementById('adminBtnLotofacil');
     const adminBtnQuina = document.getElementById('adminBtnQuina');
-    const btnForcarRecarregar = document.getElementById('btnForcarRecarregar');
     const btnVerificarDuplicados = document.getElementById('btnVerificarDuplicados');
     
     if (btnVerificarDuplicados) {
@@ -3206,14 +3166,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     if (btnAtualizarReservas) btnAtualizarReservas.onclick = () => carregarReservas();
-    
-    if (btnForcarRecarregar) {
-        btnForcarRecarregar.addEventListener('click', function() {
-            showToast('🔄 Forçando recarregamento da lista...', 'info');
-            carregarDadosAdmin();
-        });
-    }
-    
+
     setTimeout(() => {
         console.log('🔄 Carregando dados das abas...');
         carregarBoloesParaGerenciar();
