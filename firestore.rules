@@ -2,51 +2,79 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Leitura pública — necessária hoje porque index.html, consulta.html,
-    // meus-boloes.html e participantes.html leem o Firestore direto do
-    // navegador, sem backend intermediário.
-    match /{document=**} {
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == 'eltonluisoc@gmail.com';
+    }
+
+    // Cartões, resultados oficiais, configuração e bolões: leitura
+    // pública necessária porque index.html, consulta.html, meus-boloes.html
+    // e admin.html leem o Firestore direto do navegador, sem backend
+    // intermediário. Escrita/exclusão exigem o admin autenticado.
+    match /cartoes/{document} {
       allow read: if true;
+      allow write, delete: if isAdmin();
+    }
+    match /resultados_mega/{document} {
+      allow read: if true;
+      allow write, delete: if isAdmin();
+    }
+    match /resultados_lotofacil/{document} {
+      allow read: if true;
+      allow write, delete: if isAdmin();
+    }
+    match /resultados_quina/{document} {
+      allow read: if true;
+      allow write, delete: if isAdmin();
+    }
+    match /config_boloes/{document} {
+      allow read: if true;
+      allow write, delete: if isAdmin();
+    }
+    match /config_geral/{document} {
+      allow read: if true;
+      allow write, delete: if isAdmin();
+    }
+    match /participantes_pendentes/{document} {
+      allow read: if true;
+      allow write, delete: if isAdmin();
     }
 
     // Cache de resultados oficiais das loterias: gravado pelo público
     // (script.js) toda vez que alguém confere um resultado no site. Dado
     // público e de baixo risco, por isso continua com escrita aberta.
     match /resultados_conferidos/{document} {
+      allow read: if true;
       allow write, delete: if true;
     }
 
-    // Todo o resto é gerenciado exclusivamente pelo admin — escrita e
-    // exclusão exigem estar autenticado com a conta Google autorizada.
-    match /cartoes/{document} {
-      allow write, delete: if request.auth != null && request.auth.token.email == 'eltonluisoc@gmail.com';
-    }
-    match /resultados_mega/{document} {
-      allow write, delete: if request.auth != null && request.auth.token.email == 'eltonluisoc@gmail.com';
-    }
-    match /resultados_lotofacil/{document} {
-      allow write, delete: if request.auth != null && request.auth.token.email == 'eltonluisoc@gmail.com';
-    }
-    match /resultados_quina/{document} {
-      allow write, delete: if request.auth != null && request.auth.token.email == 'eltonluisoc@gmail.com';
-    }
-    match /config_boloes/{document} {
-      allow write, delete: if request.auth != null && request.auth.token.email == 'eltonluisoc@gmail.com';
-    }
-    match /config_geral/{document} {
-      allow write, delete: if request.auth != null && request.auth.token.email == 'eltonluisoc@gmail.com';
-    }
+    // participantes ainda precisa de leitura pública total (nome,
+    // telefone, situação de pagamento) porque consulta.html/meus-boloes.html
+    // buscam a coleção inteira e filtram no navegador — isso é uma
+    // exposição de dado pessoal conhecida e documentada, não resolvida
+    // ainda (precisa de uma Cloud Function mediando a leitura; ver
+    // relatório dos agentes Arquiteto/Requisitos).
     match /participantes/{document} {
-      allow write, delete: if request.auth != null && request.auth.token.email == 'eltonluisoc@gmail.com';
+      allow read: if true;
+      allow write, delete: if isAdmin();
     }
+
+    // participantes_tokens precisa continuar com leitura de UM documento
+    // (get) pública, porque consulta.html verifica o token do visitante
+    // assim. Mas listar (list) a coleção inteira expõe todos os tokens
+    // válidos + nome + telefone de uma vez — a regra genérica antiga
+    // permitia isso sem querer. Restringe list ao admin autenticado.
     match /participantes_tokens/{document} {
-      allow write, delete: if request.auth != null && request.auth.token.email == 'eltonluisoc@gmail.com';
+      allow get: if true;
+      allow list: if isAdmin();
+      allow write, delete: if isAdmin();
     }
+
+    // reservas_participantes é dado financeiro nominal e só é lido pelo
+    // admin (nenhuma página pública consulta essa coleção) — não faz
+    // sentido deixar leitura pública aqui, nem get nem list.
     match /reservas_participantes/{document} {
-      allow write, delete: if request.auth != null && request.auth.token.email == 'eltonluisoc@gmail.com';
-    }
-    match /participantes_pendentes/{document} {
-      allow write, delete: if request.auth != null && request.auth.token.email == 'eltonluisoc@gmail.com';
+      allow read: if isAdmin();
+      allow write, delete: if isAdmin();
     }
   }
 }

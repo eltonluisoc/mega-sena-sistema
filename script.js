@@ -1723,32 +1723,11 @@ async function buscarResultadoAutomatico() {
     }
 }
 
-function forcarAtualizacaoCache() {
-    if ('caches' in window) {
-        caches.keys().then(names => {
-            names.forEach(name => {
-                caches.delete(name);
-                console.log('Cache deletado:', name);
-            });
-        });
-    }
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(registrations => {
-            registrations.forEach(reg => reg.unregister());
-            console.log('Service Worker removido');
-        });
-    }
-    localStorage.clear();
-    sessionStorage.clear();
-    console.log('✅ Cache forçado limpo');
-}
-
 // ========== EVENT LISTENERS ==========
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('📄 Inicializando sistema (versão otimizada)...');
-    
-    forcarAtualizacaoCache();
-    
+
+
     await carregarConfiguracoes();
     await carregarDados();
     
