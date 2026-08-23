@@ -2817,17 +2817,15 @@ function calcularEstatisticas(cartoes, resultados) {
         }
     }
 
-    // DIAGNÓSTICO TEMPORÁRIO — remover depois de confirmar a causa do bug
-    console.log('🔍 DIAGNÓSTICO resultados.mega[3046/3047]:', JSON.stringify({ 3046: resultados.mega?.[3046], 3047: resultados.mega?.[3047] }));
-    console.log('🔍 DIAGNÓSTICO porConcursoPorLoteria.mega COMPLETO:', JSON.stringify(porConcursoPorLoteria.mega));
-    console.log('🔍 DIAGNÓSTICO cartoes mega do concurso 3046/3047:', JSON.stringify(cartoes.filter(c => c.tipo === 'mega' && (String(c.concurso) === '3046' || String(c.concurso) === '3047')).map(c => ({ concurso: c.concurso, numeros: c.numeros, bolao: c.bolao }))));
-
-    // Top 3 concursos por loteria (só concursos com resultado conferido)
+    // Top 3 concursos por loteria (só concursos com resultado conferido e
+    // que bateram um nível que realmente conta como prêmio — 1 acerto
+    // solto não é uma conquista, é ruído)
+    const limiarPremio = { mega: 2, lotofacil: 11, quina: 2 };
     const top3PorLoteria = { mega: [], lotofacil: [], quina: [] };
     for (const tipo of ['mega', 'lotofacil', 'quina']) {
         top3PorLoteria[tipo] = Object.keys(porConcursoPorLoteria[tipo])
             .map(concurso => ({ concurso, ...porConcursoPorLoteria[tipo][concurso] }))
-            .filter(item => item.maxAcertos > 0)
+            .filter(item => item.maxAcertos >= limiarPremio[tipo])
             // desempate por quantidade de cartões que bateram o nível, não só
             // pelo número do concurso: 2 ternos no mesmo concurso é mais
             // notável que 1 terno em outro
