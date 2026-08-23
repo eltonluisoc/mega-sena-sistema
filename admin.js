@@ -1343,108 +1343,6 @@ function selecionarDuplicado(grupoId, cartaoId) {
 // ============================================
 // ADICIONAR CARTÕES (CADASTRO TRADICIONAL)
 // ============================================
-async function adicionarCartoes() {
-    const concurso = document.getElementById('concurso').value;
-    const bolao = document.getElementById('bolao').value || 'Sem Bolão';
-    const tipoParticipacao = document.getElementById('tipoCartao').value;
-    const texto = document.getElementById('numerosCartoes').value;
-    
-    if (!concurso) { showToast('⚠️ Informe o concurso!', 'warning'); return; }
-    if (!texto.trim()) { showToast('⚠️ Informe os números!', 'warning'); return; }
-    
-    const linhas = texto.split('\n');
-    let adicionados = 0;
-    let erros = 0;
-    
-    let minNumeros, maxNumeros, maxValor, label;
-    if (loteriaAdmin === 'mega') {
-        minNumeros = 6;
-        maxNumeros = 20;
-        maxValor = 60;
-        label = 'MEGA-SENA';
-    } else if (loteriaAdmin === 'lotofacil') {
-        minNumeros = 15;
-        maxNumeros = 20;
-        maxValor = 25;
-        label = 'LOTOFÁCIL';
-    } else if (loteriaAdmin === 'quina') {
-        minNumeros = 5;
-        maxNumeros = 15;
-        maxValor = 80;
-        label = 'QUINA';
-    } else {
-        showToast('⚠️ Loteria não reconhecida!', 'error');
-        return;
-    }
-    
-    for (const linha of linhas) {
-        if (!linha.trim()) continue;
-        
-        const numeros = linha.match(/\d+/g).map(Number);
-        
-        if (numeros.length < minNumeros) { 
-            erros++; 
-            continue; 
-        }
-        
-        if (numeros.length > maxNumeros) {
-            erros++;
-            continue;
-        }
-        
-        const numerosUnicos = [...new Set(numeros)];
-        if (numerosUnicos.length !== numeros.length) { 
-            erros++; 
-            continue; 
-        }
-        
-        if (numeros.some(n => n < 1 || n > maxValor)) { 
-            erros++; 
-            continue; 
-        }
-        
-        numeros.sort((a,b) => a-b);
-        
-        try {
-            await db.collection('cartoes').add({ 
-                concurso, 
-                bolao, 
-                numeros, 
-                tipo: loteriaAdmin, 
-                tipoParticipacao: tipoParticipacao,
-                admin: true,
-                dataCadastro: new Date().toISOString(), 
-                totalNumeros: numeros.length 
-            });
-            adicionados++;
-        } catch (error) { 
-            erros++; 
-        }
-    }
-    
-    if (adicionados > 0) {
-        showToast(`✅ ${adicionados} cartões adicionados à ${label}!`, 'success');
-        document.getElementById('numerosCartoes').value = '';
-        carregarDadosAdmin();
-    } else {
-        let msg = `❌ Nenhum cartão adicionado. `;
-        if (loteriaAdmin === 'mega') msg += `MEGA: 6 a 20 números (1-60).`;
-        else if (loteriaAdmin === 'lotofacil') msg += `LOTOFÁCIL: 15 a 20 números (1-25).`;
-        else msg += `QUINA: 5 a 15 números (1-80).`;
-        showToast(msg, 'error');
-    }
-}
-
-function limparFormulario() { 
-    document.getElementById('numerosCartoes').value = ''; 
-    showToast('🧹 Formulário limpo', 'info'); 
-}
-
-function recarregarLista() { 
-    carregarDadosAdmin(); 
-    showToast('🔄 Dados recarregados', 'info'); 
-}
-
 // ============================================
 // EDIÇÃO CARTÃO
 // ============================================
@@ -1624,24 +1522,23 @@ async function editarCartao(id) {
 async function duplicarCartao(id) {
     const doc = await db.collection('cartoes').doc(id).get();
     const original = doc.data();
-    const tipoParticipacao = document.getElementById('tipoCartao').value;
-    
+
     const novoConcurso = prompt('Novo Concurso:', original.concurso);
     if (!novoConcurso) return;
     const novoBolao = prompt('Novo Bolão:', original.bolao || 'Sem Bolão');
     if (!novoBolao) return;
-    
+
     if (!confirm(`Confirmar duplicação?\nConcurso: ${novoConcurso}\nBolão: ${novoBolao}\nNúmeros: ${original.numeros.join(', ')}`)) return;
-    
-    await db.collection('cartoes').add({ 
-        concurso: novoConcurso, 
-        bolao: novoBolao, 
-        numeros: original.numeros, 
-        tipo: loteriaAdmin, 
-        tipoParticipacao: tipoParticipacao,
+
+    await db.collection('cartoes').add({
+        concurso: novoConcurso,
+        bolao: novoBolao,
+        numeros: original.numeros,
+        tipo: original.tipo || loteriaAdmin,
+        tipoParticipacao: original.tipoParticipacao || 'exclusivo',
         admin: true,
-        dataCadastro: new Date().toISOString(), 
-        totalNumeros: original.numeros.length 
+        dataCadastro: new Date().toISOString(),
+        totalNumeros: original.numeros.length
     });
     showToast('✅ Cartão duplicado!', 'success');
     carregarDadosAdmin();
@@ -1739,53 +1636,6 @@ async function exportarCartoes() {
 // ============================================
 // IMPORTAR EXCEL
 // ============================================
-function importarExcel() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.txt,.csv';
-    input.onchange = async function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        const concurso = prompt('Concurso:'); if (!concurso) return;
-        const bolao = prompt('Bolão:'); if (!bolao) return;
-        
-        const reader = new FileReader();
-        reader.onload = async function(event) {
-            const linhas = event.target.result.split(/\r?\n/);
-            let adicionados = 0;
-            const minNumeros = loteriaAdmin === 'mega' ? 6 : (loteriaAdmin === 'lotofacil' ? 15 : 5);
-            
-            for (const linha of linhas) {
-                if (!linha.trim()) continue;
-                const numeros = linha.match(/\d+/g).map(Number);
-                if (numeros.length < minNumeros) continue;
-
-                const numerosUnicos = [...new Set(numeros)];
-                if (numerosUnicos.length !== numeros.length) continue;
-
-                const maxValor = loteriaAdmin === 'mega' ? 60 : (loteriaAdmin === 'lotofacil' ? 25 : 80);
-                if (numeros.some(n => n < 1 || n > maxValor)) continue;
-
-                numeros.sort((a,b) => a-b);
-                await db.collection('cartoes').add({ 
-                    concurso, 
-                    bolao, 
-                    numeros, 
-                    tipo: loteriaAdmin, 
-                    admin: true,
-                    dataCadastro: new Date().toISOString(), 
-                    totalNumeros: numeros.length 
-                });
-                adicionados++;
-            }
-            showToast(`📥 ${adicionados} cartões importados!`, 'success');
-            carregarDadosAdmin();
-        };
-        reader.readAsText(file);
-    };
-    input.click();
-}
-
 // ============================================
 // GERAR LINKS DOS PARTICIPANTES
 // ============================================
@@ -2390,85 +2240,6 @@ async function importarCSV() {
     } else {
         showToast('❌ Nenhum cartão foi importado', 'error');
     }
-}
-
-// ============================================
-// PARTICIPANTE RÁPIDO
-// ============================================
-async function carregarBoloesNoSelectRapido() {
-    const select = document.getElementById('rapidoBolaoSelect');
-    if (!select) return;
-    
-    try {
-        const snapshot = await db.collection('participantes').get();
-        const boloes = [];
-        snapshot.forEach(doc => {
-            boloes.push({ id: doc.id, ...doc.data() });
-        });
-        
-        select.innerHTML = '<option value="">Selecione um bolão</option>';
-        for (const bolao of boloes) {
-            const option = document.createElement('option');
-            option.value = bolao.id;
-            option.textContent = `${bolao.titulo} (${bolao.loteria || '?'})`;
-            select.appendChild(option);
-        }
-    } catch (error) {
-        console.error('Erro ao carregar bolões:', error);
-    }
-}
-
-async function adicionarParticipanteRapido() {
-    const nome = document.getElementById('rapidoNome').value.trim();
-    const bolaoId = document.getElementById('rapidoBolaoSelect').value;
-    const valorPago = parseInt(document.getElementById('rapidoValor').value);
-    const loteria = document.getElementById('rapidoLoteria').value;
-    
-    if (!nome) { showToast('⚠️ Digite o nome do participante', 'warning'); return; }
-    if (!bolaoId) { showToast('⚠️ Selecione um bolão', 'warning'); return; }
-    if (!valorPago || valorPago <= 0) { showToast('⚠️ Digite um valor válido', 'warning'); return; }
-    
-    const bolaoDoc = await db.collection('participantes').doc(bolaoId).get();
-    const bolaoTitulo = bolaoDoc.exists ? bolaoDoc.data().titulo : 'Bolão';
-    
-    await db.collection('participantes_pendentes').add({
-        nome: nome,
-        bolaoId: bolaoId,
-        bolaoTitulo: bolaoTitulo,
-        valorPago: valorPago,
-        loteria: loteria,
-        data: new Date().toISOString(),
-        sincronizado: false,
-        status: 'pendente_validacao',
-        admin: true
-    });
-    
-    showToast(`✅ ${nome} adicionado para sincronização!`, 'success');
-    
-    document.getElementById('rapidoNome').value = '';
-    document.getElementById('rapidoValor').value = '';
-}
-
-async function gerarListaWhatsApp() {
-    const bolaoId = document.getElementById('rapidoBolaoSelect').value;
-    if (!bolaoId) { showToast('⚠️ Selecione um bolão', 'warning'); return; }
-    
-    const bolaoDoc = await db.collection('participantes').doc(bolaoId).get();
-    if (!bolaoDoc.exists) { showToast('❌ Bolão não encontrado', 'error'); return; }
-    
-    const bolao = bolaoDoc.data();
-    const participantes = bolao.participantes || [];
-    const confirmados = participantes.filter(p => p.situacao === 'quitado' || p.situacao === 'pago');
-    const confirmadosLista = confirmados.map(p => `✅ ${p.nome} - R$ ${p.valorPago},00`).join('\n');
-    
-    const mensagem = `*${bolao.titulo}*\n\n` +
-        `💰 *Valor da Cota:* R$ ${bolao.valorPorCota || 0},00\n` +
-        `💳 *PIX:* 61998507770\n\n` +
-        `*✅ CONFIRMADOS:*\n${confirmadosLista || 'Nenhum participante confirmado ainda'}\n\n` +
-        `🔹 *Não precisa enviar comprovante, confirmação feita no extrato.*`;
-    
-    window.open(`https://wa.me/?text=${encodeURIComponent(mensagem)}`, '_blank');
-    showToast('📱 Abrindo WhatsApp...', 'info');
 }
 
 // ============================================
@@ -3387,14 +3158,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnEntrarSenha = document.getElementById('btnEntrarSenha');
     const senhaAdminInput = document.getElementById('senhaAdmin');
     const btnSair = document.getElementById('btnSair');
-    const btnAdicionar = document.getElementById('btnAdicionar');
-    const btnLimpar = document.getElementById('btnLimpar');
-    const btnRecarregar = document.getElementById('btnRecarregar');
     const btnExcluirSelecionados = document.getElementById('btnExcluirSelecionados');
-    const btnImportarExcel = document.getElementById('btnImportarExcel');
     const btnSalvarPix = document.getElementById('btnSalvarPix');
-    const btnAdicionarRapido = document.getElementById('btnAdicionarRapido');
-    const btnGerarWhatsApp = document.getElementById('btnGerarWhatsApp');
     const btnSalvarSelecao = document.getElementById('btnSalvarSelecao');
     const btnExportar = document.getElementById('btnExportarExcel');
     const filtroConcurso = document.getElementById('filtroConcursoLista');
@@ -3418,14 +3183,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (adminBtnMega) adminBtnMega.onclick = () => setLoteriaAdmin('mega');
     if (adminBtnLotofacil) adminBtnLotofacil.onclick = () => setLoteriaAdmin('lotofacil');
     if (adminBtnQuina) adminBtnQuina.onclick = () => setLoteriaAdmin('quina');
-    if (btnAdicionar) btnAdicionar.onclick = adicionarCartoes;
-    if (btnLimpar) btnLimpar.onclick = limparFormulario;
-    if (btnRecarregar) btnRecarregar.onclick = recarregarLista;
     if (btnExcluirSelecionados) btnExcluirSelecionados.onclick = excluirSelecionados;
-    if (btnImportarExcel) btnImportarExcel.onclick = importarExcel;
     if (btnSalvarPix) btnSalvarPix.onclick = salvarPixConfig;
-    if (btnAdicionarRapido) btnAdicionarRapido.onclick = adicionarParticipanteRapido;
-    if (btnGerarWhatsApp) btnGerarWhatsApp.onclick = gerarListaWhatsApp;
     if (btnSalvarSelecao) btnSalvarSelecao.addEventListener('click', salvarConfigBoloes);
     if (btnExportar) btnExportar.onclick = exportarCartoes;
     if (filtroConcurso) filtroConcurso.onchange = exibirCartoesAdmin;
@@ -3458,7 +3217,6 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
         console.log('🔄 Carregando dados das abas...');
         carregarBoloesParaGerenciar();
-        carregarBoloesNoSelectRapido();
         carregarBoloesSelectParticipantes();
         carregarTokens();
         carregarReservas();
