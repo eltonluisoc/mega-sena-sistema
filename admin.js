@@ -2755,28 +2755,16 @@ async function buscarResultadosFirestore() {
 }
 
 function calcularEstatisticas(cartoes, resultados) {
-    // 1. Maiores acertos por loteria (usando o concurso de cada cartão)
-    const maiores = {
-        mega: { acertos: 0, cartao: null, bolao: '', numeros: [] },
-        lotofacil: { acertos: 0, cartao: null, bolao: '', numeros: [] },
-        quina: { acertos: 0, cartao: null, bolao: '', numeros: [] }
-    };
-    
-    // 2. Estatísticas por BOLÃO + LOTERIA (combinação única)
+    // 1. Estatísticas por BOLÃO + LOTERIA + CONCURSO (combinação única)
     const boloesPorLoteria = {};
 
-    // 3. Totais gerais
-    let totalQuadras = 0;
-    let totalTernos = 0;
-    let totalDuques = 0;
-
-    // 4. Melhor resultado por CONCURSO (para o ranking top-3 por loteria)
+    // 2. Melhor resultado por CONCURSO (para o ranking top-3 por loteria)
     const porConcursoPorLoteria = { mega: {}, lotofacil: {}, quina: {} };
 
     for (const cartao of cartoes) {
         const tipo = cartao.tipo || 'mega';
         const concurso = cartao.concurso ? parseInt(cartao.concurso) : null;
-        
+
         // Buscar o resultado específico para este concurso
         let dezenasSorteadas = [];
         if (concurso && resultados[tipo] && resultados[tipo][concurso]) {
@@ -2785,23 +2773,7 @@ function calcularEstatisticas(cartoes, resultados) {
 
         const acertos = dezenasSorteadas.length > 0 ?
             cartao.numeros.filter(n => dezenasSorteadas.includes(n)).length : 0;
-        
-        // Contabilizar acertos
-        if (acertos >= 4) totalQuadras++;
-        if (acertos >= 3) totalTernos++;
-        if (acertos >= 2) totalDuques++;
-        
-        // Maiores acertos (por loteria)
-        if (acertos > maiores[tipo].acertos) {
-            maiores[tipo] = { 
-                acertos, 
-                cartao: cartao.numeros, 
-                bolao: cartao.bolao || 'Sem Bolão',
-                numeros: cartao.numeros,
-                concurso: concurso
-            };
-        }
-        
+
         // Agrupar por BOLÃO + LOTERIA + CONCURSO: cada concurso cadastrado é
         // um bolão à parte, mesmo que reaproveite o mesmo nome de outro
         // concurso (ex.: "Lotofácil 24 Concursos" cadastrado em lote gera
@@ -2851,7 +2823,10 @@ function calcularEstatisticas(cartoes, resultados) {
         top3PorLoteria[tipo] = Object.keys(porConcursoPorLoteria[tipo])
             .map(concurso => ({ concurso, ...porConcursoPorLoteria[tipo][concurso] }))
             .filter(item => item.maxAcertos > 0)
-            .sort((a, b) => b.maxAcertos - a.maxAcertos || Number(a.concurso) - Number(b.concurso))
+            // desempate por quantidade de cartões que bateram o nível, não só
+            // pelo número do concurso: 2 ternos no mesmo concurso é mais
+            // notável que 1 terno em outro
+            .sort((a, b) => b.maxAcertos - a.maxAcertos || b.quantidade - a.quantidade || Number(a.concurso) - Number(b.concurso))
             .slice(0, 3);
     }
 
@@ -2884,17 +2859,11 @@ function calcularEstatisticas(cartoes, resultados) {
     }
 
     return {
-        maiores,
         top3PorLoteria,
         maiorBolao,
         bilhetesPorLoteria,
         totalCartoes: cartoes.length,
-        totalBoloes: totalBoloesDistintos,
-        totais: {
-            quadras: totalQuadras,
-            ternos: totalTernos,
-            duques: totalDuques
-        }
+        totalBoloes: totalBoloesDistintos
     };
 }
 
@@ -2953,40 +2922,6 @@ function atualizarDashboardEstatisticas(stats) {
         }).join('<br>');
     }
 
-    // ============================================
-    // 2. MAIORES ACERTOS (GERAL)
-    // ============================================
-    let maxAcertos = 0;
-    let melhorTipo = '';
-    let melhorBolaoNome = '';
-    let melhorConcurso = null;
-    let melhoresNumeros = [];
-    for (const [tipo, dados] of Object.entries(stats.maiores)) {
-        if (dados.acertos > maxAcertos) {
-            maxAcertos = dados.acertos;
-            melhorTipo = tipo;
-            melhorBolaoNome = dados.bolao;
-            melhorConcurso = dados.concurso || null;
-            melhoresNumeros = dados.numeros || [];
-        }
-    }
-
-    const elMaiores = document.getElementById('dashboardMaioresAcertos');
-    const elMaioresDet = document.getElementById('dashboardMaioresAcertosDetalhes');
-    if (elMaiores) {
-        elMaiores.textContent = maxAcertos > 0 ? `${maxAcertos} 🎯` : '0';
-    }
-    if (elMaioresDet) {
-        if (maxAcertos > 0) {
-            const tipoNome = melhorTipo === 'mega' ? 'MEGA' : melhorTipo === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA';
-            const concursoTexto = melhorConcurso ? ` - concurso ${melhorConcurso}` : '';
-            elMaioresDet.textContent = `${melhorBolaoNome} (${tipoNome})${concursoTexto} - ${maxAcertos} acertos`;
-            elMaioresDet.style.color = '#059669';
-        } else {
-            elMaioresDet.textContent = 'Nenhum acerto registrado';
-            elMaioresDet.style.color = '#9ca3af';
-        }
-    }
 
     // ============================================
     // 3. BILHETES JOGADOS (equivalente em apostas simples)
@@ -3062,8 +2997,6 @@ function atualizarDashboardEstatisticasVazio() {
         'dashboardMelhorMegaDetalhes': 'Nenhum resultado conferido ainda',
         'dashboardMelhorLotofacilDetalhes': 'Nenhum resultado conferido ainda',
         'dashboardMelhorQuinaDetalhes': 'Nenhum resultado conferido ainda',
-        'dashboardMaioresAcertos': '0',
-        'dashboardMaioresAcertosDetalhes': 'Nenhum',
         'dashboardMaiorBolao': 'Nenhum',
         'dashboardMaiorBolaoDetalhes': 'Nenhum',
         'dashboardBilhetes': '0',
