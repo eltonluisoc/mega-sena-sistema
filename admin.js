@@ -3259,19 +3259,22 @@ function calcularEstatisticas(cartoes, resultados) {
         if (acertos >= 2) boloesPorLoteria[chave].duques++;
     }
     
-    // 4. Encontrar o MELHOR de cada loteria (por média de acertos)
+    // 4. Encontrar o MELHOR de cada loteria (pelo maior acerto único do
+    // bolão, não pela média — média penaliza bolões com muitos cartões e
+    // pode esconder um bolão que teve quadra/quina atrás de um bolão
+    // pequeno com sorte melhor "na média")
     const melhoresPorLoteria = {
         mega: null,
         lotofacil: null,
         quina: null
     };
-    
+
     for (const chave in boloesPorLoteria) {
         const dados = boloesPorLoteria[chave];
         const media = dados.totalCartoes > 0 ? dados.totalAcertos / dados.totalCartoes : 0;
         const loteria = dados.loteria;
-        
-        if (!melhoresPorLoteria[loteria] || media > melhoresPorLoteria[loteria].media) {
+
+        if (!melhoresPorLoteria[loteria] || dados.maxAcertos > melhoresPorLoteria[loteria].maxAcertos) {
             melhoresPorLoteria[loteria] = {
                 nome: dados.nome,
                 media: media,
