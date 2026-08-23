@@ -258,7 +258,7 @@
             font-size: 13px;
         }
 
-        .form-control, select, input, textarea {
+        .form-control, select, input:not([type="checkbox"]):not([type="radio"]), textarea {
             width: 100%;
             padding: 10px 14px;
             border: 2px solid #e2e8f0;
@@ -270,6 +270,15 @@
             min-height: 48px;
             -webkit-appearance: none;
             appearance: none;
+        }
+
+        /* Checkboxes/radios ficam de fora da regra acima de propósito:
+           appearance:none tira a marca de "selecionado" nativa do
+           navegador e nada aqui a substituía, deixando os checkboxes
+           (cartões, bolões, modo seleção etc.) sem feedback visual. */
+        input[type="checkbox"], input[type="radio"] {
+            accent-color: #3b82f6;
+            cursor: pointer;
         }
 
         .form-control:focus, select:focus, input:focus, textarea:focus {

@@ -602,13 +602,8 @@ function exibirCartoesAdmin() {
         });
     });
     
-    function atualizarContador() {
-        const qtd = document.querySelectorAll('.checkbox-cartao:checked').length;
-        const btnExcluir = document.getElementById('btnExcluirSelecionados');
-        if (btnExcluir) btnExcluir.innerHTML = qtd > 0 ? `🗑️ EXCLUIR (${qtd})` : '🗑️ EXCLUIR';
-    }
-    document.querySelectorAll('.checkbox-cartao').forEach(cb => cb.onchange = atualizarContador);
-    atualizarContador();
+    document.querySelectorAll('.checkbox-cartao').forEach(cb => cb.onchange = atualizarContadorSelecionados);
+    atualizarContadorSelecionados();
     
     const totalDiv = document.getElementById('totalCartoes');
     if (totalDiv) totalDiv.innerHTML = cartoesFiltrados.length + ' cartões';
@@ -1566,6 +1561,87 @@ function atualizarContadorSelecionados() {
     if (btnExcluir) {
         btnExcluir.innerHTML = qtd > 0 ? `🗑️ EXCLUIR (${qtd})` : '🗑️ EXCLUIR';
         btnExcluir.style.background = qtd > 0 ? '#ef4444' : '#64748b';
+    }
+    const btnAlterar = document.getElementById('btnAlterarTipo');
+    if (btnAlterar) {
+        btnAlterar.innerHTML = qtd > 0 ? `🔄 ALTERAR TIPO (${qtd})` : '🔄 ALTERAR TIPO';
+    }
+}
+
+// ============================================
+// ALTERAR TIPO DE PARTICIPAÇÃO EM LOTE
+// ============================================
+function abrirModalAlterarTipo() {
+    const selecionados = document.querySelectorAll('.checkbox-cartao:checked');
+    if (selecionados.length === 0) {
+        showToast('⚠️ Selecione pelo menos um cartão para alterar', 'warning');
+        return;
+    }
+
+    let modal = document.getElementById('modalAlterarTipo');
+    if (modal) modal.remove();
+
+    modal = document.createElement('div');
+    modal.id = 'modalAlterarTipo';
+    modal.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.8); z-index: 10001;
+        display: flex; justify-content: center; align-items: center;
+        padding: 20px;
+    `;
+
+    modal.innerHTML = `
+        <div style="background: white; border-radius: 20px; max-width: 380px; width: 100%; padding: 25px; text-align: center;">
+            <div style="font-size: 32px; margin-bottom: 8px;">🔄</div>
+            <div style="font-weight: bold; font-size: 18px; margin-bottom: 4px;">ALTERAR TIPO</div>
+            <div style="font-size: 13px; color: #64748b; margin-bottom: 20px;">${selecionados.length} cartão(ões) selecionado(s) — escolha o novo tipo:</div>
+            <button id="btnTipoExclusivo" style="width:100%; padding: 14px; background: #3b82f6; color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 15px; cursor: pointer; margin-bottom: 10px;">👥 GRUPO EXCLUSIVO</button>
+            <button id="btnTipoCota" style="width:100%; padding: 14px; background: #8b5cf6; color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 15px; cursor: pointer; margin-bottom: 10px;">🎟️ COTA DE BOLÃO</button>
+            <button id="btnCancelarAlterarTipo" style="width:100%; padding: 10px; background: transparent; color: #64748b; border: none; font-size: 13px; cursor: pointer;">Cancelar</button>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    document.getElementById('btnTipoExclusivo').onclick = () => aplicarAlteracaoTipo('exclusivo');
+    document.getElementById('btnTipoCota').onclick = () => aplicarAlteracaoTipo('cota');
+    document.getElementById('btnCancelarAlterarTipo').onclick = () => modal.remove();
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+}
+
+async function aplicarAlteracaoTipo(novoTipo) {
+    const modal = document.getElementById('modalAlterarTipo');
+    if (modal) modal.remove();
+
+    const selecionados = document.querySelectorAll('.checkbox-cartao:checked');
+    if (selecionados.length === 0) return;
+
+    showLoading(`Alterando ${selecionados.length} cartão(ões)...`);
+
+    let atualizados = 0;
+    let erros = 0;
+    for (const cb of selecionados) {
+        const id = cb.dataset.id;
+        try {
+            await db.collection('cartoes').doc(id).update({
+                tipoParticipacao: novoTipo,
+                admin: true,
+                dataAtualizacao: new Date().toISOString()
+            });
+            atualizados++;
+        } catch (error) {
+            erros++;
+        }
+    }
+
+    hideLoading();
+
+    if (atualizados > 0) {
+        const label = novoTipo === 'cota' ? 'Cota de Bolão' : 'Grupo Exclusivo';
+        showToast(`✅ ${atualizados} cartão(ões) alterado(s) para ${label}!${erros > 0 ? ` ⚠️ ${erros} erro(s)` : ''}`, 'success');
+        await carregarDadosAdmin();
+    } else {
+        showToast('❌ Nenhum cartão foi alterado', 'error');
     }
 }
 
@@ -3013,6 +3089,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const senhaAdminInput = document.getElementById('senhaAdmin');
     const btnSair = document.getElementById('btnSair');
     const btnExcluirSelecionados = document.getElementById('btnExcluirSelecionados');
+    const btnAlterarTipo = document.getElementById('btnAlterarTipo');
     const btnSalvarPix = document.getElementById('btnSalvarPix');
     const btnSalvarSelecao = document.getElementById('btnSalvarSelecao');
     const btnExportar = document.getElementById('btnExportarExcel');
@@ -3037,6 +3114,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (adminBtnLotofacil) adminBtnLotofacil.onclick = () => setLoteriaAdmin('lotofacil');
     if (adminBtnQuina) adminBtnQuina.onclick = () => setLoteriaAdmin('quina');
     if (btnExcluirSelecionados) btnExcluirSelecionados.onclick = excluirSelecionados;
+    if (btnAlterarTipo) btnAlterarTipo.onclick = abrirModalAlterarTipo;
     if (btnSalvarPix) btnSalvarPix.onclick = salvarPixConfig;
     if (btnSalvarSelecao) btnSalvarSelecao.addEventListener('click', salvarConfigBoloes);
     if (btnExportar) btnExportar.onclick = exportarCartoes;
