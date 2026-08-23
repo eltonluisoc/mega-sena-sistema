@@ -2817,6 +2817,12 @@ function calcularEstatisticas(cartoes, resultados) {
         }
     }
 
+    // DIAGNÓSTICO TEMPORÁRIO — remover depois de confirmar a causa do bug
+    console.log('🔍 DIAGNÓSTICO — resultados.mega[3046]:', resultados.mega?.[3046], '| [3047]:', resultados.mega?.[3047]);
+    console.log('🔍 DIAGNÓSTICO — porConcursoPorLoteria.mega[3046]:', porConcursoPorLoteria.mega?.[3046], '| [3047]:', porConcursoPorLoteria.mega?.[3047]);
+    console.log('🔍 DIAGNÓSTICO — todos os concursos mega com resultado:', Object.keys(resultados.mega || {}));
+    console.log('🔍 DIAGNÓSTICO — todos os concursos mega em porConcursoPorLoteria:', porConcursoPorLoteria.mega);
+
     // Top 3 concursos por loteria (só concursos com resultado conferido)
     const top3PorLoteria = { mega: [], lotofacil: [], quina: [] };
     for (const tipo of ['mega', 'lotofacil', 'quina']) {
