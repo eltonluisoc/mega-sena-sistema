@@ -81,41 +81,39 @@ async function consultarBoloes() {
     btn.innerHTML = '🔄 Buscando...';
     
     try {
+        // Buscar o status real dos bolões (aberto/andamento/encerrado) uma
+        // única vez, ANTES de varrer os participantes. Antes essa busca
+        // era assíncrona e disparada dentro do loop (uma leitura por
+        // participante encontrado!), e o bolão já era adicionado à lista
+        // com o valor padrão "andamento" antes da resposta chegar — o
+        // status real nunca aparecia.
+        let statusMap = {};
+        try {
+            const configDoc = await db.collection('config_boloes').doc('ativos').get();
+            if (configDoc.exists) {
+                statusMap = configDoc.data().status || {};
+            }
+        } catch (e) {
+            console.warn('Erro ao buscar status dos bolões:', e);
+        }
+
         // Buscar todos os bolões
         const snapshot = await db.collection('participantes').get();
         const boloesEncontrados = [];
-        
+
         snapshot.forEach(doc => {
             const bolao = doc.data();
             const participantes = bolao.participantes || [];
-            
+
             // Verificar se o telefone existe neste bolão
             const participante = participantes.find(p => {
                 const telParticipante = normalizarTelefone(p.telefone || '');
                 return telParticipante === telefone;
             });
-            
+
             if (participante) {
-                // Buscar status do bolão
-                let status = bolao.status || 'andamento';
-                
-                // Se não tiver status no bolão, buscar do config_boloes
-                if (!status || status === 'andamento') {
-                    try {
-                        const configDoc = db.collection('config_boloes').doc('ativos');
-                        configDoc.get().then(docConfig => {
-                            if (docConfig.exists) {
-                                const statusMap = docConfig.data().status || {};
-                                if (statusMap[doc.id]) {
-                                    status = statusMap[doc.id];
-                                }
-                            }
-                        }).catch(() => {});
-                    } catch (e) {
-                        console.warn('Erro ao buscar status:', e);
-                    }
-                }
-                
+                const status = statusMap[doc.id] || bolao.status || 'andamento';
+
                 boloesEncontrados.push({
                     id: doc.id,
                     titulo: bolao.titulo || 'Bolão sem título',

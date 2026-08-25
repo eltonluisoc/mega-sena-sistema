@@ -975,7 +975,18 @@ async function conferirResultados() {
     novosCartoes.push(...cartoesConcurso);
     cartoes.length = 0;
     cartoes.push(...novosCartoes);
-    
+
+    // Estatísticas (potencial do bolão, sena/quina/quadra/terno/duque) devem
+    // respeitar o bolão selecionado no filtro, assim como exibirResultadoSalvo
+    // já faz — antes usavam cartoesConcurso (todos os bolões do concurso
+    // misturados), dando números diferentes conforme o concurso já tivesse
+    // sido conferido antes ou não.
+    const bolaoSelectEl = document.getElementById('bolaoSelect');
+    const bolaoFiltroConferir = bolaoSelectEl ? bolaoSelectEl.value : 'todos';
+    const cartoesParaEstatisticas = bolaoFiltroConferir !== 'todos'
+        ? cartoesConcurso.filter(c => c.bolao === bolaoFiltroConferir)
+        : cartoesConcurso;
+
     // BUSCAR RESULTADO
     let numerosSorteados = null;
     let dataSorteio = null;
@@ -1025,7 +1036,7 @@ async function conferirResultados() {
     // ============================================================
     // CALCULAR ESTATÍSTICAS
     // ============================================================
-    const cartoesComAcertos = cartoesConcurso.map(cartao => {
+    const cartoesComAcertos = cartoesParaEstatisticas.map(cartao => {
         const acertos = cartao.numeros.filter(n => numerosSorteados.includes(n)).length;
         return { ...cartao, acertos };
     }).sort((a, b) => b.acertos - a.acertos);
@@ -1067,7 +1078,7 @@ async function conferirResultados() {
     // ============================================================
     // MONTAR RESUMO (POTENCIAL DO BOLÃO + ESTATÍSTICAS, SEM CARTÕES)
     // ============================================================
-    let html = calcularChancesBolao(cartoesConcurso, loteriaAtual);
+    let html = calcularChancesBolao(cartoesParaEstatisticas, loteriaAtual);
 
     html += `<div class="resultado-resumo">`;
     if (loteriaAtual === 'mega') {
