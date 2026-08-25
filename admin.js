@@ -1993,6 +1993,78 @@ function limparLote() {
 }
 
 // ============================================
+// DITAR NÚMEROS POR VOZ (Web Speech API)
+// ============================================
+function inicializarReconhecimentoVoz(inputId, btnId) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+
+    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI) {
+        // Navegador sem suporte (ex.: Firefox) — esconde o botão em vez de
+        // deixar um microfone que não funciona
+        btn.style.display = 'none';
+        return;
+    }
+
+    const input = document.getElementById(inputId);
+    if (!input) return;
+
+    const recognition = new SpeechRecognitionAPI();
+    recognition.lang = 'pt-BR';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    let escutando = false;
+
+    recognition.onstart = () => {
+        escutando = true;
+        btn.textContent = '🔴';
+        btn.style.background = '#ef4444';
+        btn.style.color = 'white';
+    };
+
+    recognition.onend = () => {
+        escutando = false;
+        btn.textContent = '🎤';
+        btn.style.background = '';
+        btn.style.color = '';
+    };
+
+    recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        const numeros = transcript.match(/\d+/g) || [];
+        if (numeros.length === 0) {
+            showToast('⚠️ Não entendi nenhum número. Fale um número por vez, ex: "vinte e três, quinze, oito"', 'warning');
+            return;
+        }
+        const numerosFormatados = numeros.map(n => n.padStart(2, '0')).join(' ');
+        const atual = input.value.trim();
+        input.value = atual ? `${atual} ${numerosFormatados}` : numerosFormatados;
+        showToast(`🎤 ${numeros.length} número(s) reconhecido(s)!`, 'success');
+    };
+
+    recognition.onerror = (event) => {
+        console.error('Erro no reconhecimento de voz:', event.error);
+        if (event.error === 'not-allowed' || event.error === 'permission-denied') {
+            showToast('❌ Permissão de microfone negada. Autorize o microfone nas configurações do navegador.', 'error');
+        } else if (event.error === 'no-speech') {
+            showToast('⚠️ Nenhuma fala detectada.', 'warning');
+        } else {
+            showToast('❌ Erro no reconhecimento de voz.', 'error');
+        }
+    };
+
+    btn.addEventListener('click', () => {
+        if (escutando) {
+            recognition.stop();
+        } else {
+            recognition.start();
+        }
+    });
+}
+
+// ============================================
 // CADASTRO INDIVIDUAL
 // ============================================
 async function adicionarCartaoIndividual() {
@@ -3188,6 +3260,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     inicializarGradeSelecaoIndividual();
     atualizarTotalCartoesSelecao();
+    inicializarReconhecimentoVoz('numerosIndividual', 'btnVozNumerosIndividual');
 
     // Carregar estatísticas avançadas
 setTimeout(() => {
