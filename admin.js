@@ -146,36 +146,15 @@ function sair() {
 // FUNÇÕES DO DASHBOARD MELHORADAS
 // ============================================
 function atualizarDashboardAdmin() {
-    // Total de cartões
-    const totalCartoes = cartoes.length;
-    const totalPorLoteria = {
-        mega: cartoes.filter(c => c.tipo === 'mega').length,
-        lotofacil: cartoes.filter(c => c.tipo === 'lotofacil').length,
-        quina: cartoes.filter(c => c.tipo === 'quina').length
-    };
-    
-    // Total de bolões
-    const totalBoloes = boloes.length;
-    
-    // Atualizar elementos do dashboard (com verificação de existência)
-    const elementos = {
-        'dashboardTotalCartoes': totalCartoes,
-        'dashboardMega': totalPorLoteria.mega,
-        'dashboardLotofacil': totalPorLoteria.lotofacil,
-        'dashboardQuina': totalPorLoteria.quina,
-        'dashboardTotalBoloes': totalBoloes
-    };
-    
-    for (const [id, valor] of Object.entries(elementos)) {
-        const el = document.getElementById(id);
-        if (el) {
-            el.textContent = valor;
-            console.log(`✅ Atualizado ${id}: ${valor}`);
-        } else {
-            console.warn(`⚠️ Elemento ${id} não encontrado`);
-        }
-    }
-    
+    // Total de cartões, cartões por loteria, total de bolões e as demais
+    // estatísticas avançadas são calculados e exibidos por
+    // atualizarDashboardEstatisticas() (via carregarEstatisticasDashboard),
+    // que é a versão correta e completa. Essa função cuidava disso também,
+    // com uma conta de "total de bolões" desatualizada (boloes.length em
+    // vez de contar por concurso) — e como ela roda toda vez que os dados
+    // são recarregados, sobrescrevia o número certo pelo errado. Agora só
+    // cuida do que mais ninguém calcula: status dos bolões e timestamp.
+
     // Bolões ativos por status
     db.collection('config_boloes').doc('ativos').get().then(configDoc => {
         if (configDoc.exists) {
@@ -2966,24 +2945,19 @@ function atualizarDashboardEstatisticas(stats) {
     const totalBoloesEl = document.getElementById('dashboardTotalBoloes');
     if (totalBoloesEl) totalBoloesEl.textContent = stats.totalBoloes;
 
-    // Atualizar também os cards de loteria
-    const megaEl = document.getElementById('dashboardMega');
-    const lotoEl = document.getElementById('dashboardLotofacil');
-    const quinaEl = document.getElementById('dashboardQuina');
-    
-    if (megaEl) {
-        const megaCount = cartoes.filter(c => c.tipo === 'mega').length;
-        megaEl.textContent = megaCount;
+    // Cartões por loteria (um card só, com o total geral em destaque e o
+    // detalhamento por loteria na linha de baixo)
+    const megaCount = cartoes.filter(c => c.tipo === 'mega').length;
+    const lotoCount = cartoes.filter(c => c.tipo === 'lotofacil').length;
+    const quinaCount = cartoes.filter(c => c.tipo === 'quina').length;
+
+    const cartoesLoteriaEl = document.getElementById('dashboardCartoesLoteria');
+    const cartoesLoteriaDetEl = document.getElementById('dashboardCartoesLoteriaDetalhes');
+    if (cartoesLoteriaEl) cartoesLoteriaEl.textContent = (megaCount + lotoCount + quinaCount).toLocaleString('pt-BR');
+    if (cartoesLoteriaDetEl) {
+        cartoesLoteriaDetEl.textContent = `Mega: ${megaCount} · Lotofácil: ${lotoCount} · Quina: ${quinaCount}`;
     }
-    if (lotoEl) {
-        const lotoCount = cartoes.filter(c => c.tipo === 'lotofacil').length;
-        lotoEl.textContent = lotoCount;
-    }
-    if (quinaEl) {
-        const quinaCount = cartoes.filter(c => c.tipo === 'quina').length;
-        quinaEl.textContent = quinaCount;
-    }
-    
+
     // ============================================
     // 5. ATUALIZAR TIMESTAMP
     // ============================================
@@ -3004,6 +2978,8 @@ function atualizarDashboardEstatisticasVazio() {
         'dashboardMaiorBolaoDetalhes': 'Nenhum',
         'dashboardBilhetes': '0',
         'dashboardBilhetesDetalhes': 'Mega: 0 · Lotofácil: 0 · Quina: 0',
+        'dashboardCartoesLoteria': '0',
+        'dashboardCartoesLoteriaDetalhes': 'Mega: 0 · Lotofácil: 0 · Quina: 0',
         'dashboardTotalCartoes': '0',
         'dashboardTotalBoloes': '0'
     };
