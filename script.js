@@ -10,6 +10,7 @@ let cacheResultadosBuscados = {};
 let dadosCarregados = false;
 let resultadoSalvo = null;
 let loadingActive = false;
+let deferredInstallPrompt = null;
 
 // ========== FUNÇÕES DE LOADING ÚNICO ==========
 function showLoading(mensagem = 'Carregando...') {
@@ -68,46 +69,149 @@ function showToast(message, type = 'info') {
     }, 3000);
 }
 
-function mostrarPopupInstalar() {
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+// ============================================
+// INSTALAÇÃO DO PWA
+// ============================================
+function appJaInstalado() {
+    return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+
+function ehIOS() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+}
+
+// Botão "SALVAR COMO APP" do rodapé: dispara a instalação nativa de
+// verdade quando o navegador oferece (Chrome/Edge/Android), com as
+// instruções manuais como alternativa só quando não há como automatizar.
+async function mostrarPopupInstalar() {
+    if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        await deferredInstallPrompt.userChoice;
+        deferredInstallPrompt = null;
+        return;
+    }
+
     const isAndroid = /Android/.test(navigator.userAgent);
-    let titulo = '📱 SALVAR COMO APP';
     let mensagem = '';
-    
-    if (isIOS) {
+
+    if (ehIOS()) {
         mensagem = '📲 No iPhone/iPad:\n\n1. Toque no botão "Compartilhar" 📤\n2. Role a tela para baixo\n3. Toque em "Adicionar à Tela de Início"\n4. Confirme o nome\n\nO app aparecerá na tela inicial!';
     } else if (isAndroid) {
         mensagem = '📲 No Android (Chrome):\n\n1. Toque nos 3 pontinhos ⋮ no canto superior direito\n2. Toque em "Instalar aplicativo"\n3. Confirme a instalação\n\nO app aparecerá na tela inicial!';
     } else {
         mensagem = '💻 No computador, acesso normal.\nNo celular siga as instruções acima.';
     }
-    
+
     let modal = document.getElementById('modalInstalar');
     if (modal) modal.remove();
-    
+
     modal = document.createElement('div');
     modal.id = 'modalInstalar';
     modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; display: flex; justify-content: center; align-items: center;';
-    
+
     const modalContent = document.createElement('div');
     modalContent.style.cssText = 'background: white; border-radius: 20px; max-width: 350px; width: 90%; padding: 25px; text-align: center;';
     modalContent.innerHTML = `
         <div style="font-size: 48px;">📱</div>
-        <div style="font-size: 20px; font-weight: bold; margin: 10px 0;">${titulo}</div>
+        <div style="font-size: 20px; font-weight: bold; margin: 10px 0;">📱 SALVAR COMO APP</div>
         <div style="white-space: pre-line; text-align: left; font-size: 14px; margin: 15px 0;">${mensagem}</div>
         <button id="fecharModalInstalar" style="background: #3b82f6; color: white; border: none; padding: 12px; border-radius: 30px; width: 100%;">Fechar</button>
     `;
-    
+
     modal.appendChild(modalContent);
     document.body.appendChild(modal);
     document.getElementById('fecharModalInstalar').onclick = () => modal.remove();
     modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 }
 
-function adicionarBotaoInstalar() {
-    const btn = document.getElementById('btnInstalarApp');
-    if (btn) btn.onclick = mostrarPopupInstalar;
+// Banner proativo: aparece sozinho a partir da 2ª visita (em vez de
+// depender de alguém notar o botão discreto no rodapé), com o
+// comportamento certo pra cada aparelho.
+function criarBannerInstalacao(conteudoHtml) {
+    let banner = document.getElementById('installBanner');
+    if (banner) banner.remove();
+    banner = document.createElement('div');
+    banner.id = 'installBanner';
+    banner.style.cssText = `
+        position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 9998;
+        max-width: 500px; margin: 0 auto;
+        background: #1e293b; border-radius: 16px; padding: 14px;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+        display: flex; align-items: center; gap: 12px;
+        animation: slideUp 0.3s ease-out;
+    `;
+    banner.innerHTML = conteudoHtml;
+    document.body.appendChild(banner);
+    return banner;
 }
+
+function fecharBannerInstalacao(naoMostrarDeNovo) {
+    const banner = document.getElementById('installBanner');
+    if (banner) banner.remove();
+    if (naoMostrarDeNovo) {
+        localStorage.setItem('installPromptDispensado', 'true');
+    }
+}
+
+function mostrarBannerInstalacaoAndroid() {
+    criarBannerInstalacao(`
+        <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#3b82f6,#10b981);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🎲</div>
+        <div style="flex:1;min-width:0;">
+            <strong style="display:block;color:white;font-size:13px;">Instale o Bolões Aleatórios</strong>
+            <span style="color:#94a3b8;font-size:11px;">Acesso rápido, sem abrir o navegador</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
+            <button id="btnInstalarBanner" style="border:none;border-radius:20px;font-size:11px;font-weight:700;padding:6px 12px;cursor:pointer;background:#8b5cf6;color:white;">Instalar</button>
+            <button id="btnDepoisBanner" style="border:none;border-radius:20px;font-size:11px;font-weight:700;padding:6px 12px;cursor:pointer;background:transparent;color:#94a3b8;">Agora não</button>
+        </div>
+    `);
+
+    document.getElementById('btnInstalarBanner').onclick = async () => {
+        if (!deferredInstallPrompt) { fecharBannerInstalacao(true); return; }
+        deferredInstallPrompt.prompt();
+        await deferredInstallPrompt.userChoice;
+        deferredInstallPrompt = null;
+        fecharBannerInstalacao(true);
+    };
+    document.getElementById('btnDepoisBanner').onclick = () => fecharBannerInstalacao(false);
+}
+
+function mostrarBannerInstalacaoIOS() {
+    criarBannerInstalacao(`
+        <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#3b82f6,#10b981);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🎲</div>
+        <div style="flex:1;min-width:0;">
+            <strong style="display:block;color:white;font-size:13px;">Instale o Bolões Aleatórios</strong>
+            <span style="color:#94a3b8;font-size:11px;">Toque em <strong style="color:white;">⬆️ Compartilhar</strong> → "Adicionar à Tela de Início"</span>
+        </div>
+        <button id="btnFecharBannerIOS" style="border:none;border-radius:20px;font-size:11px;font-weight:700;padding:6px 12px;cursor:pointer;background:transparent;color:#94a3b8;flex-shrink:0;">✕</button>
+    `);
+    document.getElementById('btnFecharBannerIOS').onclick = () => fecharBannerInstalacao(true);
+}
+
+function tentarMostrarBannerInstalacaoProativo() {
+    if (appJaInstalado()) return;
+    if (localStorage.getItem('installPromptDispensado') === 'true') return;
+
+    const visitas = parseInt(localStorage.getItem('visitCount') || '0', 10);
+    if (visitas < 2) return;
+
+    if (ehIOS()) {
+        mostrarBannerInstalacaoIOS();
+    } else if (deferredInstallPrompt) {
+        mostrarBannerInstalacaoAndroid();
+    }
+}
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    tentarMostrarBannerInstalacaoProativo();
+});
+
+window.addEventListener('appinstalled', () => {
+    fecharBannerInstalacao(true);
+    deferredInstallPrompt = null;
+});
 
 async function carregarPixGeral() {
     try {
@@ -285,6 +389,43 @@ function ordenarCartoesPorAcertos(cartoesLista, numerosSorteados) {
     });
 }
 
+// ============================================
+// BANNER DE TROFÉU (melhor resultado do bolão selecionado)
+// ============================================
+function nomeNivelAcerto(loteria, acertos) {
+    if (loteria === 'lotofacil') return `${acertos} PONTOS`;
+    const nomes = { 6: 'SENA', 5: 'QUINA', 4: 'QUADRA' };
+    return nomes[acertos] || `${acertos} ACERTOS`;
+}
+
+// Só acende para resultados realmente notáveis (quadra+ na Mega/Quina,
+// 13+ pontos na Lotofácil) — duque/terno são comuns demais pra virar
+// comemoração, banalizaria o destaque.
+function gerarBannerTrofeu(melhorCartao, melhorAcertos, loteria) {
+    if (!melhorCartao || !melhorAcertos) return '';
+    const piso = loteria === 'lotofacil' ? 13 : 4;
+    if (melhorAcertos < piso) return '';
+
+    const nivel = nomeNivelAcerto(loteria, melhorAcertos);
+    const numerosHtml = melhorCartao.numeros
+        .map(n => `<span style="font-family:monospace;font-size:12px;font-weight:800;background:#2e7d32;color:white;border-radius:8px;padding:6px 8px;min-width:26px;text-align:center;display:inline-block;box-shadow:0 2px 4px rgba(0,0,0,0.15);">${n.toString().padStart(2, '0')}</span>`)
+        .join('');
+
+    return `
+        <div style="background: linear-gradient(135deg, #fef3c7 0%, #ffffff 55%); border: 2px solid #f59e0b; border-radius: 16px; padding: 14px; margin-bottom: 12px;">
+            <div style="font-size: 10px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #92400e; margin-bottom: 6px;">🎉 Melhor resultado do concurso</div>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                <div style="font-size: 30px; line-height: 1;">🏆</div>
+                <div>
+                    <strong style="display: block; font-size: 15px; color: #78350f;">${melhorCartao.bolao || 'Bolão'} bateu ${nivel}!</strong>
+                    <span style="font-size: 11px; color: #92400e;">${melhorAcertos} números certos neste cartão</span>
+                </div>
+            </div>
+            <div style="display: flex; gap: 5px; flex-wrap: wrap;">${numerosHtml}</div>
+        </div>
+    `;
+}
+
 function limparEstadoCompleto() {
     console.log('🧹 Limpando estado completo...');
     ultimoResultadoConcurso = null;
@@ -375,7 +516,11 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
             };
         }
         
-        let html = chancesHtml;
+        const melhorCartaoSalvo = cartoesOrdenados[0];
+        const melhorAcertosSalvo = melhorCartaoSalvo ? melhorCartaoSalvo.numeros.filter(n => numerosSorteados.includes(n)).length : 0;
+
+        let html = gerarBannerTrofeu(melhorCartaoSalvo, melhorAcertosSalvo, loteria);
+        html += chancesHtml;
         html += `<div class="resultado-resumo">`;
 
         if (loteria === 'mega') {
@@ -1076,9 +1221,11 @@ async function conferirResultados() {
     }
 
     // ============================================================
-    // MONTAR RESUMO (POTENCIAL DO BOLÃO + ESTATÍSTICAS, SEM CARTÕES)
+    // MONTAR RESUMO (TROFÉU + POTENCIAL DO BOLÃO + ESTATÍSTICAS, SEM CARTÕES)
     // ============================================================
-    let html = calcularChancesBolao(cartoesParaEstatisticas, loteriaAtual);
+    const melhorCartaoConferir = cartoesComAcertos[0];
+    let html = gerarBannerTrofeu(melhorCartaoConferir, melhorCartaoConferir ? melhorCartaoConferir.acertos : 0, loteriaAtual);
+    html += calcularChancesBolao(cartoesParaEstatisticas, loteriaAtual);
 
     html += `<div class="resultado-resumo">`;
     if (loteriaAtual === 'mega') {
@@ -1738,6 +1885,12 @@ async function buscarResultadoAutomatico() {
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('📄 Inicializando sistema (versão otimizada)...');
 
+    // Conta visitas pra decidir quando mostrar o banner de instalação
+    // proativo (a partir da 2ª). No iOS o banner não depende do evento
+    // beforeinstallprompt (que nunca dispara lá), então tenta aqui direto.
+    const visitasAtuais = parseInt(localStorage.getItem('visitCount') || '0', 10) + 1;
+    localStorage.setItem('visitCount', visitasAtuais.toString());
+    setTimeout(() => tentarMostrarBannerInstalacaoProativo(), 3000);
 
     await carregarConfiguracoes();
     await carregarDados();
