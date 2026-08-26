@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v3.2
+SISTEMA DE GESTÃO DE BOLÕES PRO v3.3
+Correções v3.3:
+ - MELHORADO: importar membro de bolão anterior já recalcula o valor
+   esperado (cotas x valor da cota), em vez de deixar "0,00" pra ajustar
+   na mão
+ - MELHORADO: confirmação de importação agora é um aviso na tela em vez
+   de um popup bloqueante
 Correções v3.2:
  - CORRIGIDO: fechar o app podia sumir com erros de sincronização sem avisar
    (agora exige fechamento manual quando algo falha)
@@ -767,7 +773,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v3.2")
+        self.root.title("Sistema de Gestão de Bolões PRO v3.3")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -785,7 +791,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v3.2",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v3.3",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -1103,9 +1109,10 @@ class BolaoApp:
         fr_imp, self._imp_busca_tree = make_tree(sec2, cols_imp, height=5)
         fr_imp.pack(fill="x", pady=(6,0))
 
-        tk.Label(sec2,
-                 text="Após importar, ajuste o valor de cotas/valor esperado no formulário acima se necessário.",
-                 bg=CORES["bg_section"], fg="#888", font=("Arial",8,"italic")).pack(anchor="w", pady=(4,0))
+        self._imp_status_lbl = tk.Label(sec2,
+            text="Após importar, ajuste o valor de cotas/valor esperado no formulário acima se necessário.",
+            bg=CORES["bg_section"], fg="#888", font=("Arial",8,"italic"))
+        self._imp_status_lbl.pack(anchor="w", pady=(4,0))
 
     def _cadastrar_e_pagar(self):
         """Cadastra participante e abre janela de pagamento imediatamente."""
@@ -1403,6 +1410,9 @@ class BolaoApp:
         if not termo:
             messagebox.showwarning("Atenção","Digite parte do nome para buscar!"); return
 
+        self._imp_status_lbl.configure(
+            text="Após importar, ajuste o valor de cotas/valor esperado no formulário acima se necessário.",
+            fg="#888")
         self._imp_busca_tree.delete(*self._imp_busca_tree.get_children())
 
         rows = self.db.fetchall("""
@@ -1449,18 +1459,20 @@ class BolaoApp:
         self._cv["tel"].insert(0,  pt["telefone"] or "")
         self._cv["pix"].insert(0,  pt["chave_pix"] or "")
         self._cv["cotas"].insert(0, "1")
-        self._cv["valor"].insert(0, "0,00")
         if pt["observacoes"]:
             self._cv["obs"].insert("1.0", pt["observacoes"])
+
+        # Calcula o valor esperado (1 cota x valor do bolão ativo) em vez
+        # de deixar "0,00" fixo — mesma lógica usada ao digitar cotas.
+        self._preencher_valor_cad()
 
         # Limpa a tabela de busca — apenas a da aba Cadastrar
         self._imp_busca_tree.delete(*self._imp_busca_tree.get_children())
         self._imp_entry_var.set("")
 
-        messagebox.showinfo("Dados Importados",
-            f"Dados de '{pt['nome']}' importados!\n\n"
-            f"Ajuste o número de cotas e valor esperado\n"
-            f"conforme necessário e clique em CADASTRAR.")
+        self._imp_status_lbl.configure(
+            text=f"✅ '{pt['nome']}' importado — confira cotas/valor acima e clique em CADASTRAR.",
+            fg="#1D9E75")
 
     # ════════════════════════════════════════════════════════════
     #  IMPORTAR EXTRATO — métodos funcionais
@@ -3597,7 +3609,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v3.2</span>
+        <span>Sistema de Gestão de Bolões v3.3</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -5892,7 +5904,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v3.2</span>
+        <span>Sistema de Gestão de Bolões v3.3</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
