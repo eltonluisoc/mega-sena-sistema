@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v3.3
+SISTEMA DE GESTÃO DE BOLÕES PRO v3.4
+Correções v3.4:
+ - MELHORADO: Enter no campo "Buscar membro" já dispara a busca
+ - MELHORADO: duplo-clique num resultado da busca já importa (sem precisar
+   clicar em "Importar Selecionado" depois)
+ - MELHORADO: popup de registrar pagamento aceita Enter pra confirmar
+   (os campos já vêm preenchidos com o padrão) e o aviso final virou
+   inline em vez de um popup bloqueante
 Correções v3.3:
  - MELHORADO: importar membro de bolão anterior já recalcula o valor
    esperado (cotas x valor da cota), em vez de deixar "0,00" pra ajustar
@@ -773,7 +780,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v3.3")
+        self.root.title("Sistema de Gestão de Bolões PRO v3.4")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -791,7 +798,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v3.3",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v3.4",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -1098,6 +1105,7 @@ class BolaoApp:
         self._imp_entry = tk.Entry(imp_row, textvariable=self._imp_entry_var,
                                    width=40, font=("Arial",9), relief="solid", bd=1)
         self._imp_entry.pack(side="left", padx=(0,8))
+        self._imp_entry.bind("<Return>", lambda e: self._imp_buscar())
 
         btn(imp_row, "🔍 Buscar", CORES["btn_azul"],
             self._imp_buscar, width=12).pack(side="left", padx=4)
@@ -1108,6 +1116,8 @@ class BolaoApp:
         cols_imp = {"Nome":220, "Telefone":140, "PIX":200, "Bolão de origem":200}
         fr_imp, self._imp_busca_tree = make_tree(sec2, cols_imp, height=5)
         fr_imp.pack(fill="x", pady=(6,0))
+        # Duplo-clique já importa, sem precisar clicar em "Importar Selecionado" depois
+        self._imp_busca_tree.bind("<Double-1>", lambda e: self._imp_importar())
 
         self._imp_status_lbl = tk.Label(sec2,
             text="Após importar, ajuste o valor de cotas/valor esperado no formulário acima se necessário.",
@@ -1377,6 +1387,11 @@ class BolaoApp:
                                width=6, state="readonly")
         cb_ano.set(str(date.today().year)); cb_ano.pack(side="left", padx=4)
 
+        # Status inline (some no lugar do popup final de confirmação)
+        lbl_status = tk.Label(win, text="", bg=CORES["bg_section"],
+                              fg="#1D9E75", font=("Arial",9,"bold"))
+        lbl_status.pack(pady=(0,2))
+
         # Botões
         bf = tk.Frame(win, bg=CORES["bg_section"]); bf.pack(pady=14)
 
@@ -1392,13 +1407,23 @@ class BolaoApp:
                  data_pagamento,depositado,observacoes)
                 VALUES (?,?,?,?,?,0,'Cadastro + pagamento simultâneo')
             """, (pid, self.bid.get(), mes_ref, val, dt))
-            messagebox.showinfo("✅ Registrado",
-                f"Pagamento de {fmt_brl(val)} registrado para {pt['nome']}!")
-            win.destroy()
             self._refresh_all()
+            # Aviso inline em vez de popup bloqueante — fecha sozinho logo em seguida
+            lbl_status.configure(text=f"✅ Pagamento de {fmt_brl(val)} registrado para {pt['nome']}!")
+            btn_registrar.configure(state="disabled")
+            btn_pular.configure(state="disabled")
+            win.after(900, win.destroy)
 
-        btn(bf, "💳 REGISTRAR PAGAMENTO", CORES["btn_verde"], registrar, width=24).pack(side="left", padx=6)
-        btn(bf, "✖ Pular", CORES["btn_cinza"], win.destroy, width=10).pack(side="left", padx=6)
+        btn_registrar = btn(bf, "💳 REGISTRAR PAGAMENTO", CORES["btn_verde"], registrar, width=24)
+        btn_registrar.pack(side="left", padx=6)
+        btn_pular = btn(bf, "✖ Pular", CORES["btn_cinza"], win.destroy, width=10)
+        btn_pular.pack(side="left", padx=6)
+
+        # Enter em qualquer campo já registra — os valores já vêm
+        # preenchidos com o padrão (valor da cota, data de hoje), então
+        # aceitar o padrão vira só apertar Enter.
+        e_val.bind("<Return>", lambda e: registrar())
+        e_dt.bind("<Return>", lambda e: registrar())
 
     def _cad_pag_registrar(self): pass  # mantido por compatibilidade
     def _cad_pag_fechar(self):    pass
@@ -3609,7 +3634,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v3.3</span>
+        <span>Sistema de Gestão de Bolões v3.4</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -5904,7 +5929,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v3.3</span>
+        <span>Sistema de Gestão de Bolões v3.4</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
