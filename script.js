@@ -1449,7 +1449,7 @@ async function carregarBolaoAtivo() {
                     </div>
                     <div class="bolao-body">
                         <div class="bolao-info">
-                            <div class="bolao-valor">💰 R$ ${bolao.data.valorPorCota || 0},00 <span style="font-size:12px;">/ cota</span></div>
+                            <div class="bolao-valor">💰 R$ ${(bolao.data.valorPorCota || 0).toFixed(2).replace('.', ',')} <span style="font-size:12px;">/ cota</span></div>
                             ${dataTexto}
                         </div>
                         
@@ -1697,7 +1697,7 @@ async function carregarBolaoAberto() {
                 <span style="display: inline-block; background: #d1fae5; color: #065f46; padding: 0 12px; border-radius: 30px; font-size: 12px; font-weight: 600; margin-left: 6px;">🟢 ABERTO</span>
             </div>
             <div style="font-size: 14px; color: #475569; margin-top: 4px;">
-                💰 R$ ${bolao.valorPorCota || 0},00 / cota${dataTexto}
+                💰 R$ ${(bolao.valorPorCota || 0).toFixed(2).replace('.', ',')} / cota${dataTexto}
             </div>
             ${vagasTexto ? `<div style="font-size: 13px; font-weight: 600; color:${vagasTexto.includes('LOTADO') ? '#ef4444' : '#059669'}; margin-top: 4px;">${vagasTexto}</div>` : ''}`;
 
@@ -1762,7 +1762,7 @@ function mostrarModalParticipacao(bolao) {
                 <div style="font-weight:bold; font-size:20px;">COMO PARTICIPAR</div>
                 <div style="text-align:left; margin-top:15px;">
                     <p><strong>🎯 ${bolao.titulo || 'Bolão'}</strong></p>
-                    <p>💰 Valor da cota: R$ ${bolao.valorPorCota || 0},00</p>
+                    <p>💰 Valor da cota: R$ ${(bolao.valorPorCota || 0).toFixed(2).replace('.', ',')}</p>
                     <p>💳 Pague via PIX:</p>
                     <div style="background:#f1f5f9; padding:12px; border-radius:10px; display:flex; justify-content:space-between; align-items:center;">
                         <code style="font-size:14px;">${pixChave}</code>

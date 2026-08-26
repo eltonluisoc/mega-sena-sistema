@@ -310,8 +310,8 @@
                                     <span>🎯 ${bolao.titulo}</span>
                                     <span class="bolao-status ${statusBolaoClass}">${statusBolaoText}</span>
                                 </div>
-                                <div style="font-size: 13px; margin-top: 5px;">💰 R$ ${bolao.valorPorCota || 0},00 / cota</div>
-                                <div class="cotas-info">🎟️ ${bolao.minhasCotas} cota(s) | 💵 Valor Pago: R$ ${bolao.meuValorPago || 0},00</div>
+                                <div style="font-size: 13px; margin-top: 5px;">💰 R$ ${(bolao.valorPorCota || 0).toFixed(2).replace('.', ',')} / cota</div>
+                                <div class="cotas-info">🎟️ ${bolao.minhasCotas} cota(s) | 💵 Valor Pago: R$ ${(bolao.meuValorPago || 0).toFixed(2).replace('.', ',')}</div>
                                 <div style="margin-top: 8px;">
                                     <span class="${statusClass}">${statusText}</span>
                                 </div>
@@ -332,7 +332,7 @@
                                     <span>🎯 ${bolao.titulo}</span>
                                     <span class="bolao-status status-aberto">ABERTO</span>
                                 </div>
-                                <div style="font-size: 13px; margin-top: 5px;">💰 R$ ${bolao.valorPorCota || 0},00 / cota</div>
+                                <div style="font-size: 13px; margin-top: 5px;">💰 R$ ${(bolao.valorPorCota || 0).toFixed(2).replace('.', ',')} / cota</div>
                                 <div style="font-size: 12px; color: #64748b; margin-top: 4px;">📅 Concurso ${bolao.concurso || '---'}</div>
                                 <button class="btn-participar" data-bolao="${bolao.titulo.replace(/['"]/g, '&quot;')}" data-telefone="${telefoneOriginal}" data-nome="${nome}">📝 QUERO PARTICIPAR</button>
                             </div>
