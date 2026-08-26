@@ -1,0 +1,9 @@
+# Build artifacts do PyInstaller (gerados a partir de bolao_pro_v3.py)
+build/
+dist/
+*.spec
+__pycache__/
+*.pyc
+
+# Config local do Claude Code
+.claude/
