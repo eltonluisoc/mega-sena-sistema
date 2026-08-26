@@ -1993,6 +1993,66 @@ function limparLote() {
 }
 
 // ============================================
+// CONVERTER NÚMEROS POR EXTENSO (PT-BR) PARA DÍGITOS
+// ============================================
+// O reconhecimento de voz do Chrome em pt-BR nem sempre transcreve números
+// falados como dígitos ("23") — muitas vezes vem por extenso ("vinte e
+// três"). Essa função entende as duas formas, cobrindo 0 a 80 (suficiente
+// pra Mega/Lotofácil/Quina).
+const UNIDADES_POR_EXTENSO = {
+    'zero': 0, 'um': 1, 'uma': 1, 'dois': 2, 'duas': 2, 'tres': 3, 'três': 3,
+    'quatro': 4, 'cinco': 5, 'seis': 6, 'sete': 7, 'oito': 8, 'nove': 9,
+    'dez': 10, 'onze': 11, 'doze': 12, 'treze': 13, 'catorze': 14, 'quatorze': 14,
+    'quinze': 15, 'dezesseis': 16, 'dezessete': 17, 'dezoito': 18, 'dezenove': 19
+};
+const DEZENAS_POR_EXTENSO = {
+    'vinte': 20, 'trinta': 30, 'quarenta': 40, 'cinquenta': 50, 'cinqüenta': 50,
+    'sessenta': 60, 'setenta': 70, 'oitenta': 80
+};
+
+function extrairNumerosDeTexto(texto) {
+    const palavras = texto.toLowerCase()
+        .replace(/[.,;!?]/g, ' ')
+        .split(/\s+/)
+        .filter(Boolean);
+
+    const numeros = [];
+    let i = 0;
+    while (i < palavras.length) {
+        const palavra = palavras[i];
+
+        if (/^\d+$/.test(palavra)) {
+            numeros.push(parseInt(palavra, 10));
+            i++;
+            continue;
+        }
+
+        if (DEZENAS_POR_EXTENSO[palavra] !== undefined) {
+            let valor = DEZENAS_POR_EXTENSO[palavra];
+            // "vinte e três" → junta a dezena com a unidade seguinte
+            if (palavras[i + 1] === 'e' && UNIDADES_POR_EXTENSO[palavras[i + 2]] !== undefined && UNIDADES_POR_EXTENSO[palavras[i + 2]] <= 9) {
+                valor += UNIDADES_POR_EXTENSO[palavras[i + 2]];
+                i += 3;
+            } else {
+                i += 1;
+            }
+            numeros.push(valor);
+            continue;
+        }
+
+        if (UNIDADES_POR_EXTENSO[palavra] !== undefined) {
+            numeros.push(UNIDADES_POR_EXTENSO[palavra]);
+            i++;
+            continue;
+        }
+
+        // palavra não reconhecida (ex.: "e" solto, ruído do reconhecimento) — ignora
+        i++;
+    }
+    return numeros;
+}
+
+// ============================================
 // DITAR NÚMEROS POR VOZ (Web Speech API)
 // ============================================
 function inicializarReconhecimentoVoz(inputId, btnId) {
@@ -2033,15 +2093,16 @@ function inicializarReconhecimentoVoz(inputId, btnId) {
 
     recognition.onresult = (event) => {
         const transcript = event.results[0][0].transcript;
-        const numeros = transcript.match(/\d+/g) || [];
+        const numeros = extrairNumerosDeTexto(transcript);
+        console.log('🎤 Transcrição de voz:', transcript, '→', numeros);
         if (numeros.length === 0) {
-            showToast('⚠️ Não entendi nenhum número. Fale um número por vez, ex: "vinte e três, quinze, oito"', 'warning');
+            showToast(`⚠️ Não entendi nenhum número. Ouvi: "${transcript}"`, 'warning');
             return;
         }
-        const numerosFormatados = numeros.map(n => n.padStart(2, '0')).join(' ');
+        const numerosFormatados = numeros.map(n => n.toString().padStart(2, '0')).join(' ');
         const atual = input.value.trim();
         input.value = atual ? `${atual} ${numerosFormatados}` : numerosFormatados;
-        showToast(`🎤 ${numeros.length} número(s) reconhecido(s)!`, 'success');
+        showToast(`🎤 ${numeros.length} número(s): ${numerosFormatados}`, 'success');
     };
 
     recognition.onerror = (event) => {
