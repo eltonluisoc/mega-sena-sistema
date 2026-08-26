@@ -1,7 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v3.1
+SISTEMA DE GESTÃO DE BOLÕES PRO v3.2
+Correções v3.2:
+ - CORRIGIDO: fechar o app podia sumir com erros de sincronização sem avisar
+   (agora exige fechamento manual quando algo falha)
+ - CORRIGIDO: bolão excluído no site podia ser recriado no próximo fechamento
+   do app (agora reflete a exclusão localmente em vez de recriar)
+ - CORRIGIDO: remover bolão do site não usava o ID fixo salvo (falhava depois
+   de renomear o bolão)
+ - CORRIGIDO: envio ao Firebase sobrescrevia o documento inteiro em vez de
+   atualizar só os campos enviados (updateMask)
 Correções v3.1:
  - CORRIGIDO: combos de participantes não carregavam ao iniciar
  - NOVO: aba Administração com KPIs, ganhos por loteria e histórico
@@ -362,6 +371,22 @@ FIREBASE_RESERVAS = (
     "/databases/(default)/documents/reservas_participantes"
 )
 
+def _firestore_patch_url(doc_url, campos, exigir_existente=False):
+    """Monta a URL de PATCH do Firestore com updateMask (escreve só os
+    campos listados, em vez de sobrescrever o documento inteiro) e,
+    opcionalmente, a precondição de que o documento já precisa existir.
+
+    exigir_existente=True faz o Firestore recusar a escrita (em vez de
+    criar um documento novo) quando o doc já foi excluído do outro lado
+    — usado para bolões que têm firebase_doc_id salvo (já publicados
+    antes), pra não "ressuscitar" um bolão que o admin apagou no site.
+    """
+    import urllib.parse as _up
+    params = [("updateMask.fieldPaths", c) for c in campos]
+    if exigir_existente:
+        params.append(("currentDocument.exists", "true"))
+    return doc_url + "?" + _up.urlencode(params)
+
 # ─────────────────────────────────────────────
 #  FIREBASE — Autenticação
 #  As regras do Firestore passaram a exigir login para escrever
@@ -559,7 +584,8 @@ def enviar_reservas_para_site(db_file):
             "historico":{"arrayValue":{"values":hist}},
         }}
         corpo = json.dumps(doc,ensure_ascii=False).encode("utf-8")
-        url = FIREBASE_RESERVAS+"/"+doc_id
+        url = _firestore_patch_url(FIREBASE_RESERVAS+"/"+doc_id,
+              ["participanteId","nome","telefone","saldoReserva","dataAtualizacao","admin","historico"])
         try:
             req = urllib.request.Request(url,data=corpo,method="PATCH",headers=headers)
             with urllib.request.urlopen(req,timeout=15) as resp:
@@ -640,9 +666,14 @@ def enviar_bolao_para_site(titulo, loteria, valor_cota,
     corpo = json.dumps(documento, ensure_ascii=False).encode("utf-8")
     headers = _firebase_headers()
 
+    campos_doc = ["titulo","loteria","valorPorCota","dataLimite","admin","participantes"]
     try:
         doc_id = doc_id_fixo or _bolao_doc_id(titulo)
-        url    = f"{FIREBASE_BASE}/{doc_id}"
+        # Quando já existe um doc_id_fixo salvo, o bolão foi publicado
+        # antes: exige que o documento ainda exista, pra não recriar um
+        # bolão que o admin excluiu do site.
+        url = _firestore_patch_url(f"{FIREBASE_BASE}/{doc_id}", campos_doc,
+                                    exigir_existente=bool(doc_id_fixo))
         print(f"[Firebase] PATCH → {doc_id}")
 
         req = urllib.request.Request(url, data=corpo, method="PATCH", headers=headers)
@@ -660,6 +691,11 @@ def enviar_bolao_para_site(titulo, loteria, valor_cota,
         corpo_erro = ""
         try: corpo_erro = e.read().decode("utf-8")
         except: pass
+        if doc_id_fixo and e.code in (400, 404, 409) and "FAILED_PRECONDITION" in corpo_erro:
+            erro = "Bolão foi excluído no site — não será recriado automaticamente."
+            print(f"⚠️ {erro}")
+            return {"sucesso": False, "status": e.code, "erro": erro,
+                    "doc_id": doc_id_fixo, "excluido_no_site": True}
         erro = f"HTTP {e.code}: {e.reason} — {corpo_erro[:300]}"
         print(f"❌ {erro}")
         return {"sucesso": False, "status": e.code, "erro": erro, "doc_id": ""}
@@ -675,16 +711,23 @@ def enviar_bolao_para_site(titulo, loteria, valor_cota,
         return {"sucesso": False, "status": 0, "erro": erro, "doc_id": ""}
 
 
-def remover_bolao_do_site(titulo):
-    """Remove o documento do bolão do Firebase pelo título."""
+def remover_bolao_do_site(titulo, doc_id_fixo=None):
+    """Remove o documento do bolão do Firebase.
+
+    doc_id_fixo: ID salvo localmente (firebase_doc_id) — usado direto
+    quando disponível. Sem ele, cai no fallback de buscar pelo título
+    atual, que falha se o bolão foi renomeado desde a última publicação
+    (o Firestore ainda tem o título antigo)."""
     import urllib.request, urllib.error
 
     try:
-        doc_name = _firebase_buscar_doc_por_titulo(titulo)
-        if not doc_name:
-            return {"sucesso": False, "erro": f"Bolão '{titulo}' não encontrado no site."}
-
-        doc_id = doc_name.split("/")[-1]
+        if doc_id_fixo:
+            doc_id = doc_id_fixo
+        else:
+            doc_name = _firebase_buscar_doc_por_titulo(titulo)
+            if not doc_name:
+                return {"sucesso": False, "erro": f"Bolão '{titulo}' não encontrado no site."}
+            doc_id = doc_name.split("/")[-1]
         # URL completa para DELETE no Firestore REST API
         url = (
             f"https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
@@ -724,7 +767,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v3.1")
+        self.root.title("Sistema de Gestão de Bolões PRO v3.2")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -742,7 +785,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v3.1",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v3.2",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -3554,7 +3597,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v3.1</span>
+        <span>Sistema de Gestão de Bolões v3.2</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -5849,7 +5892,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v3.1</span>
+        <span>Sistema de Gestão de Bolões v3.2</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -6297,10 +6340,25 @@ class BolaoApp:
                         (resultado["doc_id"], dados["_bolao_id"]))
             except Exception as ex:
                 resultado = {"sucesso":False,"erro":str(ex),"status":0,"doc_id":""}
+            if resultado.get("excluido_no_site"):
+                # Bolão foi excluído no site: em vez de recriar o documento,
+                # reflete isso localmente encerrando o bolão.
+                try:
+                    self.db.execute(
+                        "UPDATE boloes SET encerrado=1 WHERE id=?", (dados["_bolao_id"],))
+                except Exception: pass
             def _ui():
                 if resultado.get("sucesso"):
                     self._pub_status.configure(
                         text="✅ Publicado com sucesso!", fg="#1D9E75")
+                elif resultado.get("excluido_no_site"):
+                    self._pub_status.configure(
+                        text="⚠️ Bolão foi excluído no site — marcado como encerrado aqui.",
+                        fg="#f39c12")
+                    messagebox.showwarning("Bolão excluído no site",
+                        "Este bolão foi excluído no site e NÃO será recriado "
+                        "automaticamente.\n\nEle foi marcado como encerrado neste "
+                        "programa para não tentar publicá-lo de novo.")
                 else:
                     erro = resultado.get("erro") or "Erro desconhecido"
                     http_s = resultado.get("status",0)
@@ -6326,8 +6384,12 @@ class BolaoApp:
             return
         self._pub_status.configure(text="⏳ Removendo...", fg="#aad4f5")
         self.root.update()
-        resultado = remover_bolao_do_site(dados["titulo"])
+        resultado = remover_bolao_do_site(dados["titulo"], doc_id_fixo=dados.get("_firebase_doc_id"))
         if resultado["sucesso"]:
+            try:
+                self.db.execute(
+                    "UPDATE boloes SET encerrado=1 WHERE id=?", (dados["_bolao_id"],))
+            except Exception: pass
             self._pub_status.configure(
                 text="✅ Bolão removido do site com sucesso!", fg="#1D9E75")
         else:
@@ -7147,7 +7209,7 @@ class BolaoApp:
         """Fecha com tela de sincronizacao redesenhada."""
         import threading, sqlite3 as _sq_c, re as _re_c, time as _time, json
         import unicodedata as _uc
-        import urllib.request
+        import urllib.request, urllib.error
 
         try: self.bkp.fazer_backup(auto=True)
         except Exception as ex: print("Backup erro:", ex)
@@ -7216,6 +7278,10 @@ class BolaoApp:
         footer_lbl = tk.Label(footer, text="",
                               bg="#1a3a6e", fg="#90caf9", font=("Arial",9))
         footer_lbl.pack(side="left", padx=16, pady=6)
+        btn_fechar_mesmo_assim = tk.Button(footer, text="Fechar mesmo assim",
+            bg="#c0392b", fg="white", relief="flat", font=("Arial",9,"bold"),
+            padx=10, activebackground="#a93226", activeforeground="white")
+        # só aparece se a sincronização terminar com erro (ver _liberar_fechamento_manual)
 
         def log(msg, tag="info"):
             log_box.configure(state="normal")
@@ -7239,6 +7305,17 @@ class BolaoApp:
             except: pass
             try: self.root.destroy()
             except: pass
+
+        btn_fechar_mesmo_assim.configure(command=_fechar_tudo)
+
+        def _liberar_fechamento_manual():
+            """Chamada quando a sincronização termina com erro: não fecha
+            sozinho (o usuário ficava sem saber que algo falhou), libera o
+            X da janela e mostra um botão explícito de fechar."""
+            win.protocol("WM_DELETE_WINDOW", _fechar_tudo)
+            footer_lbl.configure(
+                text="Sincronização com erro(s) — revise o log acima.")
+            btn_fechar_mesmo_assim.pack(side="right", padx=16, pady=4)
 
         FIREBASE_RSV  = ("https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
                          "/databases/(default)/documents/reservas_participantes/")
@@ -7344,8 +7421,10 @@ class BolaoApp:
                         "historico":{"arrayValue":{"values":hist}},
                     }}
                     corpo = json.dumps(doc, ensure_ascii=False).encode("utf-8")
+                    url_r = _firestore_patch_url(FIREBASE_RSV+doc_id,
+                        ["participanteId","nome","telefone","saldoReserva","dataAtualizacao","admin","historico"])
                     try:
-                        req = urllib.request.Request(FIREBASE_RSV+doc_id, data=corpo,
+                        req = urllib.request.Request(url_r, data=corpo,
                               method="PATCH", headers=_firebase_headers())
                         with urllib.request.urlopen(req, timeout=15) as resp:
                             if resp.status == 200:
@@ -7467,8 +7546,14 @@ class BolaoApp:
                     corpo_b = json.dumps(doc_b, ensure_ascii=False).encode("utf-8")
                     win.after(0, lambda did=doc_id_b: log(
                         "       enviando "+did+"...", "info"))
+                    # Se já existe firebase_doc_id salvo, o bolão foi publicado
+                    # antes: exige que o documento ainda exista no Firestore,
+                    # pra não recriar um bolão que o admin excluiu no site.
+                    url_b = _firestore_patch_url(FIREBASE_BASE+doc_id_b,
+                        ["titulo","loteria","valorPorCota","dataLimite","admin","participantes"],
+                        exigir_existente=bool(doc_id_salvo))
                     try:
-                        req = urllib.request.Request(FIREBASE_BASE+doc_id_b, data=corpo_b,
+                        req = urllib.request.Request(url_b, data=corpo_b,
                               method="PATCH", headers=_firebase_headers())
                         with urllib.request.urlopen(req, timeout=20) as resp:
                             if resp.status == 200:
@@ -7485,6 +7570,18 @@ class BolaoApp:
                             else:
                                 err_b.append(nome_b)
                                 win.after(0, lambda s=resp.status: log("       ERRO HTTP "+str(s), "err"))
+                    except urllib.error.HTTPError as e:
+                        corpo_erro_b = ""
+                        try: corpo_erro_b = e.read().decode("utf-8")
+                        except: pass
+                        if doc_id_salvo and e.code in (400,404,409) and "FAILED_PRECONDITION" in corpo_erro_b:
+                            _conn.execute("UPDATE boloes SET encerrado=1 WHERE id=?", (bid,))
+                            _conn.commit()
+                            win.after(0, lambda: log(
+                                "       bolão foi excluído no site — marcado como encerrado aqui", "warn"))
+                        else:
+                            err_b.append(nome_b)
+                            win.after(0, lambda e2=str(e)[:80]: log("       ERRO: "+e2, "err"))
                     except Exception as ex:
                         err_b.append(nome_b)
                         win.after(0, lambda e=str(ex)[:80]: log("       ERRO: "+e, "err"))
@@ -7499,25 +7596,38 @@ class BolaoApp:
                 _conn.close()
                 win.after(0, lambda: sp(100))
                 win.after(0, lambda: log("", "dim"))
+                houve_erro = bool(err_r or err_b)
                 win.after(0, lambda o1=ok_r, o2=ok_b, e1=len(err_r), e2=len(err_b): log(
                     "  CONCLUIDO — Reservas: "+str(o1)+" ok | Boloes: "+str(o2)+" ok"
-                    +(" | "+str(e1+e2)+" erro(s)" if e1+e2 else ""), "ok"))
-                win.after(0, lambda: footer_lbl.configure(
-                    text="Sincronizacao concluida! Fechando em 3 segundos..."))
-                win.after(0, lambda: status_lbl.configure(
-                    text="Tudo pronto! Sistema encerrando...", fg="#1D9E75"))
+                    +(" | "+str(e1+e2)+" erro(s)" if e1+e2 else ""),
+                    "ok" if not houve_erro else "warn"))
 
-                # Contador regressivo visual
-                for i in range(3, 0, -1):
-                    win.after(0, lambda n=i: footer_lbl.configure(
-                        text="Fechando em "+str(n)+"s..."))
-                    _time.sleep(1)
+                if not houve_erro:
+                    win.after(0, lambda: footer_lbl.configure(
+                        text="Sincronizacao concluida! Fechando em 3 segundos..."))
+                    win.after(0, lambda: status_lbl.configure(
+                        text="Tudo pronto! Sistema encerrando...", fg="#1D9E75"))
+                    # Contador regressivo visual
+                    for i in range(3, 0, -1):
+                        win.after(0, lambda n=i: footer_lbl.configure(
+                            text="Fechando em "+str(n)+"s..."))
+                        _time.sleep(1)
+                    win.after(0, _fechar_tudo)
+                else:
+                    # Alguns itens não sincronizaram: não fecha sozinho, senão
+                    # o usuário nunca fica sabendo que dados ficaram de fora.
+                    win.after(0, lambda: log(
+                        "  Alguns itens NAO foram sincronizados. Feche e tente "
+                        "novamente mais tarde (confira sua internet/login).", "err"))
+                    win.after(0, lambda: status_lbl.configure(
+                        text="Sincronizacao incompleta — revise os erros acima", fg="#ff5252"))
+                    win.after(0, _liberar_fechamento_manual)
 
             except Exception as ex:
                 win.after(0, lambda e=str(ex): log("ERRO GERAL: "+e, "err"))
-                _time.sleep(3)
-
-            win.after(0, _fechar_tudo)
+                win.after(0, lambda: status_lbl.configure(
+                    text="Falha na sincronizacao — revise o erro acima", fg="#ff5252"))
+                win.after(0, _liberar_fechamento_manual)
 
         # Centraliza
         win.update_idletasks()
