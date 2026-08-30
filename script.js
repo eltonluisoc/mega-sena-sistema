@@ -139,6 +139,7 @@ function criarBannerInstalacao(conteudoHtml) {
         box-shadow: 0 8px 20px rgba(0,0,0,0.35);
         display: flex; align-items: center; gap: 12px;
         animation: slideUp 0.3s ease-out;
+        -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
     `;
     banner.innerHTML = conteudoHtml;
     document.body.appendChild(banner);

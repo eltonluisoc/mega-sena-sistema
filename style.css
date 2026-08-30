@@ -1,3 +1,11 @@
+html {
+    /* Evita o "font boosting" do Safari iOS: em colunas estreitas (como o
+       banner de instalação), ele aumenta o texto sozinho sem avisar,
+       quebrando cada palavra numa linha e deixando o elemento gigante. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
 * {
     margin: 0;
     padding: 0;
