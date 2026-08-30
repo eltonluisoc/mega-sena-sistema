@@ -671,10 +671,13 @@ async function mostrarCartoes(numerosSorteados = null) {
         
         let html = chancesHtml;
         
-        for (const [bolao, lista] of Object.entries(porBolao)) {
+        for (const [bolao, listaOriginal] of Object.entries(porBolao)) {
+            // Cartões com mais acertos primeiro — sem isso, a ordem era a de
+            // gravação no Firestore, não a de acertos.
+            const lista = ordenarCartoesPorAcertos(listaOriginal, numerosSorteados);
             html += `<div style="margin-bottom:20px"><div style="background:#3b82f6;color:white;padding:8px 12px;border-radius:8px;margin-bottom:10px;">🎯 ${bolao}</div>`;
             html += `<div style="display:flex;flex-direction:column;gap:10px;">`;
-            
+
             for (const cartao of lista) {
                 const tipoParticipacao = cartao.tipoParticipacao === 'cota' ? '🎟️ Cota' : '👥 Exclusivo';
                 const acertosCount = numerosSorteados ? cartao.numeros.filter(n => numerosSorteados.includes(n)).length : 0;
