@@ -2918,17 +2918,14 @@ function atualizarDashboardEstatisticas(stats) {
     }
 
     // ============================================
-    // 3b. MAIOR BOLÃO (mais cartões)
+    // 3b. MAIOR BOLÃO (mais cartões) — vira o detalhe do card "Total de
+    // Bolões" (nome + tamanho num só lugar, em vez de um card à parte)
     // ============================================
-    const elMaiorBolao = document.getElementById('dashboardMaiorBolao');
     const elMaiorBolaoDet = document.getElementById('dashboardMaiorBolaoDetalhes');
-    if (elMaiorBolao) {
-        elMaiorBolao.textContent = stats.maiorBolao?.totalCartoes > 0 ? stats.maiorBolao.nome : 'Nenhum';
-    }
     if (elMaiorBolaoDet) {
         if (stats.maiorBolao?.totalCartoes > 0) {
             const loteriaNome = stats.maiorBolao.loteria === 'mega' ? 'MEGA' : stats.maiorBolao.loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA';
-            elMaiorBolaoDet.textContent = `${stats.maiorBolao.totalCartoes} cartões · Concurso ${stats.maiorBolao.concurso} (${loteriaNome})`;
+            elMaiorBolaoDet.textContent = `Maior: ${stats.maiorBolao.nome} — ${stats.maiorBolao.totalCartoes} cartões · Concurso ${stats.maiorBolao.concurso} (${loteriaNome})`;
             elMaiorBolaoDet.style.color = '#7c3aed';
         } else {
             elMaiorBolaoDet.textContent = 'Nenhum bolão cadastrado';
@@ -2945,15 +2942,14 @@ function atualizarDashboardEstatisticas(stats) {
     const totalBoloesEl = document.getElementById('dashboardTotalBoloes');
     if (totalBoloesEl) totalBoloesEl.textContent = stats.totalBoloes;
 
-    // Cartões por loteria (um card só, com o total geral em destaque e o
-    // detalhamento por loteria na linha de baixo)
+    // Detalhamento por loteria — vira a linha de baixo do card "Total de
+    // Cartões" (o total geral já é o próprio dashboardTotalCartoes acima,
+    // sem repetir o mesmo número num card à parte)
     const megaCount = cartoes.filter(c => c.tipo === 'mega').length;
     const lotoCount = cartoes.filter(c => c.tipo === 'lotofacil').length;
     const quinaCount = cartoes.filter(c => c.tipo === 'quina').length;
 
-    const cartoesLoteriaEl = document.getElementById('dashboardCartoesLoteria');
     const cartoesLoteriaDetEl = document.getElementById('dashboardCartoesLoteriaDetalhes');
-    if (cartoesLoteriaEl) cartoesLoteriaEl.textContent = (megaCount + lotoCount + quinaCount).toLocaleString('pt-BR');
     if (cartoesLoteriaDetEl) {
         cartoesLoteriaDetEl.textContent = `Mega: ${megaCount} · Lotofácil: ${lotoCount} · Quina: ${quinaCount}`;
     }
@@ -2974,11 +2970,9 @@ function atualizarDashboardEstatisticasVazio() {
         'dashboardMelhorMegaDetalhes': 'Nenhum resultado conferido ainda',
         'dashboardMelhorLotofacilDetalhes': 'Nenhum resultado conferido ainda',
         'dashboardMelhorQuinaDetalhes': 'Nenhum resultado conferido ainda',
-        'dashboardMaiorBolao': 'Nenhum',
-        'dashboardMaiorBolaoDetalhes': 'Nenhum',
+        'dashboardMaiorBolaoDetalhes': 'Nenhum bolão cadastrado',
         'dashboardBilhetes': '0',
         'dashboardBilhetesDetalhes': 'Mega: 0 · Lotofácil: 0 · Quina: 0',
-        'dashboardCartoesLoteria': '0',
         'dashboardCartoesLoteriaDetalhes': 'Mega: 0 · Lotofácil: 0 · Quina: 0',
         'dashboardTotalCartoes': '0',
         'dashboardTotalBoloes': '0'

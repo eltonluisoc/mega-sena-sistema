@@ -1082,11 +1082,13 @@
             </div>
         </div>
 
-        <!-- Totais Gerais -->
+        <!-- Totais Gerais (cada card já traz o total geral + o detalhamento
+             por loteria, sem repetir o mesmo número num card à parte) -->
         <div class="dashboard-cards" style="margin-top: 16px;">
             <div class="dashboard-card" style="background: #eff6ff; border-color: #93c5fd;">
                 <div class="dashboard-number" style="color: #3b82f6;" id="dashboardTotalCartoes">0</div>
                 <div style="font-size: 14px; font-weight: 600; color: #1e3a5f;">📋 TOTAL DE CARTÕES</div>
+                <div style="font-size: 10px; color: #9ca3af; margin-top: 4px;" id="dashboardCartoesLoteriaDetalhes">Mega: 0 · Lotofácil: 0 · Quina: 0</div>
             </div>
             <div class="dashboard-card" style="background: #eff6ff; border-color: #93c5fd;">
                 <div class="dashboard-number" style="color: #2563eb; font-size: 22px;" id="dashboardBilhetes">0</div>
@@ -1096,19 +1098,6 @@
             <div class="dashboard-card" style="background: #ede9fe; border-color: #c4b5fd;">
                 <div class="dashboard-number" style="color: #7c3aed;" id="dashboardTotalBoloes">0</div>
                 <div style="font-size: 14px; font-weight: 600; color: #4c1d95;">👥 TOTAL DE BOLÕES</div>
-            </div>
-        </div>
-
-        <!-- Por Loteria (1 card só) + Maior Bolão -->
-        <div class="dashboard-cards" style="margin-top: 16px;">
-            <div class="dashboard-card" style="background: #fce7f3; border-color: #f9a8d4;">
-                <div class="dashboard-number" style="color: #db2777; font-size: 22px;" id="dashboardCartoesLoteria">0</div>
-                <div style="font-size: 14px; font-weight: 600; color: #831843;">🎯 CARTÕES POR LOTERIA</div>
-                <div style="font-size: 10px; color: #9ca3af; margin-top: 4px;" id="dashboardCartoesLoteriaDetalhes">Mega: 0 · Lotofácil: 0 · Quina: 0</div>
-            </div>
-            <div class="dashboard-card" style="background: #ede9fe; border-color: #c4b5fd;">
-                <div class="dashboard-number" style="color: #7c3aed; font-size: 18px;" id="dashboardMaiorBolao">-</div>
-                <div style="font-size: 14px; font-weight: 600; color: #4c1d95;">🚀 MAIOR BOLÃO</div>
                 <div style="font-size: 10px; color: #9ca3af; margin-top: 4px;" id="dashboardMaiorBolaoDetalhes">Nenhum</div>
             </div>
         </div>
