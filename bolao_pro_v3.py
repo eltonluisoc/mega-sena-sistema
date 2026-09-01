@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v3.7
+SISTEMA DE GESTÃO DE BOLÕES PRO v3.8
+Correções v3.8:
+ - NOVO: barra de status discreta no rodapé, mostrando o que o sistema
+   está fazendo ao abrir (conectando, verificando reservas do site...)
+ - CORRIGIDO: quando TODOS os itens da fila de reservas do site davam
+   erro ao importar, o app não avisava nada (só um print() invisível no
+   .exe empacotado) — agora sempre mostra o que aconteceu, com o erro
+   de cada item, tanto na barra de status quanto num aviso
 Correções v3.7:
  - NOVO: sincronização de reservas passa a ser nos dois sentidos. Antes só
    ia desktop→site; agora dá pra registrar um depósito/saque de reserva no
@@ -806,7 +813,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v3.7")
+        self.root.title("Sistema de Gestão de Bolões PRO v3.8")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -816,6 +823,7 @@ class BolaoApp:
         self.bid  = tk.IntVar(value=0)
 
         self._build_header()
+        self._build_status_bar()
         self._build_tabs()
         self._load_boloes_combo()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -825,16 +833,30 @@ class BolaoApp:
         # fechamento sincroniza direto, sem popup de senha no meio do caminho.
         self.root.after(400, self._login_inicial)
 
+    def _status(self, texto, cor="#90caf9"):
+        """Atualiza a barra de status no rodapé da janela principal — o
+        usuário pediu pra ver o que o sistema está fazendo ao abrir, em vez
+        de tudo acontecer em silêncio (erros iam parar num print() que não
+        aparece no .exe empacotado sem console)."""
+        try:
+            self._status_lbl.configure(text=texto, fg=cor)
+            self.root.update_idletasks()
+        except Exception:
+            pass
+
     def _login_inicial(self):
         """Autentica no Firebase assim que a janela principal abre."""
+        self._status("🔄 Conectando ao Firebase...")
         try:
             _firebase_login()
         except Exception as ex:
+            self._status("❌ Não entrou no Firebase — sincronização adiada", cor="#ff6b6b")
             messagebox.showwarning("Login Firebase",
                 "Não foi possível entrar no Firebase agora:\n\n" + str(ex) +
                 "\n\nVocê pode continuar usando o sistema normalmente; a "
                 "sincronização com o site vai pedir a senha novamente mais tarde.")
             return
+        self._status("🔄 Verificando reservas lançadas no site...")
         self._importar_movimentos_pendentes_web()
 
     def _importar_movimentos_pendentes_web(self):
@@ -851,24 +873,31 @@ class BolaoApp:
             with urllib.request.urlopen(req, timeout=15) as r:
                 dados = json.loads(r.read().decode("utf-8"))
         except Exception as ex:
-            print("Aviso: não foi possível checar movimentos pendentes do site:", ex)
+            self._status("❌ Erro ao verificar reservas do site: " + str(ex)[:90], cor="#ff6b6b")
             return
 
         docs = dados.get("documents", [])
         if not docs:
+            self._status("✅ Reservas em dia — nada novo do site.")
+            self.root.after(5000, lambda: self._status(""))
             return
+
+        self._status(f"🔄 Importando {len(docs)} movimento(s) de reserva do site...")
 
         def campo(fields, nome, tipo, default=None):
             return fields.get(nome, {}).get(tipo, default)
 
         importados = 0; erros = 0
         total_dep = 0.0; total_saq = 0.0
+        erros_detalhe = []
 
         for doc in docs:
+            nome_erro = "?"
             try:
                 fields   = doc.get("fields", {})
                 doc_id   = doc.get("name", "").split("/")[-1]
                 nome     = (campo(fields, "nome", "stringValue", "") or "").strip()
+                nome_erro = nome or doc_id
                 telefone = campo(fields, "telefone", "stringValue", "") or ""
                 chavePix = campo(fields, "chavePix", "stringValue", "") or ""
                 tipo_web = campo(fields, "tipo", "stringValue", "deposito")
@@ -878,8 +907,7 @@ class BolaoApp:
                 descricao= campo(fields, "descricao", "stringValue", "") or ""
 
                 if valor <= 0 or not nome:
-                    erros += 1
-                    continue
+                    raise ValueError(f"dados incompletos (valor={valor!r}, nome={nome!r})")
 
                 tel_digits = _re.sub(r"\D", "", telefone)
 
@@ -928,25 +956,42 @@ class BolaoApp:
                 if tipo_db == "CRÉDITO": total_dep += valor
                 else: total_saq += valor
             except Exception as ex:
-                print("Erro ao importar movimento pendente:", ex)
                 erros += 1
+                erros_detalhe.append(f"  • {nome_erro}: {str(ex)[:100]}")
 
+        if importados == 0 and erros == 0:
+            return
+
+        partes = []
         if importados > 0:
-            partes = [f"{importados} movimento(s) de reserva importado(s) do site:"]
+            partes.append(f"✅ {importados} movimento(s) de reserva importado(s) do site:")
             if total_dep > 0: partes.append(f"  💰 Depósitos: {fmt_brl(total_dep)}")
             if total_saq > 0: partes.append(f"  💸 Saques/uso: {fmt_brl(total_saq)}")
-            if erros: partes.append(f"\n⚠ {erros} item(ns) com erro, não importado(s) — revise no site.")
+        if erros:
+            partes.append(f"⚠ {erros} item(ns) da fila NÃO foram importados:")
+            partes.extend(erros_detalhe)
+            partes.append("\nEsses itens continuam na fila — corrija no site e feche/abra o app de novo.")
+
+        if erros and importados == 0:
+            self._status(f"❌ {erros} movimento(s) de reserva falharam ao importar", cor="#ff6b6b")
+            messagebox.showerror("Erro ao sincronizar reservas", "\n".join(partes))
+        elif erros:
+            self._status(f"⚠️ {importados} importado(s), {erros} com erro", cor="#f39c12")
+            messagebox.showwarning("Reservas sincronizadas com pendências", "\n".join(partes))
+        else:
+            self._status(f"✅ {importados} movimento(s) de reserva importado(s) do site")
             messagebox.showinfo("Reservas sincronizadas", "\n".join(partes))
+
+        if importados > 0:
             try: self._rsv_load()
             except Exception: pass
-        elif erros:
-            print(f"⚠ {erros} movimento(s) pendente(s) do site não importado(s) por erro de dados.")
+        self.root.after(8000, lambda: self._status(""))
 
     # ── HEADER ──────────────────────────────────────────────────
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v3.7",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v3.8",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -958,6 +1003,19 @@ class BolaoApp:
         self.cb_bolao.bind("<<ComboboxSelected>>", self._on_bolao_sel)
         btn(right,"⚙ Gerenciar Bolões",CORES["btn_azul"],self._gerenciar_boloes,width=18).pack(side="left",padx=4)
         btn(right,"+ Novo Bolão",CORES["btn_verde"],self._novo_bolao,width=14).pack(side="left",padx=4)
+
+    # ── BARRA DE STATUS (rodapé) ───────────────────────────────────
+    def _build_status_bar(self):
+        """Faixa discreta no rodapé pra mostrar o que o sistema está
+        fazendo ao abrir (login, sincronização) — pedido explícito do
+        usuário depois de uma sincronização de reservas ter falhado em
+        silêncio, sem nenhum aviso visível."""
+        barra = tk.Frame(self.root, bg="#0d1b2a", height=24)
+        barra.pack(fill="x", side="bottom")
+        barra.pack_propagate(False)
+        self._status_lbl = tk.Label(barra, text="", bg="#0d1b2a", fg="#90caf9",
+                                     font=("Arial",8), anchor="w")
+        self._status_lbl.pack(fill="both", expand=True, padx=10)
 
     # ── TABS ────────────────────────────────────────────────────
     def _build_tabs(self):
@@ -3792,7 +3850,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v3.7</span>
+        <span>Sistema de Gestão de Bolões v3.8</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -6086,7 +6144,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v3.7</span>
+        <span>Sistema de Gestão de Bolões v3.8</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
