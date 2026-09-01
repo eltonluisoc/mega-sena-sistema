@@ -98,11 +98,46 @@ Investigação dedicada (leitura completa dos caminhos de sync) achou mais itens
 
 - **Centavos perdidos no `valorPago`** publicado pelo desktop (`int(round(pago))` em vez de manter o float) — ex.: R$45,50 vira R$46 no site
 - **Colisão de ID em reservas sem telefone**: duas pessoas com o mesmo nome e sem telefone geram o mesmo doc ID em `reservas_participantes`, uma sobrescreve a outra
-- **Duas tabelas de mapeamento de ID hardcoded divergentes** no desktop (`FIREBASE_BOLAO_IDS` vs `FIREBASE_IDS`), resquício que o `firebase_doc_id` já deveria ter aposentado
+- **Duas tabelas de mapeamento de ID hardcoded** no desktop (`FIREBASE_BOLAO_IDS` vs `FIREBASE_IDS`), resquício que o `firebase_doc_id` já deveria ter aposentado — as chaves duplicadas/mortas dentro de cada uma foram limpas na Rodada 4, mas as duas tabelas continuam existindo separadamente (só usadas no 1º publish de um bolão, antes de existir `firebase_doc_id`; unificá-las de vez segue pendente)
 - **Prompt de senha sem timeout** podia travar o fechamento do app (mitigado, mas não eliminado, pelo login antecipado na abertura)
 - `dataLimite` escrito pelo desktop no documento do bolão é campo morto (o site usa `config_boloes/ativos` como fonte real)
 - `vagasDisponiveis`/`vagasTotais` são lidos por `script.js` mas nunca escritos por ninguém
 - Feature "Sincronizar Participantes Pendentes" no desktop é código morto (nenhum lugar escreve na coleção `participantes_pendentes`, e as regras já exigem admin pra escrever lá)
+
+## Rodada 4 — Revisão multiagente de qualidade (4 agentes de pesquisa: desktop, web, segurança, produto)
+
+Rodada dedicada a "evoluir pra um padrão profissional", cobrindo desktop e web juntos a pedido do usuário. 4 agentes de pesquisa (sem editar nada) rodaram em paralelo; todos os achados foram mostrados pro usuário antes de qualquer correção, que aprovou corrigir tudo (críticos + importantes + menores). Também: a senha do Firebase no desktop passou a ser pedida na abertura do app (fica em cache pro resto da sessão), não mais no meio do fechamento.
+
+**Críticos de segurança corrigidos (achados por 2 agentes independentes, reforçando confiança)**
+- `resultados_conferidos` aceitava escrita pública sem validação — qualquer visitante podia forjar o resultado de um sorteio já conferido a qualquer momento, e o site confiava cegamente nesse cache sem revalidar contra a API oficial depois. `firestore.rules` agora só permite `create` (com validação de shape/tipo); `update`/`delete` exigem admin. Deployado e verificado com 4 testes reais via REST API (create inválido bloqueado, update anônimo bloqueado, create válido funciona, sobrescrita anônima do doc recém-criado bloqueada). Precisou criar `firebase.json`/`.firebaserc` na raiz (faltava config de deploy pra `firestore:rules` fora da pasta `functions/`).
+- `gerarTokenUnico()` (token que protege `consulta.html?token=...`) usava `Math.random()` — PRNG não criptográfico, previsível a partir de algumas amostras. Trocado por `crypto.getRandomValues()`.
+- Nome de participante/título de bolão iam pro `innerHTML` sem escapar em `script.js`, `admin.js`, `consulta.js`, `consulta.html` e `participantes.html` — XSS armazenado, inclusive dentro da sessão autenticada do admin. Adicionado `escapeHtml()` (escapa `<>&"'`) em cada arquivo, aplicado em toda interpolação de nome/título em `innerHTML` ou atributo `data-*`.
+
+**Importantes corrigidos — web**
+- `formatarTelefone()` divergia entre `admin.js`/`consulta.html` (formato errado, sem parênteses) e `consulta.js` (formato correto) — alinhados.
+- Diálogo "Limpar Seleção" tinha semântica OK/Cancelar invertida: fechar com Esc (= Cancelar) acionava a ação destrutiva. Invertido.
+- Botão "🔄 RECARREGAR" na aba Cartões do admin não tinha handler — ligado a `carregarDadosAdmin()`.
+
+**Importantes corrigidos — desktop**
+- `to_float()` zerava valor inválido de pagamento silenciosamente, sem avisar — corrigido nos 2 pontos que editam PAGAMENTO (não em `valor_esperado`, que legitimamente aceita zero — caso do ADM isento).
+- Auto-atualização do Dashboard ao trocar de aba estava morta havia tempo: dois `bind()` no mesmo notebook, o segundo sobrescrevendo o primeiro em silêncio, e a condição que sobrou nunca era verdadeira. Corrigido com 2 binds em widgets diferentes.
+- Registrar pagamento não atualizava Dashboard/Relatório na hora.
+- "É o administrador?" divergia entre o Relatório (só checava a flag `is_adm`) e Dashboard/Cards/publicação pro Firebase (checavam flag OU nome batendo com `adm_nome`) — Relatório unificado com o mesmo critério.
+- Publicação manual de bolão ganhou a mesma trava de "sem valor de cota" que a sincronização automática já tinha.
+
+**Menores corrigidos**
+- Web: removidas 2 funções mortas em `script.js`, markup morto (`#loadingIndicator`) em `index.html`, texto de 9px do link de convite subiu pra 12px, comentário cruzado nas 2 cópias de `combinacao()`.
+- Desktop: excluir bolão agora limpa `saques_emergenciais`/`taxa_adm` também (ficavam órfãos); removidas 2 funções stub mortas; chaves duplicadas/mortas removidas de `FIREBASE_BOLAO_IDS`/`FIREBASE_IDS`; reimplementação inline de `fmt_brl()` trocada pela função existente.
+
+### Deliberadamente NÃO corrigido nesta rodada (escopo/risco)
+
+- **Unificar de vez `FIREBASE_BOLAO_IDS`/`FIREBASE_IDS`** numa tabela só, ou eliminá-las (só valem no 1º publish de um bolão) — limpeza pontual feita, unificação completa fica pra depois.
+- **Unificar a lógica de payload do Firebase** (hoje triplicada entre `enviar_bolao_para_site()`, o bloco inline de `_on_close`, e `_pub_montar_dados_impl()`) — só a divergência concreta (trava de valor de cota faltando na publicação manual) foi corrigida; a unificação completa é um refactor maior, adiado por risco de regressão num app que não dá pra testar visualmente aqui.
+- **Refatorar funções grandes do desktop** (`_adm_load` com N+1 queries, `_dash_load`/`_cards_visuais` misturando UI+regra+SQL) — mesma razão: alto risco, baixo retorno imediato.
+- **Mover a navegação de abas do admin (`admin.html`) pra dentro de `admin.js`** — só organização, sem valor funcional, não valia o risco.
+- **Self-signup do Firebase Auth não restrito** — não é bug de código, é uma configuração a mudar no Console do Firebase (desabilitar criação de conta por padrão pro provedor Email/Password); baixa prioridade, nenhum caso de uso legítimo depende disso hoje.
+- **Achados da investigação de integração desktop↔web da Rodada 3** (centavos perdidos em `valorPago`, colisão de ID em reservas sem telefone, `dataLimite`/`vagasDisponiveis` mortos, "Sincronizar Pendentes" morto) — continuam pendentes, listados acima.
+- **Avaliação de prontidão de produto** (mono-admin hardcoded em 3 lugares, app desktop preso a 1 projeto Firebase, zero onboarding self-service, leitura ineficiente que escala mal, Analytics sem eventos de negócio, falta notificação proativa de resultado) — é decisão estratégica, não bug; documentado pro usuário decidir se/quando perseguir virar produto multi-tenant.
 
 ## Agentes a utilizar
 
