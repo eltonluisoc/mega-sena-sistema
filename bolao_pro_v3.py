@@ -1,7 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v3.5
+SISTEMA DE GESTÃO DE BOLÕES PRO v3.6
+Correções v3.6 (revisão de qualidade multiagente):
+ - CORRIGIDO: editar um pagamento com valor inválido zerava o valor
+   silenciosamente, sem avisar (2 pontos corrigidos)
+ - CORRIGIDO: auto-atualização do Dashboard/Administração ao trocar de
+   aba estava morta (um bind() sobrescrevia o outro, e a condição que
+   sobrou nunca era verdadeira)
+ - CORRIGIDO: registrar pagamento não atualizava o Dashboard na hora
+ - CORRIGIDO: detecção "é o administrador?" divergia entre o Relatório
+   (só checava a flag) e Dashboard/Cards/publicação (checava flag OU
+   nome) — Relatório agora usa o mesmo critério
+ - CORRIGIDO: publicação manual de bolão não tinha a trava de "sem
+   valor de cota" que a sincronização automática já tinha
+ - CORRIGIDO: excluir um bolão não limpava saques_emergenciais/taxa_adm
+   (ficava lixo órfão no banco)
+ - LIMPEZA: removidas funções mortas, chaves duplicadas no mapeamento
+   de ID do Firebase, e uma reimplementação de fmt_brl()
 Correções v3.5:
  - MELHORADO: a senha do Firebase agora é pedida logo na abertura do
    sistema, não mais no meio do fechamento — ao fechar, a sincronização
@@ -527,14 +543,14 @@ FIREBASE_BOLAO_IDS = {
     "mega da virada 2026":              "bolao_mega_da_virada_2026",
     "mega da virada amigos 2026":       "bolao_mega_da_virada_amigos_2026",
     "lotofacil da independencia":       "bolao_lotofacil_da_independencia",
-    "lotofacil da independencia":       "bolao_lotofacil_da_independencia",
     "quina de sao joao 2026":           "bolao_quina_de_sao_joao_2026",
-    "quina de sao joao 2026":           "bolao_quina_de_sao_joao_2026",
-    "quina de sao joao 2026 ii":        "bolao_quina_de_sao_joao_2026_ii",
     "quina de sao joao 2026 ii":        "bolao_quina_de_sao_joao_2026_ii",
     "mega-sena 30 anos":                "bolao_mega_sena_30_anos",
     "mega sena 30 anos":                "bolao_mega_sena_30_anos",
 }
+# As chaves são sempre comparadas sem acento (ver _norm() em
+# _bolao_doc_id() abaixo), então uma variante acentuada aqui nunca seria
+# encontrada — não precisa duplicar "independencia"/"independência".
 
 
 
@@ -784,7 +800,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v3.5")
+        self.root.title("Sistema de Gestão de Bolões PRO v3.6")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -817,7 +833,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v3.5",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v3.6",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -920,11 +936,16 @@ class BolaoApp:
         nb_sys.add(self.tab_bkp, text="💾 Backup / Restore")
         nb_sys.add(self.tab_pub, text="🌐 Site / Publicar")
 
-        # Auto-atualiza Inicio→Administracao ao selecionar
+        # Auto-atualiza ao entrar no grupo "Inicio" vindo de outro grupo
+        # (o bind mais abaixo, no notebook INTERNO nb_inicio, cobre trocar
+        # entre as sub-abas Dashboard/Administracao já dentro dela — os
+        # dois binds precisam estar em widgets diferentes: bind() duas
+        # vezes no mesmo widget substitui o anterior em silêncio, e foi
+        # exatamente isso que deixava esse auto-refresh sempre morto)
         def _on_tab_changed(event):
             try:
                 tab = self.nb.tab(self.nb.select(), "text")
-                if "Inicio" in tab or "Administra" in tab:
+                if "Inicio" in tab:
                     self.root.after(50, self._adm_load)
             except Exception:
                 pass
@@ -950,15 +971,10 @@ class BolaoApp:
         self._build_publicar()
         self._build_bkp()
 
-        # Auto-atualiza guia Administracao sempre que for selecionada
-        def _on_tab_changed(event):
-            try:
-                tab = self.nb.tab(self.nb.select(), "text")
-                if "Administra" in tab:
-                    self.root.after(50, self._adm_load)
-            except Exception:
-                pass
-        self.nb.bind("<<NotebookTabChanged>>", _on_tab_changed)
+        # Auto-atualiza ao trocar entre as sub-abas Dashboard/Administracao
+        def _on_tab_changed_inicio(event):
+            self.root.after(50, self._adm_load)
+        nb_inicio.bind("<<NotebookTabChanged>>", _on_tab_changed_inicio)
 
     # ════════════════════════════════════════════════════════════
     #  HELPERS CENTRALIZADOS — status e cotas
@@ -1443,9 +1459,6 @@ class BolaoApp:
         # aceitar o padrão vira só apertar Enter.
         e_val.bind("<Return>", lambda e: registrar())
         e_dt.bind("<Return>", lambda e: registrar())
-
-    def _cad_pag_registrar(self): pass  # mantido por compatibilidade
-    def _cad_pag_fechar(self):    pass
 
     def _imp_buscar(self):
         """Busca participantes em TODOS os bolões pelo nome digitado."""
@@ -2209,6 +2222,11 @@ class BolaoApp:
         messagebox.showinfo("Sucesso",f"Pagamento de {fmt_brl(v)} registrado!")
         self._pag_info()
         self.pag_obs.delete(0,"end")
+        # Sem isso, Dashboard/Relatorio/Cards ficavam com os valores de
+        # antes do pagamento ate o usuario trocar de bolao manualmente
+        # (o auto-refresh ao trocar de aba nao cobre ficar na mesma aba).
+        try: self._dash_load()
+        except Exception: pass
 
     # ════════════════════════════════════════════════════════════
     #  ABA 3 — RELATÓRIO
@@ -2297,8 +2315,13 @@ class BolaoApp:
 
         for pt in partic:
             pt_d = dict(pt)
-            # Se ADM não paga, mostra como quitado sem destacar
-            if pt_d.get("is_adm") and not adm_paga:
+            # Se ADM não paga, mostra como quitado sem destacar. Checa a
+            # flag OU o nome batendo com adm_nome — mesmo critério usado
+            # no Dashboard/Cards/publicação pro Firebase; usar só a flag
+            # aqui fazia o Relatório cobrar do ADM quando ele foi
+            # cadastrado sem marcar "is_adm", divergindo dos outros lugares.
+            eh_adm_r = bool(pt_d.get("is_adm")) or (adm_nome and adm_nome in pt_d["nome"].lower())
+            if eh_adm_r and not adm_paga:
                 self.rel_tree.insert("","end",tags=("quitado",),values=(
                     pt_d["id"],pt_d["nome"],pt_d["telefone"] or "-",
                     fmt_brl(pt_d["valor_esperado"]),
@@ -2830,7 +2853,7 @@ class BolaoApp:
                 # ADM isento: exibe o valor total de uma cota (não a parcela)
                 vt_card = b.get("valor_total", 0) or 0
                 tk.Label(card,
-                         text=f"R$ {vt_card:,.2f}".replace(",","X").replace(".",",").replace("X","."),
+                         text=fmt_brl(vt_card),
                          bg=bg_c, fg="#c8f7dc",
                          font=("Arial",7), anchor="w").pack(fill="x", padx=4)
 
@@ -3073,6 +3096,9 @@ class BolaoApp:
         tk.Radiobutton(dep_f, text="⏳ Não", variable=dep_var, value=0,
                        bg=CORES["bg_section"]).pack(side="left")
         def salvar():
+            novo_val = to_float(vars_["valor"].get())
+            if novo_val <= 0:
+                messagebox.showwarning("Atenção", "Valor inválido!"); return
             dep = dep_var.get()
             dd  = pg["data_deposito"]
             if dep and not dd:
@@ -3083,7 +3109,7 @@ class BolaoApp:
                 "UPDATE pagamentos SET mes_referencia=?,data_pagamento=?,valor=?,"
                 "observacoes=?,depositado=?,data_deposito=? WHERE id=?",
                 (vars_["mes_referencia"].get(), vars_["data_pagamento"].get(),
-                 to_float(vars_["valor"].get()), vars_["observacoes"].get(),
+                 novo_val, vars_["observacoes"].get(),
                  dep, dd, pid_pag))
             messagebox.showinfo("Atualizado", f"Pagamento ID {pid_pag} atualizado!")
             win.destroy()
@@ -3653,7 +3679,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v3.5</span>
+        <span>Sistema de Gestão de Bolões v3.6</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -3980,9 +4006,8 @@ class BolaoApp:
                        bg=CORES["bg_section"],fg=CORES["fg_label"]).pack(side="left")
 
         def salvar():
-            try:
-                novo_val=to_float(vars_["valor"].get())
-            except:
+            novo_val=to_float(vars_["valor"].get())
+            if novo_val<=0:
                 messagebox.showwarning("Atenção","Valor inválido!"); return
             dep=dep_var.get()
             dd=pg["data_deposito"]
@@ -5948,7 +5973,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v3.5</span>
+        <span>Sistema de Gestão de Bolões v3.6</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -6298,6 +6323,14 @@ class BolaoApp:
         if not b: return None
         bd  = dict(b)
         vt  = float(bd.get("valor_total", 0) or 0)
+        if vt <= 0:
+            # Mesma trava que a sincronizacao automatica do fechamento ja
+            # tem (pula bolao sem valor de cota) - faltava aqui, entao
+            # dava pra publicar manualmente um bolao com valorPorCota=0.
+            messagebox.showwarning("Atenção",
+                "Este bolão não tem valor de cota configurado. Edite o bolão e "
+                "informe o valor antes de publicar.")
+            return None
         partic = self.db.fetchall(
             "SELECT * FROM participantes WHERE bolao_id=? AND ativo=1 ORDER BY nome", (bid,))
         adm_nome     = bd.get("adm_nome","").strip()
@@ -7020,7 +7053,8 @@ class BolaoApp:
             bid=int(sel[0])
             b=self.db.fetchone("SELECT nome FROM boloes WHERE id=?",(bid,))
             if messagebox.askyesno("Confirmar",f"Excluir '{b['nome']}'? TUDO será apagado!"):
-                for tbl in ["pagamentos","participantes","premiacoes","reserva_caixa","boloes"]:
+                for tbl in ["pagamentos","participantes","premiacoes","reserva_caixa",
+                            "saques_emergenciais","taxa_adm","boloes"]:
                     if tbl=="boloes":
                         self.db.execute("DELETE FROM boloes WHERE id=?",(bid,))
                     else:
@@ -7381,7 +7415,6 @@ class BolaoApp:
             "mega da virada 2026":"bolao_mega_da_virada_2026",
             "mega da virada amigos 2026":"bolao_mega_da_virada_amigos_2026",
             "lotofacil da independencia":"bolao_lotofacil_da_independencia",
-            "lotofacil da independência":"bolao_lotofacil_da_independencia",
             "quina de sao joao 2026":"bolao_quina_de_sao_joao_2026",
             "quina de sao joao 2026 ii":"bolao_quina_de_sao_joao_2026_ii",
             "mega-sena 30 anos":"bolao_mega_sena_30_anos",
