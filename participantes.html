@@ -210,6 +210,14 @@
         // ============================================
         // PÁGINA DE PARTICIPANTES
         // ============================================
+        // Escapa texto vindo do Firestore (nome de participante) antes de
+        // inserir em innerHTML — essa página é pública, sem login.
+        function escapeHtml(texto) {
+            const div = document.createElement('div');
+            div.textContent = texto ?? '';
+            return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
         async function carregarParticipantes() {
             const conteudo = document.getElementById('conteudo');
             const tituloEl = document.getElementById('bolaoTitulo');
@@ -309,7 +317,7 @@
                     
                     html += `
                         <div class="participante-item">
-                            <span class="participante-nome">${statusIcon} ${p.nome}</span>
+                            <span class="participante-nome">${statusIcon} ${escapeHtml(p.nome)}</span>
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <span class="participante-cotas">🎟️ ${quantidadeCotas} cota${quantidadeCotas > 1 ? 's' : ''}</span>
                                 <span style="font-size: 10px; color: ${statusColor}; font-weight: 600;">${statusText}</span>

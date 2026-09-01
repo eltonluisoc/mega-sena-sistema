@@ -35,6 +35,19 @@ let todosCartoesSelecao = [];
 // ============================================
 let cartoesDuplicadosSelecionados = {};
 
+// Escapa texto vindo do Firestore (nome de participante, título de bolão)
+// antes de inserir em innerHTML/atributo — sem isso, um nome cadastrado
+// com HTML (ex.: "<img src=x onerror=...>") executaria dentro da própria
+// sessão autenticada do admin ao abrir a lista.
+function escapeHtml(texto) {
+    const div = document.createElement('div');
+    div.textContent = texto ?? '';
+    // textContent->innerHTML já escapa <, > e &, mas não aspas — precisamos
+    // delas também porque alguns usos inserem o valor dentro de atributos
+    // (data-titulo="...", data-nome="...").
+    return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 // ============================================
 // TOAST
 // ============================================
@@ -895,8 +908,8 @@ async function carregarBoloesParaGerenciar() {
                     
                     <!-- LINHA 4: Botões (Final do card) -->
                     <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
-                        <button class="btn-link-participantes" data-id="${bolao.id}" data-titulo="${bolao.titulo}" style="background: #3b82f6; color: white; border: none; padding: 4px 14px; border-radius: 20px; cursor: pointer; font-size: 11px; font-weight: 600;">📋 LINK</button>
-                        <button class="btn-excluir-bolao" data-id="${bolao.id}" data-titulo="${bolao.titulo}" style="background: #ef4444; color: white; border: none; padding: 4px 14px; border-radius: 20px; cursor: pointer; font-size: 11px; font-weight: 600;">🗑️ EXCLUIR</button>
+                        <button class="btn-link-participantes" data-id="${bolao.id}" data-titulo="${escapeHtml(bolao.titulo)}" style="background: #3b82f6; color: white; border: none; padding: 4px 14px; border-radius: 20px; cursor: pointer; font-size: 11px; font-weight: 600;">📋 LINK</button>
+                        <button class="btn-excluir-bolao" data-id="${bolao.id}" data-titulo="${escapeHtml(bolao.titulo)}" style="background: #ef4444; color: white; border: none; padding: 4px 14px; border-radius: 20px; cursor: pointer; font-size: 11px; font-weight: 600;">🗑️ EXCLUIR</button>
                     </div>
                 </div>
             `;
@@ -2159,7 +2172,13 @@ async function adicionarCartaoIndividualSelecao() {
 // TOKENS DE ACESSO
 // ============================================
 function gerarTokenUnico() {
-    return Math.random().toString(36).substring(2, 18) + Math.random().toString(36).substring(2, 8);
+    // crypto.getRandomValues (não Math.random) — esse token é a única
+    // credencial que protege os dados pessoais/financeiros do participante
+    // em consulta.html?token=..., e o PRNG do Math.random não é seguro:
+    // dá pra prever as próximas saídas a partir de algumas amostras.
+    const bytes = new Uint8Array(20);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
 }
 
 async function salvarToken(participanteId, nome, telefone) {
@@ -2206,7 +2225,7 @@ async function carregarTokens() {
             html += `
                 <div class="token-card" style="background: #ffffff; border-radius: 16px; padding: 14px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                        <strong style="font-size: 15px;">👤 ${token.nome}</strong>
+                        <strong style="font-size: 15px;">👤 ${escapeHtml(token.nome)}</strong>
                         <span style="background: #d1fae5; color: #065f46; padding: 2px 10px; border-radius: 30px; font-size: 10px;">✅ ATIVO</span>
                     </div>
                     <div style="font-size: 12px; color: #64748b; margin-bottom: 8px;">📞 ${formatarTelefone(token.telefone)}</div>
@@ -2369,7 +2388,7 @@ async function carregarParticipantesAdmin(bolaoId) {
             html += `
                 <div style="background: #ffffff; border-radius: 12px; padding: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0;">
-                        <strong style="font-size: 14px;">${p.nome}</strong>
+                        <strong style="font-size: 14px;">${escapeHtml(p.nome)}</strong>
                         <span style="background: ${p.statusClass === 'pago' ? '#10b981' : '#f59e0b'}; color: white; font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 30px;">${p.statusText}</span>
                     </div>
                     <div style="display: flex; justify-content: space-between; font-size: 12px; color: #475569;">
@@ -2427,13 +2446,13 @@ async function carregarReservas() {
             html += `
                 <div class="reserva-card" style="background: #f8fafc; border-radius: 12px; padding: 14px; border: 1px solid #e2e8f0;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                        <div style="font-weight: bold; font-size: 15px; color: #1e293b;">👤 ${reserva.nome}</div>
+                        <div style="font-weight: bold; font-size: 15px; color: #1e293b;">👤 ${escapeHtml(reserva.nome)}</div>
                         <div style="font-weight: bold; font-size: 16px; color: ${reserva.saldoReserva > 0 ? '#10b981' : reserva.saldoReserva < 0 ? '#ef4444' : '#64748b'};">R$ ${saldo}</div>
                     </div>
                     <div style="font-size: 12px; color: #64748b; margin-bottom: 8px;">
                         🆔 ${reserva.participanteId || reserva.id.substring(0, 8)} • 📅 ${dataAtualizacao}
                     </div>
-                    <button class="btn-ver-historico" data-id="${reserva.id}" data-nome="${reserva.nome}" style="background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; width: 100%; touch-action: manipulation;">
+                    <button class="btn-ver-historico" data-id="${reserva.id}" data-nome="${escapeHtml(reserva.nome)}" style="background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; width: 100%; touch-action: manipulation;">
                         📜 VER HISTÓRICO
                     </button>
                     <div id="historico-${reserva.id}" style="display: none; margin-top: 12px; background: white; border-radius: 8px; padding: 12px; font-size: 13px; max-height: 200px; overflow-y: auto; border: 1px solid #e2e8f0;"></div>

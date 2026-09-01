@@ -30,6 +30,14 @@ function normalizarTelefone(telefone) {
     return telefone.replace(/\D/g, '');
 }
 
+// Escapa texto vindo do Firestore (título de bolão) antes de inserir em
+// innerHTML — essa página é pública, sem login.
+function escapeHtml(texto) {
+    const div = document.createElement('div');
+    div.textContent = texto ?? '';
+    return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 // ============================================
 // TOAST
 // ============================================
@@ -190,7 +198,7 @@ async function consultarBoloes() {
                     
                     sectionHtml += `
                         <div class="bolao-card">
-                            <div class="bolao-nome">🎯 ${bolao.titulo}</div>
+                            <div class="bolao-nome">🎯 ${escapeHtml(bolao.titulo)}</div>
                             <div class="bolao-info">
                                 <span>📌 Concurso: ${bolao.concurso}</span>
                                 <span>🎲 ${loteriaNome}</span>

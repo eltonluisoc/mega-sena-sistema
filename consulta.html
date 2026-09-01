@@ -159,6 +159,14 @@
             return telefone.replace(/\D/g, '');
         }
 
+        // Escapa texto vindo do Firestore (título de bolão) antes de
+        // inserir em innerHTML — essa página é pública, sem login.
+        function escapeHtml(texto) {
+            const div = document.createElement('div');
+            div.textContent = texto ?? '';
+            return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
         // ============================================
         // CARREGAR DADOS DO PARTICIPANTE
         // ============================================
@@ -307,7 +315,7 @@
                         html += `
                             <div class="bolao-item">
                                 <div class="bolao-titulo">
-                                    <span>🎯 ${bolao.titulo}</span>
+                                    <span>🎯 ${escapeHtml(bolao.titulo)}</span>
                                     <span class="bolao-status ${statusBolaoClass}">${statusBolaoText}</span>
                                 </div>
                                 <div style="font-size: 13px; margin-top: 5px;">💰 R$ ${(bolao.valorPorCota || 0).toFixed(2).replace('.', ',')} / cota</div>
@@ -329,12 +337,12 @@
                         html += `
                             <div class="bolao-item">
                                 <div class="bolao-titulo">
-                                    <span>🎯 ${bolao.titulo}</span>
+                                    <span>🎯 ${escapeHtml(bolao.titulo)}</span>
                                     <span class="bolao-status status-aberto">ABERTO</span>
                                 </div>
                                 <div style="font-size: 13px; margin-top: 5px;">💰 R$ ${(bolao.valorPorCota || 0).toFixed(2).replace('.', ',')} / cota</div>
                                 <div style="font-size: 12px; color: #64748b; margin-top: 4px;">📅 Concurso ${bolao.concurso || '---'}</div>
-                                <button class="btn-participar" data-bolao="${bolao.titulo.replace(/['"]/g, '&quot;')}" data-telefone="${telefoneOriginal}" data-nome="${nome}">📝 QUERO PARTICIPAR</button>
+                                <button class="btn-participar" data-bolao="${escapeHtml(bolao.titulo)}" data-telefone="${escapeHtml(telefoneOriginal)}" data-nome="${escapeHtml(nome)}">📝 QUERO PARTICIPAR</button>
                             </div>
                         `;
                     }

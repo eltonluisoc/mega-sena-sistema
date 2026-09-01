@@ -69,6 +69,17 @@ function showToast(message, type = 'info') {
     }, 3000);
 }
 
+// Escapa texto vindo do Firestore (nome de participante, título de bolão)
+// antes de inserir em innerHTML — sem isso, um nome cadastrado com HTML
+// (ex.: "<img src=x onerror=...>") executaria no navegador de quem vir.
+function escapeHtml(texto) {
+    const div = document.createElement('div');
+    div.textContent = texto ?? '';
+    // textContent->innerHTML já escapa <, > e &, mas não aspas — escapa
+    // também pra ser seguro tanto em texto quanto dentro de atributos.
+    return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 // ============================================
 // INSTALAÇÃO DO PWA
 // ============================================
@@ -1447,7 +1458,7 @@ async function carregarBolaoAtivo() {
                 <div class="bolao-card">
                     <div class="bolao-header">
                         <div class="bolao-nome">
-                            <span>🎯</span> ${bolao.data.titulo}
+                            <span>🎯</span> ${escapeHtml(bolao.data.titulo)}
                         </div>
                         <div class="bolao-status ${statusClass}">${statusText}</div>
                     </div>
@@ -1537,7 +1548,7 @@ async function carregarBolaoAtivo() {
                         listaHtml += `
                             <div class="participante-card">
                                 <div style="display: flex; flex-direction: column; gap: 2px;">
-                                    <span class="participante-nome">${p.nome}</span>
+                                    <span class="participante-nome">${escapeHtml(p.nome)}</span>
                                     <span style="font-size: 9px; color: #64748b;">🎟️ ${p.quantidadeCotas} cota${p.quantidadeCotas > 1 ? 's' : ''}</span>
                                 </div>
                                 <span class="participante-status ${p.statusClass}">${p.statusText}</span>
@@ -1695,7 +1706,7 @@ async function carregarBolaoAberto() {
         const loteriaNome = loteriaNomes[bolao.loteria] || bolao.loteria?.toUpperCase() || 'LOTERIA';
 
         let html = `<div style="text-align:center; padding: 4px 0;">
-            <div style="font-size: 18px; font-weight: 700; color: #1e293b;">🎯 ${bolao.titulo}</div>
+            <div style="font-size: 18px; font-weight: 700; color: #1e293b;">🎯 ${escapeHtml(bolao.titulo)}</div>
             <div style="font-size: 14px; color: #475569; margin-top: 2px;">
                 ${loteriaNome} ${bolao.concurso ? `- Concurso ${bolao.concurso}` : ''}
                 <span style="display: inline-block; background: #d1fae5; color: #065f46; padding: 0 12px; border-radius: 30px; font-size: 12px; font-weight: 600; margin-left: 6px;">🟢 ABERTO</span>
