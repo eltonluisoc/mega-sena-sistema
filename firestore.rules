@@ -40,11 +40,23 @@ service cloud.firestore {
     }
 
     // Cache de resultados oficiais das loterias: gravado pelo público
-    // (script.js) toda vez que alguém confere um resultado no site. Dado
-    // público e de baixo risco, por isso continua com escrita aberta.
+    // (script.js) na primeira vez que alguém confere um concurso no site
+    // (o app não tem backend próprio pra validar contra a API oficial da
+    // Caixa antes de gravar). Só a CRIAÇÃO é pública — depois de gravado,
+    // só o admin pode alterar/apagar. Sem isso, qualquer visitante podia
+    // sobrescrever o resultado de um concurso já conferido com números
+    // forjados a qualquer momento, e o site passava a confiar cegamente
+    // nesse cache pra todo mundo (inclusive pra decidir quem "ganhou").
     match /resultados_conferidos/{document} {
       allow read: if true;
-      allow write, delete: if true;
+      allow create: if request.resource.data.keys().hasOnly(
+                        ['loteria','concurso','numeros','dataConferencia','dataSorteio','conferido','admin'])
+                    && request.resource.data.loteria in ['mega','lotofacil','quina']
+                    && request.resource.data.numeros is list
+                    && request.resource.data.numeros.size() > 0
+                    && request.resource.data.numeros.size() <= 20
+                    && request.resource.data.conferido == true;
+      allow update, delete: if isAdmin();
     }
 
     // participantes ainda precisa de leitura pública total (nome,
