@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v3.4
+SISTEMA DE GESTÃO DE BOLÕES PRO v3.5
+Correções v3.5:
+ - MELHORADO: a senha do Firebase agora é pedida logo na abertura do
+   sistema, não mais no meio do fechamento — ao fechar, a sincronização
+   já roda direto, sem popup de senha no caminho
 Correções v3.4:
  - MELHORADO: Enter no campo "Buscar membro" já dispara a busca
  - MELHORADO: duplo-clique num resultado da busca já importa (sem precisar
@@ -780,7 +784,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v3.4")
+        self.root.title("Sistema de Gestão de Bolões PRO v3.5")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -794,11 +798,26 @@ class BolaoApp:
         self._load_boloes_combo()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
+        # Pede a senha do Firebase logo na entrada (em vez de só no
+        # fechamento): a senha fica em memoria pro resto da sessao e o
+        # fechamento sincroniza direto, sem popup de senha no meio do caminho.
+        self.root.after(400, self._login_inicial)
+
+    def _login_inicial(self):
+        """Autentica no Firebase assim que a janela principal abre."""
+        try:
+            _firebase_login()
+        except Exception as ex:
+            messagebox.showwarning("Login Firebase",
+                "Não foi possível entrar no Firebase agora:\n\n" + str(ex) +
+                "\n\nVocê pode continuar usando o sistema normalmente; a "
+                "sincronização com o site vai pedir a senha novamente mais tarde.")
+
     # ── HEADER ──────────────────────────────────────────────────
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v3.4",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v3.5",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -3634,7 +3653,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v3.4</span>
+        <span>Sistema de Gestão de Bolões v3.5</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -5929,7 +5948,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v3.4</span>
+        <span>Sistema de Gestão de Bolões v3.5</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
