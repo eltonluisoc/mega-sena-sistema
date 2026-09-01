@@ -13,6 +13,7 @@ let resultadosQuina = {};
 let loteriaAdmin = 'mega';
 let cartoesFiltrados = [];
 let boloes = [];
+let reservasCarregadas = []; // última lista carregada em carregarReservas() — usada pelo modal de registrar movimento
 
 // ============================================
 // VARIÁVEIS DO CADASTRO EM LOTE
@@ -2429,7 +2430,8 @@ async function carregarReservas() {
         });
         
         reservas.sort((a, b) => (b.saldoReserva || 0) - (a.saldoReserva || 0));
-        
+        reservasCarregadas = reservas;
+
         document.getElementById('totalReservas').innerHTML = `R$ ${totalSaldo.toFixed(2)}`;
         
         const container = document.getElementById('listaReservas');
@@ -2574,6 +2576,154 @@ async function mostrarHistorico(id, nome) {
         if (btn) btn.textContent = '📜 VER HISTÓRICO';
         showToast('❌ Erro ao carregar histórico', 'error');
     }
+}
+
+// Registra um depósito/saque de reserva pelo site — não altera o saldo na
+// hora. Fica na fila reservas_movimentos_pendentes até o app desktop abrir
+// e importar (o desktop é quem mantém o histórico completo; o site só
+// empilha até ser importado). Sem isso, a sincronização só ia desktop→site,
+// nunca o contrário.
+function abrirModalRegistrarMovimento() {
+    let modal = document.getElementById('modalRegistrarMovimento');
+    if (modal) modal.remove();
+
+    modal = document.createElement('div');
+    modal.id = 'modalRegistrarMovimento';
+    modal.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.8); z-index: 10001;
+        display: flex; justify-content: center; align-items: center;
+        padding: 20px; overflow-y: auto;
+    `;
+
+    const opcoesPessoas = reservasCarregadas.map(r =>
+        `<option value="${r.id}">${escapeHtml(r.nome)}${r.telefone ? ' — ' + escapeHtml(r.telefone) : ''}</option>`
+    ).join('');
+
+    const hoje = new Date().toISOString().split('T')[0];
+
+    modal.innerHTML = `
+        <div style="background: white; border-radius: 20px; max-width: 420px; width: 100%; padding: 25px; max-height: 90vh; overflow-y: auto;">
+            <div style="font-size: 32px; text-align: center; margin-bottom: 8px;">💰</div>
+            <div style="font-weight: bold; font-size: 18px; text-align: center; margin-bottom: 4px;">REGISTRAR MOVIMENTO DE RESERVA</div>
+            <div style="font-size: 12px; color: #64748b; text-align: center; margin-bottom: 20px;">
+                Fica pendente até o app desktop abrir e importar — o saldo não muda aqui na hora.
+            </div>
+
+            <div style="display: flex; gap: 8px; margin-bottom: 14px;">
+                <button id="btnMovPessoaExistente" type="button" style="flex:1; padding: 10px; border-radius: 10px; border: 2px solid #3b82f6; background: #3b82f6; color: white; font-weight: 600; cursor: pointer;">Pessoa existente</button>
+                <button id="btnMovPessoaNova" type="button" style="flex:1; padding: 10px; border-radius: 10px; border: 2px solid #e2e8f0; background: white; color: #64748b; font-weight: 600; cursor: pointer;">Pessoa nova</button>
+            </div>
+
+            <div id="movCamposExistente">
+                <label style="font-size: 12px; font-weight: 600; color: #475569;">Pessoa</label>
+                <select id="movPessoaSelect" class="form-control" style="margin-bottom: 12px;">
+                    <option value="">Selecione...</option>
+                    ${opcoesPessoas}
+                </select>
+            </div>
+
+            <div id="movCamposNovo" style="display: none;">
+                <label style="font-size: 12px; font-weight: 600; color: #475569;">Nome</label>
+                <input type="text" id="movNomeNovo" class="form-control" placeholder="Nome completo" style="margin-bottom: 10px;">
+                <label style="font-size: 12px; font-weight: 600; color: #475569;">Telefone</label>
+                <input type="text" id="movTelefoneNovo" class="form-control" placeholder="(61) 99999-9999" style="margin-bottom: 10px;">
+                <label style="font-size: 12px; font-weight: 600; color: #475569;">Chave PIX (opcional)</label>
+                <input type="text" id="movPixNovo" class="form-control" placeholder="Chave PIX" style="margin-bottom: 12px;">
+            </div>
+
+            <label style="font-size: 12px; font-weight: 600; color: #475569;">Tipo</label>
+            <select id="movTipo" class="form-control" style="margin-bottom: 12px;">
+                <option value="deposito">💰 Depósito</option>
+                <option value="saque">💸 Saque / Uso</option>
+            </select>
+
+            <label style="font-size: 12px; font-weight: 600; color: #475569;">Valor (R$)</label>
+            <input type="number" id="movValor" class="form-control" step="0.01" min="0.01" placeholder="0,00" style="margin-bottom: 12px;">
+
+            <label style="font-size: 12px; font-weight: 600; color: #475569;">Data</label>
+            <input type="date" id="movData" class="form-control" value="${hoje}" style="margin-bottom: 12px;">
+
+            <label style="font-size: 12px; font-weight: 600; color: #475569;">Descrição (opcional)</label>
+            <input type="text" id="movDescricao" class="form-control" placeholder="Ex: depósito via PIX" style="margin-bottom: 18px;">
+
+            <button id="btnConfirmarMovimento" style="width:100%; padding: 14px; background: #10b981; color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 15px; cursor: pointer; margin-bottom: 10px;">✅ REGISTRAR</button>
+            <button id="btnCancelarMovimento" style="width:100%; padding: 10px; background: transparent; color: #64748b; border: none; font-size: 13px; cursor: pointer;">Cancelar</button>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    let pessoaExistente = true;
+    const btnExistente = document.getElementById('btnMovPessoaExistente');
+    const btnNova = document.getElementById('btnMovPessoaNova');
+    const camposExistente = document.getElementById('movCamposExistente');
+    const camposNovo = document.getElementById('movCamposNovo');
+
+    function atualizarToggle() {
+        if (pessoaExistente) {
+            btnExistente.style.background = '#3b82f6'; btnExistente.style.color = 'white'; btnExistente.style.borderColor = '#3b82f6';
+            btnNova.style.background = 'white'; btnNova.style.color = '#64748b'; btnNova.style.borderColor = '#e2e8f0';
+            camposExistente.style.display = ''; camposNovo.style.display = 'none';
+        } else {
+            btnNova.style.background = '#3b82f6'; btnNova.style.color = 'white'; btnNova.style.borderColor = '#3b82f6';
+            btnExistente.style.background = 'white'; btnExistente.style.color = '#64748b'; btnExistente.style.borderColor = '#e2e8f0';
+            camposNovo.style.display = ''; camposExistente.style.display = 'none';
+        }
+    }
+    btnExistente.onclick = () => { pessoaExistente = true; atualizarToggle(); };
+    btnNova.onclick = () => { pessoaExistente = false; atualizarToggle(); };
+
+    document.getElementById('btnCancelarMovimento').onclick = () => modal.remove();
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+    document.getElementById('btnConfirmarMovimento').onclick = async () => {
+        const tipo = document.getElementById('movTipo').value;
+        const valor = parseFloat(document.getElementById('movValor').value);
+        const data = document.getElementById('movData').value;
+        const descricao = document.getElementById('movDescricao').value.trim();
+
+        if (!valor || valor <= 0) { showToast('⚠️ Informe um valor válido', 'warning'); return; }
+        if (!data) { showToast('⚠️ Informe a data', 'warning'); return; }
+
+        const doc = {
+            pessoaExistente, tipo, valor, data, descricao,
+            sincronizado: false,
+            criadoEm: new Date().toISOString()
+        };
+
+        if (pessoaExistente) {
+            const select = document.getElementById('movPessoaSelect');
+            const reservaId = select.value;
+            if (!reservaId) { showToast('⚠️ Selecione a pessoa', 'warning'); return; }
+            const reserva = reservasCarregadas.find(r => r.id === reservaId);
+            doc.participanteId = reservaId;
+            doc.nome = reserva ? reserva.nome : '';
+            doc.telefone = reserva ? (reserva.telefone || '') : '';
+            doc.chavePix = '';
+        } else {
+            const nome = document.getElementById('movNomeNovo').value.trim();
+            const telefone = document.getElementById('movTelefoneNovo').value.trim();
+            const pix = document.getElementById('movPixNovo').value.trim();
+            if (!nome) { showToast('⚠️ Informe o nome', 'warning'); return; }
+            if (!telefone) { showToast('⚠️ Informe o telefone', 'warning'); return; }
+            doc.participanteId = null;
+            doc.nome = nome;
+            doc.telefone = telefone.replace(/\D/g, '');
+            doc.chavePix = pix;
+        }
+
+        try {
+            await db.collection('reservas_movimentos_pendentes').add(doc);
+            showToast('✅ Registrado! Vai aparecer no saldo quando o desktop abrir e sincronizar.', 'success');
+            modal.remove();
+        } catch (error) {
+            console.error('Erro ao registrar movimento:', error);
+            showToast('❌ Erro ao registrar movimento', 'error');
+        }
+    };
+
+    atualizarToggle();
 }
 
 async function copiarHistoricoWhatsApp(id, nome) {
@@ -3067,6 +3217,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     if (btnAtualizarReservas) btnAtualizarReservas.onclick = () => carregarReservas();
+    const btnRegistrarMovimentoReserva = document.getElementById('btnRegistrarMovimentoReserva');
+    if (btnRegistrarMovimentoReserva) btnRegistrarMovimentoReserva.onclick = abrirModalRegistrarMovimento;
 
     setTimeout(() => {
         console.log('🔄 Carregando dados das abas...');

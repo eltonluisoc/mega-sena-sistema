@@ -88,5 +88,14 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow write, delete: if isAdmin();
     }
+
+    // Fila de depósitos/saques de reserva registrados pelo admin no site,
+    // aguardando o app desktop abrir e importar pro SQLite local (é o
+    // desktop que mantém o histórico completo — o site só empilha aqui até
+    // ser importado, depois o documento é apagado). Só o admin toca nisso,
+    // dos dois lados (site e desktop usam a mesma conta).
+    match /reservas_movimentos_pendentes/{document} {
+      allow read, write: if isAdmin();
+    }
   }
 }

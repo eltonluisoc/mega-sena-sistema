@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v3.6
+SISTEMA DE GESTÃO DE BOLÕES PRO v3.7
+Correções v3.7:
+ - NOVO: sincronização de reservas passa a ser nos dois sentidos. Antes só
+   ia desktop→site; agora dá pra registrar um depósito/saque de reserva no
+   admin do site (inclusive pra gente nova) e, na próxima vez que o app
+   desktop abrir, ele importa esses lançamentos pro banco local sozinho e
+   avisa quantos importou.
 Correções v3.6 (revisão de qualidade multiagente):
  - CORRIGIDO: editar um pagamento com valor inválido zerava o valor
    silenciosamente, sem avisar (2 pontos corrigidos)
@@ -800,7 +806,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v3.6")
+        self.root.title("Sistema de Gestão de Bolões PRO v3.7")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -828,12 +834,119 @@ class BolaoApp:
                 "Não foi possível entrar no Firebase agora:\n\n" + str(ex) +
                 "\n\nVocê pode continuar usando o sistema normalmente; a "
                 "sincronização com o site vai pedir a senha novamente mais tarde.")
+            return
+        self._importar_movimentos_pendentes_web()
+
+    def _importar_movimentos_pendentes_web(self):
+        """Importa depósitos/saques de reserva registrados no admin do site
+        (fila reservas_movimentos_pendentes) pro SQLite local, e some com o
+        item da fila depois de importar com sucesso. Antes disso só existia
+        sincronização desktop→site; isso fecha o caminho contrário."""
+        import urllib.request, urllib.error, json, re as _re
+
+        url = ("https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
+               "/databases/(default)/documents/reservas_movimentos_pendentes")
+        try:
+            req = urllib.request.Request(url, method="GET", headers=_firebase_headers())
+            with urllib.request.urlopen(req, timeout=15) as r:
+                dados = json.loads(r.read().decode("utf-8"))
+        except Exception as ex:
+            print("Aviso: não foi possível checar movimentos pendentes do site:", ex)
+            return
+
+        docs = dados.get("documents", [])
+        if not docs:
+            return
+
+        def campo(fields, nome, tipo, default=None):
+            return fields.get(nome, {}).get(tipo, default)
+
+        importados = 0; erros = 0
+        total_dep = 0.0; total_saq = 0.0
+
+        for doc in docs:
+            try:
+                fields   = doc.get("fields", {})
+                doc_id   = doc.get("name", "").split("/")[-1]
+                nome     = (campo(fields, "nome", "stringValue", "") or "").strip()
+                telefone = campo(fields, "telefone", "stringValue", "") or ""
+                chavePix = campo(fields, "chavePix", "stringValue", "") or ""
+                tipo_web = campo(fields, "tipo", "stringValue", "deposito")
+                valor    = float(campo(fields, "valor", "doubleValue")
+                                  or campo(fields, "valor", "integerValue") or 0)
+                data_web = campo(fields, "data", "stringValue", "") or ""
+                descricao= campo(fields, "descricao", "stringValue", "") or ""
+
+                if valor <= 0 or not nome:
+                    erros += 1
+                    continue
+
+                tel_digits = _re.sub(r"\D", "", telefone)
+
+                # Acha a pessoa local por telefone (mais confiável) ou nome;
+                # se não achar, cria — mesmo que o site achasse que já existia
+                # (participanteId pode ter sido gerado antes da pessoa
+                # existir localmente, ou o app pode ter sido reinstalado).
+                pessoa = None
+                if tel_digits:
+                    pessoa = self.db.fetchone(
+                        "SELECT id FROM reservas_pessoas WHERE telefone=?", (tel_digits,))
+                if not pessoa:
+                    pessoa = self.db.fetchone(
+                        "SELECT id FROM reservas_pessoas WHERE LOWER(nome)=?", (nome.lower(),))
+
+                if pessoa:
+                    pessoa_id = pessoa["id"]
+                else:
+                    self.db.execute(
+                        "INSERT INTO reservas_pessoas (nome,telefone,chave_pix,observacoes) "
+                        "VALUES (?,?,?,?)",
+                        (nome, tel_digits, chavePix, "Criado a partir de movimento do site"))
+                    pessoa_id = self.db.fetchone("SELECT last_insert_rowid() as id")["id"]
+
+                tipo_db = "CRÉDITO" if tipo_web == "deposito" else "DÉBITO"
+
+                # "AAAA-MM-DD" (input date do site) -> "DD/MM/AAAA" (padrão desktop)
+                data_mov = data_web
+                if len(data_web) == 10 and data_web[4:5] == "-":
+                    a, m, d = data_web.split("-")
+                    data_mov = f"{d}/{m}/{a}"
+
+                desc_final = (descricao + " (via site)").strip() if descricao else "Via site"
+                self.db.execute(
+                    "INSERT INTO reservas_movimentos "
+                    "(pessoa_id, tipo, valor, data_mov, loteria, concurso, descricao) "
+                    "VALUES (?,?,?,?,?,?,?)",
+                    (pessoa_id, tipo_db, valor, data_mov, "", "", desc_final))
+
+                # Só sai da fila depois de importar com sucesso no SQLite local
+                del_req = urllib.request.Request(
+                    url + "/" + doc_id, method="DELETE", headers=_firebase_headers())
+                urllib.request.urlopen(del_req, timeout=10)
+
+                importados += 1
+                if tipo_db == "CRÉDITO": total_dep += valor
+                else: total_saq += valor
+            except Exception as ex:
+                print("Erro ao importar movimento pendente:", ex)
+                erros += 1
+
+        if importados > 0:
+            partes = [f"{importados} movimento(s) de reserva importado(s) do site:"]
+            if total_dep > 0: partes.append(f"  💰 Depósitos: {fmt_brl(total_dep)}")
+            if total_saq > 0: partes.append(f"  💸 Saques/uso: {fmt_brl(total_saq)}")
+            if erros: partes.append(f"\n⚠ {erros} item(ns) com erro, não importado(s) — revise no site.")
+            messagebox.showinfo("Reservas sincronizadas", "\n".join(partes))
+            try: self._rsv_load()
+            except Exception: pass
+        elif erros:
+            print(f"⚠ {erros} movimento(s) pendente(s) do site não importado(s) por erro de dados.")
 
     # ── HEADER ──────────────────────────────────────────────────
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v3.6",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v3.7",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -3679,7 +3792,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v3.6</span>
+        <span>Sistema de Gestão de Bolões v3.7</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -5973,7 +6086,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v3.6</span>
+        <span>Sistema de Gestão de Bolões v3.7</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>

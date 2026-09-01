@@ -139,6 +139,24 @@ Rodada dedicada a "evoluir pra um padrão profissional", cobrindo desktop e web 
 - **Achados da investigação de integração desktop↔web da Rodada 3** (centavos perdidos em `valorPago`, colisão de ID em reservas sem telefone, `dataLimite`/`vagasDisponiveis` mortos, "Sincronizar Pendentes" morto) — continuam pendentes, listados acima.
 - **Avaliação de prontidão de produto** (mono-admin hardcoded em 3 lugares, app desktop preso a 1 projeto Firebase, zero onboarding self-service, leitura ineficiente que escala mal, Analytics sem eventos de negócio, falta notificação proativa de resultado) — é decisão estratégica, não bug; documentado pro usuário decidir se/quando perseguir virar produto multi-tenant.
 
+## Rodada 5 — Sincronização de reservas nos dois sentidos + achados de arquitetura de informação nas abas
+
+**Reservas: sincronização web→desktop (feature nova)**
+
+Antes, reservas pessoais só sincronizavam desktop→site (o app publica saldo/histórico calculado do SQLite local, sobrescrevendo o documento inteiro no Firestore). Não existia caminho contrário — um depósito feito "no campo" só entrava no sistema se alguém abrisse o desktop e lançasse manualmente.
+
+Implementado seguindo o mesmo padrão de fila que já existia (morto) pra `participantes_pendentes`:
+- Nova coleção `reservas_movimentos_pendentes` no Firestore (`allow read, write: if isAdmin()` — deployado e testado: escrita/leitura anônima bloqueadas com 403).
+- Admin web (`admin.html`/`admin.js`, seção Reservas): botão "➕ REGISTRAR MOVIMENTO" abre modal pra lançar depósito OU saque/uso, pra pessoa já cadastrada OU pessoa nova (nome+telefone+PIX opcional). Grava na fila, não altera o saldo na hora (deixa isso explícito no toast de confirmação).
+- Desktop (`bolao_pro_v3.py`): `_importar_movimentos_pendentes_web()`, chamada logo após o login inicial na abertura do app. Busca a pessoa local por telefone (prioridade) ou nome; se não achar, cria. Insere o movimento em `reservas_movimentos` local, apaga o item da fila no Firestore, e mostra um aviso resumido ("N movimentos importados do site: depósitos RX, saques RY") só se houver algo pra importar — silencioso quando a fila está vazia.
+- Depois de importado, o próximo push do desktop pro site (fechamento ou publicação manual) já inclui o movimento normalmente, porque ele passa a fazer parte do SQLite local — não precisou mexer na lógica de push existente.
+
+**Achados de arquitetura de informação nas abas do desktop (apresentados, aguardando aprovação pra aplicar)**
+- "✏ Editar" (Financeiro) é redundante com "📋 Histórico" — Histórico já cobre 100% do caso de uso de Editar (busca por nome + duplo-clique pra editar) e tem mais recursos (KPIs, filtro, export). Candidata a remoção.
+- Sub-aba "🔄 Sincronizar Participantes" (dentro de Site/Publicar) corresponde à feature já identificada como código morto na Rodada 4 — remover a aba junto com o código.
+- Nomes parecidos demais pra conceitos diferentes: "💼 Reserva/Caixa" (Gestão, fundo de caixa do bolão) vs "💰 Reservas Pessoais" (Financeiro, saldo de cada pessoa).
+- "📊 Administração" (dentro de Início) não deixa claro que é uma visão agregada de TODOS os bolões, diferente do "🏠 Dashboard" (bolão selecionado) ao lado.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
