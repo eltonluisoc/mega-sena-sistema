@@ -144,9 +144,9 @@
             if (!telefone) return '';
             const numeros = telefone.replace(/\D/g, '');
             if (numeros.length === 11) {
-                return `${numeros.substring(0, 2)}-${numeros.substring(2)}`;
+                return `(${numeros.substring(0, 2)}) ${numeros.substring(2, 7)}-${numeros.substring(7)}`;
             } else if (numeros.length === 10) {
-                return `${numeros.substring(0, 2)}-${numeros.substring(2)}`;
+                return `(${numeros.substring(0, 2)}) ${numeros.substring(2, 6)}-${numeros.substring(6)}`;
             }
             return numeros;
         }

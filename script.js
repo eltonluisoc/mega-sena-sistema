@@ -259,6 +259,8 @@ function entrarGrupoWhatsApp() {
     showToast('📱 Abrindo grupo oficial do WhatsApp...', 'info');
 }
 
+// Duplicada em admin.js como combinacaoAdmin() (sem build step pra
+// compartilhar módulo entre as páginas) — mantenha as duas sincronizadas.
 function combinacao(n, k) {
     if (k > n) return 0;
     if (k === 0 || k === n) return 1;
@@ -895,54 +897,6 @@ async function carregarDados() {
     } finally {
         setTimeout(() => hideLoading(), 500);
     }
-}
-
-function atualizarSelectBoloes() {
-    const select = document.getElementById('bolaoSelect');
-    if (!select) return;
-    
-    const concurso = document.getElementById('concursoSelect').value;
-    if (!concurso) {
-        select.innerHTML = '<option value="todos">Todos os bolões</option>';
-        return;
-    }
-    
-    const boloesMap = window.boloesDisponiveis || {};
-    const boloes = boloesMap[loteriaAtual]?.[concurso] || [];
-    
-    if (boloes.length === 0) {
-        db.collection('cartoes')
-            .where('tipo', '==', loteriaAtual)
-            .where('concurso', '==', concurso)
-            .get()
-            .then(snapshot => {
-                const boloesSet = new Set();
-                snapshot.forEach(doc => {
-                    const d = doc.data();
-                    if (d && d.bolao) {
-                        boloesSet.add(d.bolao);
-                    }
-                });
-                
-                const boloesLista = Array.from(boloesSet);
-                let html = '<option value="todos">Todos os bolões</option>';
-                for (const bolao of boloesLista) {
-                    html += `<option value="${bolao}">${bolao}</option>`;
-                }
-                select.innerHTML = html;
-            })
-            .catch(error => {
-                console.error('Erro ao buscar bolões:', error);
-                select.innerHTML = '<option value="todos">Todos os bolões</option>';
-            });
-        return;
-    }
-    
-    let html = '<option value="todos">Todos os bolões</option>';
-    for (const bolao of boloes) {
-        html += `<option value="${bolao}">${bolao}</option>`;
-    }
-    select.innerHTML = html;
 }
 
 // ========== ATUALIZAR SELECT DE BOLÕES (VERSÃO ASSÍNCRONA) ==========
@@ -1802,36 +1756,6 @@ function mostrarModalParticipacao(bolao) {
             document.getElementById('fecharErro').onclick = () => modal.remove();
         }
     })();
-}
-
-function mostrarResultadoExistente(concurso, numeros) {
-    const statusDiv = document.getElementById('statusBusca');
-    if (!statusDiv) return;
-    
-    if (loteriaAtual === 'mega' && resultadosMega[concurso]) {
-        statusDiv.innerHTML = `
-            <div class="status-success">
-                ✅ RESULTADO DO CONCURSO ${concurso} (MEGA-SENA) JÁ DISPONÍVEL! 🎲<br>
-                🎯 Números: ${numeros.join(' - ')}
-            </div>
-        `;
-    } else if (loteriaAtual === 'lotofacil' && resultadosLotofacil[concurso]) {
-        statusDiv.innerHTML = `
-            <div class="status-success">
-                ✅ RESULTADO DO CONCURSO ${concurso} (LOTOFÁCIL) JÁ DISPONÍVEL! 🎲<br>
-                🎯 Números: ${numeros.join(' - ')}
-            </div>
-        `;
-    } else if (loteriaAtual === 'quina' && resultadosQuina[concurso]) {
-        statusDiv.innerHTML = `
-            <div class="status-success">
-                ✅ RESULTADO DO CONCURSO ${concurso} (QUINA) JÁ DISPONÍVEL! 🎲<br>
-                🎯 Números: ${numeros.join(' - ')}
-            </div>
-        `;
-    } else {
-        statusDiv.innerHTML = '';
-    }
 }
 
 async function buscarResultadoAutomatico() {

@@ -2231,7 +2231,7 @@ async function carregarTokens() {
                     <div style="font-size: 12px; color: #64748b; margin-bottom: 8px;">📞 ${formatarTelefone(token.telefone)}</div>
                     <div style="font-size: 10px; color: #64748b; margin-bottom: 10px;">📅 Criado em: ${dataCriacao}</div>
                     <div style="background: #f8fafc; padding: 8px; border-radius: 8px; margin-bottom: 10px;">
-                        <code style="font-size: 9px; word-break: break-all;">${link}</code>
+                        <code style="font-size: 12px; word-break: break-all;">${link}</code>
                     </div>
                     <div style="display: flex; gap: 8px;">
                         <button class="btn-copiar-link btn-sm" data-link="${link}" style="background: #3b82f6; border: none; padding: 6px 12px; border-radius: 20px; color: white; cursor: pointer; font-size: 11px;">📋 COPIAR LINK</button>
@@ -2271,11 +2271,12 @@ async function carregarTokens() {
 }
 
 function formatarTelefone(telefone) {
+    if (!telefone) return '';
     const numeros = telefone.replace(/\D/g, '');
     if (numeros.length === 11) {
-        return `${numeros.substring(0, 2)}-${numeros.substring(2)}`;
+        return `(${numeros.substring(0, 2)}) ${numeros.substring(2, 7)}-${numeros.substring(7)}`;
     } else if (numeros.length === 10) {
-        return `${numeros.substring(0, 2)}-${numeros.substring(2)}`;
+        return `(${numeros.substring(0, 2)}) ${numeros.substring(2, 6)}-${numeros.substring(6)}`;
     }
     return numeros;
 }
@@ -2870,6 +2871,8 @@ function calcularEstatisticas(cartoes, resultados) {
 
 // Combinação (n escolhe k) - quantos bilhetes simples um cartão de n
 // números equivale, para uma loteria que sorteia k números
+// Duplicada em script.js como combinacao() (sem build step pra
+// compartilhar módulo entre as páginas) — mantenha as duas sincronizadas.
 function combinacaoAdmin(n, k) {
     if (k > n) return 0;
     if (k === 0 || k === n) return 1;
@@ -3038,6 +3041,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (adminBtnMega) adminBtnMega.onclick = () => setLoteriaAdmin('mega');
     if (adminBtnLotofacil) adminBtnLotofacil.onclick = () => setLoteriaAdmin('lotofacil');
     if (adminBtnQuina) adminBtnQuina.onclick = () => setLoteriaAdmin('quina');
+    const btnRecarregarLista = document.getElementById('btnRecarregarLista');
+    if (btnRecarregarLista) btnRecarregarLista.onclick = carregarDadosAdmin;
     if (btnExcluirSelecionados) btnExcluirSelecionados.onclick = excluirSelecionados;
     if (btnAlterarTipo) btnAlterarTipo.onclick = abrirModalAlterarTipo;
     if (btnSalvarPix) btnSalvarPix.onclick = salvarPixConfig;
@@ -3186,8 +3191,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnAdicionarSelecao')?.addEventListener('click', adicionarCartaoSelecaoAtual);
     
     document.getElementById('btnLimparSelecao')?.addEventListener('click', function() {
+        // Fechar o diálogo (Esc/X) o navegador trata como "Cancelar" — por
+        // isso a ação destrutiva ("limpar todos") só roda com OK explícito;
+        // Cancelar/Esc cai no caminho seguro (limpar só a seleção atual).
         if (todosCartoesSelecao.length > 0) {
-            if (!confirm('Limpar apenas a seleção atual ou todos os cartões?\n\n"OK" = Limpar seleção atual\n"Cancelar" = Limpar todos os cartões')) {
+            if (confirm('Limpar TODOS os cartões da seleção (não só o atual)?\n\n"OK" = limpar todos\n"Cancelar" = limpar só a seleção atual')) {
                 limparTodosCartoesSelecao();
                 return;
             }
