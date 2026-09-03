@@ -1,7 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v5.2
+SISTEMA DE GESTÃO DE BOLÕES PRO v5.3
+Correções v5.3 (auto-atualização + janela de lançamento maior):
+ - Janela "Registrar Lançamento" (Dashboard) aumentada de 380x420 para
+   440x600 — abria pequena demais, com campos apertados.
+ - CORRIGIDO: nenhuma tela recarregava os dados automaticamente ao ser
+   aberta. Registrar um pagamento numa aba e abrir "Depósitos" logo
+   depois mostrava dados velhos até clicar em "Atualizar" na mão. Agora
+   TODA troca de aba (grupo principal ou sub-aba, em qualquer parte do
+   sistema) recarrega os dados na hora — dashboard, depósitos, histórico,
+   relatório, reservas, premiações, listas de participantes, combos etc.
+   Isso NÃO limpa formulários nem seleções em andamento (ex.: participante
+   já escolhido em Registrar Pagamento) — só atualiza os números.
 Correções v5.2 (vazios na tela "Visão Geral"):
  - CORRIGIDO: a área de rolagem do canvas era calculada só uma vez, na
    montagem da tela — se a janela fosse redimensionada/maximizada depois,
@@ -910,7 +921,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v5.2")
+        self.root.title("Sistema de Gestão de Bolões PRO v5.3")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1088,7 +1099,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v5.2",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v5.3",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -1206,21 +1217,6 @@ class BolaoApp:
         nb_sys.add(self.tab_bkp, text="💾 Backup / Restore")
         nb_sys.add(self.tab_pub, text="🌐 Site / Publicar")
 
-        # Auto-atualiza ao entrar no grupo "Inicio" vindo de outro grupo
-        # (o bind mais abaixo, no notebook INTERNO nb_inicio, cobre trocar
-        # entre as sub-abas Dashboard/Administracao já dentro dela — os
-        # dois binds precisam estar em widgets diferentes: bind() duas
-        # vezes no mesmo widget substitui o anterior em silêncio, e foi
-        # exatamente isso que deixava esse auto-refresh sempre morto)
-        def _on_tab_changed(event):
-            try:
-                tab = self.nb.tab(self.nb.select(), "text")
-                if "Inicio" in tab:
-                    self.root.after(50, self._adm_load)
-            except Exception:
-                pass
-        self.nb.bind("<<NotebookTabChanged>>", _on_tab_changed)
-
         # ── Constrói o conteúdo de todas as abas ────────────────
         self._build_dashboard()
         self._build_bolao_sel()
@@ -1241,14 +1237,17 @@ class BolaoApp:
         self._build_publicar()
         self._build_bkp()
 
-        # Auto-atualiza ao trocar entre as 3 sub-abas de Inicio (Visao Geral,
-        # Bolao Selecionado, Pendencias por Bolao) — as 3 dependem de
-        # _dash_load/_adm_load, entao os dois carregadores rodam sempre
-        # que o usuario troca de sub-aba dentro de Inicio.
-        def _on_tab_changed_inicio(event):
-            self.root.after(50, self._dash_load)
-            self.root.after(50, self._adm_load)
-        nb_inicio.bind("<<NotebookTabChanged>>", _on_tab_changed_inicio)
+        # Auto-atualiza SEMPRE que qualquer aba/sub-aba é aberta — pedido
+        # explícito do usuário: nenhuma tela pode ficar desatualizada
+        # depois de uma ação em outra (ex.: registrar um pagamento e ver
+        # o valor velho em Depósitos). Usa _refresh_dados_visiveis(), não
+        # _refresh_all() — essa última também limpa formulários/seleções
+        # em aberto, o que ia apagar o que o usuário estivesse digitando
+        # só por ter clicado em outra aba e voltado.
+        def _on_qualquer_troca_de_aba(event):
+            self.root.after(50, self._refresh_dados_visiveis)
+        for _nb in (self.nb, nb_inicio, nb_part, nb_fin, nb_gestao, nb_sys):
+            _nb.bind("<<NotebookTabChanged>>", _on_qualquer_troca_de_aba)
 
     # ════════════════════════════════════════════════════════════
     #  HELPERS CENTRALIZADOS — status e cotas
@@ -3969,7 +3968,7 @@ class BolaoApp:
         tela principal (ação, não informação) a pedido do usuário."""
         win = tk.Toplevel(self.root)
         win.title("Registrar Lançamento")
-        win.geometry("380x420")
+        win.geometry("440x600")
         win.configure(bg=CORES["bg_section"])
         win.grab_set(); win.lift(); win.focus_force()
 
@@ -4353,7 +4352,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v5.2</span>
+        <span>Sistema de Gestão de Bolões v5.3</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -6400,7 +6399,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v5.2</span>
+        <span>Sistema de Gestão de Bolões v5.3</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -7367,6 +7366,50 @@ class BolaoApp:
         self._rsv_load()
         try: self._pub_carregar_boloes()
         except: pass
+        try: self._pessoas_load()
+        except: pass
+
+    def _refresh_dados_visiveis(self):
+        """Recarrega os DADOS mostrados nas telas (listas, tabelas,
+        dashboard, opções dos combos) toda vez que o usuário abre
+        qualquer aba — pedido explícito: nenhuma tela pode ficar
+        desatualizada depois de uma ação feita em outra (ex.: registrar
+        um pagamento numa aba e ver o valor velho em Depósitos).
+
+        Diferente de _refresh_all() (que roda depois de SALVAR algo),
+        aqui a gente só recarrega o que é EXIBIÇÃO — não mexe em nada que
+        o usuário esteja digitando/selecionando numa tela (não limpa o
+        combo de participante escolhido em Registrar/Visualizar, não
+        reseta a busca de Editar Participante, não sobrescreve o campo
+        Valor do formulário de Novo Participante). Trocar de aba nunca
+        deve apagar o que a pessoa estava fazendo — só atualizar números."""
+        bid = self.bid.get()
+        todos = self.db.fetchall(
+            "SELECT * FROM participantes WHERE bolao_id=? AND ativo=1 ORDER BY nome",(bid,))
+        items_todos = [f"{dict(p)['nome']} (ID: {dict(p)['id']})" for p in todos]
+        # Só atualiza a LISTA de opções dos combos — não mexe na seleção
+        # atual do usuário (.set() fica intocado de propósito).
+        try: self.pag_cb["values"] = items_todos
+        except Exception: pass
+        try: self.vis_cb["values"] = items_todos
+        except Exception: pass
+        try: self.cad_edit_cb["values"] = items_todos
+        except Exception: pass
+        try: self._cad_lista_load()
+        except Exception: pass
+        self._gerar_rel()
+        self._dep_refresh()
+        self._hist_load()
+        self._load_prem()
+        self._load_res()
+        self._adm_load()
+        self._dash_load()
+        self._rsv_load()
+        try: self._pub_carregar_boloes()
+        except Exception: pass
+        try: self._pessoas_load()
+        except Exception: pass
+
     def _on_close(self):
         """Fecha com tela de sincronizacao redesenhada."""
         import threading, sqlite3 as _sq_c, re as _re_c, time as _time, json
