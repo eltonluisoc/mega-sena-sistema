@@ -1,7 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v4.0
+SISTEMA DE GESTÃO DE BOLÕES PRO v4.1
+Correções v4.1:
+ - REMOVIDO: aba "✏ Editar" (Financeiro) — redundante com "📋
+   Histórico" (busca por nome + duplo-clique já cobria tudo). Histórico
+   ganhou um botão "🗑 Excluir Selecionado" pra fechar a única diferença
+   real que havia (excluir um pagamento).
+ - REMOVIDO: sub-aba "🔄 Sincronizar Participantes" (Site/Publicar) —
+   código morto, nada escreve na fila que ela lia desde que o site
+   mudou de fluxo. A limpeza de "Pagamentos Órfãos" (que ficava dentro
+   dela) continua existindo, agora como botão em "📋 Histórico".
+ - MELHORADO: aba "💼 Reserva / Caixa" renomeada pra "💼 Caixa por
+   Loteria" — tinha nome parecido demais com "💰 Reservas Pessoais"
+   apesar de serem conceitos diferentes (fundo do organizador vs.
+   saldo de cada pessoa)
 Correções v4.0:
  - MELHORADO: "Início" tinha 3 níveis de abas (Início > Administração >
    Visão Geral/Pendências), exigindo 2 cliques pra chegar em qualquer
@@ -836,7 +849,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v4.0")
+        self.root.title("Sistema de Gestão de Bolões PRO v4.1")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1014,7 +1027,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v4.0",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v4.1",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -1091,11 +1104,12 @@ class BolaoApp:
         nb_part.add(self.tab_cad_lista, text="📋 Lista / Remover")
         nb_part.add(self.tab_pessoas,   text="🔗 Pessoas / Unificar")
 
-        # ── Financeiro (8 sub-abas) ──────────────────────────────────
+        # ── Financeiro (7 sub-abas — "Editar" foi removida, redundante
+        # com "Histórico": busca por nome + duplo-clique já cobria tudo,
+        # e "Histórico" ganhou um botão Excluir pra fechar a diferença) ──
         nb_fin = ttk.Notebook(self.tab_grp_fin, style="Inner.TNotebook")
         nb_fin.pack(fill="both", expand=True, padx=4, pady=4)
         self.tab_pag    = tk.Frame(nb_fin, bg=CORES["bg_frame"])
-        self.tab_edit   = tk.Frame(nb_fin, bg=CORES["bg_frame"])
         self.tab_vis    = tk.Frame(nb_fin, bg=CORES["bg_frame"])
         self.tab_dep    = tk.Frame(nb_fin, bg=CORES["bg_frame"])
         self.tab_rel    = tk.Frame(nb_fin, bg=CORES["bg_frame"])
@@ -1103,7 +1117,6 @@ class BolaoApp:
         self.tab_hist   = tk.Frame(nb_fin, bg=CORES["bg_frame"])
         self.tab_import = tk.Frame(nb_fin, bg=CORES["bg_frame"])
         nb_fin.add(self.tab_pag,    text="💳 Registrar")
-        nb_fin.add(self.tab_edit,   text="✏ Editar")
         nb_fin.add(self.tab_vis,    text="🔍 Visualizar / Recibo")
         nb_fin.add(self.tab_dep,    text="🏦 Depositos")
         nb_fin.add(self.tab_rel,    text="📊 Relatorio")
@@ -1119,7 +1132,7 @@ class BolaoApp:
         self.tab_res      = tk.Frame(nb_gestao, bg=CORES["bg_frame"])
         self.tab_prem     = tk.Frame(nb_gestao, bg=CORES["bg_frame"])
         self.tab_caixa_pr = self.tab_grp_gestao  # alias para compat
-        nb_gestao.add(self.tab_res,  text="💼 Reserva / Caixa")
+        nb_gestao.add(self.tab_res,  text="💼 Caixa por Loteria")
         nb_gestao.add(self.tab_prem, text="🏆 Premiacoes")
 
         # ── Sistema: Backup + Site ────────────────────────────────────
@@ -1151,7 +1164,6 @@ class BolaoApp:
         self._build_cad_editar()
         self._build_cad_lista()
         self._build_pag()
-        self._build_edit()
         self._build_vis()
         self._build_importar()
         self._build_rel()
@@ -2333,15 +2345,11 @@ class BolaoApp:
         """Sincroniza seleção entre abas de Pagamentos e chama _pag_info."""
         sel = self.pag_cb.get()
         self._pag_part_sync.set(sel)
-        # Sincroniza vis_cb e edit_cb
+        # Sincroniza vis_cb
         try:
             if sel in self.vis_cb["values"]:
                 self.vis_cb.set(sel)
                 self._vis_sel()
-        except: pass
-        try:
-            if sel in self.edit_cb["values"]:
-                self.edit_cb.set(sel)
         except: pass
         self._pag_info()
 
@@ -3117,6 +3125,10 @@ class BolaoApp:
             self._hist_load, width=14).pack(side="left", padx=4)
         btn(top, "📊 Exportar Excel", CORES["btn_verde"],
             self._hist_exportar, width=18).pack(side="left", padx=4)
+        btn(top, "🗑 Excluir Selecionado", CORES["btn_vermelho"],
+            self._hist_excluir, width=20).pack(side="left", padx=4)
+        btn(top, "🧹 Pagamentos Órfãos", CORES["btn_cinza"],
+            self._sinc_limpar_orfaos, width=20).pack(side="left", padx=4)
 
         tk.Label(top, text="  Ordenar por:", bg=CORES["bg_frame"],
                  fg=CORES["fg_label"], font=("Arial",9,"bold")).pack(side="left", padx=(12,4))
@@ -3337,6 +3349,27 @@ class BolaoApp:
             self._hist_load()
         btn(form, "💾 SALVAR ALTERAÇÕES", CORES["btn_verde"], salvar, width=22).grid(
             row=9, column=0, pady=14, sticky="e")
+
+    def _hist_excluir(self):
+        """Exclui o pagamento selecionado no Histórico (mesma trava de
+        segurança que a antiga aba Editar: não deixa excluir se já
+        depositado, senão desconta do fundo sem ninguém perceber)."""
+        sel = self.hist_tree.selection()
+        if not sel:
+            messagebox.showwarning("Atenção", "Selecione um pagamento na lista!"); return
+        pid_pag = int(sel[0])
+        pg = self.db.fetchone("SELECT * FROM pagamentos WHERE id=?", (pid_pag,))
+        if not pg: return
+        if pg["depositado"]:
+            messagebox.showerror("Operação Bloqueada",
+                "Este pagamento já foi depositado e não pode ser excluído.\n\n"
+                "Para excluir, primeiro dê duplo-clique nele e marque "
+                "'Depositado: Não'.")
+            return
+        if messagebox.askyesno("Confirmar", "Excluir este pagamento?"):
+            self.db.execute("DELETE FROM pagamentos WHERE id=?", (pid_pag,))
+            messagebox.showinfo("Excluído", "Pagamento excluído.")
+            self._hist_load()
 
     def _hist_exportar(self):
         bid = self.bid.get()
@@ -4054,7 +4087,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v4.0</span>
+        <span>Sistema de Gestão de Bolões v4.1</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -4293,143 +4326,12 @@ class BolaoApp:
             messagebox.showinfo("Removido","Participante removido."); self._refresh_all()
 
     # ════════════════════════════════════════════════════════════
-    #  ABA 5 — EDITAR PAGAMENTOS  ← CORRIGIDA
+    #  [ANTIGA ABA 5 — EDITAR PAGAMENTOS — REMOVIDA]
+    #  Era redundante com "📋 Histórico": busca por nome já cobria
+    #  "selecionar participante", e duplo-clique já editava. Histórico
+    #  ganhou um botão "🗑 Excluir Selecionado" (ver _hist_excluir) pra
+    #  fechar a única diferença real que havia entre as duas abas.
     # ════════════════════════════════════════════════════════════
-    def _build_edit(self):
-        p = self.tab_edit
-        top=tk.Frame(p,bg=CORES["bg_frame"]); top.pack(fill="x",padx=20,pady=10)
-        tk.Label(top,text="Participante:",bg=CORES["bg_frame"],font=("Arial",9,"bold"),
-                 fg=CORES["fg_label"]).pack(side="left")
-        self.edit_cb=ttk.Combobox(top,width=40,state="readonly",font=("Arial",9))
-        self.edit_cb.pack(side="left",padx=8)
-        self.edit_cb.bind("<<ComboboxSelected>>",self._edit_load)
-        # ← botão explícito para carregar (resolve o bug de lista vazia)
-        btn(top,"🔍 Carregar Pagamentos",CORES["btn_azul"],self._edit_load,width=22).pack(side="left",padx=4)
-
-        sec=section(p,"PAGAMENTOS DO PARTICIPANTE — clique duplo para editar")
-        sec.pack(fill="both",expand=True,padx=20,pady=8)
-        cols={"ID":70,"Mês Ref.":100,"Data Pag.":130,
-              "Valor (R$)":120,"Depositado":110,"Data Depósito":130,"Obs.":180}
-        fr,self.edit_tree=make_tree(sec,cols,height=18); fr.pack(fill="both",expand=True)
-        self.edit_tree.configure(selectmode="browse")
-        self.edit_tree.bind("<Double-1>",lambda e: self._editar_pag_form())
-
-        bf=tk.Frame(p,bg=CORES["bg_frame"]); bf.pack(fill="x",padx=20,pady=8)
-        btn(bf,"✏ Editar Pagamento",CORES["btn_laranja"],self._editar_pag_form,width=22).pack(side="left",padx=4)
-        btn(bf,"🗑 Excluir Pagamento",CORES["btn_vermelho"],self._excluir_pag,width=22).pack(side="left",padx=4)
-        btn(bf,"🏦 Alt. Status Depósito",CORES["btn_azul"],self._alt_deposito,width=24).pack(side="left",padx=4)
-
-    def _edit_load(self, e=None):
-        sel=self.edit_cb.get()
-        if not sel:
-            messagebox.showwarning("Atenção","Selecione um participante no campo acima e clique em 'Carregar'.")
-            return
-        pid=int(re.search(r"\(ID: (\d+)\)",sel).group(1))
-        bid=self.bid.get()
-        pgs=self.db.fetchall(
-            "SELECT * FROM pagamentos WHERE participante_id=? AND bolao_id=? ORDER BY id",(pid,bid))
-        self.edit_tree.delete(*self.edit_tree.get_children())
-        for pg in pgs:
-            dep="✅ Sim" if pg["depositado"] else "❌ Não"
-            self.edit_tree.insert("","end",iid=str(pg["id"]),values=(
-                pg["id"],pg["mes_referencia"],pg["data_pagamento"],
-                fmt_brl(pg["valor"]),dep,pg["data_deposito"] or "-",pg["observacoes"] or "-"))
-        if not pgs:
-            messagebox.showinfo("Info","Este participante não possui pagamentos registrados.")
-
-    def _get_pag_sel(self):
-        sel=self.edit_tree.selection()
-        if not sel: messagebox.showwarning("Atenção","Selecione um pagamento!"); return None
-        return int(sel[0])
-
-    def _editar_pag_form(self):
-        """Abre form de edição e faz UPDATE no pagamento existente (não insere novo)."""
-        pid_pag=self._get_pag_sel()
-        if pid_pag is None: return
-        pg=self.db.fetchone("SELECT * FROM pagamentos WHERE id=?",(pid_pag,))
-
-        win=tk.Toplevel(self.root); win.title(f"Editar Pagamento ID {pid_pag}")
-        win.geometry("460x380"); win.configure(bg=CORES["bg_section"]); win.grab_set()
-        tk.Label(win,text=f"EDITAR PAGAMENTO  (ID: {pid_pag})",bg=CORES["bg_section"],
-                 fg=CORES["fg_title"],font=("Arial",12,"bold")).pack(pady=10)
-        form=tk.Frame(win,bg=CORES["bg_section"],padx=24); form.pack(fill="both",expand=True)
-        form.columnconfigure(0,weight=1)
-
-        fields=[("Mês Referência (Ex: Abr/2026):","mes_referencia"),
-                ("Data Pagamento (DD/MM/AAAA):","data_pagamento"),
-                ("Valor (R$): — vírgula ou ponto aceitos","valor"),
-                ("Observações:","observacoes")]
-        vars_={}
-        for i,(lbl,key) in enumerate(fields):
-            tk.Label(form,text=lbl,bg=CORES["bg_section"],fg=CORES["fg_label"],
-                     font=("Arial",9,"bold")).grid(row=i*2,column=0,sticky="w",pady=(8,0))
-            w=entry(form,width=40)
-            val=pg[key] if pg[key] is not None else ""
-            if key=="valor":
-                val=f"{float(val or 0):.2f}".replace(".",",")
-            w.insert(0,str(val))
-            w.grid(row=i*2+1,column=0,sticky="ew"); vars_[key]=w
-
-        # Status depósito
-        dep_var=tk.IntVar(value=int(pg["depositado"] or 0))
-        dep_frame=tk.Frame(form,bg=CORES["bg_section"]); dep_frame.grid(row=8,column=0,sticky="w",pady=8)
-        tk.Label(dep_frame,text="Depositado:",bg=CORES["bg_section"],
-                 font=("Arial",9,"bold"),fg=CORES["fg_label"]).pack(side="left")
-        tk.Radiobutton(dep_frame,text="✅ Sim",variable=dep_var,value=1,
-                       bg=CORES["bg_section"],fg=CORES["fg_label"]).pack(side="left",padx=8)
-        tk.Radiobutton(dep_frame,text="❌ Não",variable=dep_var,value=0,
-                       bg=CORES["bg_section"],fg=CORES["fg_label"]).pack(side="left")
-
-        def salvar():
-            novo_val=to_float(vars_["valor"].get())
-            if novo_val<=0:
-                messagebox.showwarning("Atenção","Valor inválido!"); return
-            dep=dep_var.get()
-            dd=pg["data_deposito"]
-            if dep and not dd:
-                dd=date.today().strftime("%d/%m/%Y")
-            elif not dep:
-                dd=None
-            # UPDATE — não insere novo registro!
-            self.db.execute(
-                "UPDATE pagamentos SET mes_referencia=?,data_pagamento=?,valor=?,"
-                "observacoes=?,depositado=?,data_deposito=? WHERE id=?",
-                (vars_["mes_referencia"].get(),vars_["data_pagamento"].get(),
-                 novo_val,vars_["observacoes"].get(),dep,dd,pid_pag))
-            messagebox.showinfo("Sucesso",f"Pagamento ID {pid_pag} atualizado!")
-            win.destroy()
-            self._edit_load()
-
-        btn(form,"💾 SALVAR ALTERAÇÕES",CORES["btn_verde"],salvar,width=22).grid(
-            row=9,column=0,pady=14,sticky="e")
-
-    def _excluir_pag(self):
-        pid_pag = self._get_pag_sel()
-        if pid_pag is None: return
-        pg = self.db.fetchone("SELECT * FROM pagamentos WHERE id=?", (pid_pag,))
-        if pg and pg["depositado"]:
-            messagebox.showerror("Operação Bloqueada",
-                "Este pagamento já foi depositado e não pode ser excluído.\n\n"
-                "Para excluir, primeiro desmarque o depósito na aba Depósitos.\n"
-                "(Selecione o pagamento → botão 'Alterar Depósito')")
-            return
-        if messagebox.askyesno("Confirmar","Excluir este pagamento?"):
-            self.db.execute("DELETE FROM pagamentos WHERE id=?", (pid_pag,))
-            messagebox.showinfo("Excluído","Pagamento excluído.")
-            self._edit_load()
-
-    def _alt_deposito(self):
-        """Alterna depositado/não depositado com confirmação."""
-        pid_pag=self._get_pag_sel()
-        if pid_pag is None: return
-        pg=self.db.fetchone("SELECT * FROM pagamentos WHERE id=?",(pid_pag,))
-        novo=0 if pg["depositado"] else 1
-        dd=date.today().strftime("%d/%m/%Y") if novo else None
-        txt="DEPOSITADO" if novo else "PENDENTE"
-        if messagebox.askyesno("Confirmar",f"Marcar pagamento ID {pid_pag} como {txt}?"):
-            self.db.execute("UPDATE pagamentos SET depositado=?,data_deposito=? WHERE id=?",
-                            (novo,dd,pid_pag))
-            self._edit_load()
 
     # ════════════════════════════════════════════════════════════
     #  ABA 6 — CONTROLE DE DEPÓSITOS
@@ -6221,7 +6123,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v4.0</span>
+        <span>Sistema de Gestão de Bolões v4.1</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -6483,16 +6385,13 @@ class BolaoApp:
 
 
     def _build_publicar(self):
+        # Era um notebook com 2 sub-abas ("Publicar no Site" e a extinta
+        # "Sincronizar Participantes" — nunca funcionava, nada escrevia na
+        # fila que ela lia). Só sobrou "Publicar", então empacota direto
+        # sem o notebook interno — não faz sentido uma aba só dentro de
+        # outro nível de abas.
         p = self.tab_pub
-        nb_pub = ttk.Notebook(p, style="Inner.TNotebook")
-        nb_pub.pack(fill="both", expand=True, padx=4, pady=4)
-        tab_pub_pub  = tk.Frame(nb_pub, bg=CORES["bg_frame"])
-        tab_pub_sinc = tk.Frame(nb_pub, bg=CORES["bg_frame"])
-        nb_pub.add(tab_pub_pub,  text="🌐 Publicar no Site")
-        nb_pub.add(tab_pub_sinc, text="🔄 Sincronizar Participantes")
-
-        # ── Sub-aba Publicar ──────────────────────────────────────
-        outer = tk.Frame(tab_pub_pub, bg=CORES["bg_frame"])
+        outer = tk.Frame(p, bg=CORES["bg_frame"])
         outer.pack(fill="both", expand=True, padx=20, pady=(16,6))
         sec = section(outer, "🌐 PUBLICAR BOLÃO NO SITE")
         sec.pack(fill="x")
@@ -6519,36 +6418,6 @@ class BolaoApp:
         vsb = ttk.Scrollbar(sec2, orient="vertical", command=self._pub_txt.yview)
         self._pub_txt.configure(yscrollcommand=vsb.set)
         vsb.pack(side="right", fill="y"); self._pub_txt.pack(fill="both", expand=True)
-
-        # ── Sub-aba Sincronizar ──────────────────────────────────
-        outer2 = tk.Frame(tab_pub_sinc, bg=CORES["bg_frame"])
-        outer2.pack(fill="both", expand=True, padx=20, pady=(16,6))
-        sec_s = section(outer2, "🔄 SINCRONIZAR PARTICIPANTES DO SITE")
-        sec_s.pack(fill="x")
-        tk.Label(sec_s,
-                 text="Busca participantes cadastrados pelo celular. Você poderá revisar e editar antes de confirmar.",
-                 bg=CORES["bg_section"], fg="#888", font=("Arial",8,"italic")).pack(anchor="w", pady=(0,6))
-        sbf = tk.Frame(sec_s, bg=CORES["bg_section"]); sbf.pack(fill="x", pady=6)
-        btn(sbf, "🔄 BUSCAR DO SITE", CORES["btn_roxo"],
-            self._sinc_executar, width=22).pack(side="left", padx=4)
-        self._sinc_status = tk.Label(sbf, text="", bg=CORES["bg_section"],
-                                      fg="#1D9E75", font=("Arial",9,"bold"))
-        self._sinc_status.pack(side="left", padx=8)
-        # Mantém _sinc_cb para compatibilidade mas oculto
-        self._sinc_cb = ttk.Combobox(sbf, width=1, state="readonly")
-        sec_v = section(outer2, "⚠ PARTICIPANTES PENDENTES DE VALIDAÇÃO")
-        sec_v.pack(fill="both", expand=True, pady=(12,0))
-        cols_v = {"Nome":200,"Bolão Origem":180,"Valor":90,"Data":110,"Status":120}
-        fr_v, self._sinc_tree = make_tree(sec_v, cols_v, height=8)
-        fr_v.pack(fill="both", expand=True)
-        self._sinc_tree.tag_configure("pendente", background="#fffde7")
-        self._sinc_tree.tag_configure("novo",     background="#fde8d8")
-        bfv = tk.Frame(sec_v, bg=CORES["bg_section"]); bfv.pack(fill="x", pady=4)
-        btn(bfv, "✅ Confirmar como Novo",  CORES["btn_verde"],  self._sinc_confirmar,          width=22).pack(side="left", padx=4)
-        btn(bfv, "🔗 Vincular a Existente", CORES["btn_azul"],   self._sinc_vincular,            width=22).pack(side="left", padx=4)
-        btn(bfv, "🗑 Ignorar",              CORES["btn_cinza"],  self._sinc_ignorar,             width=12).pack(side="left", padx=4)
-        btn(bfv, "🔄 Atualizar lista",      CORES["btn_azul"],   self._sinc_carregar_pendentes,  width=18).pack(side="right", padx=4)
-        btn(bfv, "🧹 Pagamentos Órfãos",    CORES["btn_cinza"],  self._sinc_limpar_orfaos,       width=20).pack(side="right", padx=4)
 
     def _pub_montar_dados(self):
         try:
@@ -6736,341 +6605,14 @@ class BolaoApp:
 
 
     # ════════════════════════════════════════════════════════════
-    #  SINCRONIZAÇÃO — Firebase participantes_pendentes
+    #  [SINCRONIZAÇÃO — Firebase participantes_pendentes — REMOVIDA]
+    #  Nada mais escreve na coleção participantes_pendentes desde que o
+    #  site parou de usar esse fluxo — a fila nunca recebia nada, então
+    #  "Sincronizar Participantes" nunca tinha o que mostrar. A limpeza
+    #  de pagamentos órfãos (_sinc_limpar_orfaos, logo abaixo) é
+    #  independente disso e continua — só mudou de lugar na tela
+    #  (agora é um botão em "📋 Histórico").
     # ════════════════════════════════════════════════════════════
-    def _firebase_buscar_pendentes(self):
-        import urllib.request, urllib.error, json
-        url = ("https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
-               "/databases/(default)/documents/participantes_pendentes")
-        try:
-            req = urllib.request.Request(url, method="GET",
-                  headers={"Accept":"application/json"})
-            with urllib.request.urlopen(req, timeout=15) as r:
-                dados = json.loads(r.read().decode("utf-8"))
-                docs  = dados.get("documents", [])
-                return [d for d in docs
-                        if not d.get("fields",{}).get("sincronizado",{}).get("booleanValue",True)]
-        except urllib.error.URLError as e:
-            print(f"Firebase URLError: {e}"); return None
-        except Exception as e:
-            print(f"Firebase erro: {e}"); return None
-
-    def _firebase_marcar_sincronizado(self, doc_id):
-        import urllib.request, json
-        url = ("https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
-               "/databases/(default)/documents/participantes_pendentes/" + doc_id
-               + "?updateMask.fieldPaths=sincronizado")
-        corpo = json.dumps({"fields":{"sincronizado":{"booleanValue":True}}}).encode("utf-8")
-        try:
-            req = urllib.request.Request(url, data=corpo, method="PATCH",
-                  headers=_firebase_headers())
-            urllib.request.urlopen(req, timeout=10)
-        except Exception as e:
-            print(f"Firebase marcar erro: {e}")
-
-    def _sinc_executar(self):
-        """Busca pendentes do Firebase em thread separada com feedback em tempo real."""
-        from datetime import datetime as _dt
-        import threading
-
-        self._sinc_status.configure(
-            text="\u23f3 Conectando ao Firebase...", fg="#aad4f5")
-        self.root.update_idletasks()
-
-        def _buscar():
-            self.root.after(0, lambda: self._sinc_status.configure(
-                text="\u23f3 Buscando participantes pendentes...", fg="#aad4f5"))
-            pendentes = self._firebase_buscar_pendentes()
-            self.root.after(0, lambda p=pendentes: _apos_busca(p))
-
-        def _apos_busca(pendentes):
-            if pendentes is None:
-                self._sinc_status.configure(
-                    text="\u274c Erro ao conectar. Verifique a internet.", fg="#e74c3c")
-                messagebox.showerror("Erro de conexao",
-                    "Nao foi possivel conectar ao Firebase.\n\nVerifique sua conexao com a internet.")
-                return
-            if not pendentes:
-                self._sinc_status.configure(
-                    text="\u2705 Nenhum participante pendente no site.", fg="#1D9E75")
-                return
-
-            self._sinc_status.configure(
-                text=str(len(pendentes))+" encontrado(s) — abrindo janela de revisao...",
-                fg="#f39c12")
-            self.root.update_idletasks()
-            self._sinc_abrir_janela(pendentes)
-
-        threading.Thread(target=_buscar, daemon=True).start()
-
-    def _sinc_abrir_janela(self, pendentes):
-        """Abre janela editavel com os participantes recebidos do site."""
-        from datetime import datetime as _dt
-        import re as _re2
-
-        boloes_ativos = self.db.fetchall(
-            "SELECT id, nome FROM boloes WHERE encerrado=0 ORDER BY nome")
-        nomes_boloes = [b["nome"]+" (ID: "+str(b["id"])+")" for b in boloes_ativos]
-
-        itens = []
-        for doc in pendentes:
-            fields   = doc.get("fields", {})
-            nome     = fields.get("nome",     {}).get("stringValue","").strip()
-            telefone = fields.get("telefone", {}).get("stringValue","").strip()
-            val_pago = float(fields.get("valorPago",{}).get("integerValue",0) or
-                             fields.get("valorPago",{}).get("doubleValue",0) or 0)
-            data_str = fields.get("data",     {}).get("stringValue","")
-            doc_id   = doc.get("name","").split("/")[-1]
-            if not nome: continue
-            try:
-                dt_obj   = _dt.fromisoformat(data_str.replace("Z","+00:00"))
-                data_fmt = dt_obj.strftime("%d/%m/%Y")
-            except:
-                data_fmt = date.today().strftime("%d/%m/%Y")
-            itens.append({
-                "doc_id": doc_id, "nome": nome, "telefone": telefone,
-                "val_pago": val_pago, "data_fmt": data_fmt,
-            })
-
-        if not itens:
-            self._sinc_status.configure(text="\u2705 Nenhum item valido.", fg="#1D9E75")
-            return
-
-        win = tk.Toplevel(self.root)
-        win.title("Revisar Participantes do Site")
-        win.geometry("980x560"); win.configure(bg=CORES["bg_frame"])
-        win.grab_set(); win.lift()
-
-        hdr = tk.Frame(win, bg="#1a3a6e", padx=12, pady=8); hdr.pack(fill="x")
-        tk.Label(hdr,
-            text=str(len(itens))+" participante(s) recebido(s) — revise, edite e confirme",
-            bg="#1a3a6e", fg="white", font=("Arial",10,"bold")).pack(anchor="w")
-        tk.Label(hdr,
-            text="Edite qualquer campo antes de confirmar. Selecione o Bolao destino. "
-                 "Marque Pular para ignorar.",
-            bg="#1a3a6e", fg="#aad4f5", font=("Arial",8)).pack(anchor="w")
-
-        fr_scroll = tk.Frame(win, bg=CORES["bg_frame"])
-        fr_scroll.pack(fill="both", expand=True, padx=12, pady=8)
-        vsb = ttk.Scrollbar(fr_scroll); vsb.pack(side="right", fill="y")
-        canvas_ed = tk.Canvas(fr_scroll, bg=CORES["bg_frame"],
-                              yscrollcommand=vsb.set, highlightthickness=0)
-        canvas_ed.pack(side="left", fill="both", expand=True)
-        vsb.configure(command=canvas_ed.yview)
-        inner = tk.Frame(canvas_ed, bg=CORES["bg_frame"])
-        canvas_ed.create_window((0,0), window=inner, anchor="nw")
-        inner.bind("<Configure>",
-            lambda e: canvas_ed.configure(scrollregion=canvas_ed.bbox("all")))
-
-        headers = ["Nome","Telefone","Valor Pago (R$)","Data (DD/MM/AAAA)","Bolao Destino","Pular"]
-        widths   = [22, 14, 13, 15, 34, 7]
-        for col,(h,w) in enumerate(zip(headers,widths)):
-            tk.Label(inner, text=h, bg="#243447", fg="#aad4f5",
-                     font=("Arial",8,"bold"), width=w,
-                     padx=4).grid(row=0, column=col, sticky="ew", padx=1, pady=1)
-
-        vars_list = []
-        for r, it in enumerate(itens, start=1):
-            bg_r = "#1e2e3e" if r%2==0 else "#243447"
-            v_nome    = tk.StringVar(value=it["nome"])
-            v_tel     = tk.StringVar(value=it["telefone"])
-            v_val     = tk.StringVar(value="{:.2f}".format(it["val_pago"]).replace(".",","))
-            v_dt      = tk.StringVar(value=it["data_fmt"])
-            v_bol     = tk.StringVar(value=nomes_boloes[0] if nomes_boloes else "")
-            v_ignorar = tk.BooleanVar(value=False)
-
-            for col,(var,w) in enumerate(zip([v_nome,v_tel,v_val,v_dt],[22,14,13,15])):
-                e = tk.Entry(inner, textvariable=var, bg=bg_r, fg="white",
-                             font=("Arial",9), width=w,
-                             insertbackground="white", relief="flat")
-                e.grid(row=r, column=col, sticky="ew", padx=1, pady=2, ipady=3)
-
-            cb = ttk.Combobox(inner, textvariable=v_bol, values=nomes_boloes,
-                              width=32, state="readonly", font=("Arial",8))
-            cb.grid(row=r, column=4, sticky="ew", padx=1, pady=2)
-
-            chk = tk.Checkbutton(inner, text="Pular", variable=v_ignorar,
-                                 bg=bg_r, fg="#e74c3c", font=("Arial",8),
-                                 selectcolor=bg_r, activebackground=bg_r)
-            chk.grid(row=r, column=5, padx=4, pady=2)
-
-            vars_list.append({
-                "doc_id": it["doc_id"], "v_nome": v_nome, "v_tel": v_tel,
-                "v_val": v_val, "v_dt": v_dt, "v_bol": v_bol, "v_ignorar": v_ignorar,
-            })
-
-        bf = tk.Frame(win, bg=CORES["bg_frame"]); bf.pack(fill="x", padx=12, pady=6)
-
-        prog_lbl = tk.Label(bf, text="", bg=CORES["bg_frame"],
-                            fg="#1D9E75", font=("Arial",9,"bold"))
-        prog_lbl.pack(side="left", padx=8)
-
-        def _aplicar_bolao_todos():
-            if vars_list:
-                first = vars_list[0]["v_bol"].get()
-                for vl in vars_list[1:]:
-                    vl["v_bol"].set(first)
-
-        def _processar():
-            sincronizados = novos = ja_existiam = pulados = 0
-            erros = []
-            total = len(vars_list)
-            for idx, vl in enumerate(vars_list):
-                prog_lbl.configure(
-                    text="Processando "+str(idx+1)+"/"+str(total)+"...")
-                win.update_idletasks()
-
-                if vl["v_ignorar"].get():
-                    self._firebase_marcar_sincronizado(vl["doc_id"])
-                    pulados += 1; continue
-
-                nome_ed = vl["v_nome"].get().strip()
-                tel_ed  = _re2.sub(r"\D","",vl["v_tel"].get())
-                val_str = vl["v_val"].get().replace(".","").replace(",",".")
-                data_ed = vl["v_dt"].get().strip()
-                bol_sel = vl["v_bol"].get()
-
-                if not nome_ed or not bol_sel:
-                    erros.append("Nome ou bolao vazio: "+nome_ed); continue
-
-                m_id = _re2.search(r"\(ID: (\d+)\)", bol_sel)
-                if not m_id:
-                    erros.append("Bolao invalido: "+bol_sel); continue
-                bid = int(m_id.group(1))
-
-                try: val_pg = float(val_str)
-                except: val_pg = 0.0
-
-                try:
-                    from datetime import datetime as _dt2
-                    mes_ref = _dt2.strptime(data_ed, "%d/%m/%Y").strftime("%m/%Y")
-                except: mes_ref = ""
-
-                b_row = self.db.fetchone("SELECT valor_total FROM boloes WHERE id=?", (bid,))
-                ve = float(b_row["valor_total"] or 0) if b_row else 0
-
-                pt_ex = self.db.fetchone(
-                    "SELECT id FROM participantes "
-                    "WHERE bolao_id=? AND LOWER(nome) LIKE ? AND ativo=1",
-                    (bid, "%"+nome_ed.lower()[:12]+"%"))
-
-                if pt_ex:
-                    pid = pt_ex["id"]; ja_existiam += 1
-                else:
-                    self.db.execute(
-                        "INSERT INTO participantes "
-                        "(bolao_id,nome,valor_esperado,ativo,observacoes) "
-                        "VALUES (?,?,?,1,'pendente_validacao')", (bid, nome_ed, ve))
-                    pid = self.db.fetchone("SELECT last_insert_rowid() as id")["id"]
-                    if tel_ed:
-                        self.db.execute(
-                            "UPDATE participantes SET telefone=? WHERE id=?", (tel_ed, pid))
-                    novos += 1
-
-                if val_pg > 0:
-                    eh_pend = self.db.fetchone(
-                        "SELECT id FROM participantes WHERE id=? "
-                        "AND observacoes LIKE '%pendente_validacao%'", (pid,))
-                    if not eh_pend:
-                        existe = self.db.fetchone(
-                            "SELECT id FROM pagamentos WHERE participante_id=? "
-                            "AND bolao_id=? AND mes_referencia=? AND ABS(valor-?)<1.0",
-                            (pid, bid, mes_ref, val_pg))
-                        if not existe:
-                            self.db.execute(
-                                "INSERT INTO pagamentos (participante_id,bolao_id,"
-                                "mes_referencia,valor,data_pagamento,depositado,observacoes) "
-                                "VALUES (?,?,?,?,?,0,'Sincronizado do site')",
-                                (pid, bid, mes_ref, val_pg, data_ed))
-
-                self._firebase_marcar_sincronizado(vl["doc_id"])
-                sincronizados += 1
-
-            win.destroy()
-            msg = (str(sincronizados)+" importado(s)  |  "
-                   +str(ja_existiam)+" ja existiam  |  "
-                   +str(novos)+" novos p/ validacao  |  "
-                   +str(pulados)+" pulado(s)")
-            if erros: msg += " | Erros: "+" / ".join(erros[:2])
-            self._sinc_status.configure(text="\u2705 "+msg, fg="#1D9E75")
-            self._sinc_carregar_pendentes()
-            self._refresh_all()
-
-        btn(bf, "Aplicar 1o bolao p/ todos", CORES["btn_cinza"],
-            _aplicar_bolao_todos, width=24).pack(side="left", padx=4)
-        btn(bf, "CONFIRMAR E SINCRONIZAR", CORES["btn_verde"],
-            _processar, width=26).pack(side="left", padx=8)
-        btn(bf, "Cancelar", CORES["btn_vermelho"],
-            win.destroy, width=12).pack(side="right", padx=4)
-
-    def _sinc_carregar_pendentes(self):
-        self._sinc_tree.delete(*self._sinc_tree.get_children())
-        rows = self.db.fetchall("""
-            SELECT p.id, p.nome, b.nome as bolao_nome, p.valor_esperado
-            FROM participantes p JOIN boloes b ON p.bolao_id=b.id
-            WHERE p.observacoes LIKE '%pendente_validacao%' AND p.ativo=1
-            ORDER BY p.nome
-        """)
-        for r in rows:
-            self._sinc_tree.insert("","end", iid=str(r["id"]), tags=("novo",), values=(
-                r["nome"], r["bolao_nome"], fmt_brl(r["valor_esperado"]), "—", "⚠ Validar"))
-
-    def _sinc_confirmar(self):
-        sel = self._sinc_tree.selection()
-        if not sel: messagebox.showwarning("Atenção","Selecione um participante!"); return
-        pid = int(sel[0])
-        pt  = self.db.fetchone("SELECT nome FROM participantes WHERE id=?", (pid,))
-        if messagebox.askyesno("Confirmar",
-            f"Confirmar '{pt['nome']}' como novo participante?"):
-            self.db.execute("UPDATE participantes SET observacoes='' WHERE id=?", (pid,))
-            self._sinc_carregar_pendentes(); self._refresh_all()
-
-    def _sinc_vincular(self):
-        import re as _re, unicodedata
-        sel = self._sinc_tree.selection()
-        if not sel: messagebox.showwarning("Atenção","Selecione um participante!"); return
-        pid_novo = int(sel[0])
-        pt_novo  = self.db.fetchone("SELECT * FROM participantes WHERE id=?", (pid_novo,))
-        win = tk.Toplevel(self.root); win.title("Vincular a Existente")
-        win.geometry("500x220"); win.configure(bg=CORES["bg_section"]); win.grab_set(); win.lift()
-        tk.Label(win, text=f"Vincular '{pt_novo['nome']}' a qual participante existente?",
-                 bg=CORES["bg_section"], fg=CORES["fg_label"],
-                 font=("Arial",9,"bold"), wraplength=460).pack(pady=10, padx=16)
-        def norm(s):
-            return "".join(c for c in unicodedata.normalize("NFD",s.lower())
-                           if unicodedata.category(c)!="Mn")
-        todos = self.db.fetchall(
-            "SELECT DISTINCT nome, MIN(id) as id FROM participantes "
-            "WHERE ativo=1 AND id!=? GROUP BY LOWER(nome) ORDER BY nome", (pid_novo,))
-        nomes = [f"{r['nome']} (ID: {r['id']})" for r in todos]
-        cb = ttk.Combobox(win, values=nomes, width=44, font=("Arial",9))
-        cb.pack(padx=16, pady=8)
-        melhor = max(todos, key=lambda r: len(
-            set(norm(pt_novo["nome"]).split()) & set(norm(r["nome"]).split())), default=None)
-        if melhor: cb.set(f"{melhor['nome']} (ID: {melhor['id']})")
-        def vincular():
-            m = _re.search(r"\(ID: (\d+)\)", cb.get())
-            if not m: messagebox.showwarning("Atenção","Selecione!"); return
-            pid_orig = int(m.group(1))
-            self.db.execute("UPDATE pagamentos SET participante_id=? WHERE participante_id=?",
-                            (pid_orig, pid_novo))
-            self.db.execute("UPDATE participantes SET ativo=0 WHERE id=?", (pid_novo,))
-            messagebox.showinfo("Vinculado","Pagamentos transferidos!")
-            win.destroy(); self._sinc_carregar_pendentes(); self._refresh_all()
-        bf = tk.Frame(win, bg=CORES["bg_section"]); bf.pack(pady=10)
-        btn(bf,"🔗 Vincular",CORES["btn_verde"],vincular,width=14).pack(side="left",padx=6)
-        btn(bf,"✖ Cancelar",CORES["btn_cinza"],win.destroy,width=10).pack(side="left",padx=6)
-
-    def _sinc_ignorar(self):
-        sel = self._sinc_tree.selection()
-        if not sel: messagebox.showwarning("Atenção","Selecione!"); return
-        pid = int(sel[0])
-        pt  = self.db.fetchone("SELECT nome FROM participantes WHERE id=?", (pid,))
-        if messagebox.askyesno("Confirmar", f"Remover '{pt['nome']}' do sistema?"):
-            self.db.execute("UPDATE participantes SET ativo=0 WHERE id=?", (pid,))
-            self._sinc_carregar_pendentes(); self._refresh_all()
-
-
     def _sinc_limpar_orfaos(self):
         orfaos = self.db.fetchall("""
             SELECT pg.id as pag_id, pg.participante_id, pg.bolao_id,
@@ -7499,13 +7041,6 @@ class BolaoApp:
         self._pub_cb["values"] = vals
         if vals and not self._pub_cb.get():
             self._pub_cb.current(0)
-        # também carrega combo de sincronizar
-        try:
-            self._sinc_cb["values"] = vals
-            if vals and not self._sinc_cb.get():
-                self._sinc_cb.current(0)
-        except Exception:
-            pass
 
     def _refresh_all(self):
         bid = self.bid.get()
@@ -7516,7 +7051,6 @@ class BolaoApp:
 
         self.pag_cb["values"]  = items_todos
         self.vis_cb["values"]  = items_todos
-        self.edit_cb["values"] = items_todos
         try: self.cad_edit_cb["values"] = items_todos
         except: pass
         try: self.pag_cb.set("")
@@ -7524,8 +7058,6 @@ class BolaoApp:
         try:
             self.vis_cb.set("")
             self._vis_limpar()
-        except: pass
-        try: self.edit_cb.set("")
         except: pass
         try: self.cad_edit_cb.set("")
         except: pass
