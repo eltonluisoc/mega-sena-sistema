@@ -1,7 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v5.0
+SISTEMA DE GESTÃO DE BOLÕES PRO v5.1
+Correções v5.1 (Bolão Selecionado virou aba própria):
+ - "Início" agora tem 3 sub-abas: Visão Geral | Bolão Selecionado |
+   Pendências por Bolão. Antes o resumo+detalhe do bolão escolhido vinha
+   logo abaixo da Visão Geral, na mesma aba com rolagem — ficava uma
+   rolagem longa e incômoda. Cada bloco agora tem sua própria aba, mais
+   curta e sem precisar rolar tanto.
+ - Cartões de seleção de bolão ganharam um badge de status (✅ em dia /
+   ⚠ N atrasado(s)) calculado a partir da mesma contagem usada em
+   "Participantes Atrasados" — dá pra ver o status de cada bolão sem
+   precisar clicar nele.
+ - KPIs "Participantes Atrasados" e "Pendente Depósito" (Visão Geral)
+   ganharam um prefixo ✅/⚠ pra sinalizar de cara se está tudo em dia.
 Correções v5.0 (reestruturação de "Início > Visão Geral"):
  - CORRIGIDO: coluna "Devidas" em Participantes Atrasados mostrava um
    número cumulativo (parcelas esperadas desde o início do bolão), não
@@ -887,7 +899,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v5.0")
+        self.root.title("Sistema de Gestão de Bolões PRO v5.1")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1065,7 +1077,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v5.0",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v5.1",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -1125,10 +1137,12 @@ class BolaoApp:
         # com rolagem) + Pendencias por Bolao como aba propria ───────
         nb_inicio = ttk.Notebook(self.tab_grp_inicio, style="Inner.TNotebook")
         nb_inicio.pack(fill="both", expand=True, padx=4, pady=4)
-        self.tab_dash = tk.Frame(nb_inicio, bg=CORES["bg_frame"])
-        self.tab_pend = tk.Frame(nb_inicio, bg=CORES["bg_frame"])
-        nb_inicio.add(self.tab_dash, text="🏠 Visão Geral")
-        nb_inicio.add(self.tab_pend, text="📅 Pendências por Bolão")
+        self.tab_dash  = tk.Frame(nb_inicio, bg=CORES["bg_frame"])
+        self.tab_bolao = tk.Frame(nb_inicio, bg=CORES["bg_frame"])
+        self.tab_pend  = tk.Frame(nb_inicio, bg=CORES["bg_frame"])
+        nb_inicio.add(self.tab_dash,  text="🏠 Visão Geral")
+        nb_inicio.add(self.tab_bolao, text="🎯 Bolão Selecionado")
+        nb_inicio.add(self.tab_pend,  text="📅 Pendências por Bolão")
 
         # ── Participantes (4 sub-abas) ───────────────────────────────
         nb_part = ttk.Notebook(self.tab_grp_part, style="Inner.TNotebook")
@@ -1198,6 +1212,7 @@ class BolaoApp:
 
         # ── Constrói o conteúdo de todas as abas ────────────────
         self._build_dashboard()
+        self._build_bolao_sel()
         self._build_cad()
         self._build_cad_editar()
         self._build_cad_lista()
@@ -1215,10 +1230,10 @@ class BolaoApp:
         self._build_publicar()
         self._build_bkp()
 
-        # Auto-atualiza ao trocar entre Visao Geral (Dashboard+Administracao
-        # fundidos) e Pendencias por Bolao — os dois carregadores rodam nas
-        # duas abas porque a Visao Geral agora depende dos dois conjuntos
-        # de dados, e Pendencias tambem e populada por _adm_load().
+        # Auto-atualiza ao trocar entre as 3 sub-abas de Inicio (Visao Geral,
+        # Bolao Selecionado, Pendencias por Bolao) — as 3 dependem de
+        # _dash_load/_adm_load, entao os dois carregadores rodam sempre
+        # que o usuario troca de sub-aba dentro de Inicio.
         def _on_tab_changed_inicio(event):
             self.root.after(50, self._dash_load)
             self.root.after(50, self._adm_load)
@@ -3599,20 +3614,59 @@ class BolaoApp:
         btn(bh, "Editar",  CORES["btn_azul"],    self._adm_editar,  width=10).pack(side="left", padx=3)
         btn(bh, "Excluir", CORES["btn_vermelho"], self._adm_excluir, width=10).pack(side="left", padx=3)
 
-        # ══════════════ DIVISOR — SELECIONAR BOLÃO ══════════════════════
-        hdr2 = tk.Frame(p, bg="#4f46e5", pady=10)
-        hdr2.pack(fill="x", pady=(6,10))
-        tk.Label(hdr2, text="🎯  BOLÃO SELECIONADO",
-                 bg="#4f46e5", fg="white", font=("Arial",13,"bold")).pack(padx=20, anchor="w")
-        tk.Label(hdr2, text="Clique num bolão abaixo para ver o resumo e os detalhes dele.",
-                 bg="#4f46e5", fg="#e0e0ff", font=("Arial",8)).pack(padx=20, anchor="w")
+        # Região de rolagem — precisa ser calculada depois que TODO o
+        # conteúdo já foi montado
+        p.update_idletasks()
+        canvas.configure(scrollregion=canvas.bbox("all"))
 
-        # ── Seletor de bolão — cartões clicáveis (mais fácil de achar e
-        # trocar do que o combo pequeno do cabeçalho) ────────────────────
+        # bind() direto no canvas só dispara quando o mouse está sobre a
+        # área vazia dele — como a tela é preenchida por labels/treeviews,
+        # isso quase nunca acontecia na prática. O jeito certo é ligar o
+        # scroll globalmente (bind_all) só enquanto o mouse estiver sobre
+        # a área do canvas (Enter/Leave), cobrindo o mouse em cima de
+        # qualquer widget filho também.
+        def _scroll(e):
+            canvas.yview_scroll(int(-1*(e.delta/120)), "units")
+        def _ligar_scroll(e):
+            canvas.bind_all("<MouseWheel>", _scroll)
+        def _desligar_scroll(e):
+            canvas.unbind_all("<MouseWheel>")
+        canvas.bind("<Enter>", _ligar_scroll)
+        canvas.bind("<Leave>", _desligar_scroll)
+
+    def _build_bolao_sel(self):
+        """Aba própria "🎯 Bolão Selecionado" — separada da Visão Geral a
+        pedido do usuário: numa aba só, a rolagem ficava longa e incômoda.
+        Aqui: seletor de cartões, depois resumo, depois detalhe de UM
+        bolão por vez — a Visão Geral (todos os bolões) fica na aba anterior."""
+        p = self.tab_bolao
+        p.configure(bg="#1a2a3a")
+
+        canvas = tk.Canvas(p, bg="#1a2a3a", highlightthickness=0)
+        sb = ttk.Scrollbar(p, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+        p = tk.Frame(canvas, bg="#1a2a3a")
+        canvas_window = canvas.create_window((0, 0), window=p, anchor="nw")
+        canvas.bind("<Configure>", lambda e: canvas.itemconfig(canvas_window, width=e.width))
+
+        # ── Cabeçalho + seletor de bolão — cartões clicáveis (mais fácil
+        # de achar e trocar do que o combo pequeno do cabeçalho) ─────────
+        hdr2 = tk.Frame(p, bg="#1a2a3a", pady=10)
+        hdr2.pack(fill="x", padx=20)
+        tk.Label(hdr2, text="🎯  Selecione um bolão",
+                 bg="#1a2a3a", fg="white", font=("Arial",14,"bold")).pack(side="left")
+        btn(hdr2, "🔄", CORES["btn_azul"], self._recarregar_visao_geral, width=4).pack(side="right")
+        tk.Label(p, text="Clique num bolão abaixo para ver o resumo e os detalhes dele.",
+                 bg="#1a2a3a", fg="#8899aa", font=("Arial",8)).pack(padx=20, anchor="w", pady=(0,6))
+
         self._sel_bolao_frame = tk.Frame(p, bg="#1a2a3a")
         self._sel_bolao_frame.pack(fill="x", padx=20, pady=(0,12))
 
-        # ══════════════ PARTE 2 — RESUMO E DETALHE DO BOLÃO SELECIONADO ═
+        # ── Divisor fino antes do resumo/detalhe ──────────────────
+        tk.Frame(p, bg="#334455", height=2).pack(fill="x", padx=20, pady=(0,10))
+
         hdr3 = tk.Frame(p, bg="#1a2a3a", pady=4)
         hdr3.pack(fill="x", padx=20)
         self._dash_bolao_lbl = tk.Label(hdr3, text="",
@@ -3796,12 +3850,15 @@ class BolaoApp:
         self._dash_load()
 
     def _atualizar_cartoes_bolao(self):
-        """Redesenha os cartões clicáveis de seleção de bolão."""
+        """Redesenha os cartões clicáveis de seleção de bolão. Cada cartão
+        mostra um badge de status (✅ em dia / ⚠ N atrasado(s)) calculado
+        por _adm_load, pra dar uma pista do bolão sem precisar abri-lo."""
         frame = self._sel_bolao_frame
         for w in frame.winfo_children():
             w.destroy()
         rows_b = self.db.fetchall("SELECT * FROM boloes WHERE encerrado=0 ORDER BY nome")
         bid_atual = self.bid.get()
+        contagem = getattr(self, "_atrasados_count_por_bolao", {})
         NCOLS = 5
         for idx, b in enumerate(rows_b):
             bd = dict(b)
@@ -3809,12 +3866,28 @@ class BolaoApp:
             cor_bg = "#4f46e5" if selecionado else "#243447"
             cor_fg = "white" if selecionado else "#aad4f5"
             marca = "✅ " if selecionado else ""
-            card = tk.Button(frame, text=marca + bd["nome"], bg=cor_bg, fg=cor_fg,
-                              font=("Arial",9,"bold"), relief="flat",
-                              padx=14, pady=10, cursor="hand2", wraplength=180,
-                              activebackground="#4f46e5", activeforeground="white",
-                              command=lambda i=bd["id"]: self._selecionar_bolao_via_cartao(i))
+
+            n_atr_bolao = contagem.get(bd["nome"])
+            if n_atr_bolao is None:
+                badge_txt, badge_fg = "", cor_fg
+            elif n_atr_bolao == 0:
+                badge_txt = "✅ em dia"
+                badge_fg  = "#c8ffe0" if selecionado else "#7ee2a8"
+            else:
+                badge_txt = f"⚠ {n_atr_bolao} atrasado(s)"
+                badge_fg  = "#ffe0c0" if selecionado else "#ffb066"
+
+            card = tk.Frame(frame, bg=cor_bg, padx=14, pady=8, cursor="hand2",
+                             highlightthickness=1, highlightbackground="#334455")
             card.grid(row=idx // NCOLS, column=idx % NCOLS, padx=4, pady=4, sticky="w")
+            lbl_nome = tk.Label(card, text=marca + bd["nome"], bg=cor_bg, fg=cor_fg,
+                                 font=("Arial",9,"bold"), wraplength=170, justify="left")
+            lbl_nome.pack(anchor="w")
+            lbl_badge = tk.Label(card, text=badge_txt, bg=cor_bg, fg=badge_fg,
+                                  font=("Arial",7,"bold"))
+            lbl_badge.pack(anchor="w")
+            for w2 in (card, lbl_nome, lbl_badge):
+                w2.bind("<Button-1>", lambda e, i=bd["id"]: self._selecionar_bolao_via_cartao(i))
         if not rows_b:
             tk.Label(frame, text="Nenhum bolão ativo — cadastre um em '+ Novo Bolão'.",
                      bg="#1a2a3a", fg="#8899aa", font=("Arial",9,"italic")).grid(row=0, column=0)
@@ -4247,7 +4320,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v5.0</span>
+        <span>Sistema de Gestão de Bolões v5.1</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -5341,7 +5414,16 @@ class BolaoApp:
         self._adm_atr_lbl.configure(
             text=f"{'⚠' if n_atr else '✅'} "
                  f"{n_atr} participante(s) com parcelas em atraso")
-        self._adm_kpis["geral_atrasados"].configure(text=str(n_atr))
+        self._adm_kpis["geral_atrasados"].configure(
+            text=f"{'✅' if n_atr == 0 else '⚠'} {n_atr}")
+
+        # Contagem de atrasados por bolão — alimenta o badge dos cartões
+        # de seleção (_atualizar_cartoes_bolao), pra dar uma pista do
+        # status de cada bolão sem precisar clicar nele.
+        self._atrasados_count_por_bolao = {bol["nome"]: 0 for bol in todos_boloes}
+        for a in atrasados:
+            self._atrasados_count_por_bolao[a["bolao"]] = \
+                self._atrasados_count_por_bolao.get(a["bolao"], 0) + 1
 
         # ── Depósitos pendentes — todos os bolões ativos ─────────
         self.adm_tree_dep.delete(*self.adm_tree_dep.get_children())
@@ -5364,7 +5446,13 @@ class BolaoApp:
                 r["bolao_nome"] or "-"))
         self._adm_dep_total_lbl.configure(
             text=f"Total pendente: {fmt_brl(total_pend)}  ({len(pend_rows)} pagamentos)")
-        self._adm_kpis["geral_pend_dep"].configure(text=fmt_brl(total_pend))
+        self._adm_kpis["geral_pend_dep"].configure(
+            text=f"{'✅' if total_pend == 0 else '⚠'} {fmt_brl(total_pend)}")
+
+        # Atualiza os cartões de seleção de bolão com os badges recém-
+        # calculados acima (contagem de atrasados por bolão).
+        try: self._atualizar_cartoes_bolao()
+        except Exception: pass
 
         # ── Últimos pagamentos — TODOS os bolões ─────────────────
         self.geral_tree_ult.delete(*self.geral_tree_ult.get_children())
@@ -6279,7 +6367,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v5.0</span>
+        <span>Sistema de Gestão de Bolões v5.1</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
