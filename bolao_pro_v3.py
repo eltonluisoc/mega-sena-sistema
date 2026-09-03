@@ -1,7 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v3.8
+SISTEMA DE GESTÃO DE BOLÕES PRO v3.9
+Correções v3.9:
+ - CORRIGIDO (grave): "Total Esperado" no Dashboard somava o valor
+   esperado de TODOS os participantes cadastrados, inclusive o ADM
+   isento (que não paga) — o campo só é zerado automaticamente se o ADM
+   for cadastrado DEPOIS do bolão já estar marcado como isento; se virou
+   isento depois, o valor antigo ficava salvo e inflava o total. Ex.:
+   bolão com 47 participantes onde o ADM não paga mostrava o total como
+   se fossem 47 pagantes, não 46.
+ - CORRIGIDO (grave): mesmo problema no Relatório — a linha do ADM
+   isento somava o valor esperado dele tanto no "esperado" quanto no
+   "arrecadado", inflando os dois totais igualmente.
+ - NOVO: aviso ao tentar registrar um pagamento pro ADM isento (não
+   bloqueia, mas confirma — esse tipo de lançamento aparecia escondido
+   no "Total Recebido" da aba Depósitos mesmo o ADM não pagando)
+ - MELHORADO: bloco "Ganhos por Loteria" (aba Administração) ficou
+   menor — só tinha 3-4 loterias mas ocupava o mesmo tanto de espaço
+   que o Histórico
 Correções v3.8:
  - NOVO: barra de status discreta no rodapé, mostrando o que o sistema
    está fazendo ao abrir (conectando, verificando reservas do site...)
@@ -813,7 +830,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v3.8")
+        self.root.title("Sistema de Gestão de Bolões PRO v3.9")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -991,7 +1008,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v3.8",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v3.9",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -2385,6 +2402,27 @@ class BolaoApp:
         bid = self.bid.get()
         v   = to_float(self.pag_val.get())
         if v<=0: messagebox.showwarning("Atenção","Informe um valor válido!"); return
+
+        # Avisa antes de registrar pagamento pro ADM isento nesse bolão —
+        # é o tipo de lançamento que fica "escondido" nos totais (o ADM
+        # isento não entra em Total Esperado/Arrecadado, mas um pagamento
+        # real registrado pra ele ENTRA na soma de "pagamentos", inflando
+        # a aba Depósitos mesmo assim). Avisa, não bloqueia — pode ser
+        # intencional (contribuição voluntária).
+        pt_check = self.db.fetchone("SELECT * FROM participantes WHERE id=?", (pid,))
+        b_check  = self.db.fetchone("SELECT adm_paga, adm_nome FROM boloes WHERE id=?", (bid,))
+        if pt_check and b_check and not (b_check["adm_paga"] or 0):
+            adm_nome_low = (b_check["adm_nome"] or "").strip().lower()
+            eh_adm_check = bool(pt_check["is_adm"]) or (
+                adm_nome_low and adm_nome_low in (pt_check["nome"] or "").lower())
+            if eh_adm_check:
+                if not messagebox.askyesno("Participante isento",
+                    f"'{pt_check['nome']}' está configurado como ADM ISENTO neste "
+                    f"bolão (não paga). Registrar um pagamento mesmo assim vai "
+                    f"aparecer no 'Total Recebido' da aba Depósitos.\n\n"
+                    f"Tem certeza que quer registrar?"):
+                    return
+
         self.db.execute(
             "INSERT INTO pagamentos (participante_id,bolao_id,mes_referencia,valor,data_pagamento,observacoes)"
             " VALUES (?,?,?,?,?,?)",
@@ -2495,11 +2533,13 @@ class BolaoApp:
             if eh_adm_r and not adm_paga:
                 self.rel_tree.insert("","end",tags=("quitado",),values=(
                     pt_d["id"],pt_d["nome"],pt_d["telefone"] or "-",
-                    fmt_brl(pt_d["valor_esperado"]),
-                    fmt_brl(pt_d["valor_esperado"]),
-                    fmt_brl(0),"✅ QUITADO","-"))
-                te += pt_d["valor_esperado"] or 0
-                tp += pt_d["valor_esperado"] or 0
+                    fmt_brl(0), fmt_brl(0),
+                    fmt_brl(0),"✅ QUITADO (isento)","-"))
+                # Não soma em te/tp: ADM isento não deve nunca dinheiro nem
+                # entra no "arrecadado" — somar aqui inflava os dois totais
+                # igualmente (o "esperado" ficava maior que o que precisa
+                # ser cobrado de verdade, e o "arrecadado" incluía dinheiro
+                # que nunca entrou de fato).
                 continue
             pgs  = self.db.fetchall(
                 "SELECT * FROM pagamentos WHERE participante_id=? AND bolao_id=?",
@@ -3549,22 +3589,7 @@ class BolaoApp:
         adm_ja_listado = False
         _,parc_esp_d,parc_d = self._calc_parcela_atual(bd)
 
-        # Total esperado = soma dos valor_esperado individuais (reflete cotas reais de cada um)
-        # Inclui ADM isento com valor_total do bolão se não cadastrado
-        total_esp_row = self.db.fetchone(
-            "SELECT SUM(valor_esperado) as t FROM participantes WHERE bolao_id=? AND ativo=1", (bid,))
-        total_esp = float(total_esp_row["t"] or 0)
-        # Se ADM isento não cadastrado, adiciona 1 cota
-        adm_nome_real2 = bd.get("adm_nome","").strip()
-        if adm_nome_real2 and not adm_paga:
-            adm_low2 = adm_nome_real2.lower()
-            adm_cad = self.db.fetchone(
-                "SELECT id FROM participantes WHERE bolao_id=? AND ativo=1 AND LOWER(nome) LIKE ?",
-                (bid, f"%{adm_low2}%"))
-            if not adm_cad:
-                total_esp += float(bd.get("valor_total",0) or 0)
-
-        total_pago = total_saldo = 0
+        total_esp = total_pago = total_saldo = 0
         quitados = pendentes_n = 0
         dados_sit = []
 
@@ -3585,6 +3610,16 @@ class BolaoApp:
             status_txt, tag, pago_f, saldo_f = self._status_part_adm(
                 {"is_adm": eh_adm}, pago, ve, parc_esp_d, parc_d, adm_paga)
 
+            # ADM isento não entra em NENHUM total financeiro (nem esperado,
+            # nem arrecadado, nem pendente) — ele não paga, então o
+            # "esperado" real do bolão é só a soma de quem paga de verdade.
+            # Antes "Total Esperado" vinha de um SUM(valor_esperado) cru que
+            # somava até o ADM isento (o campo só é zerado automaticamente
+            # se ele foi cadastrado DEPOIS do bolão já estar marcado como
+            # isento; se o bolão virou isento depois, o valor antigo ficava
+            # salvo e inflava o total).
+            if not (eh_adm and not adm_paga):
+                total_esp += ve
             total_pago  += (pago_f if pago_f is not None else 0)
             total_saldo += saldo_f
             if saldo_f <= 0: quitados    += 1
@@ -3593,7 +3628,8 @@ class BolaoApp:
             pago_show = pago_f if pago_f is not None else 0
             dados_sit.append((pt_d["nome"], pago_show, saldo_f, st_show, tag))
 
-        # ADM configurado mas não cadastrado como participante → adiciona linha sintética
+        # ADM configurado mas não cadastrado como participante → adiciona
+        # linha sintética só pra exibição (não entra em nenhum total)
         if adm_nome_real and not adm_ja_listado and not adm_paga:
             quitados += 1
             dados_sit.append((adm_nome_real, 0, 0, "✅ Quitado", "quitado"))
@@ -3850,7 +3886,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v3.8</span>
+        <span>Sistema de Gestão de Bolões v3.9</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -5023,18 +5059,21 @@ class BolaoApp:
                 self._adm_bolao_frame.pack(side="left"); self._adm_lot_frame.pack(side="left")
         self.adm_tipo.bind("<<ComboboxSelected>>", _on_tipo_change)
 
-        # ── LINHA 4: Ganhos por Loteria | Histórico (expand) ─────────
+        # ── LINHA 4: Ganhos por Loteria (menor) | Histórico (expand) ──
         mid_bot = tk.Frame(vis, bg="#1a2a3a")
         mid_bot.pack(fill="both", expand=True, padx=12, pady=(0,8))
-        mid_bot.columnconfigure(0, weight=2); mid_bot.columnconfigure(1, weight=3)
+        mid_bot.columnconfigure(0, weight=1); mid_bot.columnconfigure(1, weight=4)
         mid_bot.rowconfigure(0, weight=1)
 
+        # Só existem 3-4 loterias no sistema — não precisa do mesmo espaço
+        # do Histórico (que tem muito mais linhas). Fica num bloco menor,
+        # sem esticar, pra sobrar espaço pro resto da tela.
         sec_lot = tk.LabelFrame(mid_bot, text="  GANHOS POR LOTERIA  ",
             bg="#243447", fg="white", font=("Arial",9,"bold"), bd=1, padx=6, pady=4)
-        sec_lot.grid(row=0, column=0, sticky="nsew", padx=(0,4))
+        sec_lot.grid(row=0, column=0, sticky="new", padx=(0,4))
         fr_l, self.adm_tree_lot = make_tree(sec_lot,
-            {"Loteria":130,"Lanc.":60,"Total Ganho":120}, height=10)
-        fr_l.pack(fill="both", expand=True)
+            {"Loteria":100,"Lanc.":50,"Total Ganho":100}, height=4)
+        fr_l.pack(fill="x", expand=False)
         self.adm_tree_lot.tag_configure("pos", background="#d5f5e3")
 
         sec_hist = tk.LabelFrame(mid_bot, text="  HISTORICO DE LANCAMENTOS  ",
@@ -6144,7 +6183,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v3.8</span>
+        <span>Sistema de Gestão de Bolões v3.9</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
