@@ -1,7 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v5.1
+SISTEMA DE GESTÃO DE BOLÕES PRO v5.2
+Correções v5.2 (vazios na tela "Visão Geral"):
+ - CORRIGIDO: a área de rolagem do canvas era calculada só uma vez, na
+   montagem da tela — se a janela fosse redimensionada/maximizada depois,
+   ela ficava desatualizada e o conteúdo desalinhava, deixando uma faixa
+   vazia acima do título. Agora recalcula sempre que o conteúdo muda de
+   tamanho.
+ - CORRIGIDO: como a aba "Visão Geral" ficou mais curta (o resumo do
+   bolão selecionado virou aba própria na v5.1), sobrava uma faixa de
+   canvas em branco embaixo das tabelas em janelas maiores. Agora as
+   tabelas (Depósitos Pendentes/Atrasados/Últimos Pagamentos/Histórico)
+   esticam pra preencher o espaço sobrando em vez de deixá-lo vazio.
 Correções v5.1 (Bolão Selecionado virou aba própria):
  - "Início" agora tem 3 sub-abas: Visão Geral | Bolão Selecionado |
    Pendências por Bolão. Antes o resumo+detalhe do bolão escolhido vinha
@@ -899,7 +910,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v5.1")
+        self.root.title("Sistema de Gestão de Bolões PRO v5.2")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1077,7 +1088,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v5.1",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v5.2",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -3510,7 +3521,24 @@ class BolaoApp:
         canvas.pack(side="left", fill="both", expand=True)
         p = tk.Frame(canvas, bg="#1a2a3a")
         canvas_window = canvas.create_window((0, 0), window=p, anchor="nw")
-        canvas.bind("<Configure>", lambda e: canvas.itemconfig(canvas_window, width=e.width))
+        # Sincroniza largura E altura do frame interno com a área visível
+        # do canvas — sem isso, "p" só tinha a altura natural do próprio
+        # conteúdo, então numa janela maior que o conteúdo (aba ficou mais
+        # curta depois que "Bolão Selecionado" virou aba própria) sobrava
+        # uma faixa de canvas em branco embaixo, sem nada. Esticando "p"
+        # até a altura do canvas, as tabelas com expand=True (mid1/mid2,
+        # abaixo) passam a crescer e ocupar essa sobra em vez de deixá-la
+        # vazia. Quando o conteúdo é mais alto que a janela, continua
+        # valendo o tamanho natural (rolagem normal).
+        def _sync_canvas_size(e):
+            canvas.itemconfig(canvas_window, width=e.width,
+                               height=max(e.height, p.winfo_reqheight()))
+        canvas.bind("<Configure>", _sync_canvas_size)
+        # Recalcula a área de rolagem sempre que "p" mudar de tamanho —
+        # antes era calculada só uma vez, na montagem da tela; se a janela
+        # fosse redimensionada/maximizada depois, a área de rolagem ficava
+        # desatualizada e o conteúdo desalinhava (o "vazio" no topo).
+        p.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
 
         # ══════════════ PARTE 1 — VISÃO GERAL (TODOS OS BOLÕES) ═════════
         hdr = tk.Frame(p, bg="#1a2a3a", pady=10)
@@ -3556,8 +3584,9 @@ class BolaoApp:
 
         # ── Depósitos Pendentes | Participantes Atrasados ────────
         mid1 = tk.Frame(p, bg="#1a2a3a")
-        mid1.pack(fill="both", padx=20, pady=(0,8))
+        mid1.pack(fill="both", expand=True, padx=20, pady=(0,8))
         mid1.columnconfigure(0, weight=3); mid1.columnconfigure(1, weight=2)
+        mid1.rowconfigure(0, weight=1)
 
         sec_dep_pend = tk.LabelFrame(mid1, text="  DEPÓSITOS PENDENTES  ",
             bg="#243447", fg="#ffcc88", font=("Arial",9,"bold"), bd=1, padx=6, pady=4)
@@ -3590,8 +3619,9 @@ class BolaoApp:
 
         # ── Últimos Pagamentos (geral) | Histórico de Lançamentos ─
         mid2 = tk.Frame(p, bg="#1a2a3a")
-        mid2.pack(fill="both", padx=20, pady=(0,14))
+        mid2.pack(fill="both", expand=True, padx=20, pady=(0,14))
         mid2.columnconfigure(0, weight=2); mid2.columnconfigure(1, weight=3)
+        mid2.rowconfigure(0, weight=1)
 
         sec_ult_geral = tk.LabelFrame(mid2, text="  ÚLTIMOS PAGAMENTOS (GERAL)  ",
             bg="#243447", fg="white", font=("Arial",9,"bold"), bd=1, padx=6, pady=4)
@@ -3650,6 +3680,9 @@ class BolaoApp:
         p = tk.Frame(canvas, bg="#1a2a3a")
         canvas_window = canvas.create_window((0, 0), window=p, anchor="nw")
         canvas.bind("<Configure>", lambda e: canvas.itemconfig(canvas_window, width=e.width))
+        # Recalcula a área de rolagem sempre que "p" mudar de tamanho (ver
+        # comentário equivalente em _build_dashboard).
+        p.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
 
         # ── Cabeçalho + seletor de bolão — cartões clicáveis (mais fácil
         # de achar e trocar do que o combo pequeno do cabeçalho) ─────────
@@ -4320,7 +4353,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v5.1</span>
+        <span>Sistema de Gestão de Bolões v5.2</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -6367,7 +6400,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v5.1</span>
+        <span>Sistema de Gestão de Bolões v5.2</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
