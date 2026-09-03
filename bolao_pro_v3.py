@@ -1,7 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v4.3
+SISTEMA DE GESTÃO DE BOLÕES PRO v5.0
+Correções v5.0 (reestruturação de "Início > Visão Geral"):
+ - CORRIGIDO: coluna "Devidas" em Participantes Atrasados mostrava um
+   número cumulativo (parcelas esperadas desde o início do bolão), não
+   quanto realmente falta — alguém que pagou 7 de 8 parcelas esperadas
+   aparecia com "Devidas: 8", parecendo que faltavam 8 e não 1. Virou
+   "Faltam", mostrando a diferença real (consistente com a coluna Saldo,
+   que já estava certa).
+ - Tela reordenada: Visão Geral (todos os bolões) primeiro, com o que é
+   essencial no dia a dia — Bolões Ativos, Arrecadado Geral, Pendente de
+   Depósito Geral, Participantes Atrasados, e os totais do organizador.
+   Novo bloco "Últimos Pagamentos (Geral)".
+ - "Ganhos por Loteria" e "Registrar Lançamento" viraram botões que
+   abrem janelas próprias — não competem mais por espaço na tela
+   principal com informação essencial.
+ - Novo seletor de bolão: cartões clicáveis (um por bolão ativo) no
+   lugar de depender só do combo pequeno do cabeçalho.
+ - Abaixo do seletor: resumo do bolão escolhido primeiro, detalhe depois
+   (mesmo conteúdo de antes, só reordenado).
 Correções v4.3 (revisão de UX em "Início > Visão Geral"):
  - Árvores "Situação dos Participantes"/"Últimos Pagamentos" reduzidas
    de 20 pra 10 linhas — herdaram altura de tela cheia de quando o
@@ -869,7 +887,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v4.3")
+        self.root.title("Sistema de Gestão de Bolões PRO v5.0")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1047,7 +1065,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v4.3",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v5.0",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -3467,10 +3485,9 @@ class BolaoApp:
         p = self.tab_dash
         p.configure(bg="#1a2a3a")
 
-        # Tela única com rolagem: Dashboard do bolão selecionado + Visão
-        # Geral da Administração (antes eram duas abas separadas dentro de
-        # "Início", exigindo 2 cliques pra ver qualquer uma das duas —
-        # "Pendências por Bolão" virou aba própria, fora daqui).
+        # Reestruturado a pedido do usuário: visão geral (todos os bolões)
+        # primeiro, depois um seletor de bolão fácil de enxergar, depois o
+        # resumo+detalhe do bolão escolhido. Tela única com rolagem.
         canvas = tk.Canvas(p, bg="#1a2a3a", highlightthickness=0)
         sb = ttk.Scrollbar(p, orient="vertical", command=canvas.yview)
         canvas.configure(yscrollcommand=sb.set)
@@ -3480,24 +3497,132 @@ class BolaoApp:
         canvas_window = canvas.create_window((0, 0), window=p, anchor="nw")
         canvas.bind("<Configure>", lambda e: canvas.itemconfig(canvas_window, width=e.width))
 
-        # ══════════════ PARTE 1 — DASHBOARD DO BOLÃO SELECIONADO ═══════
-        # ── Cabeçalho ───────────────────────────────────────────
+        # ══════════════ PARTE 1 — VISÃO GERAL (TODOS OS BOLÕES) ═════════
         hdr = tk.Frame(p, bg="#1a2a3a", pady=10)
         hdr.pack(fill="x", padx=20)
-        tk.Label(hdr, text="🏠  Painel de Controle",
-                 bg="#1a2a3a", fg="white", font=("Arial",14,"bold")).pack(side="left")
-        self._dash_bolao_lbl = tk.Label(hdr, text="",
-                 bg="#1a2a3a", fg="#aad4f5", font=("Arial",10))
-        self._dash_bolao_lbl.pack(side="left", padx=10)
+        tk.Label(hdr, text="📊  Visão Geral",
+                 bg="#1a2a3a", fg="white", font=("Arial",16,"bold")).pack(side="left")
         self._dash_hora_lbl = tk.Label(hdr, text="",
                  bg="#1a2a3a", fg="#556677", font=("Arial",9))
         self._dash_hora_lbl.pack(side="right", padx=4)
-        btn(hdr, "🔄", CORES["btn_azul"], self._dash_load, width=4).pack(side="right", padx=4)
+        btn(hdr, "🔄", CORES["btn_azul"], self._recarregar_visao_geral, width=4).pack(side="right", padx=4)
 
-        # ── KPIs — 6 cards compactos ────────────────────────────
-        kpi_row = tk.Frame(p, bg="#1a2a3a")
-        kpi_row.pack(fill="x", padx=20, pady=(0,6))
+        # ── KPIs gerais — 7 cards, paleta própria (não repete nenhuma cor
+        # dos KPIs do bolão selecionado, lá embaixo) ─────────────────────
+        kpi_bar = tk.Frame(p, bg="#1a2a3a")
+        kpi_bar.pack(fill="x", padx=20, pady=(0,8))
+        self._adm_kpis = {}
         kpi_defs = [
+            ("geral_boloes",   "BOLÕES ATIVOS",          "#78716c", "0"),
+            ("geral_arrec",    "ARRECADADO (GERAL)",     "#65a30d", "R$ 0,00"),
+            ("geral_pend_dep", "PENDENTE DEPÓSITO",      "#9333ea", "R$ 0,00"),
+            ("geral_atrasados","PARTICIPANTES ATRASADOS","#ca8a04", "0"),
+            ("adm_total",      "TOTAL GANHO (ADM)",      "#4f46e5", "R$ 0,00"),
+            ("adm_sacado",     "TOTAL SACADO",           "#db2777", "R$ 0,00"),
+            ("adm_saldo",      "SALDO DISPONÍVEL",       "#0891b2", "R$ 0,00"),
+        ]
+        for attr, titulo, cor, default in kpi_defs:
+            card = tk.Frame(kpi_bar, bg=cor, padx=10, pady=8)
+            card.pack(side="left", fill="both", expand=True, padx=3)
+            tk.Label(card, text=titulo, bg=cor, fg="#f0f0f0",
+                     font=("Arial",7,"bold")).pack(anchor="w")
+            val_lbl = tk.Label(card, text=default, bg=cor, fg="white",
+                               font=("Arial",13,"bold"))
+            val_lbl.pack(anchor="w")
+            self._adm_kpis[attr] = val_lbl
+
+        # ── Ações rápidas ─────────────────────────────────────────
+        acoes_fr = tk.Frame(p, bg="#1a2a3a")
+        acoes_fr.pack(fill="x", padx=20, pady=(0,10))
+        btn(acoes_fr, "📊 Ver Ganhos por Loteria", CORES["btn_roxo"],
+            self._abrir_ganhos_por_loteria, width=24).pack(side="left")
+        btn(acoes_fr, "➕ Registrar Lançamento", CORES["btn_verde"],
+            self._abrir_registrar_lancamento, width=22).pack(side="left", padx=8)
+
+        # ── Depósitos Pendentes | Participantes Atrasados ────────
+        mid1 = tk.Frame(p, bg="#1a2a3a")
+        mid1.pack(fill="both", padx=20, pady=(0,8))
+        mid1.columnconfigure(0, weight=3); mid1.columnconfigure(1, weight=2)
+
+        sec_dep_pend = tk.LabelFrame(mid1, text="  DEPÓSITOS PENDENTES  ",
+            bg="#243447", fg="#ffcc88", font=("Arial",9,"bold"), bd=1, padx=6, pady=4)
+        sec_dep_pend.grid(row=0, column=0, sticky="nsew", padx=(0,4))
+        fr_dp, self.adm_tree_dep = make_tree(sec_dep_pend,
+            {"ID":42,"Participante":150,"Data Pag.":86,"Valor":86,"Bolao":120}, height=8)
+        fr_dp.pack(fill="both", expand=True)
+        self.adm_tree_dep.tag_configure("row1", background="#fff8e8")
+        self.adm_tree_dep.tag_configure("row2", background="#ffffff")
+        self._adm_dep_total_lbl = tk.Label(sec_dep_pend, text="", bg="#243447",
+                                            fg="#ffcc88", font=("Arial",8,"bold"))
+        self._adm_dep_total_lbl.pack(anchor="e", pady=(2,0))
+
+        sec_atr = tk.LabelFrame(mid1, text="  PARTICIPANTES ATRASADOS  ",
+            bg="#243447", fg="#ffcc88", font=("Arial",9,"bold"), bd=1, padx=6, pady=4)
+        sec_atr.grid(row=0, column=1, sticky="nsew")
+        # "Faltam" (não "Devidas"): antes mostrava o total de parcelas
+        # esperadas desde o início do bolão (um número cumulativo, ex.: 8),
+        # não quanto realmente falta (ex.: pagou 7 de 8 esperadas → falta
+        # só 1) — confundia porque a coluna "Saldo" ao lado já mostrava o
+        # valor certo, e os dois números pareciam contraditórios.
+        fr_a, self.adm_tree_atr = make_tree(sec_atr,
+            {"Participante":120,"Bolao":110,"Pagas":46,"Faltam":52,"Saldo":86}, height=8)
+        fr_a.pack(fill="both", expand=True)
+        self.adm_tree_atr.tag_configure("atr1", background="#fde8d8")
+        self.adm_tree_atr.tag_configure("atr2", background="#f9c0b0")
+        self._adm_atr_lbl = tk.Label(sec_atr, text="", bg="#243447",
+                                      fg="#ffcc88", font=("Arial",8,"bold"))
+        self._adm_atr_lbl.pack(anchor="e", pady=(2,0))
+
+        # ── Últimos Pagamentos (geral) | Histórico de Lançamentos ─
+        mid2 = tk.Frame(p, bg="#1a2a3a")
+        mid2.pack(fill="both", padx=20, pady=(0,14))
+        mid2.columnconfigure(0, weight=2); mid2.columnconfigure(1, weight=3)
+
+        sec_ult_geral = tk.LabelFrame(mid2, text="  ÚLTIMOS PAGAMENTOS (GERAL)  ",
+            bg="#243447", fg="white", font=("Arial",9,"bold"), bd=1, padx=6, pady=4)
+        sec_ult_geral.grid(row=0, column=0, sticky="nsew", padx=(0,4))
+        cols_ug = {"Participante":150,"Bolão":140,"Data":86,"Valor":86}
+        fr_ug, self.geral_tree_ult = make_tree(sec_ult_geral, cols_ug, height=8)
+        fr_ug.pack(fill="both", expand=True)
+        self.geral_tree_ult.tag_configure("linha", background="#f8f8f8")
+
+        sec_hist = tk.LabelFrame(mid2, text="  HISTÓRICO DE LANÇAMENTOS  ",
+            bg="#243447", fg="white", font=("Arial",9,"bold"), bd=1, padx=6, pady=4)
+        sec_hist.grid(row=0, column=1, sticky="nsew")
+        cols_h = {"ID":40,"Bolao":120,"Loteria":80,"Concurso":65,
+                  "Valor":90,"Tipo":70,"Descricao":140,"Data":90}
+        fr_h, self.adm_tree_hist = make_tree(sec_hist, cols_h, height=8)
+        fr_h.pack(fill="both", expand=True)
+        self.adm_tree_hist.tag_configure("ganho", background="#d5f5e3")
+        self.adm_tree_hist.tag_configure("saque", background="#fde8d8")
+        bh = tk.Frame(sec_hist, bg="#243447"); bh.pack(fill="x", pady=2)
+        btn(bh, "Editar",  CORES["btn_azul"],    self._adm_editar,  width=10).pack(side="left", padx=3)
+        btn(bh, "Excluir", CORES["btn_vermelho"], self._adm_excluir, width=10).pack(side="left", padx=3)
+
+        # ══════════════ DIVISOR — SELECIONAR BOLÃO ══════════════════════
+        hdr2 = tk.Frame(p, bg="#4f46e5", pady=10)
+        hdr2.pack(fill="x", pady=(6,10))
+        tk.Label(hdr2, text="🎯  BOLÃO SELECIONADO",
+                 bg="#4f46e5", fg="white", font=("Arial",13,"bold")).pack(padx=20, anchor="w")
+        tk.Label(hdr2, text="Clique num bolão abaixo para ver o resumo e os detalhes dele.",
+                 bg="#4f46e5", fg="#e0e0ff", font=("Arial",8)).pack(padx=20, anchor="w")
+
+        # ── Seletor de bolão — cartões clicáveis (mais fácil de achar e
+        # trocar do que o combo pequeno do cabeçalho) ────────────────────
+        self._sel_bolao_frame = tk.Frame(p, bg="#1a2a3a")
+        self._sel_bolao_frame.pack(fill="x", padx=20, pady=(0,12))
+
+        # ══════════════ PARTE 2 — RESUMO E DETALHE DO BOLÃO SELECIONADO ═
+        hdr3 = tk.Frame(p, bg="#1a2a3a", pady=4)
+        hdr3.pack(fill="x", padx=20)
+        self._dash_bolao_lbl = tk.Label(hdr3, text="",
+                 bg="#1a2a3a", fg="white", font=("Arial",13,"bold"))
+        self._dash_bolao_lbl.pack(side="left")
+
+        # ── Resumo — 6 cards compactos deste bolão ────────────────
+        kpi_row = tk.Frame(p, bg="#1a2a3a")
+        kpi_row.pack(fill="x", padx=20, pady=(6,6))
+        kpi_defs2 = [
             ("dash_participantes", "Cotas Ocupadas", "#2196F3"),
             ("dash_quitados",      "Quitados",       "#1D9E75"),
             ("dash_pendentes",     "Pendentes",      "#e67e22"),
@@ -3506,7 +3631,7 @@ class BolaoApp:
             ("dash_depositos",     "Depositado",     "#16a085"),
         ]
         self._dash_kpis = {}
-        for attr, titulo, cor in kpi_defs:
+        for attr, titulo, cor in kpi_defs2:
             card = tk.Frame(kpi_row, bg=cor, padx=12, pady=8, relief="flat")
             card.pack(side="left", fill="both", expand=True, padx=3)
             tk.Label(card, text=titulo, bg=cor, fg="white",
@@ -3528,7 +3653,7 @@ class BolaoApp:
         self._dash_prog = ttk.Progressbar(prog_fr, mode="determinate", maximum=100)
         self._dash_prog.pack(fill="x", pady=(4,0))
 
-        # ── Área principal: 3 colunas ────────────────────────────
+        # ── Detalhe: 3 colunas ────────────────────────────────────
         main = tk.Frame(p, bg="#1a2a3a")
         main.pack(fill="both", expand=True, padx=20, pady=(0,6))
         main.columnconfigure(0, weight=2)
@@ -3573,7 +3698,7 @@ class BolaoApp:
                                 font=("Arial",9,"bold"), bd=1, padx=10, pady=8)
         sec_fin.grid(row=0, column=0, sticky="nsew", pady=(0,4))
 
-        # Só os 2 números que NÃO aparecem nos KPIs do topo (Arrecadado,
+        # Só os 2 números que NÃO aparecem no resumo acima (Arrecadado,
         # Depositado e A Receber já estão lá — repetir aqui era a mesma
         # informação duas vezes, em dois estilos visuais diferentes).
         self._dash_fin_labels = {}
@@ -3643,150 +3768,8 @@ class BolaoApp:
                  bg="#151f2b", fg="#445566", font=("Arial",8))
         self._dash_footer.pack(anchor="w", padx=8)
 
-        # ══════════ PARTE 2 — VISÃO GERAL DA ADMINISTRAÇÃO (todos os
-        # bolões: ganhos/saques do organizador, atrasados, depósitos
-        # pendentes) — antes era a aba "📊 Administração" separada.
-        # Faixa de largura total (sem padx, cor própria) em vez de uma
-        # linha fina de 3px — a mudança de escopo (de "este bolão" pra
-        # "todos os bolões") é grande demais pra passar quase despercebida.
-        hdr2 = tk.Frame(p, bg="#4f46e5", pady=10)
-        hdr2.pack(fill="x", pady=(14,10))
-        tk.Label(hdr2, text="📊  ADMINISTRAÇÃO — TODOS OS BOLÕES",
-                 bg="#4f46e5", fg="white", font=("Arial",13,"bold")).pack(padx=20, anchor="w")
-        tk.Label(hdr2, text="A partir daqui, os números somam todos os bolões ativos — não só o selecionado acima.",
-                 bg="#4f46e5", fg="#e0e0ff", font=("Arial",8)).pack(padx=20, anchor="w")
-
-        vis = p
-
-        # ── LINHA 1: KPIs horizontais compactos ──────────────────────
-        kpi_bar = tk.Frame(vis, bg="#1a2a3a")
-        kpi_bar.pack(fill="x", padx=12, pady=(10,6))
-        self._adm_kpis = {}
-        kpi_defs = [
-            # Paleta própria, sem repetir nenhuma cor dos KPIs do Dashboard
-            # acima (que usam azul/verde/laranja/roxo/vermelho/teal) — as
-            # duas linhas de KPI ficaram visíveis na mesma tela depois da
-            # fusão, e a mesma cor significando coisas diferentes em cada
-            # metade confundia mais do que ajudava.
-            ("adm_total",  "TOTAL GANHO",      "#4f46e5", "R$ 0,00"),
-            ("adm_sacado", "TOTAL SACADO",      "#db2777", "R$ 0,00"),
-            ("adm_saldo",  "SALDO DISPONIVEL",  "#0891b2", "R$ 0,00"),
-            ("adm_boloes", "BOLOES",            "#78716c", "0"),
-            ("adm_lancam", "LANCAMENTOS",        "#ca8a04", "0"),
-        ]
-        for attr, titulo, cor, default in kpi_defs:
-            card = tk.Frame(kpi_bar, bg=cor, padx=12, pady=6)
-            card.pack(side="left", fill="both", expand=True, padx=3)
-            tk.Label(card, text=titulo, bg=cor, fg="#cccccc",
-                     font=("Arial",7,"bold")).pack(anchor="w")
-            val_lbl = tk.Label(card, text=default, bg=cor, fg="white",
-                               font=("Arial",13,"bold"))
-            val_lbl.pack(anchor="w")
-            self._adm_kpis[attr] = val_lbl
-
-        # ── LINHA 2: Formulário de lançamento compacto ───────────────
-        sec_form = tk.LabelFrame(vis, text="  REGISTRAR LANCAMENTO  ",
-            bg="#243447", fg="white", font=("Arial",9,"bold"), bd=1, padx=10, pady=6)
-        sec_form.pack(fill="x", padx=12, pady=(0,6))
-
-        frm_row = tk.Frame(sec_form, bg="#243447"); frm_row.pack(fill="x", pady=2)
-        def lbl_f(parent, text):
-            tk.Label(parent, text=text, bg="#243447", fg="#aad4f5",
-                     font=("Arial",8,"bold")).pack(side="left", padx=(6,2))
-        lbl_f(frm_row, "Tipo:")
-        self.adm_tipo = ttk.Combobox(frm_row,
-            values=["GANHO (taxa organizacao)","SAQUE (retirada)"],
-            width=20, state="readonly", font=("Arial",8))
-        self.adm_tipo.set("GANHO (taxa organizacao)"); self.adm_tipo.pack(side="left", padx=(0,4))
-        self._adm_bolao_frame = tk.Frame(frm_row, bg="#243447"); self._adm_bolao_frame.pack(side="left")
-        lbl_f(self._adm_bolao_frame, "Bolao:")
-        self.adm_cb_bolao = ttk.Combobox(self._adm_bolao_frame, width=26,
-                                          state="readonly", font=("Arial",8))
-        self.adm_cb_bolao.pack(side="left", padx=(0,4))
-        self._adm_lot_frame = tk.Frame(frm_row, bg="#243447"); self._adm_lot_frame.pack(side="left")
-        lbl_f(self._adm_lot_frame, "Loteria:")
-        self.adm_lot = ttk.Combobox(self._adm_lot_frame, values=LOTERIAS,
-                                     width=12, state="readonly", font=("Arial",8))
-        self.adm_lot.set("Mega-Sena"); self.adm_lot.pack(side="left", padx=(0,4))
-        lbl_f(self._adm_lot_frame, "Concurso:")
-        self.adm_conc = entry(self._adm_lot_frame, width=8)
-        self.adm_conc.pack(side="left", padx=(0,4))
-        lbl_f(frm_row, "Valor:")
-        self.adm_val = entry(frm_row, width=10); self.adm_val.pack(side="left", padx=(0,4))
-        lbl_f(frm_row, "Data:")
-        self.adm_dt = entry(frm_row, width=10)
-        self.adm_dt.insert(0, date.today().strftime("%d/%m/%Y"))
-        self.adm_dt.pack(side="left", padx=(0,4))
-        lbl_f(frm_row, "Desc:")
-        self.adm_desc = entry(frm_row, width=22); self.adm_desc.pack(side="left", padx=(0,4))
-        btn(frm_row, "SALVAR", CORES["btn_verde"], self._adm_registrar,
-            width=10).pack(side="left", padx=6)
-
-        def _on_tipo_change(e=None):
-            if "SAQUE" in self.adm_tipo.get():
-                self._adm_bolao_frame.pack_forget(); self._adm_lot_frame.pack_forget()
-            else:
-                self._adm_bolao_frame.pack(side="left"); self._adm_lot_frame.pack(side="left")
-        self.adm_tipo.bind("<<ComboboxSelected>>", _on_tipo_change)
-
-        # ── LINHA 3: Depósitos Pendentes | Participantes Atrasados ───
-        mid_top = tk.Frame(vis, bg="#1a2a3a")
-        mid_top.pack(fill="both", expand=False, padx=12, pady=(0,6))
-        mid_top.columnconfigure(0, weight=3); mid_top.columnconfigure(1, weight=2)
-
-        sec_dep_pend = tk.LabelFrame(mid_top, text="  DEPOSITOS PENDENTES  ",
-            bg="#243447", fg="#ffcc88", font=("Arial",9,"bold"), bd=1, padx=6, pady=4)
-        sec_dep_pend.grid(row=0, column=0, sticky="nsew", padx=(0,4))
-        fr_dp, self.adm_tree_dep = make_tree(sec_dep_pend,
-            {"ID":42,"Participante":150,"Data Pag.":86,"Valor":86,"Bolao":120}, height=10)
-        fr_dp.pack(fill="both", expand=True)
-        self.adm_tree_dep.tag_configure("row1", background="#fff8e8")
-        self.adm_tree_dep.tag_configure("row2", background="#ffffff")
-        self._adm_dep_total_lbl = tk.Label(sec_dep_pend, text="", bg="#243447",
-                                            fg="#ffcc88", font=("Arial",8,"bold"))
-        self._adm_dep_total_lbl.pack(anchor="e", pady=(2,0))
-
-        sec_atr = tk.LabelFrame(mid_top, text="  PARTICIPANTES ATRASADOS  ",
-            bg="#243447", fg="#ffcc88", font=("Arial",9,"bold"), bd=1, padx=6, pady=4)
-        sec_atr.grid(row=0, column=1, sticky="nsew")
-        fr_a, self.adm_tree_atr = make_tree(sec_atr,
-            {"Participante":120,"Bolao":110,"Pagas":46,"Devidas":52,"Saldo":86}, height=10)
-        fr_a.pack(fill="both", expand=True)
-        self.adm_tree_atr.tag_configure("atr1", background="#fde8d8")
-        self.adm_tree_atr.tag_configure("atr2", background="#f9c0b0")
-        self._adm_atr_lbl = tk.Label(sec_atr, text="", bg="#243447",
-                                      fg="#ffcc88", font=("Arial",8,"bold"))
-        self._adm_atr_lbl.pack(anchor="e", pady=(2,0))
-
-        # ── LINHA 4: Ganhos por Loteria (menor) | Histórico ──────────
-        mid_bot = tk.Frame(vis, bg="#1a2a3a")
-        mid_bot.pack(fill="both", expand=True, padx=12, pady=(0,12))
-        mid_bot.columnconfigure(0, weight=1); mid_bot.columnconfigure(1, weight=4)
-        mid_bot.rowconfigure(0, weight=1)
-
-        sec_lot = tk.LabelFrame(mid_bot, text="  GANHOS POR LOTERIA  ",
-            bg="#243447", fg="white", font=("Arial",9,"bold"), bd=1, padx=6, pady=4)
-        sec_lot.grid(row=0, column=0, sticky="new", padx=(0,4))
-        fr_l, self.adm_tree_lot = make_tree(sec_lot,
-            {"Loteria":100,"Lanc.":50,"Total Ganho":100}, height=4)
-        fr_l.pack(fill="x", expand=False)
-        self.adm_tree_lot.tag_configure("pos", background="#d5f5e3")
-
-        sec_hist = tk.LabelFrame(mid_bot, text="  HISTORICO DE LANCAMENTOS  ",
-            bg="#243447", fg="white", font=("Arial",9,"bold"), bd=1, padx=6, pady=4)
-        sec_hist.grid(row=0, column=1, sticky="nsew")
-        cols_h = {"ID":40,"Bolao":120,"Loteria":80,"Concurso":65,
-                  "Valor":90,"Tipo":70,"Descricao":140,"Data":90}
-        fr_h, self.adm_tree_hist = make_tree(sec_hist, cols_h, height=10)
-        fr_h.pack(fill="both", expand=True)
-        self.adm_tree_hist.tag_configure("ganho", background="#d5f5e3")
-        self.adm_tree_hist.tag_configure("saque", background="#fde8d8")
-        bh = tk.Frame(sec_hist, bg="#243447"); bh.pack(fill="x", pady=2)
-        btn(bh, "Editar",  CORES["btn_azul"],    self._adm_editar,  width=10).pack(side="left", padx=3)
-        btn(bh, "Excluir", CORES["btn_vermelho"], self._adm_excluir, width=10).pack(side="left", padx=3)
-
         # Região de rolagem — precisa ser calculada depois que TODO o
-        # conteúdo (dashboard + administração) já foi montado
+        # conteúdo já foi montado
         p.update_idletasks()
         canvas.configure(scrollregion=canvas.bbox("all"))
 
@@ -3805,20 +3788,162 @@ class BolaoApp:
         canvas.bind("<Enter>", _ligar_scroll)
         canvas.bind("<Leave>", _desligar_scroll)
 
+        self._atualizar_cartoes_bolao()
+
+    def _recarregar_visao_geral(self):
+        """Botão de atualizar manual — recarrega os dois blocos da tela."""
+        self._adm_load()
+        self._dash_load()
+
+    def _atualizar_cartoes_bolao(self):
+        """Redesenha os cartões clicáveis de seleção de bolão."""
+        frame = self._sel_bolao_frame
+        for w in frame.winfo_children():
+            w.destroy()
+        rows_b = self.db.fetchall("SELECT * FROM boloes WHERE encerrado=0 ORDER BY nome")
+        bid_atual = self.bid.get()
+        NCOLS = 5
+        for idx, b in enumerate(rows_b):
+            bd = dict(b)
+            selecionado = bd["id"] == bid_atual
+            cor_bg = "#4f46e5" if selecionado else "#243447"
+            cor_fg = "white" if selecionado else "#aad4f5"
+            marca = "✅ " if selecionado else ""
+            card = tk.Button(frame, text=marca + bd["nome"], bg=cor_bg, fg=cor_fg,
+                              font=("Arial",9,"bold"), relief="flat",
+                              padx=14, pady=10, cursor="hand2", wraplength=180,
+                              activebackground="#4f46e5", activeforeground="white",
+                              command=lambda i=bd["id"]: self._selecionar_bolao_via_cartao(i))
+            card.grid(row=idx // NCOLS, column=idx % NCOLS, padx=4, pady=4, sticky="w")
+        if not rows_b:
+            tk.Label(frame, text="Nenhum bolão ativo — cadastre um em '+ Novo Bolão'.",
+                     bg="#1a2a3a", fg="#8899aa", font=("Arial",9,"italic")).grid(row=0, column=0)
+
+    def _selecionar_bolao_via_cartao(self, bid):
+        self._selecionar_bolao_por_id(bid)
+        self._atualizar_cartoes_bolao()
+
+    def _abrir_ganhos_por_loteria(self):
+        """Janela com o resumo de ganhos por loteria (taxa_adm) — tirado
+        da tela principal a pedido do usuário: informação de consulta
+        ocasional, não precisa competir por espaço todo dia."""
+        win = tk.Toplevel(self.root)
+        win.title("Ganhos por Loteria")
+        win.geometry("420x360")
+        win.configure(bg=CORES["bg_section"])
+        win.grab_set(); win.lift(); win.focus_force()
+
+        tk.Label(win, text="📊 GANHOS POR LOTERIA", bg=CORES["bg_section"],
+                 fg=CORES["fg_title"], font=("Arial",12,"bold")).pack(pady=(14,8))
+
+        fr = tk.Frame(win, bg=CORES["bg_section"], padx=16); fr.pack(fill="both", expand=True)
+        cols = {"Loteria":140,"Lançamentos":90,"Total Ganho":120}
+        fr_t, tree = make_tree(fr, cols, height=10)
+        fr_t.pack(fill="both", expand=True)
+        tree.tag_configure("pos", background="#d5f5e3")
+
+        from collections import defaultdict
+        todos = self.db.fetchall("SELECT * FROM taxa_adm WHERE tipo='GANHO'")
+        por_lot = defaultdict(lambda: {"g": 0.0, "n": 0})
+        for r in todos:
+            lot = r["loteria"] or "Mega-Sena"
+            por_lot[lot]["g"] += r["valor_ganho"]
+            por_lot[lot]["n"] += 1
+        for lot in sorted(por_lot.keys()):
+            d = por_lot[lot]
+            tree.insert("","end", tags=("pos",), values=(lot, d["n"], fmt_brl(d["g"])))
+        if not por_lot:
+            tk.Label(win, text="Nenhum ganho registrado ainda.", bg=CORES["bg_section"],
+                     fg="#888", font=("Arial",9,"italic")).pack(pady=8)
+
+        btn(win, "Fechar", CORES["btn_cinza"], win.destroy, width=12).pack(pady=12)
+
+    def _abrir_registrar_lancamento(self):
+        """Janela pra registrar um GANHO/SAQUE do organizador — tirada da
+        tela principal (ação, não informação) a pedido do usuário."""
+        win = tk.Toplevel(self.root)
+        win.title("Registrar Lançamento")
+        win.geometry("380x420")
+        win.configure(bg=CORES["bg_section"])
+        win.grab_set(); win.lift(); win.focus_force()
+
+        tk.Label(win, text="➕ REGISTRAR LANÇAMENTO", bg=CORES["bg_section"],
+                 fg=CORES["fg_title"], font=("Arial",12,"bold")).pack(pady=(14,8))
+
+        fr = tk.Frame(win, bg=CORES["bg_section"], padx=20); fr.pack(fill="both", expand=True)
+        def lbl_f(text):
+            tk.Label(fr, text=text, bg=CORES["bg_section"], fg=CORES["fg_label"],
+                     font=("Arial",9,"bold"), anchor="w").pack(fill="x", pady=(8,0))
+
+        lbl_f("Tipo:")
+        self.adm_tipo = ttk.Combobox(fr,
+            values=["GANHO (taxa organizacao)","SAQUE (retirada)"],
+            state="readonly", font=("Arial",9))
+        self.adm_tipo.set("GANHO (taxa organizacao)"); self.adm_tipo.pack(fill="x")
+
+        self._adm_bolao_frame = tk.Frame(fr, bg=CORES["bg_section"])
+        self._adm_bolao_frame.pack(fill="x")
+        tk.Label(self._adm_bolao_frame, text="Bolão:", bg=CORES["bg_section"],
+                 fg=CORES["fg_label"], font=("Arial",9,"bold"), anchor="w").pack(fill="x", pady=(8,0))
+        self.adm_cb_bolao = ttk.Combobox(self._adm_bolao_frame, state="readonly", font=("Arial",9))
+        self.adm_cb_bolao.pack(fill="x")
+        rows_b = self.db.fetchall("SELECT * FROM boloes WHERE encerrado=0 ORDER BY id")
+        items_b = [f"{dict(b)['nome']} (ID: {dict(b)['id']})" for b in rows_b]
+        items_b.append("-- Outros (bolão independente) --")
+        self.adm_cb_bolao["values"] = items_b
+        bid_atual = self.bid.get()
+        selecionado = False
+        for item in items_b:
+            m = re.search(r"\(ID: (\d+)\)", item)
+            if m and int(m.group(1)) == bid_atual:
+                self.adm_cb_bolao.set(item); selecionado = True; break
+        if not selecionado and items_b:
+            self.adm_cb_bolao.set(items_b[0])
+
+        self._adm_lot_frame = tk.Frame(fr, bg=CORES["bg_section"])
+        self._adm_lot_frame.pack(fill="x")
+        tk.Label(self._adm_lot_frame, text="Loteria:", bg=CORES["bg_section"],
+                 fg=CORES["fg_label"], font=("Arial",9,"bold"), anchor="w").pack(fill="x", pady=(8,0))
+        self.adm_lot = ttk.Combobox(self._adm_lot_frame, values=LOTERIAS, state="readonly", font=("Arial",9))
+        self.adm_lot.set("Mega-Sena"); self.adm_lot.pack(fill="x")
+        tk.Label(self._adm_lot_frame, text="Concurso:", bg=CORES["bg_section"],
+                 fg=CORES["fg_label"], font=("Arial",9,"bold"), anchor="w").pack(fill="x", pady=(8,0))
+        self.adm_conc = entry(self._adm_lot_frame, width=40); self.adm_conc.pack(fill="x")
+
+        lbl_f("Valor (R$):")
+        self.adm_val = entry(fr, width=40); self.adm_val.pack(fill="x")
+        lbl_f("Data:")
+        self.adm_dt = entry(fr, width=40)
+        self.adm_dt.insert(0, date.today().strftime("%d/%m/%Y")); self.adm_dt.pack(fill="x")
+        lbl_f("Descrição:")
+        self.adm_desc = entry(fr, width=40); self.adm_desc.pack(fill="x")
+
+        def _on_tipo_change(e=None):
+            if "SAQUE" in self.adm_tipo.get():
+                self._adm_bolao_frame.pack_forget(); self._adm_lot_frame.pack_forget()
+            else:
+                self._adm_bolao_frame.pack(fill="x", after=self.adm_tipo)
+                self._adm_lot_frame.pack(fill="x", after=self._adm_bolao_frame)
+        self.adm_tipo.bind("<<ComboboxSelected>>", _on_tipo_change)
+
+        btn(win, "💾 SALVAR", CORES["btn_verde"], self._adm_registrar, width=20).pack(pady=14)
+
     def _dash_load(self):
         bid = self.bid.get()
         self._dash_hora_lbl.configure(
             text=f"Atualizado: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+        try: self._atualizar_cartoes_bolao()
+        except Exception: pass
 
         if not bid:
-            self._dash_bolao_lbl.configure(text="Nenhum bolão ativo")
+            self._dash_bolao_lbl.configure(text="Nenhum bolão selecionado")
             return
 
         b = self.db.fetchone("SELECT * FROM boloes WHERE id=?", (bid,))
         if not b: return
         bd = dict(b)
         self._dash_bolao_lbl.configure(
-            text=f"— {bd['nome']}  |  {bd.get('loteria','Mega-Sena')}")
+            text=f"🎯  {bd['nome']}  —  {bd.get('loteria','Mega-Sena')}")
 
         partic   = self.db.fetchall(
             "SELECT * FROM participantes WHERE bolao_id=? AND ativo=1 ORDER BY nome", (bid,))
@@ -4122,7 +4247,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v4.3</span>
+        <span>Sistema de Gestão de Bolões v5.0</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -5129,24 +5254,10 @@ class BolaoApp:
 
 
     def _adm_load(self):
-        # Popula combo de bolões — bolões do sistema + opção Outros
-        rows_b  = self.db.fetchall("SELECT * FROM boloes WHERE encerrado=0 ORDER BY id")
-        items_b = [f"{dict(b)['nome']} (ID: {dict(b)['id']})" for b in rows_b]
-        items_b.append("-- Outros (bolão independente) --")
-        self.adm_cb_bolao["values"] = items_b
-
-        # Só auto-seleciona se ainda não tiver nada escolhido
-        if not self.adm_cb_bolao.get():
-            bid = self.bid.get()
-            selecionado = False
-            for item in items_b:
-                m = re.search(r"\(ID: (\d+)\)", item)
-                if m and int(m.group(1)) == bid:
-                    self.adm_cb_bolao.set(item)
-                    selecionado = True
-                    break
-            if not selecionado and items_b:
-                self.adm_cb_bolao.set(items_b[0])
+        # O combo de bolões do popup "Registrar Lançamento" e a tabela de
+        # ganhos por loteria do popup próprio são montados só quando os
+        # respectivos popups abrem (ver _abrir_registrar_lancamento /
+        # _abrir_ganhos_por_loteria) — não existem mais nessa tela.
 
         # Todos os lançamentos — COALESCE exibe "Outros" quando bolao_id=0
         todos = self.db.fetchall("""
@@ -5160,29 +5271,19 @@ class BolaoApp:
         total_ganho  = sum(r["valor_ganho"]  for r in todos)
         total_sacado = sum(r["valor_sacado"] for r in todos)
         saldo_geral  = total_ganho - total_sacado
-        n_boloes     = len(set(r["bolao_id"] for r in todos))
-        n_lanc       = len(todos)
 
-        # KPIs
         self._adm_kpis["adm_total"].configure(text=fmt_brl(total_ganho))
         self._adm_kpis["adm_sacado"].configure(text=fmt_brl(total_sacado))
         self._adm_kpis["adm_saldo"].configure(text=fmt_brl(saldo_geral))
-        self._adm_kpis["adm_boloes"].configure(text=str(n_boloes))
-        self._adm_kpis["adm_lancam"].configure(text=str(n_lanc))
 
-        # Resumo por loteria — só GANHOs (saques são gerais, não por loteria)
-        self.adm_tree_lot.delete(*self.adm_tree_lot.get_children())
-        from collections import defaultdict
-        por_lot = defaultdict(lambda: {"g": 0.0, "n": 0})
-        for r in todos:
-            if r["tipo"] == "GANHO":
-                lot = r["loteria"] or "Mega-Sena"
-                por_lot[lot]["g"] += r["valor_ganho"]
-                por_lot[lot]["n"] += 1
-        for lot in sorted(por_lot.keys()):
-            d = por_lot[lot]
-            self.adm_tree_lot.insert("","end", tags=("pos",), values=(
-                lot, d["n"], fmt_brl(d["g"])))
+        # ── KPIs gerais (todos os bolões) ─────────────────────────
+        n_boloes_ativos = self.db.fetchone(
+            "SELECT COUNT(*) as t FROM boloes WHERE encerrado=0")["t"] or 0
+        self._adm_kpis["geral_boloes"].configure(text=str(n_boloes_ativos))
+
+        arrec_geral_row = self.db.fetchone("SELECT SUM(valor) as t FROM pagamentos")
+        arrec_geral = arrec_geral_row["t"] or 0
+        self._adm_kpis["geral_arrec"].configure(text=fmt_brl(arrec_geral))
 
         # ── Participantes atrasados — TODOS os bolões ────────────
         self.adm_tree_atr.delete(*self.adm_tree_atr.get_children())
@@ -5229,14 +5330,18 @@ class BolaoApp:
         atrasados.sort(key=lambda x: (-x["gravidade"], x["bolao"], x["nome"]))
         for a in atrasados:
             tag = "atr2" if a["gravidade"] >= 2 else "atr1"
+            # Mostra "gravidade" (quanto REALMENTE falta), não "devidas"
+            # (o acumulado esperado até hoje) — ver comentário na criação
+            # da coluna "Faltam" em _build_dashboard.
             self.adm_tree_atr.insert("","end", tags=(tag,), values=(
                 a["nome"], a["bolao"],
-                a["pagas"], a["devidas"], fmt_brl(a["saldo"])))
+                a["pagas"], a["gravidade"], fmt_brl(a["saldo"])))
 
         n_atr = len(atrasados)
         self._adm_atr_lbl.configure(
             text=f"{'⚠' if n_atr else '✅'} "
                  f"{n_atr} participante(s) com parcelas em atraso")
+        self._adm_kpis["geral_atrasados"].configure(text=str(n_atr))
 
         # ── Depósitos pendentes — todos os bolões ativos ─────────
         self.adm_tree_dep.delete(*self.adm_tree_dep.get_children())
@@ -5259,6 +5364,22 @@ class BolaoApp:
                 r["bolao_nome"] or "-"))
         self._adm_dep_total_lbl.configure(
             text=f"Total pendente: {fmt_brl(total_pend)}  ({len(pend_rows)} pagamentos)")
+        self._adm_kpis["geral_pend_dep"].configure(text=fmt_brl(total_pend))
+
+        # ── Últimos pagamentos — TODOS os bolões ─────────────────
+        self.geral_tree_ult.delete(*self.geral_tree_ult.get_children())
+        ults_geral = self.db.fetchall("""
+            SELECT pt.nome, pg.data_pagamento, pg.valor, b.nome as bolao_nome
+            FROM pagamentos pg
+            JOIN participantes pt ON pg.participante_id = pt.id
+            JOIN boloes b ON pg.bolao_id = b.id
+            ORDER BY pg.id DESC LIMIT 20
+        """)
+        for i, r in enumerate(ults_geral):
+            tag = "linha" if i % 2 == 0 else ""
+            self.geral_tree_ult.insert("","end", tags=(tag,), values=(
+                r["nome"], r["bolao_nome"] or "-",
+                r["data_pagamento"] or "-", fmt_brl(r["valor"])))
 
         # Painel de pendencias mensais — usa _calc_parcela_atual
         from datetime import date as _date
@@ -6158,7 +6279,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v4.3</span>
+        <span>Sistema de Gestão de Bolões v5.0</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -7063,11 +7184,26 @@ class BolaoApp:
         if not sel: return
         m=re.search(r"\(ID: (\d+)\)",sel)
         if m:
-            bid=int(m.group(1)); self.bid.set(bid)
-            self.db.execute("UPDATE boloes SET status='INATIVO'")
-            self.db.execute("UPDATE boloes SET status='ATIVO' WHERE id=?",(bid,))
-            self._refresh_all()
-            self._preencher_valor_cad()
+            self._selecionar_bolao_por_id(int(m.group(1)))
+
+    def _selecionar_bolao_por_id(self, bid):
+        """Seleciona um bolão — usado tanto pelo combo do cabeçalho quanto
+        pelos cartões clicáveis da Visão Geral. Atualiza bid, status no
+        banco, e recarrega tudo que depende do bolão selecionado."""
+        self.bid.set(bid)
+        self.db.execute("UPDATE boloes SET status='INATIVO'")
+        self.db.execute("UPDATE boloes SET status='ATIVO' WHERE id=?",(bid,))
+        # mantém a combobox do cabeçalho sincronizada com a seleção
+        try:
+            for item in self.cb_bolao["values"]:
+                m2 = re.search(r"\(ID: (\d+)\)", item)
+                if m2 and int(m2.group(1)) == bid:
+                    self.cb_bolao.set(item)
+                    break
+        except Exception:
+            pass
+        self._refresh_all()
+        self._preencher_valor_cad()
 
     def _pub_carregar_boloes(self):
         boloes = self.db.fetchall(
