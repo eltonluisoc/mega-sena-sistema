@@ -155,7 +155,25 @@ Implementado seguindo o mesmo padrão de fila que já existia (morto) pra `parti
 - "✏ Editar" (Financeiro) é redundante com "📋 Histórico" — Histórico já cobre 100% do caso de uso de Editar (busca por nome + duplo-clique pra editar) e tem mais recursos (KPIs, filtro, export). Candidata a remoção.
 - Sub-aba "🔄 Sincronizar Participantes" (dentro de Site/Publicar) corresponde à feature já identificada como código morto na Rodada 4 — remover a aba junto com o código.
 - Nomes parecidos demais pra conceitos diferentes: "💼 Reserva/Caixa" (Gestão, fundo de caixa do bolão) vs "💰 Reservas Pessoais" (Financeiro, saldo de cada pessoa).
-- "📊 Administração" (dentro de Início) não deixa claro que é uma visão agregada de TODOS os bolões, diferente do "🏠 Dashboard" (bolão selecionado) ao lado.
+
+## Rodada 6 — Bug financeiro grave (ADM isento contado nos totais) + fusão Dashboard/Administração
+
+O usuário relatou 3 vezes (com exemplos numéricos reais) que "Total Esperado" no Dashboard incluía o valor esperado dele mesmo em bolões onde está configurado como ADM isento (não paga) — ex.: Mega da Virada com 47 participantes, sendo 46 pagantes de verdade, mostrava o total como se fossem 47.
+
+**Causa raiz encontrada**: `valor_esperado` do ADM só é zerado automaticamente no cadastro se ele for cadastrado DEPOIS do bolão já estar marcado como isento (`_cad_adm_toggle`). Se o bolão virou isento depois de já cadastrado, o valor antigo fica salvo no banco — e o Dashboard calculava "Total Esperado" com um `SUM(valor_esperado)` cru, sem excluir quem é ADM isento pelo critério `is_adm`/nome. `total_pago`/`total_saldo` já excluíam corretamente (via `_status_part_adm`), só "esperado" estava errado.
+
+**Corrigido**:
+- `_dash_load()`: `total_esp` agora é somado dentro do mesmo loop que já detecta `eh_adm and not adm_paga`, excluindo o ADM isento de todos os totais (esperado, arrecadado, pendente) de forma consistente — removida a lógica antiga que somava `SUM(valor_esperado)` cru e ainda adicionava 1 cota extra se o ADM isento não estivesse cadastrado.
+- `_gerar_rel()` (Relatório): a linha sintética do ADM isento também inflava `te`/`tp` (esperado E arrecadado) com o valor dele — removido, a linha agora só aparece como "QUITADO (isento)" sem entrar em nenhum total.
+- `_registrar_pag()`: aviso (não bloqueio) ao tentar registrar um pagamento pro ADM isento — esse tipo de lançamento aparecia escondido no "Total Recebido" da aba Depósitos mesmo o ADM não pagando (Depósitos em si está correto — soma `pagamentos` reais, que por construção não deveriam ter linha pro isento; o aviso é preventivo contra dado incorreto).
+- Auditoria: Cards Visuais (só conta status, sem soma monetária — ok), publicação pro site (`_pub_montar_dados_impl`/`_on_close`, já zeravam `valorPago` do ADM isento corretamente — ok), Administração/atrasados (já excluía corretamente — ok).
+
+**UI: Dashboard + Administração fundidos numa tela só** (pedido do usuário, aprovado com "rolagem" em vez de lado-a-lado): "Início" tinha 3 níveis de abas (Início > Administração > Visão Geral/Pendências). Agora são 2 abas diretas: "🏠 Visão Geral" (Dashboard do bolão + resumo da Administração empilhados, com scroll do mouse) e "📅 Pendências por Bolão" (promovida a aba própria, como pedido). Bloco "Ganhos por Loteria" também ficou menor (só 3-4 loterias, não precisava do mesmo espaço do Histórico).
+
+### Ainda pendente (não é bug, é decisão de design — aguardando aprovação)
+- Remover aba "✏ Editar" (redundante com Histórico)
+- Remover sub-aba "🔄 Sincronizar Participantes" (código morto)
+- Renomear "💼 Reserva/Caixa" vs "💰 Reservas Pessoais" pra diferenciar melhor os nomes
 
 ## Agentes a utilizar
 
