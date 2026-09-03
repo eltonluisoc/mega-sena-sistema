@@ -1,7 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v4.2
+SISTEMA DE GESTÃO DE BOLÕES PRO v4.3
+Correções v4.3 (revisão de UX em "Início > Visão Geral"):
+ - Árvores "Situação dos Participantes"/"Últimos Pagamentos" reduzidas
+   de 20 pra 10 linhas — herdaram altura de tela cheia de quando o
+   Dashboard era uma aba sozinha, e agora empurravam a metade
+   "Administração" pra bem longe do topo
+ - Bloco "Financeiro" simplificado: removidos "Arrecadado", "Depositado"
+   e "A Receber" — já apareciam nos KPIs do topo, duplicados
+ - Divisória entre "este bolão" e "todos os bolões" virou uma faixa
+   colorida de largura total com legenda, no lugar de uma linha de 3px
+ - Cores dos KPIs da Administração trocadas — 4 das 5 repetiam cores já
+   usadas nos KPIs do Dashboard acima com significados diferentes
+ - Formulário "Registrar Lançamento" movido pra logo após os KPIs da
+   Administração, antes das tabelas de leitura (era a única ação da
+   tela inteira e ficava espremida no meio do scroll)
 Correções v4.2:
  - CORRIGIDO: rolagem do mouse não funcionava na tela "Início > Visão
    Geral" — o evento só disparava com o cursor sobre a área vazia do
@@ -855,7 +869,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v4.2")
+        self.root.title("Sistema de Gestão de Bolões PRO v4.3")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1033,7 +1047,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v4.2",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v4.3",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -3529,7 +3543,7 @@ class BolaoApp:
         sec_sit.grid(row=0, column=0, sticky="nsew", padx=(0,4))
         sec_sit.rowconfigure(0, weight=1); sec_sit.columnconfigure(0, weight=1)
         cols_s = {"Nome":190, "Pago":100, "Saldo":100, "Status":90}
-        fr_s, self._dash_tree_sit = make_tree(sec_sit, cols_s, height=20)
+        fr_s, self._dash_tree_sit = make_tree(sec_sit, cols_s, height=10)
         fr_s.grid(row=0, column=0, sticky="nsew")
         self._dash_tree_sit.tag_configure("quitado",  background="#d5f5e3")
         self._dash_tree_sit.tag_configure("pendente", background="#fde8d8")
@@ -3541,7 +3555,7 @@ class BolaoApp:
         sec_ult.grid(row=0, column=1, sticky="nsew", padx=4)
         sec_ult.rowconfigure(0, weight=1); sec_ult.columnconfigure(0, weight=1)
         cols_u = {"Participante":190, "Data":100, "Valor":100}
-        fr_u, self._dash_tree_ult = make_tree(sec_ult, cols_u, height=20)
+        fr_u, self._dash_tree_ult = make_tree(sec_ult, cols_u, height=10)
         fr_u.grid(row=0, column=0, sticky="nsew")
         self._dash_tree_ult.tag_configure("linha", background="#f8f8f8")
 
@@ -3559,13 +3573,13 @@ class BolaoApp:
                                 font=("Arial",9,"bold"), bd=1, padx=10, pady=8)
         sec_fin.grid(row=0, column=0, sticky="nsew", pady=(0,4))
 
+        # Só os 2 números que NÃO aparecem nos KPIs do topo (Arrecadado,
+        # Depositado e A Receber já estão lá — repetir aqui era a mesma
+        # informação duas vezes, em dois estilos visuais diferentes).
         self._dash_fin_labels = {}
         fin_items = [
-            ("fin_esp",  "Total Esperado",   "#aad4f5"),
-            ("fin_rec",  "Total Arrecadado", "#afffca"),
-            ("fin_dep",  "Total Depositado", "#afffca"),
-            ("fin_pend", "A Receber",        "#ffcc88"),
-            ("fin_pct",  "% Arrecadado",     "#aad4f5"),
+            ("fin_esp",  "Total Esperado", "#aad4f5"),
+            ("fin_pct",  "% Arrecadado",   "#aad4f5"),
         ]
         for attr, lbl_txt, cor in fin_items:
             row_f = tk.Frame(sec_fin, bg="#243447"); row_f.pack(fill="x", pady=2)
@@ -3632,12 +3646,15 @@ class BolaoApp:
         # ══════════ PARTE 2 — VISÃO GERAL DA ADMINISTRAÇÃO (todos os
         # bolões: ganhos/saques do organizador, atrasados, depósitos
         # pendentes) — antes era a aba "📊 Administração" separada.
-        sep = tk.Frame(p, bg="#0d1b2a", height=3)
-        sep.pack(fill="x", padx=20, pady=(6,10))
-        hdr2 = tk.Frame(p, bg="#1a2a3a", pady=4)
-        hdr2.pack(fill="x", padx=20)
-        tk.Label(hdr2, text="📊  Administração — Todos os Bolões",
-                 bg="#1a2a3a", fg="white", font=("Arial",14,"bold")).pack(side="left")
+        # Faixa de largura total (sem padx, cor própria) em vez de uma
+        # linha fina de 3px — a mudança de escopo (de "este bolão" pra
+        # "todos os bolões") é grande demais pra passar quase despercebida.
+        hdr2 = tk.Frame(p, bg="#4f46e5", pady=10)
+        hdr2.pack(fill="x", pady=(14,10))
+        tk.Label(hdr2, text="📊  ADMINISTRAÇÃO — TODOS OS BOLÕES",
+                 bg="#4f46e5", fg="white", font=("Arial",13,"bold")).pack(padx=20, anchor="w")
+        tk.Label(hdr2, text="A partir daqui, os números somam todos os bolões ativos — não só o selecionado acima.",
+                 bg="#4f46e5", fg="#e0e0ff", font=("Arial",8)).pack(padx=20, anchor="w")
 
         vis = p
 
@@ -3646,11 +3663,16 @@ class BolaoApp:
         kpi_bar.pack(fill="x", padx=12, pady=(10,6))
         self._adm_kpis = {}
         kpi_defs = [
-            ("adm_total",  "TOTAL GANHO",      "#27ae60", "R$ 0,00"),
-            ("adm_sacado", "TOTAL SACADO",      "#e67e22", "R$ 0,00"),
-            ("adm_saldo",  "SALDO DISPONIVEL",  "#2196F3", "R$ 0,00"),
-            ("adm_boloes", "BOLOES",            "#8e44ad", "0"),
-            ("adm_lancam", "LANCAMENTOS",        "#16a085", "0"),
+            # Paleta própria, sem repetir nenhuma cor dos KPIs do Dashboard
+            # acima (que usam azul/verde/laranja/roxo/vermelho/teal) — as
+            # duas linhas de KPI ficaram visíveis na mesma tela depois da
+            # fusão, e a mesma cor significando coisas diferentes em cada
+            # metade confundia mais do que ajudava.
+            ("adm_total",  "TOTAL GANHO",      "#4f46e5", "R$ 0,00"),
+            ("adm_sacado", "TOTAL SACADO",      "#db2777", "R$ 0,00"),
+            ("adm_saldo",  "SALDO DISPONIVEL",  "#0891b2", "R$ 0,00"),
+            ("adm_boloes", "BOLOES",            "#78716c", "0"),
+            ("adm_lancam", "LANCAMENTOS",        "#ca8a04", "0"),
         ]
         for attr, titulo, cor, default in kpi_defs:
             card = tk.Frame(kpi_bar, bg=cor, padx=12, pady=6)
@@ -3662,36 +3684,7 @@ class BolaoApp:
             val_lbl.pack(anchor="w")
             self._adm_kpis[attr] = val_lbl
 
-        # ── LINHA 2: Depósitos Pendentes | Participantes Atrasados ───
-        mid_top = tk.Frame(vis, bg="#1a2a3a")
-        mid_top.pack(fill="both", expand=False, padx=12, pady=(0,6))
-        mid_top.columnconfigure(0, weight=3); mid_top.columnconfigure(1, weight=2)
-
-        sec_dep_pend = tk.LabelFrame(mid_top, text="  DEPOSITOS PENDENTES  ",
-            bg="#243447", fg="#ffcc88", font=("Arial",9,"bold"), bd=1, padx=6, pady=4)
-        sec_dep_pend.grid(row=0, column=0, sticky="nsew", padx=(0,4))
-        fr_dp, self.adm_tree_dep = make_tree(sec_dep_pend,
-            {"ID":42,"Participante":150,"Data Pag.":86,"Valor":86,"Bolao":120}, height=10)
-        fr_dp.pack(fill="both", expand=True)
-        self.adm_tree_dep.tag_configure("row1", background="#fff8e8")
-        self.adm_tree_dep.tag_configure("row2", background="#ffffff")
-        self._adm_dep_total_lbl = tk.Label(sec_dep_pend, text="", bg="#243447",
-                                            fg="#ffcc88", font=("Arial",8,"bold"))
-        self._adm_dep_total_lbl.pack(anchor="e", pady=(2,0))
-
-        sec_atr = tk.LabelFrame(mid_top, text="  PARTICIPANTES ATRASADOS  ",
-            bg="#243447", fg="#ffcc88", font=("Arial",9,"bold"), bd=1, padx=6, pady=4)
-        sec_atr.grid(row=0, column=1, sticky="nsew")
-        fr_a, self.adm_tree_atr = make_tree(sec_atr,
-            {"Participante":120,"Bolao":110,"Pagas":46,"Devidas":52,"Saldo":86}, height=10)
-        fr_a.pack(fill="both", expand=True)
-        self.adm_tree_atr.tag_configure("atr1", background="#fde8d8")
-        self.adm_tree_atr.tag_configure("atr2", background="#f9c0b0")
-        self._adm_atr_lbl = tk.Label(sec_atr, text="", bg="#243447",
-                                      fg="#ffcc88", font=("Arial",8,"bold"))
-        self._adm_atr_lbl.pack(anchor="e", pady=(2,0))
-
-        # ── LINHA 3: Formulário de lançamento compacto ───────────────
+        # ── LINHA 2: Formulário de lançamento compacto ───────────────
         sec_form = tk.LabelFrame(vis, text="  REGISTRAR LANCAMENTO  ",
             bg="#243447", fg="white", font=("Arial",9,"bold"), bd=1, padx=10, pady=6)
         sec_form.pack(fill="x", padx=12, pady=(0,6))
@@ -3735,6 +3728,35 @@ class BolaoApp:
             else:
                 self._adm_bolao_frame.pack(side="left"); self._adm_lot_frame.pack(side="left")
         self.adm_tipo.bind("<<ComboboxSelected>>", _on_tipo_change)
+
+        # ── LINHA 3: Depósitos Pendentes | Participantes Atrasados ───
+        mid_top = tk.Frame(vis, bg="#1a2a3a")
+        mid_top.pack(fill="both", expand=False, padx=12, pady=(0,6))
+        mid_top.columnconfigure(0, weight=3); mid_top.columnconfigure(1, weight=2)
+
+        sec_dep_pend = tk.LabelFrame(mid_top, text="  DEPOSITOS PENDENTES  ",
+            bg="#243447", fg="#ffcc88", font=("Arial",9,"bold"), bd=1, padx=6, pady=4)
+        sec_dep_pend.grid(row=0, column=0, sticky="nsew", padx=(0,4))
+        fr_dp, self.adm_tree_dep = make_tree(sec_dep_pend,
+            {"ID":42,"Participante":150,"Data Pag.":86,"Valor":86,"Bolao":120}, height=10)
+        fr_dp.pack(fill="both", expand=True)
+        self.adm_tree_dep.tag_configure("row1", background="#fff8e8")
+        self.adm_tree_dep.tag_configure("row2", background="#ffffff")
+        self._adm_dep_total_lbl = tk.Label(sec_dep_pend, text="", bg="#243447",
+                                            fg="#ffcc88", font=("Arial",8,"bold"))
+        self._adm_dep_total_lbl.pack(anchor="e", pady=(2,0))
+
+        sec_atr = tk.LabelFrame(mid_top, text="  PARTICIPANTES ATRASADOS  ",
+            bg="#243447", fg="#ffcc88", font=("Arial",9,"bold"), bd=1, padx=6, pady=4)
+        sec_atr.grid(row=0, column=1, sticky="nsew")
+        fr_a, self.adm_tree_atr = make_tree(sec_atr,
+            {"Participante":120,"Bolao":110,"Pagas":46,"Devidas":52,"Saldo":86}, height=10)
+        fr_a.pack(fill="both", expand=True)
+        self.adm_tree_atr.tag_configure("atr1", background="#fde8d8")
+        self.adm_tree_atr.tag_configure("atr2", background="#f9c0b0")
+        self._adm_atr_lbl = tk.Label(sec_atr, text="", bg="#243447",
+                                      fg="#ffcc88", font=("Arial",8,"bold"))
+        self._adm_atr_lbl.pack(anchor="e", pady=(2,0))
 
         # ── LINHA 4: Ganhos por Loteria (menor) | Histórico ──────────
         mid_bot = tk.Frame(vis, bg="#1a2a3a")
@@ -3895,9 +3917,6 @@ class BolaoApp:
         # ── Bloco financeiro ─────────────────────────────────────
         pend_dep = total_pago - tot_dep
         self._dash_fin_labels["fin_esp"].configure(text=fmt_brl(total_esp))
-        self._dash_fin_labels["fin_rec"].configure(text=fmt_brl(total_pago))
-        self._dash_fin_labels["fin_dep"].configure(text=fmt_brl(tot_dep))
-        self._dash_fin_labels["fin_pend"].configure(text=fmt_brl(total_saldo))
         self._dash_fin_labels["fin_pct"].configure(text=f"{pct:.1f}%")
 
         # ── Bloco Situação do Fundo ──────────────────────────────
@@ -4103,7 +4122,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v4.2</span>
+        <span>Sistema de Gestão de Bolões v4.3</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -6139,7 +6158,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v4.2</span>
+        <span>Sistema de Gestão de Bolões v4.3</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
