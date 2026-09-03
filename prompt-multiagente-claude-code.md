@@ -175,6 +175,21 @@ O usuário relatou 3 vezes (com exemplos numéricos reais) que "Total Esperado" 
 - Sub-aba "🔄 Sincronizar Participantes" removida (código morto confirmado). A limpeza de "Pagamentos Órfãos" que vivia dentro dela foi preservada e virou botão em "📋 Histórico" — é uma utilidade independente, ainda relevante.
 - "💼 Reserva / Caixa" renomeada pra "💼 Caixa por Loteria", pra não confundir com "💰 Reservas Pessoais" (conceitos diferentes: fundo do organizador vs. saldo de cada pessoa).
 
+## Rodada 8 — Reestruturação completa de "Início > Visão Geral" (v4.2 → v5.0)
+
+Sequência de feedback real de uso, culminando numa reestruturação grande:
+
+**v4.2** — Bug de UX: a rolagem do mouse não funcionava na tela fundida. Causa: `bind("<MouseWheel>", ...)` direto no canvas só dispara com o cursor sobre a área vazia dele, quase impossível numa tela cheia de widgets. Corrigido com o padrão certo: `bind_all` ligado/desligado via `<Enter>`/`<Leave>` no canvas.
+
+**v4.3** — Pedido de revisão de UX da tela fundida. 3 tentativas de usar o modelo Opus como segunda opinião falharam por sobrecarga do servidor (erro 529, três vezes seguidas — instabilidade real, não da tarefa). A revisão foi feita por Sonnet mesmo, lendo `_build_dashboard()`/`_dash_load()` por completo: achou e corrigiu 5 problemas (árvores com altura herdada de tela cheia, 3 números duplicados entre KPIs e bloco Financeiro, divisória fraca demais entre as duas metades da tela, cores de KPI repetindo significado entre as duas metades, formulário de ação espremido no meio de uma leitura longa).
+
+**v5.0** — Feedback de que a tela ainda não estava boa: o usuário queria a visão geral (todos os bolões) **primeiro**, não o bolão selecionado. Junto, achado um bug real: a coluna "Devidas" em Participantes Atrasados mostrava um número cumulativo (parcelas esperadas desde o início do bolão, ex.: 8), não quanto realmente falta (ex.: pagou 7 de 8 → falta só 1) — confundia porque a coluna "Saldo" ao lado já mostrava o valor certo. Reestruturação completa, aprovada antes de implementar:
+- Corrigida a coluna (virou "Faltam" = Devidas − Pagas).
+- Ordem invertida: Visão Geral (todos os bolões) primeiro — 7 KPIs essenciais (Bolões Ativos, Arrecadado Geral, Pendente Depósito Geral, Participantes Atrasados, Total Ganho/Sacado/Saldo do organizador), Depósitos Pendentes, Participantes Atrasados, novo bloco "Últimos Pagamentos (Geral)", Histórico de Lançamentos.
+- "Ganhos por Loteria" e "Registrar Lançamento" viraram botões que abrem janelas próprias (`_abrir_ganhos_por_loteria`/`_abrir_registrar_lancamento`) — não competem mais por espaço com informação essencial.
+- Novo seletor de bolão: cartões clicáveis (`_atualizar_cartoes_bolao`) em vez do combo pequeno do cabeçalho. `_on_bolao_sel` fatorado numa `_selecionar_bolao_por_id` compartilhada.
+- Abaixo do seletor: resumo do bolão (6 KPIs) primeiro, detalhe depois — mesmo conteúdo de antes, reordenado.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
