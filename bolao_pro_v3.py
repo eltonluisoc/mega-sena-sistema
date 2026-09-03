@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v3.9
+SISTEMA DE GESTÃO DE BOLÕES PRO v4.0
+Correções v4.0:
+ - MELHORADO: "Início" tinha 3 níveis de abas (Início > Administração >
+   Visão Geral/Pendências), exigindo 2 cliques pra chegar em qualquer
+   uma. Agora tem só 2 abas diretas: "🏠 Visão Geral" (Dashboard do
+   bolão selecionado + resumo da Administração, uma tela só com
+   rolagem) e "📅 Pendências por Bolão" (separada, como já era)
 Correções v3.9:
  - CORRIGIDO (grave): "Total Esperado" no Dashboard somava o valor
    esperado de TODOS os participantes cadastrados, inclusive o ADM
@@ -830,7 +836,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v3.9")
+        self.root.title("Sistema de Gestão de Bolões PRO v4.0")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1008,7 +1014,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v3.9",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v4.0",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -1064,14 +1070,14 @@ class BolaoApp:
         self.tab_cad     = self.tab_grp_part
         self.tab_pag_grp = self.tab_grp_fin
 
-        # ── Inicio: Dashboard + Visao Geral ADM ─────────────────────
+        # ── Inicio: Visao Geral (Dashboard + Administracao fundidos,
+        # com rolagem) + Pendencias por Bolao como aba propria ───────
         nb_inicio = ttk.Notebook(self.tab_grp_inicio, style="Inner.TNotebook")
         nb_inicio.pack(fill="both", expand=True, padx=4, pady=4)
-        self.tab_dash    = tk.Frame(nb_inicio, bg=CORES["bg_frame"])
-        self.tab_grp_adm = tk.Frame(nb_inicio, bg=CORES["bg_frame"])
-        nb_inicio.add(self.tab_dash,    text="🏠 Dashboard")
-        nb_inicio.add(self.tab_grp_adm, text="📊 Administracao")
-        self.tab_adm = self.tab_grp_adm  # alias
+        self.tab_dash = tk.Frame(nb_inicio, bg=CORES["bg_frame"])
+        self.tab_pend = tk.Frame(nb_inicio, bg=CORES["bg_frame"])
+        nb_inicio.add(self.tab_dash, text="🏠 Visão Geral")
+        nb_inicio.add(self.tab_pend, text="📅 Pendências por Bolão")
 
         # ── Participantes (4 sub-abas) ───────────────────────────────
         nb_part = ttk.Notebook(self.tab_grp_part, style="Inner.TNotebook")
@@ -1159,8 +1165,12 @@ class BolaoApp:
         self._build_publicar()
         self._build_bkp()
 
-        # Auto-atualiza ao trocar entre as sub-abas Dashboard/Administracao
+        # Auto-atualiza ao trocar entre Visao Geral (Dashboard+Administracao
+        # fundidos) e Pendencias por Bolao — os dois carregadores rodam nas
+        # duas abas porque a Visao Geral agora depende dos dois conjuntos
+        # de dados, e Pendencias tambem e populada por _adm_load().
         def _on_tab_changed_inicio(event):
+            self.root.after(50, self._dash_load)
             self.root.after(50, self._adm_load)
         nb_inicio.bind("<<NotebookTabChanged>>", _on_tab_changed_inicio)
 
@@ -3404,6 +3414,20 @@ class BolaoApp:
         p = self.tab_dash
         p.configure(bg="#1a2a3a")
 
+        # Tela única com rolagem: Dashboard do bolão selecionado + Visão
+        # Geral da Administração (antes eram duas abas separadas dentro de
+        # "Início", exigindo 2 cliques pra ver qualquer uma das duas —
+        # "Pendências por Bolão" virou aba própria, fora daqui).
+        canvas = tk.Canvas(p, bg="#1a2a3a", highlightthickness=0)
+        sb = ttk.Scrollbar(p, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+        p = tk.Frame(canvas, bg="#1a2a3a")
+        canvas_window = canvas.create_window((0, 0), window=p, anchor="nw")
+        canvas.bind("<Configure>", lambda e: canvas.itemconfig(canvas_window, width=e.width))
+
+        # ══════════════ PARTE 1 — DASHBOARD DO BOLÃO SELECIONADO ═══════
         # ── Cabeçalho ───────────────────────────────────────────
         hdr = tk.Frame(p, bg="#1a2a3a", pady=10)
         hdr.pack(fill="x", padx=20)
@@ -3565,6 +3589,150 @@ class BolaoApp:
         self._dash_footer = tk.Label(rod, text="",
                  bg="#151f2b", fg="#445566", font=("Arial",8))
         self._dash_footer.pack(anchor="w", padx=8)
+
+        # ══════════ PARTE 2 — VISÃO GERAL DA ADMINISTRAÇÃO (todos os
+        # bolões: ganhos/saques do organizador, atrasados, depósitos
+        # pendentes) — antes era a aba "📊 Administração" separada.
+        sep = tk.Frame(p, bg="#0d1b2a", height=3)
+        sep.pack(fill="x", padx=20, pady=(6,10))
+        hdr2 = tk.Frame(p, bg="#1a2a3a", pady=4)
+        hdr2.pack(fill="x", padx=20)
+        tk.Label(hdr2, text="📊  Administração — Todos os Bolões",
+                 bg="#1a2a3a", fg="white", font=("Arial",14,"bold")).pack(side="left")
+
+        vis = p
+
+        # ── LINHA 1: KPIs horizontais compactos ──────────────────────
+        kpi_bar = tk.Frame(vis, bg="#1a2a3a")
+        kpi_bar.pack(fill="x", padx=12, pady=(10,6))
+        self._adm_kpis = {}
+        kpi_defs = [
+            ("adm_total",  "TOTAL GANHO",      "#27ae60", "R$ 0,00"),
+            ("adm_sacado", "TOTAL SACADO",      "#e67e22", "R$ 0,00"),
+            ("adm_saldo",  "SALDO DISPONIVEL",  "#2196F3", "R$ 0,00"),
+            ("adm_boloes", "BOLOES",            "#8e44ad", "0"),
+            ("adm_lancam", "LANCAMENTOS",        "#16a085", "0"),
+        ]
+        for attr, titulo, cor, default in kpi_defs:
+            card = tk.Frame(kpi_bar, bg=cor, padx=12, pady=6)
+            card.pack(side="left", fill="both", expand=True, padx=3)
+            tk.Label(card, text=titulo, bg=cor, fg="#cccccc",
+                     font=("Arial",7,"bold")).pack(anchor="w")
+            val_lbl = tk.Label(card, text=default, bg=cor, fg="white",
+                               font=("Arial",13,"bold"))
+            val_lbl.pack(anchor="w")
+            self._adm_kpis[attr] = val_lbl
+
+        # ── LINHA 2: Depósitos Pendentes | Participantes Atrasados ───
+        mid_top = tk.Frame(vis, bg="#1a2a3a")
+        mid_top.pack(fill="both", expand=False, padx=12, pady=(0,6))
+        mid_top.columnconfigure(0, weight=3); mid_top.columnconfigure(1, weight=2)
+
+        sec_dep_pend = tk.LabelFrame(mid_top, text="  DEPOSITOS PENDENTES  ",
+            bg="#243447", fg="#ffcc88", font=("Arial",9,"bold"), bd=1, padx=6, pady=4)
+        sec_dep_pend.grid(row=0, column=0, sticky="nsew", padx=(0,4))
+        fr_dp, self.adm_tree_dep = make_tree(sec_dep_pend,
+            {"ID":42,"Participante":150,"Data Pag.":86,"Valor":86,"Bolao":120}, height=10)
+        fr_dp.pack(fill="both", expand=True)
+        self.adm_tree_dep.tag_configure("row1", background="#fff8e8")
+        self.adm_tree_dep.tag_configure("row2", background="#ffffff")
+        self._adm_dep_total_lbl = tk.Label(sec_dep_pend, text="", bg="#243447",
+                                            fg="#ffcc88", font=("Arial",8,"bold"))
+        self._adm_dep_total_lbl.pack(anchor="e", pady=(2,0))
+
+        sec_atr = tk.LabelFrame(mid_top, text="  PARTICIPANTES ATRASADOS  ",
+            bg="#243447", fg="#ffcc88", font=("Arial",9,"bold"), bd=1, padx=6, pady=4)
+        sec_atr.grid(row=0, column=1, sticky="nsew")
+        fr_a, self.adm_tree_atr = make_tree(sec_atr,
+            {"Participante":120,"Bolao":110,"Pagas":46,"Devidas":52,"Saldo":86}, height=10)
+        fr_a.pack(fill="both", expand=True)
+        self.adm_tree_atr.tag_configure("atr1", background="#fde8d8")
+        self.adm_tree_atr.tag_configure("atr2", background="#f9c0b0")
+        self._adm_atr_lbl = tk.Label(sec_atr, text="", bg="#243447",
+                                      fg="#ffcc88", font=("Arial",8,"bold"))
+        self._adm_atr_lbl.pack(anchor="e", pady=(2,0))
+
+        # ── LINHA 3: Formulário de lançamento compacto ───────────────
+        sec_form = tk.LabelFrame(vis, text="  REGISTRAR LANCAMENTO  ",
+            bg="#243447", fg="white", font=("Arial",9,"bold"), bd=1, padx=10, pady=6)
+        sec_form.pack(fill="x", padx=12, pady=(0,6))
+
+        frm_row = tk.Frame(sec_form, bg="#243447"); frm_row.pack(fill="x", pady=2)
+        def lbl_f(parent, text):
+            tk.Label(parent, text=text, bg="#243447", fg="#aad4f5",
+                     font=("Arial",8,"bold")).pack(side="left", padx=(6,2))
+        lbl_f(frm_row, "Tipo:")
+        self.adm_tipo = ttk.Combobox(frm_row,
+            values=["GANHO (taxa organizacao)","SAQUE (retirada)"],
+            width=20, state="readonly", font=("Arial",8))
+        self.adm_tipo.set("GANHO (taxa organizacao)"); self.adm_tipo.pack(side="left", padx=(0,4))
+        self._adm_bolao_frame = tk.Frame(frm_row, bg="#243447"); self._adm_bolao_frame.pack(side="left")
+        lbl_f(self._adm_bolao_frame, "Bolao:")
+        self.adm_cb_bolao = ttk.Combobox(self._adm_bolao_frame, width=26,
+                                          state="readonly", font=("Arial",8))
+        self.adm_cb_bolao.pack(side="left", padx=(0,4))
+        self._adm_lot_frame = tk.Frame(frm_row, bg="#243447"); self._adm_lot_frame.pack(side="left")
+        lbl_f(self._adm_lot_frame, "Loteria:")
+        self.adm_lot = ttk.Combobox(self._adm_lot_frame, values=LOTERIAS,
+                                     width=12, state="readonly", font=("Arial",8))
+        self.adm_lot.set("Mega-Sena"); self.adm_lot.pack(side="left", padx=(0,4))
+        lbl_f(self._adm_lot_frame, "Concurso:")
+        self.adm_conc = entry(self._adm_lot_frame, width=8)
+        self.adm_conc.pack(side="left", padx=(0,4))
+        lbl_f(frm_row, "Valor:")
+        self.adm_val = entry(frm_row, width=10); self.adm_val.pack(side="left", padx=(0,4))
+        lbl_f(frm_row, "Data:")
+        self.adm_dt = entry(frm_row, width=10)
+        self.adm_dt.insert(0, date.today().strftime("%d/%m/%Y"))
+        self.adm_dt.pack(side="left", padx=(0,4))
+        lbl_f(frm_row, "Desc:")
+        self.adm_desc = entry(frm_row, width=22); self.adm_desc.pack(side="left", padx=(0,4))
+        btn(frm_row, "SALVAR", CORES["btn_verde"], self._adm_registrar,
+            width=10).pack(side="left", padx=6)
+
+        def _on_tipo_change(e=None):
+            if "SAQUE" in self.adm_tipo.get():
+                self._adm_bolao_frame.pack_forget(); self._adm_lot_frame.pack_forget()
+            else:
+                self._adm_bolao_frame.pack(side="left"); self._adm_lot_frame.pack(side="left")
+        self.adm_tipo.bind("<<ComboboxSelected>>", _on_tipo_change)
+
+        # ── LINHA 4: Ganhos por Loteria (menor) | Histórico ──────────
+        mid_bot = tk.Frame(vis, bg="#1a2a3a")
+        mid_bot.pack(fill="both", expand=True, padx=12, pady=(0,12))
+        mid_bot.columnconfigure(0, weight=1); mid_bot.columnconfigure(1, weight=4)
+        mid_bot.rowconfigure(0, weight=1)
+
+        sec_lot = tk.LabelFrame(mid_bot, text="  GANHOS POR LOTERIA  ",
+            bg="#243447", fg="white", font=("Arial",9,"bold"), bd=1, padx=6, pady=4)
+        sec_lot.grid(row=0, column=0, sticky="new", padx=(0,4))
+        fr_l, self.adm_tree_lot = make_tree(sec_lot,
+            {"Loteria":100,"Lanc.":50,"Total Ganho":100}, height=4)
+        fr_l.pack(fill="x", expand=False)
+        self.adm_tree_lot.tag_configure("pos", background="#d5f5e3")
+
+        sec_hist = tk.LabelFrame(mid_bot, text="  HISTORICO DE LANCAMENTOS  ",
+            bg="#243447", fg="white", font=("Arial",9,"bold"), bd=1, padx=6, pady=4)
+        sec_hist.grid(row=0, column=1, sticky="nsew")
+        cols_h = {"ID":40,"Bolao":120,"Loteria":80,"Concurso":65,
+                  "Valor":90,"Tipo":70,"Descricao":140,"Data":90}
+        fr_h, self.adm_tree_hist = make_tree(sec_hist, cols_h, height=10)
+        fr_h.pack(fill="both", expand=True)
+        self.adm_tree_hist.tag_configure("ganho", background="#d5f5e3")
+        self.adm_tree_hist.tag_configure("saque", background="#fde8d8")
+        bh = tk.Frame(sec_hist, bg="#243447"); bh.pack(fill="x", pady=2)
+        btn(bh, "Editar",  CORES["btn_azul"],    self._adm_editar,  width=10).pack(side="left", padx=3)
+        btn(bh, "Excluir", CORES["btn_vermelho"], self._adm_excluir, width=10).pack(side="left", padx=3)
+
+        # Região de rolagem — precisa ser calculada depois que TODO o
+        # conteúdo (dashboard + administração) já foi montado
+        p.update_idletasks()
+        canvas.configure(scrollregion=canvas.bbox("all"))
+
+        def _scroll(e):
+            canvas.yview_scroll(int(-1*(e.delta/120)), "units")
+        canvas.bind("<MouseWheel>", _scroll)
+        p.bind("<MouseWheel>", _scroll)
 
     def _dash_load(self):
         bid = self.bid.get()
@@ -3886,7 +4054,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v3.9</span>
+        <span>Sistema de Gestão de Bolões v4.0</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -4950,144 +5118,14 @@ class BolaoApp:
     #  ABA — ADMINISTRAÇÃO (taxa de organização)
     # ════════════════════════════════════════════════════════════
     def _build_adm(self):
-        p = self.tab_adm
+        # A "Visão Geral" (KPIs de ganhos, registrar lançamento, ganhos por
+        # loteria, histórico) foi fundida na tela do Dashboard
+        # (_build_dashboard) — essa função agora só monta "Pendências por
+        # Bolão", que virou aba própria dentro de "Início" em vez de ficar
+        # 2 níveis de abas para dentro.
+        p = self.tab_pend
         p.configure(bg="#1a2a3a")
-
-        # Sub-notebook interno: 2 abas
-        nb_adm2 = ttk.Notebook(p, style="Inner.TNotebook")
-        nb_adm2.pack(fill="both", expand=True, padx=4, pady=4)
-        tab_adm_vis  = tk.Frame(nb_adm2, bg="#1a2a3a")
-        tab_adm_pend = tk.Frame(nb_adm2, bg="#1a2a3a")
-        nb_adm2.add(tab_adm_vis,  text="\U0001f4ca Visao Geral")
-        nb_adm2.add(tab_adm_pend, text="\U0001f4c5 Pendencias por Bolao")
-
-        # ── ABA 1: VISAO GERAL — redesign UX ────────────────────────
-        vis = tab_adm_vis
-
-        # ── LINHA 1: KPIs horizontais compactos ──────────────────────
-        kpi_bar = tk.Frame(vis, bg="#1a2a3a")
-        kpi_bar.pack(fill="x", padx=12, pady=(10,6))
-        self._adm_kpis = {}
-        kpi_defs = [
-            ("adm_total",  "TOTAL GANHO",      "#27ae60", "R$ 0,00"),
-            ("adm_sacado", "TOTAL SACADO",      "#e67e22", "R$ 0,00"),
-            ("adm_saldo",  "SALDO DISPONIVEL",  "#2196F3", "R$ 0,00"),
-            ("adm_boloes", "BOLOES",            "#8e44ad", "0"),
-            ("adm_lancam", "LANCAMENTOS",        "#16a085", "0"),
-        ]
-        for attr, titulo, cor, default in kpi_defs:
-            card = tk.Frame(kpi_bar, bg=cor, padx=12, pady=6)
-            card.pack(side="left", fill="both", expand=True, padx=3)
-            tk.Label(card, text=titulo, bg=cor, fg="#cccccc",
-                     font=("Arial",7,"bold")).pack(anchor="w")
-            val_lbl = tk.Label(card, text=default, bg=cor, fg="white",
-                               font=("Arial",13,"bold"))
-            val_lbl.pack(anchor="w")
-            self._adm_kpis[attr] = val_lbl
-
-        # ── LINHA 2: Depósitos Pendentes | Participantes Atrasados ───
-        mid_top = tk.Frame(vis, bg="#1a2a3a")
-        mid_top.pack(fill="both", expand=False, padx=12, pady=(0,6))
-        mid_top.columnconfigure(0, weight=3); mid_top.columnconfigure(1, weight=2)
-
-        sec_dep_pend = tk.LabelFrame(mid_top, text="  DEPOSITOS PENDENTES  ",
-            bg="#243447", fg="#ffcc88", font=("Arial",9,"bold"), bd=1, padx=6, pady=4)
-        sec_dep_pend.grid(row=0, column=0, sticky="nsew", padx=(0,4))
-        fr_dp, self.adm_tree_dep = make_tree(sec_dep_pend,
-            {"ID":42,"Participante":150,"Data Pag.":86,"Valor":86,"Bolao":120}, height=10)
-        fr_dp.pack(fill="both", expand=True)
-        self.adm_tree_dep.tag_configure("row1", background="#fff8e8")
-        self.adm_tree_dep.tag_configure("row2", background="#ffffff")
-        self._adm_dep_total_lbl = tk.Label(sec_dep_pend, text="", bg="#243447",
-                                            fg="#ffcc88", font=("Arial",8,"bold"))
-        self._adm_dep_total_lbl.pack(anchor="e", pady=(2,0))
-
-        sec_atr = tk.LabelFrame(mid_top, text="  PARTICIPANTES ATRASADOS  ",
-            bg="#243447", fg="#ffcc88", font=("Arial",9,"bold"), bd=1, padx=6, pady=4)
-        sec_atr.grid(row=0, column=1, sticky="nsew")
-        fr_a, self.adm_tree_atr = make_tree(sec_atr,
-            {"Participante":120,"Bolao":110,"Pagas":46,"Devidas":52,"Saldo":86}, height=10)
-        fr_a.pack(fill="both", expand=True)
-        self.adm_tree_atr.tag_configure("atr1", background="#fde8d8")
-        self.adm_tree_atr.tag_configure("atr2", background="#f9c0b0")
-        self._adm_atr_lbl = tk.Label(sec_atr, text="", bg="#243447",
-                                      fg="#ffcc88", font=("Arial",8,"bold"))
-        self._adm_atr_lbl.pack(anchor="e", pady=(2,0))
-
-        # ── LINHA 3: Formulário de lançamento compacto ───────────────
-        sec_form = tk.LabelFrame(vis, text="  REGISTRAR LANCAMENTO  ",
-            bg="#243447", fg="white", font=("Arial",9,"bold"), bd=1, padx=10, pady=6)
-        sec_form.pack(fill="x", padx=12, pady=(0,6))
-
-        frm_row = tk.Frame(sec_form, bg="#243447"); frm_row.pack(fill="x", pady=2)
-        def lbl_f(parent, text):
-            tk.Label(parent, text=text, bg="#243447", fg="#aad4f5",
-                     font=("Arial",8,"bold")).pack(side="left", padx=(6,2))
-        lbl_f(frm_row, "Tipo:")
-        self.adm_tipo = ttk.Combobox(frm_row,
-            values=["GANHO (taxa organizacao)","SAQUE (retirada)"],
-            width=20, state="readonly", font=("Arial",8))
-        self.adm_tipo.set("GANHO (taxa organizacao)"); self.adm_tipo.pack(side="left", padx=(0,4))
-        self._adm_bolao_frame = tk.Frame(frm_row, bg="#243447"); self._adm_bolao_frame.pack(side="left")
-        lbl_f(self._adm_bolao_frame, "Bolao:")
-        self.adm_cb_bolao = ttk.Combobox(self._adm_bolao_frame, width=26,
-                                          state="readonly", font=("Arial",8))
-        self.adm_cb_bolao.pack(side="left", padx=(0,4))
-        self._adm_lot_frame = tk.Frame(frm_row, bg="#243447"); self._adm_lot_frame.pack(side="left")
-        lbl_f(self._adm_lot_frame, "Loteria:")
-        self.adm_lot = ttk.Combobox(self._adm_lot_frame, values=LOTERIAS,
-                                     width=12, state="readonly", font=("Arial",8))
-        self.adm_lot.set("Mega-Sena"); self.adm_lot.pack(side="left", padx=(0,4))
-        lbl_f(self._adm_lot_frame, "Concurso:")
-        self.adm_conc = entry(self._adm_lot_frame, width=8)
-        self.adm_conc.pack(side="left", padx=(0,4))
-        lbl_f(frm_row, "Valor:")
-        self.adm_val = entry(frm_row, width=10); self.adm_val.pack(side="left", padx=(0,4))
-        lbl_f(frm_row, "Data:")
-        self.adm_dt = entry(frm_row, width=10)
-        self.adm_dt.insert(0, date.today().strftime("%d/%m/%Y"))
-        self.adm_dt.pack(side="left", padx=(0,4))
-        lbl_f(frm_row, "Desc:")
-        self.adm_desc = entry(frm_row, width=22); self.adm_desc.pack(side="left", padx=(0,4))
-        btn(frm_row, "SALVAR", CORES["btn_verde"], self._adm_registrar,
-            width=10).pack(side="left", padx=6)
-
-        def _on_tipo_change(e=None):
-            if "SAQUE" in self.adm_tipo.get():
-                self._adm_bolao_frame.pack_forget(); self._adm_lot_frame.pack_forget()
-            else:
-                self._adm_bolao_frame.pack(side="left"); self._adm_lot_frame.pack(side="left")
-        self.adm_tipo.bind("<<ComboboxSelected>>", _on_tipo_change)
-
-        # ── LINHA 4: Ganhos por Loteria (menor) | Histórico (expand) ──
-        mid_bot = tk.Frame(vis, bg="#1a2a3a")
-        mid_bot.pack(fill="both", expand=True, padx=12, pady=(0,8))
-        mid_bot.columnconfigure(0, weight=1); mid_bot.columnconfigure(1, weight=4)
-        mid_bot.rowconfigure(0, weight=1)
-
-        # Só existem 3-4 loterias no sistema — não precisa do mesmo espaço
-        # do Histórico (que tem muito mais linhas). Fica num bloco menor,
-        # sem esticar, pra sobrar espaço pro resto da tela.
-        sec_lot = tk.LabelFrame(mid_bot, text="  GANHOS POR LOTERIA  ",
-            bg="#243447", fg="white", font=("Arial",9,"bold"), bd=1, padx=6, pady=4)
-        sec_lot.grid(row=0, column=0, sticky="new", padx=(0,4))
-        fr_l, self.adm_tree_lot = make_tree(sec_lot,
-            {"Loteria":100,"Lanc.":50,"Total Ganho":100}, height=4)
-        fr_l.pack(fill="x", expand=False)
-        self.adm_tree_lot.tag_configure("pos", background="#d5f5e3")
-
-        sec_hist = tk.LabelFrame(mid_bot, text="  HISTORICO DE LANCAMENTOS  ",
-            bg="#243447", fg="white", font=("Arial",9,"bold"), bd=1, padx=6, pady=4)
-        sec_hist.grid(row=0, column=1, sticky="nsew")
-        cols_h = {"ID":40,"Bolao":120,"Loteria":80,"Concurso":65,
-                  "Valor":90,"Tipo":70,"Descricao":140,"Data":90}
-        fr_h, self.adm_tree_hist = make_tree(sec_hist, cols_h, height=10)
-        fr_h.pack(fill="both", expand=True)
-        self.adm_tree_hist.tag_configure("ganho", background="#d5f5e3")
-        self.adm_tree_hist.tag_configure("saque", background="#fde8d8")
-        bh = tk.Frame(sec_hist, bg="#243447"); bh.pack(fill="x", pady=2)
-        btn(bh, "Editar",  CORES["btn_azul"],    self._adm_editar,  width=10).pack(side="left", padx=3)
-        btn(bh, "Excluir", CORES["btn_vermelho"], self._adm_excluir, width=10).pack(side="left", padx=3)
+        tab_adm_pend = p
 
         ctrl = tk.Frame(tab_adm_pend, bg="#1a2a3a"); ctrl.pack(fill="x", padx=16, pady=(12,4))
         self._pend_mes_lbl = tk.Label(ctrl, text="", bg="#1a2a3a",
@@ -6183,7 +6221,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v3.9</span>
+        <span>Sistema de Gestão de Bolões v4.0</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
