@@ -170,10 +170,10 @@ O usuário relatou 3 vezes (com exemplos numéricos reais) que "Total Esperado" 
 
 **UI: Dashboard + Administração fundidos numa tela só** (pedido do usuário, aprovado com "rolagem" em vez de lado-a-lado): "Início" tinha 3 níveis de abas (Início > Administração > Visão Geral/Pendências). Agora são 2 abas diretas: "🏠 Visão Geral" (Dashboard do bolão + resumo da Administração empilhados, com scroll do mouse) e "📅 Pendências por Bolão" (promovida a aba própria, como pedido). Bloco "Ganhos por Loteria" também ficou menor (só 3-4 loterias, não precisava do mesmo espaço do Histórico).
 
-### Ainda pendente (não é bug, é decisão de design — aguardando aprovação)
-- Remover aba "✏ Editar" (redundante com Histórico)
-- Remover sub-aba "🔄 Sincronizar Participantes" (código morto)
-- Renomear "💼 Reserva/Caixa" vs "💰 Reservas Pessoais" pra diferenciar melhor os nomes
+### Rodada 7 — os 3 itens de arquitetura de informação, aprovados e aplicados (v4.1)
+- Aba "✏ Editar" removida (redundante com Histórico). Histórico ganhou botão "🗑 Excluir Selecionado" (mesma trava: não deixa excluir pagamento já depositado) pra cobrir a única diferença real que havia.
+- Sub-aba "🔄 Sincronizar Participantes" removida (código morto confirmado). A limpeza de "Pagamentos Órfãos" que vivia dentro dela foi preservada e virou botão em "📋 Histórico" — é uma utilidade independente, ainda relevante.
+- "💼 Reserva / Caixa" renomeada pra "💼 Caixa por Loteria", pra não confundir com "💰 Reservas Pessoais" (conceitos diferentes: fundo do organizador vs. saldo de cada pessoa).
 
 ## Agentes a utilizar
 
