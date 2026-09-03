@@ -1,7 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v5.3
+SISTEMA DE GESTÃO DE BOLÕES PRO v5.4
+Correções v5.4 ("Pendências por Bolão" virou seção de "Bolão Selecionado"):
+ - A aba "📅 Pendências por Bolão" (com uma sub-aba por bolão — uma
+   segunda forma de escolher bolão, diferente dos cartões) deixou de
+   existir separada. Virou uma seção dentro de "🎯 Bolão Selecionado",
+   já filtrada pro bolão escolhido nos cartões — só uma forma de navegar
+   por bolão em "Início" agora.
+ - Os botões "Encerrar Bolão" e "Reativar Bolão" continuam existindo,
+   só que "Encerrar" agora opera direto no bolão selecionado (antes
+   dependia de qual sub-aba estava visível) e "Reativar" abre uma
+   janelinha com a lista de encerrados (antes ficava fixa ocupando
+   espaço na aba o tempo todo).
+ - Duplo clique numa linha PENDENTE continua registrando pagamento
+   direto, sem trocar de tela.
 Correções v5.3 (auto-atualização + janela de lançamento maior):
  - Janela "Registrar Lançamento" (Dashboard) aumentada de 380x420 para
    440x600 — abria pequena demais, com campos apertados.
@@ -921,7 +934,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v5.3")
+        self.root.title("Sistema de Gestão de Bolões PRO v5.4")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1099,7 +1112,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v5.3",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v5.4",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -1155,16 +1168,14 @@ class BolaoApp:
         self.tab_cad     = self.tab_grp_part
         self.tab_pag_grp = self.tab_grp_fin
 
-        # ── Inicio: Visao Geral (Dashboard + Administracao fundidos,
-        # com rolagem) + Pendencias por Bolao como aba propria ───────
+        # ── Inicio: Visao Geral (todos os boloes) + Bolao Selecionado
+        # (resumo, detalhe e pendencias do bolao escolhido nos cartoes) ──
         nb_inicio = ttk.Notebook(self.tab_grp_inicio, style="Inner.TNotebook")
         nb_inicio.pack(fill="both", expand=True, padx=4, pady=4)
         self.tab_dash  = tk.Frame(nb_inicio, bg=CORES["bg_frame"])
         self.tab_bolao = tk.Frame(nb_inicio, bg=CORES["bg_frame"])
-        self.tab_pend  = tk.Frame(nb_inicio, bg=CORES["bg_frame"])
         nb_inicio.add(self.tab_dash,  text="🏠 Visão Geral")
         nb_inicio.add(self.tab_bolao, text="🎯 Bolão Selecionado")
-        nb_inicio.add(self.tab_pend,  text="📅 Pendências por Bolão")
 
         # ── Participantes (4 sub-abas) ───────────────────────────────
         nb_part = ttk.Notebook(self.tab_grp_part, style="Inner.TNotebook")
@@ -1231,7 +1242,6 @@ class BolaoApp:
         self._build_historico()
         self._build_prem()
         self._build_res()
-        self._build_adm()
         self._build_reservas()
         self._build_pessoas()
         self._build_publicar()
@@ -3847,6 +3857,37 @@ class BolaoApp:
             lv.pack(side="right")
             self._dash_info_labels[attr] = lv
 
+        # ── PENDÊNCIAS DESTE BOLÃO ─────────────────────────────────
+        # Antes era uma aba própria ("📅 Pendências por Bolão") com uma
+        # sub-aba por bolão — obrigava escolher o bolão de novo, de um
+        # jeito diferente dos cartões acima. Agora é só mais uma seção
+        # aqui, já filtrada pro bolão selecionado (ver
+        # _atualizar_pendencias_bolao_sel, chamada por _dash_load).
+        hdr_pend = tk.Frame(p, bg="#1a2a3a", pady=4)
+        hdr_pend.pack(fill="x", padx=20, pady=(14,4))
+        tk.Label(hdr_pend, text="📅  Pendências deste Bolão",
+                 bg="#1a2a3a", fg="white", font=("Arial",12,"bold")).pack(side="left")
+        self._pend_mes_lbl = tk.Label(hdr_pend, text="",
+                 bg="#1a2a3a", fg="#aad4f5", font=("Arial",8))
+        self._pend_mes_lbl.pack(side="left", padx=12)
+        btn(hdr_pend, "Encerrar Bolão", CORES["btn_vermelho"],
+            self._adm_encerrar_bolao, width=16).pack(side="right", padx=4)
+        btn(hdr_pend, "Reativar Encerrado", CORES["btn_cinza"],
+            self._adm_reativar_bolao, width=18).pack(side="right", padx=4)
+
+        sec_pend = tk.Frame(p, bg="#1a2a3a")
+        sec_pend.pack(fill="both", padx=20, pady=(0,6))
+        cols_pend = {"Participante":220,"Total Pago":110,"Falta":110,"Cotas":55,"Situação":140}
+        fr_pend, self._pend_tree = make_tree(sec_pend, cols_pend, height=12)
+        fr_pend.pack(fill="both", expand=True)
+        self._pend_tree.tag_configure("pend",  background="#fde8d8", foreground="#8b1a1a")
+        self._pend_tree.tag_configure("emdia", background="#d5f5e3", foreground="#1a5c2a")
+        self._pend_tree.tag_configure("quit",  background="#afffca", foreground="#0a3a1a")
+        self._pend_tree.bind("<Double-1>", self._pend_registrar_dblclick)
+        self._pend_rodape_lbl = tk.Label(sec_pend, text="",
+                 bg="#1a2a3a", fg="#aad4f5", font=("Arial",8))
+        self._pend_rodape_lbl.pack(anchor="w", pady=(4,0))
+
         # ── Rodapé ───────────────────────────────────────────────
         rod = tk.Frame(p, bg="#151f2b", pady=5)
         rod.pack(fill="x", padx=20, pady=(0,8))
@@ -4042,6 +4083,8 @@ class BolaoApp:
 
         if not bid:
             self._dash_bolao_lbl.configure(text="Nenhum bolão selecionado")
+            try: self._pend_tree.delete(*self._pend_tree.get_children())
+            except Exception: pass
             return
 
         b = self.db.fetchone("SELECT * FROM boloes WHERE id=?", (bid,))
@@ -4049,6 +4092,8 @@ class BolaoApp:
         bd = dict(b)
         self._dash_bolao_lbl.configure(
             text=f"🎯  {bd['nome']}  —  {bd.get('loteria','Mega-Sena')}")
+        try: self._atualizar_pendencias_bolao_sel(bd)
+        except Exception: pass
 
         partic   = self.db.fetchall(
             "SELECT * FROM participantes WHERE bolao_id=? AND ativo=1 ORDER BY nome", (bid,))
@@ -4352,7 +4397,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v5.3</span>
+        <span>Sistema de Gestão de Bolões v5.4</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -5284,25 +5329,16 @@ class BolaoApp:
     # ════════════════════════════════════════════════════════════
     #  ABA — ADMINISTRAÇÃO (taxa de organização)
     # ════════════════════════════════════════════════════════════
-    def _build_adm(self):
-        # A "Visão Geral" (KPIs de ganhos, registrar lançamento, ganhos por
-        # loteria, histórico) foi fundida na tela do Dashboard
-        # (_build_dashboard) — essa função agora só monta "Pendências por
-        # Bolão", que virou aba própria dentro de "Início" em vez de ficar
-        # 2 níveis de abas para dentro.
-        p = self.tab_pend
-        p.configure(bg="#1a2a3a")
-        tab_adm_pend = p
-
-        ctrl = tk.Frame(tab_adm_pend, bg="#1a2a3a"); ctrl.pack(fill="x", padx=16, pady=(12,4))
-        self._pend_mes_lbl = tk.Label(ctrl, text="", bg="#1a2a3a",
-                                       fg="#aad4f5", font=("Arial",10,"bold"))
-        self._pend_mes_lbl.pack(side="left")
-        btn(ctrl, "Atualizar",        CORES["btn_azul"],    self._adm_load,           width=12).pack(side="right", padx=4)
-        btn(ctrl, "Reativar Bolao",   CORES["btn_cinza"],   self._adm_reativar_bolao, width=16).pack(side="right", padx=4)
-        btn(ctrl, "Encerrar Bolao",   CORES["btn_vermelho"],self._adm_encerrar_bolao, width=16).pack(side="right", padx=4)
-        self._pend_nb = ttk.Notebook(tab_adm_pend, style="Inner.TNotebook")
-        self._pend_nb.pack(fill="both", expand=True, padx=8, pady=(0,8))
+    # [ABA "PENDÊNCIAS POR BOLÃO" — VIROU SEÇÃO DE "BOLÃO SELECIONADO"]
+    # A pedido do usuário: a aba separada obrigava escolher o bolão duas
+    # vezes (uma nos cartões de "Bolão Selecionado", outra nas sub-abas
+    # daqui) usando duas formas diferentes de seleção. Agora só existe
+    # uma: os cartões. A seção de pendências (com Encerrar/Reativar Bolão)
+    # foi pra dentro de _build_bolao_sel(), escopada ao bolão já
+    # selecionado — ver _atualizar_pendencias_bolao_sel(), chamada por
+    # _dash_load(). _adm_encerrar_bolao()/_adm_reativar_bolao() continuam
+    # existindo, só que operando no bolão selecionado (self.bid) em vez de
+    # depender de qual sub-aba estava visível.
 
     def _adm_registrar(self):
         tipo_full = self.adm_tipo.get()
@@ -5501,151 +5537,6 @@ class BolaoApp:
                 r["nome"], r["bolao_nome"] or "-",
                 r["data_pagamento"] or "-", fmt_brl(r["valor"])))
 
-        # Painel de pendencias mensais — usa _calc_parcela_atual
-        from datetime import date as _date
-        mes_atual = _date.today().strftime("%m/%Y")
-        self._pend_mes_lbl.configure(
-            text="Parcela de " + mes_atual + "  |  Vermelho=pendente  |  Verde=em dia/quitado")
-
-        for tab in self._pend_nb.tabs():
-            self._pend_nb.forget(tab)
-
-        boloes_ativos = self.db.fetchall(
-            "SELECT * FROM boloes WHERE encerrado=0 ORDER BY nome")
-
-        for bol in boloes_ativos:
-            bd = dict(bol)
-            bid_p = bd["id"]
-            vt = float(bd.get("valor_total") or 0)
-            if vt <= 0: continue
-
-            _, parc_esp, parc_val = self._calc_parcela_atual(bd)
-
-            partic_bol = self.db.fetchall(
-                "SELECT * FROM participantes WHERE bolao_id=? AND ativo=1 ORDER BY nome",
-                (bid_p,))
-            adm_nome_low = (bd.get("adm_nome","") or "").strip().lower()
-            adm_paga = bd.get("adm_paga", 0)
-
-            pag_rows = self.db.fetchall(
-                "SELECT participante_id, SUM(valor) as t FROM pagamentos "
-                "WHERE bolao_id=? GROUP BY participante_id", (bid_p,))
-            pag_map = {r["participante_id"]: float(r["t"] or 0) for r in pag_rows}
-
-            pendentes = []; em_dia = []
-            for pt in partic_bol:
-                pt_d = dict(pt)
-                eh_adm = bool(pt_d.get("is_adm")) or (
-                    adm_nome_low and adm_nome_low in pt_d["nome"].lower())
-                if eh_adm and not adm_paga: continue
-                ve    = float(pt_d.get("valor_esperado") or 0)
-                pago  = pag_map.get(pt_d["id"], 0)
-                n_cotas = max(1, round(ve / vt)) if vt > 0 and ve > 0 else 1
-                val_esp_agora = parc_esp * parc_val * n_cotas
-                status, _ = self._status_part(pago, ve, parc_esp, parc_val * n_cotas)
-                if "PENDENTE" in status:
-                    pendentes.append((pt_d["nome"], pago, max(0, val_esp_agora - pago), n_cotas))
-                else:
-                    em_dia.append((pt_d["nome"], pago, n_cotas, status))
-
-            n_pend = len(pendentes)
-            tab_label = bd["nome"][:18] + " (" + str(n_pend) + " pend)" if n_pend > 0 else bd["nome"][:22] + " OK"
-
-            tab_frame = tk.Frame(self._pend_nb, bg="#1a2a3a")
-            self._pend_nb.add(tab_frame, text=tab_label)
-            cols_p = {"Participante":200,"Total Pago":110,"Falta":110,"Cotas":55,"Situacao":130}
-            fr_p, tv_p = make_tree(tab_frame, cols_p, height=10)
-            fr_p.pack(fill="both", expand=True, padx=4, pady=4)
-            tv_p.tag_configure("pend",  background="#fde8d8", foreground="#8b1a1a")
-            tv_p.tag_configure("emdia", background="#d5f5e3", foreground="#1a5c2a")
-            tv_p.tag_configure("quit",  background="#afffca", foreground="#0a3a1a")
-
-            for nome, pago, falta, nc in sorted(pendentes, key=lambda x: x[0]):
-                tv_p.insert("","end", iid=bd["nome"]+"|"+nome, tags=("pend",), values=(
-                    nome, fmt_brl(pago), fmt_brl(falta), str(nc)+"x", "PENDENTE"))
-
-            for nome, pago, nc, st in sorted(em_dia, key=lambda x: x[0]):
-                tag = "quit" if "QUITADO" in st else "emdia"
-                tv_p.insert("","end", tags=(tag,), values=(
-                    nome, fmt_brl(pago), "—", str(nc)+"x", st))
-
-            rodape = tk.Frame(tab_frame, bg="#1a2a3a"); rodape.pack(fill="x", padx=4, pady=(0,4))
-            tk.Label(rodape,
-                text=str(n_pend)+" pendente(s)  |  "+str(len(em_dia))+" em dia/quitado(s)  |  "
-                     "Parcelas esperadas: "+str(parc_esp)+"  |  Duplo clique para registrar pagamento",
-                bg="#1a2a3a", fg="#aad4f5", font=("Arial",8)).pack(side="left")
-
-            # Duplo clique para registrar pagamento
-            _bid_pend = bid_p; _vt_pend = vt
-            def _reg_pend(event, tv=tv_p, bid_=_bid_pend, vt_=_vt_pend):
-                sel = tv.selection()
-                if not sel: return
-                iid = sel[0]
-                vals = tv.item(iid, "values")
-                if not vals or "PENDENTE" not in str(vals[4]): return
-                nome_p = vals[0]
-                # Busca participante
-                pt = self.db.fetchone(
-                    "SELECT id FROM participantes WHERE bolao_id=? AND ativo=1 AND nome=?",
-                    (bid_, nome_p))
-                if not pt: return
-                pid_p = pt["id"]
-                falta_str = vals[2].replace("R$","").replace(".","").replace(",",".").strip()
-                try: falta_v = float(falta_str)
-                except: falta_v = vt_
-
-                # Mini popup de registro
-                from datetime import date as _d2
-                win = tk.Toplevel(self.root); win.title("Registrar Pagamento")
-                win.geometry("400x220"); win.configure(bg=CORES["bg_section"])
-                win.grab_set(); win.lift()
-                tk.Label(win, text="Registrar pagamento — " + nome_p,
-                         bg=CORES["bg_section"], fg="white",
-                         font=("Arial",10,"bold")).pack(pady=(14,8), padx=16, anchor="w")
-                r_ = tk.Frame(win, bg=CORES["bg_section"]); r_.pack(fill="x", padx=16, pady=4)
-                tk.Label(r_, text="Valor (R$):", bg=CORES["bg_section"],
-                         fg=CORES["fg_label"], font=("Arial",9,"bold")).pack(side="left")
-                e_val = entry(r_, width=14); e_val.pack(side="left", padx=8)
-                e_val.insert(0, "{:.2f}".format(falta_v).replace(".",","))
-                tk.Label(r_, text="Data:", bg=CORES["bg_section"],
-                         fg=CORES["fg_label"], font=("Arial",9,"bold")).pack(side="left")
-                e_dt = entry(r_, width=12); e_dt.pack(side="left", padx=4)
-                e_dt.insert(0, _d2.today().strftime("%d/%m/%Y"))
-                r2_ = tk.Frame(win, bg=CORES["bg_section"]); r2_.pack(fill="x", padx=16, pady=4)
-                tk.Label(r2_, text="Obs.:", bg=CORES["bg_section"],
-                         fg=CORES["fg_label"], font=("Arial",9,"bold")).pack(side="left")
-                e_obs = entry(r2_, width=32); e_obs.pack(side="left", padx=8)
-                def _confirmar():
-                    from datetime import datetime as _dt3
-                    try: v_pg = float(e_val.get().replace(",","."))
-                    except: messagebox.showerror("Erro","Valor inválido"); return
-                    dt_raw = e_dt.get().strip()
-                    try: mes_ref = _dt3.strptime(dt_raw,"%d/%m/%Y").strftime("%m/%Y")
-                    except: mes_ref = ""
-                    self.db.execute(
-                        "INSERT INTO pagamentos (participante_id,bolao_id,mes_referencia,"
-                        "valor,data_pagamento,depositado,observacoes) VALUES (?,?,?,?,?,0,?)",
-                        (pid_p, bid_, mes_ref, v_pg, dt_raw, e_obs.get() or "Registrado via painel"))
-                    win.destroy(); self._adm_load()
-                    messagebox.showinfo("OK", "Pagamento de " + nome_p + " registrado!")
-                bf_ = tk.Frame(win, bg=CORES["bg_section"]); bf_.pack(pady=12)
-                btn(bf_, "Registrar", CORES["btn_verde"], _confirmar, width=14).pack(side="left", padx=6)
-                btn(bf_, "Cancelar",  CORES["btn_cinza"], win.destroy, width=10).pack(side="left", padx=6)
-
-            tv_p.bind("<Double-1>", _reg_pend)
-
-        encerrados = self.db.fetchall("SELECT * FROM boloes WHERE encerrado=1 ORDER BY nome")
-        if encerrados:
-            tab_enc = tk.Frame(self._pend_nb, bg="#1a2a3a")
-            self._pend_nb.add(tab_enc, text="Encerrados ("+str(len(encerrados))+")")
-            fr_e, tv_e = make_tree(tab_enc, {"Bolao":300,"Status":150}, height=8)
-            fr_e.pack(fill="both", expand=True, padx=4, pady=4)
-            tv_e.tag_configure("enc", background="#f0f0f0", foreground="#666")
-            for bol in encerrados:
-                tv_e.insert("","end", tags=("enc",), iid=str(bol["id"]),
-                             values=(dict(bol)["nome"], "Encerrado"))
-            self._pend_enc_tree = tv_e
-
         # Histórico completo
         self.adm_tree_hist.delete(*self.adm_tree_hist.get_children())
         for r in todos:
@@ -5657,13 +5548,130 @@ class BolaoApp:
                 r["tipo"], r["descricao"] or "-", r["data_registro"] or "-"),
                 tags=(tag,))
 
+    def _atualizar_pendencias_bolao_sel(self, bd):
+        """Recarrega a seção "Pendências deste Bolão" dentro da aba
+        "Bolão Selecionado" — só o bolão atualmente escolhido nos
+        cartões (antes essa lista vivia numa aba própria, com uma
+        sub-aba por bolão)."""
+        from datetime import date as _date
+        mes_atual = _date.today().strftime("%m/%Y")
+        self._pend_mes_lbl.configure(
+            text="Parcela de " + mes_atual + "  |  Vermelho=pendente  |  Verde=em dia/quitado")
+
+        self._pend_tree.delete(*self._pend_tree.get_children())
+        bid_p = bd["id"]
+        vt = float(bd.get("valor_total") or 0)
+        if vt <= 0:
+            self._pend_rodape_lbl.configure(text="Bolão sem valor de cota definido.")
+            return
+
+        _, parc_esp, parc_val = self._calc_parcela_atual(bd)
+
+        partic_bol = self.db.fetchall(
+            "SELECT * FROM participantes WHERE bolao_id=? AND ativo=1 ORDER BY nome",
+            (bid_p,))
+        adm_nome_low = (bd.get("adm_nome","") or "").strip().lower()
+        adm_paga = bd.get("adm_paga", 0)
+
+        pag_rows = self.db.fetchall(
+            "SELECT participante_id, SUM(valor) as t FROM pagamentos "
+            "WHERE bolao_id=? GROUP BY participante_id", (bid_p,))
+        pag_map = {r["participante_id"]: float(r["t"] or 0) for r in pag_rows}
+
+        pendentes = []; em_dia = []
+        for pt in partic_bol:
+            pt_d = dict(pt)
+            eh_adm = bool(pt_d.get("is_adm")) or (
+                adm_nome_low and adm_nome_low in pt_d["nome"].lower())
+            if eh_adm and not adm_paga: continue
+            ve    = float(pt_d.get("valor_esperado") or 0)
+            pago  = pag_map.get(pt_d["id"], 0)
+            n_cotas = max(1, round(ve / vt)) if vt > 0 and ve > 0 else 1
+            val_esp_agora = parc_esp * parc_val * n_cotas
+            status, _ = self._status_part(pago, ve, parc_esp, parc_val * n_cotas)
+            if "PENDENTE" in status:
+                pendentes.append((pt_d["nome"], pago, max(0, val_esp_agora - pago), n_cotas))
+            else:
+                em_dia.append((pt_d["nome"], pago, n_cotas, status))
+
+        for nome, pago, falta, nc in sorted(pendentes, key=lambda x: x[0]):
+            self._pend_tree.insert("","end", iid="pend|"+nome, tags=("pend",), values=(
+                nome, fmt_brl(pago), fmt_brl(falta), str(nc)+"x", "PENDENTE"))
+        for nome, pago, nc, st in sorted(em_dia, key=lambda x: x[0]):
+            tag = "quit" if "QUITADO" in st else "emdia"
+            self._pend_tree.insert("","end", iid="ok|"+nome, tags=(tag,), values=(
+                nome, fmt_brl(pago), "—", str(nc)+"x", st))
+
+        n_pend = len(pendentes)
+        self._pend_rodape_lbl.configure(
+            text=str(n_pend)+" pendente(s)  |  "+str(len(em_dia))+" em dia/quitado(s)  |  "
+                 "Parcelas esperadas: "+str(parc_esp)+"  |  Duplo clique numa linha PENDENTE "
+                 "pra registrar o pagamento")
+
+    def _pend_registrar_dblclick(self, event):
+        """Duplo clique numa linha PENDENTE da seção Pendências — abre um
+        mini popup de registro de pagamento pro bolão selecionado."""
+        sel = self._pend_tree.selection()
+        if not sel: return
+        vals = self._pend_tree.item(sel[0], "values")
+        if not vals or "PENDENTE" not in str(vals[4]): return
+        bid_ = self.bid.get()
+        if not bid_: return
+        nome_p = vals[0]
+        pt = self.db.fetchone(
+            "SELECT id FROM participantes WHERE bolao_id=? AND ativo=1 AND nome=?",
+            (bid_, nome_p))
+        if not pt: return
+        pid_p = pt["id"]
+        falta_str = str(vals[2]).replace("R$","").replace(".","").replace(",",".").strip()
+        try: falta_v = float(falta_str)
+        except Exception: falta_v = 0
+
+        from datetime import date as _d2
+        win = tk.Toplevel(self.root); win.title("Registrar Pagamento")
+        win.geometry("400x220"); win.configure(bg=CORES["bg_section"])
+        win.grab_set(); win.lift()
+        tk.Label(win, text="Registrar pagamento — " + nome_p,
+                 bg=CORES["bg_section"], fg="white",
+                 font=("Arial",10,"bold")).pack(pady=(14,8), padx=16, anchor="w")
+        r_ = tk.Frame(win, bg=CORES["bg_section"]); r_.pack(fill="x", padx=16, pady=4)
+        tk.Label(r_, text="Valor (R$):", bg=CORES["bg_section"],
+                 fg=CORES["fg_label"], font=("Arial",9,"bold")).pack(side="left")
+        e_val = entry(r_, width=14); e_val.pack(side="left", padx=8)
+        e_val.insert(0, "{:.2f}".format(falta_v).replace(".",","))
+        tk.Label(r_, text="Data:", bg=CORES["bg_section"],
+                 fg=CORES["fg_label"], font=("Arial",9,"bold")).pack(side="left")
+        e_dt = entry(r_, width=12); e_dt.pack(side="left", padx=4)
+        e_dt.insert(0, _d2.today().strftime("%d/%m/%Y"))
+        r2_ = tk.Frame(win, bg=CORES["bg_section"]); r2_.pack(fill="x", padx=16, pady=4)
+        tk.Label(r2_, text="Obs.:", bg=CORES["bg_section"],
+                 fg=CORES["fg_label"], font=("Arial",9,"bold")).pack(side="left")
+        e_obs = entry(r2_, width=32); e_obs.pack(side="left", padx=8)
+        def _confirmar():
+            from datetime import datetime as _dt3
+            try: v_pg = float(e_val.get().replace(",","."))
+            except Exception: messagebox.showerror("Erro","Valor inválido"); return
+            dt_raw = e_dt.get().strip()
+            try: mes_ref = _dt3.strptime(dt_raw,"%d/%m/%Y").strftime("%m/%Y")
+            except Exception: mes_ref = ""
+            self.db.execute(
+                "INSERT INTO pagamentos (participante_id,bolao_id,mes_referencia,"
+                "valor,data_pagamento,depositado,observacoes) VALUES (?,?,?,?,?,0,?)",
+                (pid_p, bid_, mes_ref, v_pg, dt_raw, e_obs.get() or "Registrado via painel"))
+            win.destroy(); self._refresh_all()
+            messagebox.showinfo("OK", "Pagamento de " + nome_p + " registrado!")
+        bf_ = tk.Frame(win, bg=CORES["bg_section"]); bf_.pack(pady=12)
+        btn(bf_, "Registrar", CORES["btn_verde"], _confirmar, width=14).pack(side="left", padx=6)
+        btn(bf_, "Cancelar",  CORES["btn_cinza"], win.destroy, width=10).pack(side="left", padx=6)
+
     def _adm_encerrar_bolao(self):
-        """Encerra o bolão da aba ativa no painel de pendências."""
-        bid = self._pend_nb_bolao_id()
+        """Encerra o bolão atualmente selecionado nos cartões de
+        "Bolão Selecionado"."""
+        bid = self.bid.get()
         if not bid:
             messagebox.showwarning("Atenção",
-                "Nenhum bolão ativo selecionado.\n"
-                "Clique na aba do bolão que deseja encerrar e tente novamente."); return
+                "Nenhum bolão selecionado.\n"
+                "Escolha um bolão nos cartões de 'Bolão Selecionado' e tente novamente."); return
         b = self.db.fetchone("SELECT nome FROM boloes WHERE id=?", (bid,))
         if not b: return
         if messagebox.askyesno("Encerrar Bolão",
@@ -5674,31 +5682,31 @@ class BolaoApp:
             messagebox.showinfo("Encerrado", "Bolão '" + b["nome"] + "' encerrado.")
             self._refresh_all()
 
-    def _pend_nb_bolao_id(self):
-        """Retorna o ID do bolão da aba ativa no notebook de pendências."""
-        try:
-            tab_idx = self._pend_nb.index(self._pend_nb.select())
-            tab_text = self._pend_nb.tab(tab_idx, "text")
-            # Aba de encerrados não tem bolão ativo
-            if "Encerrado" in tab_text or "ncerrad" in tab_text:
-                return None
-            # Busca bolão pelo nome (remove badge de pendentes)
-            import re as _re2
-            nome_limpo = _re2.sub(r"\s*\(.*\)$|\s*OK$", "", tab_text).strip()
-            b = self.db.fetchone(
-                "SELECT id FROM boloes WHERE encerrado=0 AND nome LIKE ?",
-                ("%" + nome_limpo[:15] + "%",))
-            return b["id"] if b else None
-        except Exception:
-            return None
-
     def _adm_reativar_bolao(self):
-        """Reativa um bolão encerrado — volta a aparecer nas listas."""
-        # Verifica se tem a tree de encerrados visível
-        try:
-            sel = self._pend_enc_tree.selection()
+        """Abre uma janela com os bolões encerrados pra escolher e
+        reativar um (antes era uma lista fixa dentro da aba de
+        pendências; virou popup pra não ocupar espaço o tempo todo)."""
+        encerrados = self.db.fetchall("SELECT * FROM boloes WHERE encerrado=1 ORDER BY nome")
+        if not encerrados:
+            messagebox.showinfo("Sem encerrados", "Nenhum bolão encerrado no momento.")
+            return
+        win = tk.Toplevel(self.root)
+        win.title("Reativar Bolão")
+        win.geometry("420x360")
+        win.configure(bg=CORES["bg_section"])
+        win.grab_set(); win.lift(); win.focus_force()
+        tk.Label(win, text="🔄 BOLÕES ENCERRADOS", bg=CORES["bg_section"],
+                 fg=CORES["fg_title"], font=("Arial",12,"bold")).pack(pady=(14,8))
+        fr = tk.Frame(win, bg=CORES["bg_section"], padx=16); fr.pack(fill="both", expand=True)
+        fr_t, tv_e = make_tree(fr, {"Bolão":260}, height=10)
+        fr_t.pack(fill="both", expand=True)
+        for bol in encerrados:
+            tv_e.insert("","end", iid=str(bol["id"]), values=(dict(bol)["nome"],))
+
+        def _confirmar_reativacao():
+            sel = tv_e.selection()
             if not sel:
-                messagebox.showwarning("Atenção","Selecione um bolão na lista de Encerrados."); return
+                messagebox.showwarning("Atenção","Selecione um bolão na lista."); return
             bid = int(sel[0])
             b = self.db.fetchone("SELECT nome FROM boloes WHERE id=?", (bid,))
             if not b: return
@@ -5706,12 +5714,13 @@ class BolaoApp:
                 "Reativar o bolão '" + b["nome"] + "'?\n\n"
                 "Ele voltará a aparecer em todas as listas."):
                 self.db.execute("UPDATE boloes SET encerrado=0 WHERE id=?", (bid,))
+                win.destroy()
                 messagebox.showinfo("Reativado", "Bolão '" + b["nome"] + "' reativado.")
                 self._refresh_all()
-        except AttributeError:
-            messagebox.showinfo("Sem encerrados",
-                "Nenhum bolão encerrado encontrado.\n"
-                "Para encerrar, selecione um bolão no campo Bolão e clique em Encerrar.")
+
+        bf = tk.Frame(win, bg=CORES["bg_section"]); bf.pack(pady=12)
+        btn(bf, "Reativar Selecionado", CORES["btn_verde"], _confirmar_reativacao, width=20).pack(side="left", padx=6)
+        btn(bf, "Fechar", CORES["btn_cinza"], win.destroy, width=12).pack(side="left", padx=6)
 
     def _adm_editar(self):
         sel = self.adm_tree_hist.selection()
@@ -6399,7 +6408,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v5.3</span>
+        <span>Sistema de Gestão de Bolões v5.4</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
