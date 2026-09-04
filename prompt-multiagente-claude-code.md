@@ -214,6 +214,18 @@ Sequência de feedback real de uso, culminando numa reestruturação grande:
 - Motion restante é só fade+slide sutil na entrada (hero e cards), nada de cor girando ou texto brilhando — ainda desliga com `prefers-reduced-motion`.
 - Badge de versão do index v3.6→v3.7, `CACHE_NAME` do `sw.js` v18→v19.
 
+## Rodada 10 — Lançamento em lote de uso da reserva (admin)
+
+Pedido do usuário: registrar "uso da reserva" pessoa por pessoa no modal `abrirModalRegistrarMovimento()` (admin.js) era lento quando o mesmo valor vale pra várias pessoas de uma vez (ex.: um cartão comprado com a reserva de 15 participantes). Fluxo descrito: ver a lista de nomes, marcar quem vai usar um valor, registrar; se quiser outro valor, marcar outro grupo e registrar de novo.
+
+**Implementado**: novo botão "📦 LANÇAMENTO EM LOTE" na seção Reservas do admin (`admin.html`, ao lado do botão de movimento único) abrindo `abrirModalLancamentoLote()` (novo, em `admin.js`, logo depois de `abrirModalRegistrarMovimento`):
+- Lista com checkbox por pessoa (nome + saldo atual da reserva), campo de busca que filtra a lista ao vivo, botões "Marcar visíveis" / "Desmarcar todos".
+- Um só formulário de Tipo (Saque/Uso por padrão, já que era o caso de uso citado — também aceita Depósito)/Valor/Data/Descrição vale pra todo mundo marcado.
+- Ao confirmar, grava um documento por pessoa marcada em `reservas_movimentos_pendentes` — **mesmo formato** dos documentos criados pelo modal de movimento único (o app desktop já sabe importar, nenhuma mudança necessária lá), só que todos de uma vez, num `db.batch()` do Firestore (atômico, mais rápido que N `.add()` sequenciais).
+- **O modal não fecha depois de registrar**: desmarca as caixinhas e limpa o valor/descrição (mantém tipo/data), mostra quantos foram registrados nesta sessão, e fica pronto pra próxima rodada com outro grupo/valor — exatamente o fluxo "marco um valor, registro, marco outro valor, registro" que o usuário descreveu. Um botão "Concluir e fechar" separado do de registrar.
+
+`CACHE_NAME` do `sw.js` v19→v20 (admin.html/admin.js estão na lista de cache do Service Worker).
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

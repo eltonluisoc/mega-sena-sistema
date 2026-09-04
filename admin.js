@@ -2726,6 +2726,193 @@ function abrirModalRegistrarMovimento() {
     atualizarToggle();
 }
 
+// Lançamento em lote: marca vários nomes de uma vez, um valor só, registra
+// tudo junto — pedido explícito do usuário porque registrar um por um no
+// modal acima (abrirModalRegistrarMovimento) era lento demais quando o
+// mesmo valor vale pra várias pessoas (ex.: "uso da reserva" de um cartão
+// comprado por 15 pessoas). Cada pessoa marcada vira um documento próprio
+// em reservas_movimentos_pendentes (mesma fila/formato do modal simples —
+// o desktop importa cada um igual), gravados juntos num batch do
+// Firestore. O modal fica aberto depois de registrar: some as caixinhas
+// marcadas e limpa o valor, pra já poder marcar outro grupo com outro
+// valor sem reabrir nada — exatamente o fluxo descrito pelo usuário.
+function abrirModalLancamentoLote() {
+    let modal = document.getElementById('modalLancamentoLote');
+    if (modal) modal.remove();
+
+    if (!reservasCarregadas || reservasCarregadas.length === 0) {
+        showToast('⚠️ Nenhuma reserva carregada ainda — clique em Atualizar primeiro', 'warning');
+        return;
+    }
+
+    modal = document.createElement('div');
+    modal.id = 'modalLancamentoLote';
+    modal.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.8); z-index: 10001;
+        display: flex; justify-content: center; align-items: center;
+        padding: 20px; overflow-y: auto;
+    `;
+
+    const hoje = new Date().toISOString().split('T')[0];
+    const linhasPessoas = reservasCarregadas.map(r => {
+        const saldo = (r.saldoReserva || 0).toFixed(2);
+        return `
+            <label class="lote-linha-pessoa" data-nome-busca="${escapeHtml(r.nome).toLowerCase()}"
+                   style="display:flex; align-items:center; gap:10px; padding:9px 6px; border-bottom:1px solid #f1f5f9; cursor:pointer;">
+                <input type="checkbox" class="lote-checkbox" value="${r.id}" style="width:18px; height:18px; flex-shrink:0;">
+                <span style="flex:1; font-size:14px; color:#1e293b;">${escapeHtml(r.nome)}</span>
+                <span style="font-size:12px; color:${r.saldoReserva > 0 ? '#10b981' : r.saldoReserva < 0 ? '#ef4444' : '#94a3b8'};">R$ ${saldo}</span>
+            </label>`;
+    }).join('');
+
+    modal.innerHTML = `
+        <div style="background: white; border-radius: 20px; max-width: 460px; width: 100%; padding: 25px; max-height: 92vh; overflow-y: auto; display: flex; flex-direction: column;">
+            <div style="font-size: 32px; text-align: center; margin-bottom: 8px;">📦</div>
+            <div style="font-weight: bold; font-size: 18px; text-align: center; margin-bottom: 4px;">LANÇAMENTO EM LOTE DE RESERVA</div>
+            <div style="font-size: 12px; color: #64748b; text-align: center; margin-bottom: 18px;">
+                Marque quem vai usar o mesmo valor, registre. Pra outro valor, marque outro grupo e registre de novo — o modal continua aberto.
+            </div>
+
+            <label style="font-size: 12px; font-weight: 600; color: #475569;">Tipo</label>
+            <select id="loteTipo" class="form-control" style="margin-bottom: 12px;">
+                <option value="saque" selected>💸 Saque / Uso</option>
+                <option value="deposito">💰 Depósito</option>
+            </select>
+
+            <div style="display:flex; gap:10px;">
+                <div style="flex:1;">
+                    <label style="font-size: 12px; font-weight: 600; color: #475569;">Valor (R$) por pessoa</label>
+                    <input type="number" id="loteValor" class="form-control" step="0.01" min="0.01" placeholder="0,00" style="margin-bottom: 12px;">
+                </div>
+                <div style="flex:1;">
+                    <label style="font-size: 12px; font-weight: 600; color: #475569;">Data</label>
+                    <input type="date" id="loteData" class="form-control" value="${hoje}" style="margin-bottom: 12px;">
+                </div>
+            </div>
+
+            <label style="font-size: 12px; font-weight: 600; color: #475569;">Descrição (opcional)</label>
+            <input type="text" id="loteDescricao" class="form-control" placeholder="Ex: cartão da Mega 2026" style="margin-bottom: 14px;">
+
+            <input type="text" id="loteBusca" class="form-control" placeholder="🔍 Filtrar nomes..." style="margin-bottom: 8px;">
+
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
+                <div style="display:flex; gap:8px;">
+                    <button id="btnLoteMarcarTodos" type="button" style="font-size:12px; padding:5px 10px; border-radius:8px; border:1px solid #cbd5e1; background:white; color:#475569; cursor:pointer;">Marcar visíveis</button>
+                    <button id="btnLoteDesmarcarTodos" type="button" style="font-size:12px; padding:5px 10px; border-radius:8px; border:1px solid #cbd5e1; background:white; color:#475569; cursor:pointer;">Desmarcar todos</button>
+                </div>
+                <div id="loteContadorSelecao" style="font-size:12px; font-weight:600; color:#8b5cf6;">0 selecionado(s)</div>
+            </div>
+
+            <div id="loteListaPessoas" style="border:1px solid #e2e8f0; border-radius:10px; max-height:260px; overflow-y:auto; margin-bottom: 14px;">
+                ${linhasPessoas}
+            </div>
+
+            <div id="loteResumoSessao" style="font-size:12px; color:#64748b; text-align:center; margin-bottom:10px; display:none;"></div>
+
+            <button id="btnConfirmarLote" style="width:100%; padding: 14px; background: #8b5cf6; color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 15px; cursor: pointer; margin-bottom: 10px;">✅ REGISTRAR SELECIONADOS</button>
+            <button id="btnFecharLote" style="width:100%; padding: 10px; background: transparent; color: #64748b; border: none; font-size: 13px; cursor: pointer;">Concluir e fechar</button>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const listaEl = document.getElementById('loteListaPessoas');
+    const contadorEl = document.getElementById('loteContadorSelecao');
+    const resumoEl = document.getElementById('loteResumoSessao');
+    let totalRegistradoSessao = 0;
+
+    function checkboxesVisiveis() {
+        return Array.from(listaEl.querySelectorAll('.lote-linha-pessoa'))
+            .filter(linha => linha.style.display !== 'none')
+            .map(linha => linha.querySelector('.lote-checkbox'));
+    }
+
+    function atualizarContador() {
+        const marcados = listaEl.querySelectorAll('.lote-checkbox:checked').length;
+        contadorEl.textContent = `${marcados} selecionado(s)`;
+    }
+    listaEl.addEventListener('change', (e) => {
+        if (e.target.classList.contains('lote-checkbox')) atualizarContador();
+    });
+
+    document.getElementById('loteBusca').addEventListener('input', (e) => {
+        const termo = e.target.value.trim().toLowerCase();
+        listaEl.querySelectorAll('.lote-linha-pessoa').forEach(linha => {
+            const bate = !termo || linha.dataset.nomeBusca.includes(termo);
+            linha.style.display = bate ? '' : 'none';
+        });
+    });
+
+    document.getElementById('btnLoteMarcarTodos').onclick = () => {
+        checkboxesVisiveis().forEach(cb => { cb.checked = true; });
+        atualizarContador();
+    };
+    document.getElementById('btnLoteDesmarcarTodos').onclick = () => {
+        listaEl.querySelectorAll('.lote-checkbox').forEach(cb => { cb.checked = false; });
+        atualizarContador();
+    };
+
+    document.getElementById('btnFecharLote').onclick = () => modal.remove();
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+    document.getElementById('btnConfirmarLote').onclick = async () => {
+        const tipo = document.getElementById('loteTipo').value;
+        const valor = parseFloat(document.getElementById('loteValor').value);
+        const data = document.getElementById('loteData').value;
+        const descricao = document.getElementById('loteDescricao').value.trim();
+        const selecionados = Array.from(listaEl.querySelectorAll('.lote-checkbox:checked'));
+
+        if (!valor || valor <= 0) { showToast('⚠️ Informe um valor válido', 'warning'); return; }
+        if (!data) { showToast('⚠️ Informe a data', 'warning'); return; }
+        if (selecionados.length === 0) { showToast('⚠️ Marque pelo menos uma pessoa', 'warning'); return; }
+
+        const btnConfirmar = document.getElementById('btnConfirmarLote');
+        btnConfirmar.disabled = true;
+        btnConfirmar.textContent = '⏳ Registrando...';
+
+        try {
+            const batch = db.batch();
+            const criadoEm = new Date().toISOString();
+            for (const cb of selecionados) {
+                const reserva = reservasCarregadas.find(r => r.id === cb.value);
+                const ref = db.collection('reservas_movimentos_pendentes').doc();
+                batch.set(ref, {
+                    pessoaExistente: true,
+                    participanteId: cb.value,
+                    nome: reserva ? reserva.nome : '',
+                    telefone: reserva ? (reserva.telefone || '') : '',
+                    chavePix: '',
+                    tipo, valor, data, descricao,
+                    sincronizado: false,
+                    criadoEm
+                });
+            }
+            await batch.commit();
+
+            totalRegistradoSessao += selecionados.length;
+            resumoEl.style.display = '';
+            resumoEl.textContent = `✅ ${totalRegistradoSessao} movimento(s) registrado(s) nesta sessão`;
+            showToast(`✅ ${selecionados.length} movimento(s) registrado(s)! Continue marcando outro grupo ou feche.`, 'success');
+
+            // Limpa pra próxima rodada com outro valor, mas mantém tipo/data
+            // (o mais comum é continuar no mesmo dia/tipo, só trocando quem
+            // e quanto).
+            listaEl.querySelectorAll('.lote-checkbox').forEach(cb => { cb.checked = false; });
+            document.getElementById('loteValor').value = '';
+            document.getElementById('loteDescricao').value = '';
+            atualizarContador();
+            document.getElementById('loteValor').focus();
+        } catch (error) {
+            console.error('Erro ao registrar lote:', error);
+            showToast('❌ Erro ao registrar o lote', 'error');
+        } finally {
+            btnConfirmar.disabled = false;
+            btnConfirmar.textContent = '✅ REGISTRAR SELECIONADOS';
+        }
+    };
+}
+
 async function copiarHistoricoWhatsApp(id, nome) {
     try {
         showToast('📋 Gerando mensagem...', 'info');
@@ -3219,6 +3406,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnAtualizarReservas) btnAtualizarReservas.onclick = () => carregarReservas();
     const btnRegistrarMovimentoReserva = document.getElementById('btnRegistrarMovimentoReserva');
     if (btnRegistrarMovimentoReserva) btnRegistrarMovimentoReserva.onclick = abrirModalRegistrarMovimento;
+    const btnLancamentoLoteReserva = document.getElementById('btnLancamentoLoteReserva');
+    if (btnLancamentoLoteReserva) btnLancamentoLoteReserva.onclick = abrirModalLancamentoLote;
 
     setTimeout(() => {
         console.log('🔄 Carregando dados das abas...');
