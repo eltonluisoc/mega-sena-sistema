@@ -226,6 +226,22 @@ Pedido do usuário: registrar "uso da reserva" pessoa por pessoa no modal `abrir
 
 `CACHE_NAME` do `sw.js` v19→v20 (admin.html/admin.js estão na lista de cache do Service Worker).
 
+## Rodada 11 — Tipografia e "imagem" no hero do index (usuário mandou print do apple.com)
+
+Usuário mandou um print da home do apple.com e disse: "as fontes do site estão feias... no padrão apple teríamos fontes mais bonitas e mais estilos entre elas... podemos colocar imagens também... esmaecidas e dando um estilo de felicidade e leveza".
+
+Dois problemas reais identificados:
+1. **Fontes**: o `body` usava só a pilha de sistema (`-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto...`) — em Mac/iPhone isso VIRA SF Pro (bonita), mas a maioria dos visitantes está em Windows/Android, onde cai pra Segoe UI/Roboto (bem mais genéricas, sem a personalidade Apple).
+2. **Nenhuma imagem**: o hero era só texto plano, sem nenhum elemento visual.
+
+**Correção**:
+- Carregada a fonte **Inter** via Google Fonts (`<link rel="preconnect">` + `css2?family=...`) — a substituta gratuita mais usada pra SF Pro, mesmas proporções. Vira a fonte principal do `body`, com a pilha de sistema como fallback.
+- Carregada também **Instrument Serif** (itálica) como fonte de ACENTO, aplicada só num trecho do título do hero (`<span class="accent-serif">grande prêmio</span>`) — reproduz o truque tipográfico que aparece no print do usuário ("iPad *air*", "MacBook *Air*"): um serif leve e itálico contrastando com o sans bold do resto da frase, sem virar bagunça (só 1 acento por título).
+- Como não há como buscar/gerar fotografia real aqui, a "imagem" pedida virou um **glow suave** atrás do título (`.hero-glow`): 3 gradientes radiais desfocados (`filter: blur(50px)`), em tons de dourado/azul/verde bem esmaecidos (opacidade ~0,2-0,3), estáticos (sem animação, pra não repetir o erro do fundo giratório da v3.6) — sugere luz/leveza sem competir com a leitura do texto. É a mesma técnica que sites premium usam de "imagem ambiente" quando não têm fotografia própria.
+- Título do hero aumentado (`clamp(28px, 6vw, 44px)`, peso 800) pra ter mais presença, junto com o resto da hierarquia tipográfica (logo 600→700).
+
+Badge index v3.7→v3.8, `CACHE_NAME` do `sw.js` v20→v21.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

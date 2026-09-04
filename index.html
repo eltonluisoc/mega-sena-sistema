@@ -18,20 +18,31 @@
     <!-- CSS Externo -->
     <link rel="stylesheet" href="style.css">
 
+    <!-- Tipografia — a pilha do sistema (Segoe UI/Roboto) fica "feia" fora
+         de Mac/iPhone. Inter é a substituta gratuita mais usada pra SF Pro
+         (mesmas proporções, extremamente refinada). Instrument Serif
+         itálica entra só como ACENTO num único trecho do título — o mesmo
+         truque da Apple de misturar um serif leve e itálico com o sans
+         bold (ex.: "iPad air", "MacBook Air"), pra dar "mais estilos entre
+         as fontes" sem virar bagunça tipográfica. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+
     <!-- ================================================================
          VISUAL PREMIUM — só da página inicial (index). Embutido aqui, não
          em style.css, de propósito: style.css é compartilhado com
          admin.html/consulta.html/participantes.html, e essa direção
          (minimalista, estilo Apple) é pensada só pra "vitrine" pública,
-         não pras telas de trabalho (admin). 2ª versão: a primeira usava
-         fundo animado colorido + esferas flutuando — o usuário achou
-         "muito ruim" e pediu algo minimalista, com técnicas tipo Apple:
-         paleta neutra (branco/cinza-claro + 1 único acento azul),
-         bastante espaço em branco, tipografia grande e confiante,
-         "controle segmentado" no seletor de loteria (padrão iOS/macOS)
-         em vez de 3 caixas soltas, cabeçalhos de card neutros com um
-         "dot" colorido no lugar de barras cheias de cor, motion restrito
-         a fade/slide sutil (sem gradiente girando, sem texto brilhando).
+         não pras telas de trabalho (admin). 3ª versão: a 1ª usava fundo
+         animado colorido girando + esferas flutuando ("muito ruim"); a 2ª
+         cortou tudo isso mas ficou só tipografia de sistema (feia fora de
+         Mac) e nenhuma imagem. Agora: fonte Inter (substituta de SF Pro) +
+         acento em serif itálica só num trecho do hero, e uma "imagem" no
+         hero — como não dá pra buscar fotografia real aqui, é um glow
+         suave (gradientes radiais desfocados, sem animação) atrás do
+         título, esmaecido, sugerindo leveza/luz — a mesma técnica que
+         sites premium usam quando não têm fotografia própria pra mostrar.
          ================================================================ -->
     <style>
         :root {
@@ -48,6 +59,7 @@
         }
 
         body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             background: var(--bg);
             color: var(--text);
         }
@@ -66,7 +78,7 @@
         }
         .logo {
             font-size: 16px;
-            font-weight: 600;
+            font-weight: 700;
             color: var(--text);
             letter-spacing: -0.01em;
         }
@@ -78,20 +90,48 @@
            a marca, do jeito que uma barra de navegação enxuta deve ser. */
         .top-bar .subtitle { display: none; }
 
-        /* ===== Hero — uma linha de destaque, sem gradiente girando ===== */
+        /* ===== Hero — título de destaque + glow suave no lugar de uma
+           fotografia (que eu não tenho como buscar/gerar aqui). O glow é
+           só gradiente radial desfocado, estático, atrás do texto —
+           "esmaecido", sem competir com a leitura. ===== */
         .hero {
+            position: relative;
+            overflow: hidden;
             text-align: center;
-            padding: 36px 20px 22px;
+            padding: 52px 20px 30px;
             animation: fadeUp 0.6s ease both;
         }
+        .hero-glow {
+            position: absolute;
+            inset: -35% -10% auto -10%;
+            height: 320px;
+            background:
+                radial-gradient(circle at 22% 35%, rgba(255, 199, 0, 0.32), transparent 60%),
+                radial-gradient(circle at 78% 30%, rgba(0, 113, 227, 0.26), transparent 60%),
+                radial-gradient(circle at 50% 75%, rgba(52, 199, 89, 0.20), transparent 60%);
+            filter: blur(50px);
+            pointer-events: none;
+            z-index: 0;
+        }
+        .hero-content { position: relative; z-index: 1; }
         .hero-title {
-            font-size: clamp(24px, 5vw, 32px);
-            font-weight: 700;
-            letter-spacing: -0.02em;
-            margin: 0 0 4px;
+            font-size: clamp(28px, 6vw, 44px);
+            font-weight: 800;
+            line-height: 1.1;
+            letter-spacing: -0.025em;
+            margin: 0 0 8px;
+        }
+        /* Acento em serif itálica — o mesmo truque tipográfico da Apple
+           (ex.: "iPad air"): um trecho leve e itálico contrastando com o
+           resto em sans bold, sem exagerar (só um pedaço da frase). */
+        .hero-title .accent-serif {
+            font-family: 'Instrument Serif', Georgia, serif;
+            font-style: italic;
+            font-weight: 400;
+            color: var(--accent);
         }
         .hero-subtitle {
-            font-size: 14px;
+            font-size: 15px;
             color: var(--text-secondary);
             font-weight: 400;
             margin: 0;
@@ -225,12 +265,15 @@
 </head>
 <body>
     <div class="top-bar">
-        <div class="logo">🎲 Bolões Aleatórios<span class="version">v3.7</span></div>
+        <div class="logo">🎲 Bolões Aleatórios<span class="version">v3.8</span></div>
     </div>
 
     <div class="hero">
-        <h1 class="hero-title">🏆 Rumo ao grande prêmio</h1>
-        <p class="hero-subtitle">Confira resultados e acompanhe seus bolões da sorte</p>
+        <div class="hero-glow" aria-hidden="true"></div>
+        <div class="hero-content">
+            <h1 class="hero-title">🏆 Rumo ao <span class="accent-serif">grande prêmio</span></h1>
+            <p class="hero-subtitle">Confira resultados e acompanhe seus bolões da sorte</p>
+        </div>
     </div>
 
     <!-- Seletor de Loteria -->
