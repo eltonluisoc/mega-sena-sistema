@@ -1298,7 +1298,11 @@
                             </div>
                         </div>
                         <div style="margin-top: 12px;">
-                            <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 8px; color: #1e293b;">🔢 Clique nos números para selecionar:</label>
+                            <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 8px; color: #1e293b;">🔢 Clique nos números para selecionar (ou digite abaixo):</label>
+                            <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                                <input type="text" id="numerosTextoSelecao" class="form-control" placeholder="Ou digite/cole: 01 02 03 04 05...">
+                                <button id="btnPreencherSelecaoTexto" type="button" class="btn btn-primary" style="width: auto; white-space: nowrap;">✍️ Preencher</button>
+                            </div>
                             <div id="gradeSelecaoIndividual" class="grade-numeros"></div>
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; flex-wrap: wrap; gap: 8px;">
                                 <span id="contadorSelecao" style="font-size: 14px; font-weight: 600; color: #0071e3;">0 números selecionados</span>
@@ -1358,6 +1362,10 @@
                             <div style="font-weight: 700; font-size: 15px; color: #1e293b;">🎯 CARTÃO <span id="cartaoAtualNumero">1</span>/<span id="totalCartoesNumero">20</span></div>
                             <span style="font-size: 13px; color: #64748b;">Selecione <strong>15</strong> números</span>
                         </div>
+                        <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                            <input type="text" id="numerosTextoLote" class="form-control" placeholder="Ou digite/cole os 15 números deste cartão">
+                            <button id="btnPreencherLoteTexto" type="button" class="btn btn-primary" style="width: auto; white-space: nowrap;">✍️ Preencher</button>
+                        </div>
                         <div class="grade-numeros" id="gradeNumeros" style="grid-template-columns: repeat(7, 1fr);"></div>
                         <div style="text-align: center; margin-top: 12px;"><span id="contadorNumeros" style="font-size: 14px; font-weight: 600; color: #0071e3;">0/15 números selecionados</span></div>
                         <div style="display: flex; justify-content: center; gap: 12px; margin-top: 16px; flex-wrap: wrap;">
@@ -1369,6 +1377,12 @@
                             <button id="btnDuplicarCartao" class="btn btn-warning" style="min-width: 120px;">🔁 DUPLICAR</button>
                             <button id="btnLimparCartao" class="btn btn-danger" style="min-width: 120px;">🗑️ LIMPAR</button>
                         </div>
+                    </div>
+                    <div style="background: #eff6ff; padding: 14px; border-radius: 12px; margin-bottom: 16px; border: 1px solid #bfdbfe;">
+                        <div style="font-weight: 700; margin-bottom: 6px; color: #1e293b; font-size: 14px;">✍️ Colar vários cartões de uma vez</div>
+                        <div style="font-size: 12px; color: #64748b; margin-bottom: 8px;">Um cartão por linha, 15 números cada, separados por espaço. Substitui os cartões atuais do lote — revise a prévia antes de gerar.</div>
+                        <textarea id="numerosTextoLoteMassa" class="form-control" rows="4" placeholder="01 02 03 04 05 06 07 08 09 10 11 12 13 14 15&#10;02 04 06 08 10 12 14 16 18 20 22 24 01 03 05"></textarea>
+                        <button id="btnPreencherLoteMassa" type="button" class="btn btn-primary btn-block" style="margin-top: 8px;">📋 Preencher todos os cartões</button>
                     </div>
                     <div style="background: #f8fafc; padding: 14px; border-radius: 12px; margin-bottom: 16px; border: 1px solid #e2e8f0;">
                         <div style="font-weight: 700; margin-bottom: 10px; color: #1e293b; font-size: 14px;">📊 RESUMO DO LOTE</div>

@@ -232,6 +232,33 @@ function inicializarGradeSelecaoIndividual() {
 }
 
 // ============================================
+// PREENCHER POR TEXTO — compartilhado pelos 3 pontos de "digitar/colar em
+// vez de clicar" (Modo Seleção, cartão atual do Lote, e lote em massa).
+// Pedido do usuário: ele gera os cartões no app da Caixa e fica com a
+// IMAGEM — sem IA de visão (custo em volume alto), a forma mais rápida de
+// levar isso pro sistema é digitar/colar os números direto, em vez de
+// clicar um por um na grade.
+// ============================================
+function regrasLoteria(loteria) {
+    if (loteria === 'mega')      return { minNumeros: 6,  maxNumeros: 20, maxValor: 60, label: 'MEGA-SENA' };
+    if (loteria === 'lotofacil') return { minNumeros: 15, maxNumeros: 20, maxValor: 25, label: 'LOTOFÁCIL' };
+    if (loteria === 'quina')     return { minNumeros: 5,  maxNumeros: 15, maxValor: 80, label: 'QUINA' };
+    return null;
+}
+
+function parseNumerosTexto(texto, { minNumeros, maxNumeros, maxValor, label }) {
+    const numeros = (texto.match(/\d+/g) || []).map(Number);
+    if (numeros.length === 0) return { erro: 'nenhum número encontrado no texto' };
+    if (numeros.length < minNumeros) return { erro: `${label}: mínimo ${minNumeros} números (veio ${numeros.length})` };
+    if (numeros.length > maxNumeros) return { erro: `${label}: máximo ${maxNumeros} números (veio ${numeros.length})` };
+    const unicos = [...new Set(numeros)];
+    if (unicos.length !== numeros.length) return { erro: 'números repetidos no mesmo cartão' };
+    if (numeros.some(n => n < 1 || n > maxValor)) return { erro: `números devem estar entre 1 e ${maxValor}` };
+    numeros.sort((a, b) => a - b);
+    return { numeros, erro: null };
+}
+
+// ============================================
 // TOGGLE NÚMERO NA SELEÇÃO INDIVIDUAL
 // ============================================
 function toggleNumeroSelecao(numero) {
@@ -331,6 +358,26 @@ function atualizarPreviaSelecao() {
         html += `<span class="numero-cartao-badge numero-cartao-badge-sm numero-cartao-badge-accent">${n.toString().padStart(2, '0')}</span>`;
     }
     previa.innerHTML = html;
+}
+
+// ============================================
+// PREENCHER A SELEÇÃO POR TEXTO — alternativa a clicar número por número
+// ============================================
+function preencherSelecaoPorTexto() {
+    const input = document.getElementById('numerosTextoSelecao');
+    if (!input) return;
+    const regras = regrasLoteria(loteriaAdmin);
+    if (!regras) { showToast('⚠️ Loteria não reconhecida!', 'error'); return; }
+
+    const { numeros, erro } = parseNumerosTexto(input.value, regras);
+    if (erro) { showToast('❌ ' + erro, 'error'); return; }
+
+    numerosSelecionados = numeros;
+    atualizarGradeSelecaoVisual();
+    atualizarContadorSelecao();
+    atualizarPreviaSelecao();
+    input.value = '';
+    showToast(`✅ ${numeros.length} números preenchidos — confira a grade e clique em Adicionar`, 'success');
 }
 
 // ============================================
@@ -1803,7 +1850,11 @@ function toggleNumero(numero) {
 
 function atualizarGradeVisual() {
     const cartao = cartoesLote[cartaoAtualIndex] || [];
-    const botoes = document.querySelectorAll('.numero-btn');
+    // Escopado a #gradeNumeros — antes pegava TODO .numero-btn da página,
+    // incluindo a grade do "Modo Seleção" (outro fluxo, outro estado),
+    // repintando os botões dela por engano quando os dois cards estavam
+    // na tela ao mesmo tempo.
+    const botoes = document.querySelectorAll('#gradeNumeros .numero-btn');
     botoes.forEach(btn => {
         const num = parseInt(btn.dataset.numero);
         if (cartao.includes(num)) {
@@ -1865,6 +1916,68 @@ function atualizarPrevia() {
         html += `<div style="color: #94a3b8;">... e mais ${cartoesLote.length - maxExibir} cartões</div>`;
     }
     container.innerHTML = html;
+}
+
+// ============================================
+// PREENCHER O CARTÃO ATUAL DO LOTE POR TEXTO
+// ============================================
+function preencherCartaoLotePorTexto() {
+    const input = document.getElementById('numerosTextoLote');
+    if (!input) return;
+
+    const { numeros, erro } = parseNumerosTexto(input.value, {
+        minNumeros: MAX_NUMEROS_LOTOFACIL, maxNumeros: MAX_NUMEROS_LOTOFACIL,
+        maxValor: TOTAL_NUMEROS, label: 'LOTOFÁCIL'
+    });
+    if (erro) { showToast('❌ ' + erro, 'error'); return; }
+
+    cartoesLote[cartaoAtualIndex] = numeros;
+    atualizarGradeVisual();
+    atualizarContador();
+    atualizarPrevia();
+    atualizarResumo();
+    input.value = '';
+    showToast(`✅ Cartão #${cartaoAtualIndex + 1} preenchido`, 'success');
+}
+
+// ============================================
+// COLAR VÁRIOS CARTÕES DE UMA VEZ (um por linha) — o maior ganho de tempo:
+// substitui clicar cartão por cartão por colar tudo junto (ex.: já
+// transcrito de várias imagens do app da Caixa) e revisar na prévia antes
+// de gerar. Ajusta "Quantos cartões?" pra bater com quantas linhas vieram.
+// ============================================
+function preencherLotePorTextoEmMassa() {
+    const textarea = document.getElementById('numerosTextoLoteMassa');
+    if (!textarea) return;
+
+    const linhas = textarea.value.split('\n').map(l => l.trim()).filter(Boolean);
+    if (linhas.length === 0) { showToast('⚠️ Cole pelo menos uma linha de números!', 'warning'); return; }
+
+    const regras = { minNumeros: MAX_NUMEROS_LOTOFACIL, maxNumeros: MAX_NUMEROS_LOTOFACIL, maxValor: TOTAL_NUMEROS, label: 'LOTOFÁCIL' };
+    const novosCartoes = [];
+    const erros = [];
+    linhas.forEach((linha, i) => {
+        const { numeros, erro } = parseNumerosTexto(linha, regras);
+        if (erro) erros.push(`Linha ${i + 1}: ${erro}`);
+        else novosCartoes.push(numeros);
+    });
+
+    if (erros.length > 0) {
+        showToast(`❌ ${erros.length} linha(s) com erro. Ex.: ${erros[0]}`, 'error');
+        return;
+    }
+
+    cartoesLote = novosCartoes;
+    cartaoAtualIndex = 0;
+    const inputQtd = document.getElementById('qtdCartoes');
+    if (inputQtd) inputQtd.value = novosCartoes.length;
+
+    atualizarGradeVisual();
+    atualizarContador();
+    atualizarPrevia();
+    atualizarResumo();
+    textarea.value = '';
+    showToast(`✅ ${novosCartoes.length} cartões preenchidos! Revise a prévia antes de gerar.`, 'success');
 }
 
 function atualizarResumo() {
@@ -3500,6 +3613,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnGerarLote) btnGerarLote.addEventListener('click', gerarLote);
     const btnLimparLote = document.getElementById('btnLimparLote');
     if (btnLimparLote) btnLimparLote.addEventListener('click', limparLote);
+    document.getElementById('btnPreencherLoteTexto')?.addEventListener('click', preencherCartaoLotePorTexto);
+    document.getElementById('numerosTextoLote')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); preencherCartaoLotePorTexto(); }
+    });
+    document.getElementById('btnPreencherLoteMassa')?.addEventListener('click', preencherLotePorTextoEmMassa);
     const btnAdicionarIndividual = document.getElementById('btnAdicionarIndividual');
     if (btnAdicionarIndividual) btnAdicionarIndividual.addEventListener('click', adicionarCartaoIndividual);
     
@@ -3547,6 +3665,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnSelecaoAnterior')?.addEventListener('click', () => navegarSelecao(-1));
     document.getElementById('btnSelecaoProximo')?.addEventListener('click', () => navegarSelecao(1));
     document.getElementById('btnAdicionarSelecao')?.addEventListener('click', adicionarCartaoSelecaoAtual);
+    document.getElementById('btnPreencherSelecaoTexto')?.addEventListener('click', preencherSelecaoPorTexto);
+    document.getElementById('numerosTextoSelecao')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); preencherSelecaoPorTexto(); }
+    });
     
     document.getElementById('btnLimparSelecao')?.addEventListener('click', function() {
         // Fechar o diálogo (Esc/X) o navegador trata como "Cancelar" — por

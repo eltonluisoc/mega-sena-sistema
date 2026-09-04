@@ -291,6 +291,24 @@ Usuário pediu sugestões pra melhorar a INSERÇÃO de cartões (não só a exib
 2. **Colar em lote (texto)** (sem custo, sem infra nova) — ainda útil como via alternativa, mas não resolve o caso principal (a imagem já existe, ninguém digitou os números em lugar nenhum ainda).
 3. **Leitura da imagem por IA com visão (Cloud Function)** — a que resolve o caso real do usuário: imagem do app da Caixa é limpa (sem inclinação/reflexo/vinco), ideal pra uma IA com visão identificar quais números estão marcados. Requer: nova Cloud Function (infraestrutura já existe e funciona — `functions/functions/`), uma chave de API de IA com visão (custo pequeno por imagem, usuário pediu estimativa antes de decidir), sempre pré-preenchendo a grade de seleção já existente pra confirmação humana antes de salvar (nunca salvar direto da leitura).
 
+**Decisão**: consultado o pricing atual da API (skill `claude-api`) — Claude Haiku 4.5 ficaria em ~$0,002/imagem, Sonnet 5 ~$0,004/imagem. Pro volume real do usuário (>400 imagens/mês) isso passa de $0,80-1,60/mês — pouco em termos absolutos, mas o usuário achou caro pra esse volume e decidiu **não seguir com IA de visão**. Pediu pra aprimorar a inserção MANUAL em vez disso (clique-a-clique atual).
+
+## Rodada 15 — "Preencher por texto" nos 2 fluxos de clique da inserção de cartões
+
+Investigado o cadastro de cartões (`section-cadastro` em admin.html): existem 3 fluxos distintos, só 1 já tinha entrada por texto:
+1. **Cadastro Individual → Digitação** (`adicionarCartaoIndividual`) — já tinha campo de texto "números separados por espaço". Não mexido.
+2. **Cadastro Individual → Modo Seleção** (`gradeSelecaoIndividual`/`numerosSelecionados`) — só clique, sem texto. Usado pra criar vários cartões de um bolão fixo, salvando um por um.
+3. **Cadastro em Lote** (`gradeNumeros`/`cartoesLote`, só Lotofácil) — só clique, sem texto. Usado pra criar N cartões × M concursos de uma vez.
+
+Adicionado "preencher por texto" nos fluxos 2 e 3, já que o usuário vai transcrever números de uma imagem (não tem os números como texto em lugar nenhum, mas digitar é mais rápido que clicar 15-20 vezes por cartão):
+- Novo helper compartilhado `parseNumerosTexto()` + `regrasLoteria()` (valida contra as mesmas regras de min/max/faixa já usadas em `adicionarCartaoIndividual`, sem duplicar a lógica um terceira vez).
+- Fluxo 2: campo de texto + botão "✍️ Preencher" (e Enter) acima da grade — preenche `numerosSelecionados` e reaproveita a visualização já existente.
+- Fluxo 3: mesmo campo pro cartão atual, **mais** uma área de "colar vários cartões de uma vez" (um por linha) que substitui `cartoesLote` inteiro de uma vez e ajusta "Quantos cartões?" automaticamente — o maior ganho de tempo real, pensado pro caso de já ter vários cartões transcritos prontos.
+- Corrigido de passagem um bug real encontrado no meio do código: `atualizarGradeVisual()` (fluxo 3) usava `document.querySelectorAll('.numero-btn')` sem escopo — pegava também os botões da grade do fluxo 2 quando os dois cards estavam na tela ao mesmo tempo, repintando o estado errado. Escopado a `#gradeNumeros .numero-btn`.
+- Nada disso muda o comportamento de salvar — sempre precisa clicar em "Adicionar"/"Gerar Todos" depois, revisando a prévia (já com as bolinhas da Rodada 13).
+
+`CACHE_NAME` do `sw.js` v23→v24.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
