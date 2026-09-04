@@ -72,8 +72,10 @@ test('calcularChancesBolao - cobertura de números e total de cartões da mega',
 // cartões de 18 números na Lotofácil batia 5 estrelas com poucos
 // cartões, enquanto um bolão de Quina com cartões do mínimo de 5 números
 // (o mais comum na prática) quase nunca saía de 1 estrela, por maior que
-// fosse o bolão. A correção usa a probabilidade real (bilhetes cobertos /
-// total de combinações possíveis daquela loteria), comparável entre as 3.
+// fosse o bolão. Uma primeira correção (probabilidade real vs. universo)
+// ainda deixava a Lotofácil generosa demais (3 cartões de 18 números
+// batendo EXCELENTE); a versão final usa faixas absolutas calibradas por
+// loteria (ver FAIXAS_ESTRELAS em script.js).
 test('calcularChancesBolao - Quina com cartões mínimos (5 números) não trava sempre em 1 estrela', () => {
   // 60 cartões do mínimo (5 números = 1 combinação cada) — um bolão
   // razoavelmente grande que, pelo critério antigo (>=100 bilhetes pra
@@ -83,22 +85,30 @@ test('calcularChancesBolao - Quina com cartões mínimos (5 números) não trava
   }));
   const html = sandbox.calcularChancesBolao(cartoes, 'quina');
 
-  assert.match(html, /REGULAR|BOM|ÓTIMO|EXCELENTE/);
+  assert.match(html, /\(REGULAR\)/);
 });
 
-test('calcularChancesBolao - Lotofácil com poucos cartões grandes não mostra número inflado como EXCELENTE fácil demais', () => {
-  // 2 cartões de 20 números (o máximo) já somam 2x combinacao(20,15) =
-  // 31.008 bilhetes equivalentes — pelo critério antigo isso já era
-  // "EXCELENTE" (>=10000) com só 2 cartões, o que não faz sentido pra
-  // classificar o TAMANHO de um bolão.
-  const vinte = Array.from({ length: 20 }, (_, i) => i + 1);
-  const cartoes = [{ numeros: vinte }, { numeros: vinte }];
+test('calcularChancesBolao - Lotofácil: 3 cartões de 18 números (2.448 bilhetes) é BOM, nunca EXCELENTE', () => {
+  // Caso real reportado: um bolão pequeno (3 cartões) não pode classificar
+  // como EXCELENTE só porque a Lotofácil cresce rápido em bilhetes
+  // equivalentes. combinacao(18,15) = 816; 3 cartões = 2.448.
+  const dezoito = Array.from({ length: 18 }, (_, i) => i + 1);
+  const cartoes = [{ numeros: dezoito }, { numeros: dezoito }, { numeros: dezoito }];
   const html = sandbox.calcularChancesBolao(cartoes, 'lotofacil');
 
-  // Ainda pode ser EXCELENTE (a probabilidade real desses 2 cartões é
-  // mesmo alta pra Lotofácil) — o que importa é que a classificação segue
-  // consistente com a fração coberta do universo, não um número solto.
-  assert.match(html, /CHANCE REAL/);
+  assert.match(html, /\(BOM\)/);
+  assert.doesNotMatch(html, /\(EXCELENTE\)/);
+  assert.doesNotMatch(html, /\(ÓTIMO\)/);
+});
+
+test('calcularChancesBolao - Lotofácil precisa de um bolão bem maior pra ser EXCELENTE', () => {
+  // 10 cartões de 20 números (o máximo) = 10 x combinacao(20,15) =
+  // 155.040 bilhetes — aí sim um bolão grande o suficiente pra 5 estrelas.
+  const vinte = Array.from({ length: 20 }, (_, i) => i + 1);
+  const cartoes = Array.from({ length: 10 }, () => ({ numeros: vinte }));
+  const html = sandbox.calcularChancesBolao(cartoes, 'lotofacil');
+
+  assert.match(html, /\(EXCELENTE\)/);
 });
 
 test('formatarProbabilidade - ajusta casas decimais conforme a grandeza', () => {

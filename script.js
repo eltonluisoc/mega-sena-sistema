@@ -327,46 +327,61 @@ function calcularChancesBolao(cartoesBolao, loteria) {
     // equivalentes" (10000/5000/1000/100) iguais pras 3 loterias — só que
     // esse número cresce em ritmos muito diferentes conforme a loteria,
     // porque o k (dezenas sorteadas) muda: k=6 na Mega, k=15 na Lotofácil,
-    // k=5 na Quina. Um bolão de cartões de 18 números na Lotofácil já
-    // passa de 10.000 bilhetes com poucos cartões (sempre 5 estrelas,
-    // números às vezes na casa das centenas de milhares — parece errado),
-    // enquanto um bolão de Quina com cartões do mínimo de 5 números
-    // (o mais comum) mal sai de 1 bilhete por cartão e quase nunca passa
-    // de 100 (sempre 1 estrela, por maior que seja o bolão).
+    // k=5 na Quina.
     //
-    // A correção: em vez de comparar o número absoluto de bilhetes entre
-    // loterias com universos de tamanho muito diferente (60/25/80 dezenas
-    // → 50 milhões/3,2 milhões/24 milhões de combinações possíveis), a
-    // classificação passa a usar a PROBABILIDADE real do bolão — bilhetes
-    // cobertos dividido pelo total de combinações possíveis daquela
-    // loteria. É a mesma métrica, só que agora comparável de verdade entre
-    // as 3 loterias, porque cada uma é medida contra o próprio universo.
-    // As faixas foram calibradas a partir dos limiares antigos da Mega
-    // (10000/50063860 ≈ 0,02% etc.), então o resultado pra Mega não muda.
-    const probabilidade = totalCombinacoesPossiveis > 0
-        ? totalCombinacoesCobertas / totalCombinacoesPossiveis
-        : 0;
+    // Uma primeira correção normalizou pela probabilidade real (bilhetes
+    // cobertos / total de combinações possíveis) — matematicamente
+    // consistente, mas na prática ficou generoso demais com a Lotofácil:
+    // 3 cartões de 18 números (2.448 bilhetes, um bolão pequeno de
+    // verdade) batiam EXCELENTE, porque o universo da Lotofácil é ~15x
+    // menor que o da Mega, então qualquer fatia dele "pesa" mais em %.
+    // Só que EXCELENTE tem que representar um bolão GRANDE de verdade,
+    // não uma fração relativamente alta de um universo pequeno.
+    //
+    // A correção final: voltar a faixas de número ABSOLUTO de bilhetes
+    // (mais fácil de calibrar contra bolões reais), mas com uma faixa por
+    // loteria em vez de uma só — Mega fica como já estava (confirmado
+    // correto), Lotofácil sobe bastante (pra não bater EXCELENTE/ÓTIMO
+    // com só alguns cartões grandes) e Quina desce bastante (senão nunca
+    // sai de 1 estrela, já que ali os cartões quase sempre são o mínimo
+    // de 5 números = 1 combinação cada).
+    const FAIXAS_ESTRELAS = {
+        mega:      { excelente: 10000, otimo: 5000,  bom: 1000, regular: 100 },
+        // Referência: 3 cartões de 18 números = 2.448 bilhetes → cai em
+        // BOM (não EXCELENTE/ÓTIMO, que precisam ser MUITO acima da média).
+        lotofacil: { excelente: 60000, otimo: 20000, bom: 1500, regular: 300 },
+        quina:     { excelente: 2000,  otimo: 800,   bom: 200,  regular: 50  },
+    };
+    const faixas = FAIXAS_ESTRELAS[loteria] || FAIXAS_ESTRELAS.quina;
 
     let estrelas = 0;
     let estrelasHtml = '';
     let classificacao = '';
 
-    if (probabilidade >= 0.0002) {
+    if (totalCombinacoesCobertas >= faixas.excelente) {
         estrelas = 5;
         classificacao = 'EXCELENTE';
-    } else if (probabilidade >= 0.0001) {
+    } else if (totalCombinacoesCobertas >= faixas.otimo) {
         estrelas = 4;
         classificacao = 'ÓTIMO';
-    } else if (probabilidade >= 0.00002) {
+    } else if (totalCombinacoesCobertas >= faixas.bom) {
         estrelas = 3;
         classificacao = 'BOM';
-    } else if (probabilidade >= 0.000002) {
+    } else if (totalCombinacoesCobertas >= faixas.regular) {
         estrelas = 2;
         classificacao = 'REGULAR';
     } else {
         estrelas = 1;
         classificacao = 'SIMPLES';
     }
+
+    // "Chance real" continua mostrada no card (bilhetes cobertos / total
+    // de combinações possíveis da loteria) — é uma informação honesta e
+    // comparável entre as 3 loterias, só deixou de ser a base das
+    // estrelas (ver comentário acima).
+    const probabilidade = totalCombinacoesPossiveis > 0
+        ? totalCombinacoesCobertas / totalCombinacoesPossiveis
+        : 0;
     
     for (let i = 1; i <= 5; i++) {
         if (i <= estrelas) {
