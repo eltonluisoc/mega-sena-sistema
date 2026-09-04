@@ -5,11 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
     <title>Admin - Bolões Aleatórios</title>
     <link rel="manifest" href="manifest-admin.json">
-    <meta name="theme-color" content="#3b82f6">
+    <meta name="theme-color" content="#0071e3">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Admin Bolões">
     <link rel="stylesheet" href="style.css">
+
+    <!-- Mesma fonte do index (Inter, substituta de SF Pro) — pra não ter
+         uma tela "bonita" e outra "feia" dentro do mesmo sistema. Sem
+         Instrument Serif/glow aqui de propósito: isso é console de
+         trabalho, não vitrine — precisa ser calmo e denso em informação,
+         não ter um momento de destaque tipográfico chamando atenção. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
     <style>
         /* ============================================ */
         /* RESET E BASE */
@@ -22,17 +32,19 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background: #f1f5f9;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #f5f5f7;
             min-height: 100vh;
             overflow-x: hidden;
         }
 
         /* ============================================ */
-        /* TOP BAR */
+        /* TOP BAR — continua escura de propósito (sinaliza "você está no
+           modo admin", diferente da vitrine pública), só trocou o
+           azul-ardósia genérico pelo quase-preto que a Apple usa. */
         /* ============================================ */
         .top-bar {
-            background: #1e293b;
+            background: #1d1d1f;
             color: white;
             padding: 12px 20px;
             display: flex;
@@ -148,9 +160,9 @@
         }
 
         .sidebar-item.active {
-            background: #eff6ff;
-            color: #3b82f6;
-            border-left-color: #3b82f6;
+            background: #e8f2ff;
+            color: #0071e3;
+            border-left-color: #0071e3;
         }
 
         .sidebar-item .icon {
@@ -221,7 +233,7 @@
 
         .card-header .badge {
             font-size: 10px;
-            background: #3b82f6;
+            background: #0071e3;
             color: white;
             padding: 3px 12px;
             border-radius: 20px;
@@ -277,14 +289,14 @@
            navegador e nada aqui a substituía, deixando os checkboxes
            (cartões, bolões, modo seleção etc.) sem feedback visual. */
         input[type="checkbox"], input[type="radio"] {
-            accent-color: #3b82f6;
+            accent-color: #0071e3;
             cursor: pointer;
         }
 
         .form-control:focus, select:focus, input:focus, textarea:focus {
             outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 4px rgba(59,130,246,0.12);
+            border-color: #0071e3;
+            box-shadow: 0 0 0 4px rgba(0,113,227,0.12);
             background: white;
         }
 
@@ -308,7 +320,7 @@
             gap: 6px;
         }
 
-        .btn-primary { background: #3b82f6; color: white; }
+        .btn-primary { background: #0071e3; color: white; }
         .btn-success { background: #10b981; color: white; }
         .btn-warning { background: #f59e0b; color: white; }
         .btn-danger { background: #ef4444; color: white; }
@@ -318,13 +330,13 @@
         .btn-block { width: 100%; }
 
         .btn:hover {
-            transform: translateY(-2px);
-            filter: brightness(1.05);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+            transform: translateY(-1px);
+            filter: brightness(1.04);
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
         }
         .btn:active {
-            transform: scale(0.97);
-            filter: brightness(0.95);
+            transform: scale(0.98);
+            filter: brightness(0.96);
         }
 
         /* ============================================ */
@@ -358,11 +370,11 @@
         }
 
         .numero-btn.selecionado {
-            background: #3b82f6;
+            background: #0071e3;
             color: white;
-            border-color: #3b82f6;
+            border-color: #0071e3;
             transform: scale(1.06);
-            box-shadow: 0 2px 8px rgba(59,130,246,0.3);
+            box-shadow: 0 2px 8px rgba(0,113,227,0.3);
         }
 
         /* ============================================ */
@@ -437,11 +449,11 @@
         }
 
         .reserva-card:hover {
-            border-color: #3b82f6;
+            border-color: #0071e3;
         }
 
         .btn-ver-historico {
-            background: #3b82f6;
+            background: #0071e3;
             color: white;
             border: none;
             padding: 10px 16px;
@@ -535,7 +547,7 @@
             to { transform: scale(1); opacity: 1; }
         }
         .modal-header {
-            background: #3b82f6;
+            background: #0071e3;
             color: white;
             padding: 20px;
             font-weight: bold;
@@ -574,7 +586,7 @@
         .toast-success { background: #10b981; }
         .toast-error { background: #ef4444; }
         .toast-warning { background: #f59e0b; }
-        .toast-info { background: #3b82f6; }
+        .toast-info { background: #0071e3; }
 
         @keyframes slideUp {
             from { transform: translateY(20px); opacity: 0; }
@@ -821,8 +833,8 @@
 
         .bolao-config select:focus,
         .bolao-config input:focus {
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 3px #3b82f620;
+            border-color: #0071e3;
+            box-shadow: 0 0 0 3px #0071e320;
             outline: none;
         }
 
@@ -840,7 +852,7 @@
         }
 
         .bolao-actions .btn-link {
-            background: #3b82f6;
+            background: #0071e3;
             color: white;
             border: none;
             padding: 5px 16px;
@@ -852,7 +864,7 @@
         }
 
         .bolao-actions .btn-link:hover {
-            background: #2563eb;
+            background: #0058b3;
             transform: translateY(-1px);
         }
 
@@ -878,7 +890,7 @@
             width: 20px;
             height: 20px;
             cursor: pointer;
-            accent-color: #3b82f6;
+            accent-color: #0071e3;
             flex-shrink: 0;
             margin-top: 2px;
         }
@@ -916,7 +928,7 @@
                 background: #f1f5f9;
             }
             .sidebar-item.active {
-                background: #3b82f6;
+                background: #0071e3;
                 color: white;
                 border-left-color: transparent;
             }
@@ -1089,13 +1101,13 @@
         <!-- Totais Gerais (cada card já traz o total geral + o detalhamento
              por loteria, sem repetir o mesmo número num card à parte) -->
         <div class="dashboard-cards" style="margin-top: 16px;">
-            <div class="dashboard-card" style="background: #eff6ff; border-color: #93c5fd;">
-                <div class="dashboard-number" style="color: #3b82f6;" id="dashboardTotalCartoes">0</div>
+            <div class="dashboard-card" style="background: #e8f2ff; border-color: #93c5fd;">
+                <div class="dashboard-number" style="color: #0071e3;" id="dashboardTotalCartoes">0</div>
                 <div style="font-size: 14px; font-weight: 600; color: #1e3a5f;">📋 TOTAL DE CARTÕES</div>
                 <div style="font-size: 10px; color: #9ca3af; margin-top: 4px;" id="dashboardCartoesLoteriaDetalhes">Mega: 0 · Lotofácil: 0 · Quina: 0</div>
             </div>
-            <div class="dashboard-card" style="background: #eff6ff; border-color: #93c5fd;">
-                <div class="dashboard-number" style="color: #2563eb; font-size: 22px;" id="dashboardBilhetes">0</div>
+            <div class="dashboard-card" style="background: #e8f2ff; border-color: #93c5fd;">
+                <div class="dashboard-number" style="color: #0058b3; font-size: 22px;" id="dashboardBilhetes">0</div>
                 <div style="font-size: 14px; font-weight: 600; color: #1e3a5f;">🎫 BILHETES JOGADOS</div>
                 <div style="font-size: 10px; color: #9ca3af; margin-top: 4px;" id="dashboardBilhetesDetalhes">Mega: 0 · Lotofácil: 0 · Quina: 0</div>
             </div>
@@ -1145,14 +1157,14 @@
                 </div>
 
                 <!-- CADASTRO INDIVIDUAL -->
-                <div class="card" style="border: 2px solid #3b82f6;">
+                <div class="card" style="border: 2px solid #0071e3;">
                     <div class="card-header">
                         ✏️ CADASTRO INDIVIDUAL
                         <span class="badge">MEGA • LOTOFÁCIL • QUINA</span>
                     </div>
                     <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 600; color: #1e293b;">
-                            <input type="checkbox" id="toggleModoSelecao" style="width: 20px; height: 20px; cursor: pointer; accent-color: #3b82f6;">
+                            <input type="checkbox" id="toggleModoSelecao" style="width: 20px; height: 20px; cursor: pointer; accent-color: #0071e3;">
                             🖱️ MODO SELEÇÃO
                         </label>
                         <span id="statusModoSelecao" style="font-size: 12px; color: #64748b; background: #f1f5f9; padding: 2px 12px; border-radius: 12px;">Digitação manual</span>
@@ -1225,7 +1237,7 @@
                             <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 8px; color: #1e293b;">🔢 Clique nos números para selecionar:</label>
                             <div id="gradeSelecaoIndividual" class="grade-numeros"></div>
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; flex-wrap: wrap; gap: 8px;">
-                                <span id="contadorSelecao" style="font-size: 14px; font-weight: 600; color: #3b82f6;">0 números selecionados</span>
+                                <span id="contadorSelecao" style="font-size: 14px; font-weight: 600; color: #0071e3;">0 números selecionados</span>
                                 <div style="display: flex; gap: 8px;">
                                     <button id="btnLimparSelecao" class="btn btn-sm btn-danger" style="padding: 4px 16px;">🗑️ LIMPAR</button>
                                     <button id="btnAdicionarSelecao" class="btn btn-success btn-sm" style="padding: 4px 16px;">➕ ADICIONAR</button>
@@ -1283,7 +1295,7 @@
                             <span style="font-size: 13px; color: #64748b;">Selecione <strong>15</strong> números</span>
                         </div>
                         <div class="grade-numeros" id="gradeNumeros" style="grid-template-columns: repeat(7, 1fr);"></div>
-                        <div style="text-align: center; margin-top: 12px;"><span id="contadorNumeros" style="font-size: 14px; font-weight: 600; color: #3b82f6;">0/15 números selecionados</span></div>
+                        <div style="text-align: center; margin-top: 12px;"><span id="contadorNumeros" style="font-size: 14px; font-weight: 600; color: #0071e3;">0/15 números selecionados</span></div>
                         <div style="display: flex; justify-content: center; gap: 12px; margin-top: 16px; flex-wrap: wrap;">
                             <button id="btnCartaoAnterior" class="btn btn-secondary" style="min-width: 80px;">◀</button>
                             <span style="display: flex; align-items: center; font-size: 14px; font-weight: 600;"><span id="cartaoAtualNav">1</span>/<span id="totalCartoesNav">20</span></span>
@@ -1299,7 +1311,7 @@
                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px;">
                             <div><strong>🎯 Cartões:</strong> <span id="resumoCartoes">20</span></div>
                             <div><strong>📌 Concursos:</strong> <span id="resumoConcursos">24</span></div>
-                            <div><strong>📊 Total:</strong> <span id="resumoTotal" style="color: #3b82f6; font-size: 18px; font-weight: 700;">480</span></div>
+                            <div><strong>📊 Total:</strong> <span id="resumoTotal" style="color: #0071e3; font-size: 18px; font-weight: 700;">480</span></div>
                             <div><strong>📅 Concursos:</strong> <span id="resumoConcursosRange">3200 → 3223</span></div>
                             <div><strong>✅ Preenchidos:</strong> <span id="resumoPreenchidos">0/20</span></div>
                         </div>

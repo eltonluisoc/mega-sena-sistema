@@ -242,6 +242,19 @@ Dois problemas reais identificados:
 
 Badge index v3.7→v3.8, `CACHE_NAME` do `sw.js` v20→v21.
 
+## Rodada 12 — Reskin do admin.html com o mesmo sistema visual
+
+Usuário perguntou se o admin também tinha o tratamento novo (não tinha — só o index foi mexido até aqui, de propósito), e por que existem páginas separadas (`index.html`, `admin.html`, `consulta.html`, `participantes.html`) em vez de uma só com uma "função admin". Resposta dada no chat: não são "dois sites" — é uma página de um site multi-página estático (mesmo domínio, mesmo repositório, mesmo projeto Firebase), sem framework/SPA. `admin.js` sozinho tem ~3.500 linhas (quase o dobro do `script.js` da vitrine) e é protegido por login (Firebase Auth, `onAuthStateChanged`); separar em arquivos evita mandar esse tanto de JS de gestão pra todo visitante anônimo do site público, e mantém o login do admin isolado. Isso é o padrão comum de site estático multi-página (equivalente ao wp-admin do WordPress) — recomendado manter assim; juntar tudo numa SPA só seria uma reestruturação grande sem necessidade real.
+
+**Reskin do `admin.html`** (pedido explícito): diferente do index, `admin.html` já tinha um bloco `<style>` embutido próprio, razoavelmente bem construído (sidebar, cards, formulários, botões, grade de números, toasts) — não precisava de reescrita, só alinhar ao mesmo sistema visual do index:
+- Mesma fonte **Inter** carregada via Google Fonts (sem Instrument Serif/glow — isso é console de trabalho, denso em informação, não vitrine; um "momento de destaque tipográfico" ali atrapalharia mais que ajudaria).
+- Acento azul trocado de `#3b82f6` (Tailwind blue-500 genérico) pra `#0071e3` (o azul oficial da Apple, mesmo do index) em TODAS as 24 ocorrências do arquivo (sidebar ativo, badges, foco de formulário, botão primário, toasts, barra de progresso do dashboard etc.) — incluindo as variações `#2563eb`→`#0058b3`, `#eff6ff`→`#e8f2ff` e as versões em `rgba(59,130,246,...)`.
+- Top-bar continua escura de propósito (sinaliza "modo admin", diferente da vitrine pública) — só trocou o azul-ardósia genérico (`#1e293b`) pelo quase-preto oficial da Apple (`#1d1d1f`) no fundo. Textos que já usavam `#1e293b` como cor de texto (14 ocorrências) ficaram como estavam — visualmente quase idêntico ao `#1d1d1f`, não valia o risco de mexer.
+- Hover dos botões (`.btn:hover`) suavizado (elevação e brilho menores) — mais próximo da contenção da Apple, menos "bounce".
+- **Não mexido nesta rodada**: as cores geradas dinamicamente pelo `admin.js` (ex.: o modal de lançamento em lote da Rodada 10, que usa roxo/verde fixos em `style=""` inline) — são ~3.500 linhas de JS com estilo inline espalhado, um passe de recoloração completo ali é tarefa separada se o usuário quiser ir mais fundo.
+
+`CACHE_NAME` do `sw.js` v21→v22.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
