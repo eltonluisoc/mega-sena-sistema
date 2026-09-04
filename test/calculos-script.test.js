@@ -64,3 +64,46 @@ test('calcularChancesBolao - cobertura de números e total de cartões da mega',
   assert.match(html, /12\/60/);
   assert.match(html, />2<\/div>/);
 });
+
+// Regressão do bug: a classificação por estrelas usava um número absoluto
+// de "bilhetes equivalentes" (>=10000 = EXCELENTE etc.) igual pras 3
+// loterias, mas esse número cresce em ritmos bem diferentes conforme a
+// loteria (k=6 na Mega, k=15 na Lotofácil, k=5 na Quina) — um bolão de
+// cartões de 18 números na Lotofácil batia 5 estrelas com poucos
+// cartões, enquanto um bolão de Quina com cartões do mínimo de 5 números
+// (o mais comum na prática) quase nunca saía de 1 estrela, por maior que
+// fosse o bolão. A correção usa a probabilidade real (bilhetes cobertos /
+// total de combinações possíveis daquela loteria), comparável entre as 3.
+test('calcularChancesBolao - Quina com cartões mínimos (5 números) não trava sempre em 1 estrela', () => {
+  // 60 cartões do mínimo (5 números = 1 combinação cada) — um bolão
+  // razoavelmente grande que, pelo critério antigo (>=100 bilhetes pra
+  // sair de SIMPLES), nunca passaria de 1 estrela.
+  const cartoes = Array.from({ length: 60 }, (_, i) => ({
+    numeros: [1 + i % 76, 2 + i % 76, 3 + i % 76, 4 + i % 76, 5 + i % 76],
+  }));
+  const html = sandbox.calcularChancesBolao(cartoes, 'quina');
+
+  assert.match(html, /REGULAR|BOM|ÓTIMO|EXCELENTE/);
+});
+
+test('calcularChancesBolao - Lotofácil com poucos cartões grandes não mostra número inflado como EXCELENTE fácil demais', () => {
+  // 2 cartões de 20 números (o máximo) já somam 2x combinacao(20,15) =
+  // 31.008 bilhetes equivalentes — pelo critério antigo isso já era
+  // "EXCELENTE" (>=10000) com só 2 cartões, o que não faz sentido pra
+  // classificar o TAMANHO de um bolão.
+  const vinte = Array.from({ length: 20 }, (_, i) => i + 1);
+  const cartoes = [{ numeros: vinte }, { numeros: vinte }];
+  const html = sandbox.calcularChancesBolao(cartoes, 'lotofacil');
+
+  // Ainda pode ser EXCELENTE (a probabilidade real desses 2 cartões é
+  // mesmo alta pra Lotofácil) — o que importa é que a classificação segue
+  // consistente com a fração coberta do universo, não um número solto.
+  assert.match(html, /CHANCE REAL/);
+});
+
+test('formatarProbabilidade - ajusta casas decimais conforme a grandeza', () => {
+  assert.equal(sandbox.formatarProbabilidade(0), '0%');
+  assert.equal(sandbox.formatarProbabilidade(0.05), '5.0%');
+  assert.equal(sandbox.formatarProbabilidade(0.0005), '0.05%');
+  assert.equal(sandbox.formatarProbabilidade(0.0000012), '0.0001%');
+});

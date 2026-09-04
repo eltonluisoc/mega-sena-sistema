@@ -7,7 +7,7 @@
     
     <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#3b82f6">
+    <meta name="theme-color" content="#1e3a8a">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -17,10 +17,132 @@
     
     <!-- CSS Externo -->
     <link rel="stylesheet" href="style.css">
+
+    <!-- ================================================================
+         VISUAL PREMIUM — só da página inicial (index). Embutido aqui, não
+         em style.css, de propósito: style.css é compartilhado com
+         admin.html/consulta.html/participantes.html, e esse fundo animado
+         + motion é pensado só pra "vitrine" pública, não pras telas de
+         trabalho (admin). Cards continuam 100% opacos/legíveis — só o
+         "clima" ao redor deles ganhou profundidade e movimento.
+         ================================================================ -->
+    <style>
+        body {
+            background: linear-gradient(-45deg, #1e3a8a, #0f766e, #6d28d9, #1e3a8a);
+            background-size: 400% 400%;
+            animation: gradientFlow 20s ease infinite;
+            position: relative;
+            overflow-x: hidden;
+        }
+        @keyframes gradientFlow {
+            0%   { background-position: 0% 50%; }
+            50%  { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Esferas decorativas flutuando — nod discreto ao tema "bolas de
+           loteria", atrás de tudo, sem interceptar cliques nem atrapalhar
+           leitura (blur alto, opacidade baixa). */
+        .bg-orbs {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+        .bg-orbs span {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(1px);
+            opacity: 0.16;
+            background: radial-gradient(circle at 32% 30%, rgba(255,255,255,0.9), transparent 70%), #fbbf24;
+            animation: floatOrb 26s ease-in-out infinite;
+        }
+        .bg-orbs span:nth-child(1) { width: 90px;  height: 90px;  left: 8%;  top: 18%; animation-duration: 22s; }
+        .bg-orbs span:nth-child(2) { width: 130px; height: 130px; left: 78%; top: 10%; animation-duration: 30s; animation-delay: -4s; background-color: #34d399; }
+        .bg-orbs span:nth-child(3) { width: 60px;  height: 60px;  left: 85%; top: 55%; animation-duration: 18s; animation-delay: -8s; background-color: #60a5fa; }
+        .bg-orbs span:nth-child(4) { width: 100px; height: 100px; left: 15%; top: 68%; animation-duration: 26s; animation-delay: -12s; background-color: #a78bfa; }
+        .bg-orbs span:nth-child(5) { width: 50px;  height: 50px;  left: 45%; top: 8%;  animation-duration: 16s; animation-delay: -6s; }
+        .bg-orbs span:nth-child(6) { width: 75px;  height: 75px;  left: 55%; top: 80%; animation-duration: 24s; animation-delay: -10s; background-color: #34d399; }
+        @keyframes floatOrb {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33%      { transform: translate(24px, -30px) scale(1.08); }
+            66%      { transform: translate(-18px, 18px) scale(0.94); }
+        }
+
+        .top-bar, .loteria-selector, .container, .footer { position: relative; z-index: 1; }
+
+        .top-bar {
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+        }
+        .logo {
+            display: inline-block;
+            background: linear-gradient(90deg, #fbbf24, #fde68a, #fbbf24);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: shine 4s linear infinite;
+        }
+        @keyframes shine { to { background-position: -200% center; } }
+        .subtitle { animation: pulseGlow 2.4s ease-in-out infinite; }
+        @keyframes pulseGlow {
+            0%, 100% { opacity: 0.85; text-shadow: 0 0 0 rgba(245,158,11,0); }
+            50%      { opacity: 1;    text-shadow: 0 0 12px rgba(245,158,11,0.7); }
+        }
+
+        /* Cards: entrada suave e escalonada + leve elevação no hover —
+           sombra em camadas dá mais profundidade que o box-shadow único
+           original. */
+        .card {
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18), 0 2px 8px rgba(15, 23, 42, 0.08);
+            animation: cardIn 0.55s ease both;
+            transition: transform 0.25s ease, box-shadow 0.25s ease;
+        }
+        .card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 18px 40px rgba(15, 23, 42, 0.22), 0 4px 10px rgba(15, 23, 42, 0.1);
+        }
+        @keyframes cardIn {
+            from { opacity: 0; transform: translateY(18px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .container .card:nth-of-type(1) { animation-delay: .05s; }
+        .container .card:nth-of-type(2) { animation-delay: .12s; }
+        .container .card:nth-of-type(3) { animation-delay: .19s; }
+        .container .card:nth-of-type(4) { animation-delay: .26s; }
+
+        /* Seletor de loteria: gradiente no estado ativo + leve elevação */
+        .loteria-btn {
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+        }
+        .loteria-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
+        .loteria-btn.active {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            box-shadow: 0 8px 20px rgba(37, 99, 235, 0.45);
+            transform: translateY(-2px);
+        }
+
+        /* Respeita quem prefere menos movimento na tela — motion vira só
+           decoração estática, nada de essencial depende dela. */
+        @media (prefers-reduced-motion: reduce) {
+            body, .card, .logo, .subtitle, .bg-orbs span {
+                animation: none !important;
+                transition: none !important;
+            }
+        }
+    </style>
 </head>
 <body>
+    <div class="bg-orbs" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span><span></span>
+    </div>
+
     <div class="top-bar">
-        <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">v3.5</span></div>
+        <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">v3.6</span></div>
         <div class="subtitle">🏆 RUMO AO GRANDE PRÊMIO 🏆</div>
     </div>
 

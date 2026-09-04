@@ -271,6 +271,18 @@ function combinacao(n, k) {
     return Math.round(resultado);
 }
 
+// Formata uma probabilidade (fração 0-1) como % legível, ajustando as
+// casas decimais conforme a grandeza — sem isso, valores bem pequenos
+// (comuns na Quina, cujo universo é gigante) apareceriam como "0.00%".
+function formatarProbabilidade(p) {
+    const pct = p * 100;
+    if (pct <= 0) return '0%';
+    if (pct >= 1) return pct.toFixed(1) + '%';
+    if (pct >= 0.01) return pct.toFixed(2) + '%';
+    if (pct >= 0.0001) return pct.toFixed(4) + '%';
+    return pct.toExponential(1) + '%';
+}
+
 function calcularChancesBolao(cartoesBolao, loteria) {
     const totalCartoes = cartoesBolao.length;
     
@@ -310,21 +322,45 @@ function calcularChancesBolao(cartoesBolao, loteria) {
     const numerosCobertos = numerosUtilizados.size;
     const percentualCobertura = Math.round((numerosCobertos / numerosPossiveis) * 100);
     const vezesMelhor = Math.round(totalCombinacoesCobertas);
-    
+
+    // A classificação por estrelas usava faixas fixas de "bilhetes
+    // equivalentes" (10000/5000/1000/100) iguais pras 3 loterias — só que
+    // esse número cresce em ritmos muito diferentes conforme a loteria,
+    // porque o k (dezenas sorteadas) muda: k=6 na Mega, k=15 na Lotofácil,
+    // k=5 na Quina. Um bolão de cartões de 18 números na Lotofácil já
+    // passa de 10.000 bilhetes com poucos cartões (sempre 5 estrelas,
+    // números às vezes na casa das centenas de milhares — parece errado),
+    // enquanto um bolão de Quina com cartões do mínimo de 5 números
+    // (o mais comum) mal sai de 1 bilhete por cartão e quase nunca passa
+    // de 100 (sempre 1 estrela, por maior que seja o bolão).
+    //
+    // A correção: em vez de comparar o número absoluto de bilhetes entre
+    // loterias com universos de tamanho muito diferente (60/25/80 dezenas
+    // → 50 milhões/3,2 milhões/24 milhões de combinações possíveis), a
+    // classificação passa a usar a PROBABILIDADE real do bolão — bilhetes
+    // cobertos dividido pelo total de combinações possíveis daquela
+    // loteria. É a mesma métrica, só que agora comparável de verdade entre
+    // as 3 loterias, porque cada uma é medida contra o próprio universo.
+    // As faixas foram calibradas a partir dos limiares antigos da Mega
+    // (10000/50063860 ≈ 0,02% etc.), então o resultado pra Mega não muda.
+    const probabilidade = totalCombinacoesPossiveis > 0
+        ? totalCombinacoesCobertas / totalCombinacoesPossiveis
+        : 0;
+
     let estrelas = 0;
     let estrelasHtml = '';
     let classificacao = '';
-    
-    if (totalCombinacoesCobertas >= 10000) {
+
+    if (probabilidade >= 0.0002) {
         estrelas = 5;
         classificacao = 'EXCELENTE';
-    } else if (totalCombinacoesCobertas >= 5000) {
+    } else if (probabilidade >= 0.0001) {
         estrelas = 4;
         classificacao = 'ÓTIMO';
-    } else if (totalCombinacoesCobertas >= 1000) {
+    } else if (probabilidade >= 0.00002) {
         estrelas = 3;
         classificacao = 'BOM';
-    } else if (totalCombinacoesCobertas >= 100) {
+    } else if (probabilidade >= 0.000002) {
         estrelas = 2;
         classificacao = 'REGULAR';
     } else {
@@ -383,6 +419,10 @@ function calcularChancesBolao(cartoesBolao, loteria) {
                 <div>
                     <div style="font-size: 16px; font-weight: bold;">${percentualCobertura}%</div>
                     <div style="font-size: 8px; opacity: 0.8;">DO UNIVERSO</div>
+                </div>
+                <div>
+                    <div style="font-size: 16px; font-weight: bold;">${formatarProbabilidade(probabilidade)}</div>
+                    <div style="font-size: 8px; opacity: 0.8;">CHANCE REAL</div>
                 </div>
                 <div>
                     <div style="font-size: 16px; font-weight: bold;">${totalCartoes}</div>

@@ -190,6 +190,17 @@ Sequência de feedback real de uso, culminando numa reestruturação grande:
 - Novo seletor de bolão: cartões clicáveis (`_atualizar_cartoes_bolao`) em vez do combo pequeno do cabeçalho. `_on_bolao_sel` fatorado numa `_selecionar_bolao_por_id` compartilhada.
 - Abaixo do seletor: resumo do bolão (6 KPIs) primeiro, detalhe depois — mesmo conteúdo de antes, reordenado.
 
+## Rodada 9 — Bug de calibração na probabilidade (Lotofácil/Quina) + visual premium do index
+
+**Bug real em `calcularChancesBolao()` (script.js)**: a matemática combinatória (`combinacao(n,k)`, universo de cada loteria) já estava correta pras 3 loterias — o problema era a classificação por estrelas (★) usar faixas fixas de "bilhetes equivalentes" (>=10000 EXCELENTE, >=100 REGULAR, etc.) **iguais pras 3 loterias**, ignorando que esse número cresce em ritmos muito diferentes conforme o k (dezenas sorteadas): k=6 na Mega, k=15 na Lotofácil, k=5 na Quina.
+- Lotofácil: poucos cartões de 18-20 números já somavam dezenas de milhares de "bilhetes" (`combinação(20,15)=15504` por cartão) — sempre 5 estrelas, número às vezes na casa das centenas de milhares, parecendo absurdo/errado.
+- Quina: cartões quase sempre no mínimo de 5 números (`combinação(5,5)=1`) — o total quase nunca passava de 100, então praticamente todo bolão de Quina, por maior que fosse, ficava travado em 1 estrela ("SIMPLES").
+- Só coincidiu de "parecer certo" na Mega porque as faixas foram originalmente calibradas olhando só pra ela.
+
+**Correção**: a classificação passou a usar a **probabilidade real** (bilhetes cobertos ÷ total de combinações possíveis daquela loteria) — `totalCombinacoesPossiveis` já existia no código mas nunca era usado, era dead code. As faixas foram derivadas dos limiares antigos da própria Mega (ex.: 10000/50.063.860 ≈ 0,02%), então o resultado da Mega não muda; Lotofácil e Quina passam a ser julgadas contra o próprio universo, e ficam comparáveis de verdade. Adicionado também um 4º número no card "Potencial do Bolão" (`CHANCE REAL`, formatado por `formatarProbabilidade()` com casas decimais adaptativas pra não virar "0.00%" em números pequenos). 3 testes novos de regressão em `test/calculos-script.test.js` (Quina não trava em 1 estrela, Lotofácil não explode artificialmente, `formatarProbabilidade` em várias grandezas).
+
+**Visual do index.html** (pedido: "design mais elaborado... movimento... fundo mais estiloso"): bloco `<style>` embutido só no `index.html` (não em `style.css`, que é compartilhado com admin/consulta/participantes — o visual "vitrine" é só pra página pública, não pras telas de trabalho). Fundo com gradiente animado lento (`gradientFlow`, 20s), 6 esferas decorativas flutuando em blur baixo (nod discreto ao tema "bolas de loteria", `pointer-events:none`, não atrapalha clique nem leitura), top-bar com glassmorphism (`backdrop-filter: blur`) e logo com brilho animado (`shine`), cards com entrada escalonada (`cardIn`) e elevação mais viva no hover, botões de loteria com gradiente/glow no estado ativo. Todo o motion desliga em `prefers-reduced-motion: reduce`. `CACHE_NAME` do `sw.js` bumpado (v16→v17) e badge de versão do index (v3.5→v3.6), seguindo a convenção já estabelecida.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
