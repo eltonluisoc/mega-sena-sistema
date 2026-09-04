@@ -344,7 +344,10 @@
         /* ============================================ */
         .grade-numeros {
             display: grid;
-            grid-template-columns: repeat(10, 1fr);
+            /* 12 em vez de 10 — pedido do usuário: as caixinhas de número
+               estavam largas demais, obrigando a mover o mouse mais do
+               que precisava pra clicar cada uma. */
+            grid-template-columns: repeat(12, 1fr);
             gap: 6px;
             max-width: 100%;
         }
@@ -1366,7 +1369,7 @@
                             <input type="text" id="numerosTextoLote" class="form-control" placeholder="Ou digite/cole os 15 números deste cartão">
                             <button id="btnPreencherLoteTexto" type="button" class="btn btn-primary" style="width: auto; white-space: nowrap;">✍️ Preencher</button>
                         </div>
-                        <div class="grade-numeros" id="gradeNumeros" style="grid-template-columns: repeat(7, 1fr);"></div>
+                        <div class="grade-numeros" id="gradeNumeros" style="grid-template-columns: repeat(13, 1fr);"></div>
                         <div style="text-align: center; margin-top: 12px;"><span id="contadorNumeros" style="font-size: 14px; font-weight: 600; color: #0071e3;">0/15 números selecionados</span></div>
                         <div style="display: flex; justify-content: center; gap: 12px; margin-top: 16px; flex-wrap: wrap;">
                             <button id="btnCartaoAnterior" class="btn btn-secondary" style="min-width: 80px;">◀</button>

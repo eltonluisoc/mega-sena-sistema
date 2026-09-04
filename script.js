@@ -300,22 +300,39 @@ function calcularChancesBolao(cartoesBolao, loteria) {
         numerosPossiveis = 80;
     }
     
+    // Dezenas sorteadas (k) por loteria — usado tanto no cálculo do prêmio
+    // máximo (bilhetes/estrelas, abaixo) quanto no de "chance real".
+    const dezenasSorteadas = loteria === 'mega' ? 6 : (loteria === 'lotofacil' ? 15 : 5);
+
+    // "Chance real" mostrava a chance do prêmio MÁXIMO (sena/15 pontos/
+    // quina) — na prática, sempre uma fração minúscula (ex.: 0,007%),
+    // porque ganhar o prêmio máximo É raro mesmo com um bolão grande. O
+    // usuário pediu pra mostrar a chance de um prêmio mais alcançável:
+    // quadra na Mega e na Quina, 13 pontos na Lotofácil — mais realista
+    // de acontecer, então um número que realmente diz algo útil.
+    //
+    // Isso não é mais "quantos bilhetes o cartão vale" (combinação(n,k)) —
+    // é a probabilidade hipergeométrica de acertar EXATAMENTE j das k
+    // dezenas sorteadas, tendo n números marcados num universo de N:
+    //   P(exatamente j acertos) = C(n,j) × C(N-n, k-j) / C(N,k)
+    // Somado entre os cartões do bolão (valor esperado de cartões
+    // premiados nessa faixa — mesma lógica de agregação já usada no
+    // "bilhetes equivalentes" abaixo, só que pra essa faixa de prêmio).
+    const acertosAlvoChance = loteria === 'lotofacil' ? 13 : 4;
+    const rotuloChance = loteria === 'lotofacil' ? '13 PTS' : 'QUADRA';
+
     let totalCombinacoesCobertas = 0;
+    let totalCombinacoesChance = 0;
     let numerosUtilizados = new Set();
-    
+
     for (const cartao of cartoesBolao) {
         const qtdNumeros = cartao.numeros.length;
-        let combinacoesDoCartao = 0;
-        
-        if (loteria === 'mega') {
-            combinacoesDoCartao = combinacao(qtdNumeros, 6);
-        } else if (loteria === 'lotofacil') {
-            combinacoesDoCartao = combinacao(qtdNumeros, 15);
-        } else {
-            combinacoesDoCartao = combinacao(qtdNumeros, 5);
-        }
-        
+        const combinacoesDoCartao = combinacao(qtdNumeros, dezenasSorteadas);
         totalCombinacoesCobertas += combinacoesDoCartao;
+
+        totalCombinacoesChance += combinacao(qtdNumeros, acertosAlvoChance) *
+            combinacao(numerosPossiveis - qtdNumeros, dezenasSorteadas - acertosAlvoChance);
+
         cartao.numeros.forEach(n => numerosUtilizados.add(n));
     }
     
@@ -375,12 +392,13 @@ function calcularChancesBolao(cartoesBolao, loteria) {
         classificacao = 'SIMPLES';
     }
 
-    // "Chance real" continua mostrada no card (bilhetes cobertos / total
-    // de combinações possíveis da loteria) — é uma informação honesta e
-    // comparável entre as 3 loterias, só deixou de ser a base das
-    // estrelas (ver comentário acima).
+    // "Chance real" = chance de pelo menos um cartão bater a faixa de
+    // prêmio mais alcançável (ver acertosAlvoChance acima) — não mais o
+    // prêmio máximo. Continua sem entrar na base das estrelas (essas
+    // seguem olhando pra "bilhetes equivalentes" do prêmio máximo, ver
+    // comentário acima).
     const probabilidade = totalCombinacoesPossiveis > 0
-        ? totalCombinacoesCobertas / totalCombinacoesPossiveis
+        ? totalCombinacoesChance / totalCombinacoesPossiveis
         : 0;
     
     for (let i = 1; i <= 5; i++) {
@@ -437,7 +455,7 @@ function calcularChancesBolao(cartoesBolao, loteria) {
                 </div>
                 <div>
                     <div style="font-size: 16px; font-weight: bold;">${formatarProbabilidade(probabilidade)}</div>
-                    <div style="font-size: 8px; opacity: 0.8;">CHANCE REAL</div>
+                    <div style="font-size: 8px; opacity: 0.8;">CHANCE (${rotuloChance})</div>
                 </div>
                 <div>
                     <div style="font-size: 16px; font-weight: bold;">${totalCartoes}</div>

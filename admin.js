@@ -213,7 +213,11 @@ function inicializarGradeSelecaoIndividual() {
     else if (loteriaAdmin === 'quina') totalNumeros = 80;
     else totalNumeros = 60;
     
-    grade.style.gridTemplateColumns = 'repeat(10, 1fr)';
+    // 12 em vez de 10 — pedido do usuário: caixinhas largas demais,
+    // exigindo mais deslocamento de mouse por clique (mesmo ajuste do
+    // padrão .grade-numeros em admin.html; aqui precisa ser repetido
+    // porque style.gridTemplateColumns inline sobrescreve a classe).
+    grade.style.gridTemplateColumns = 'repeat(12, 1fr)';
     grade.style.gap = '6px';
     
     grade.innerHTML = '';

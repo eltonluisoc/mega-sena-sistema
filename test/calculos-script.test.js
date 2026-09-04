@@ -117,3 +117,34 @@ test('formatarProbabilidade - ajusta casas decimais conforme a grandeza', () => 
   assert.equal(sandbox.formatarProbabilidade(0.0005), '0.05%');
   assert.equal(sandbox.formatarProbabilidade(0.0000012), '0.0001%');
 });
+
+// Pedido do usuário: "CHANCE REAL" mostrava a chance do prêmio MÁXIMO
+// (sena/15 pontos/quina) — sempre uma fração minúscula, mesmo em bolões
+// grandes (ex.: 0,007% com 85 cartões cobrindo 100% do universo da Mega).
+// Virou a chance de uma faixa mais alcançável: quadra na Mega/Quina, 13
+// pontos na Lotofácil — usando a probabilidade hipergeométrica real
+// (P(exatamente j acertos) = C(n,j)·C(N-n,k-j)/C(N,k)), não mais
+// combinação(n,k)/total (que é a chance do prêmio MÁXIMO, não da quadra).
+test('calcularChancesBolao - Mega mostra a chance de QUADRA, não de sena', () => {
+  // 1 cartão do mínimo (6 números) — P(exatamente 4 de 6) =
+  // C(6,4)·C(54,2)/C(60,6) = 15·1431/50.063.860 ≈ 0,0429%.
+  const cartoes = [{ numeros: [1, 2, 3, 4, 5, 6] }];
+  const html = sandbox.calcularChancesBolao(cartoes, 'mega');
+
+  assert.match(html, /CHANCE \(QUADRA\)/);
+  assert.match(html, />0\.04%</);
+});
+
+test('calcularChancesBolao - Lotofácil mostra a chance de 13 pontos', () => {
+  const cartoes = [{ numeros: Array.from({ length: 15 }, (_, i) => i + 1) }];
+  const html = sandbox.calcularChancesBolao(cartoes, 'lotofacil');
+
+  assert.match(html, /CHANCE \(13 PTS\)/);
+});
+
+test('calcularChancesBolao - Quina mostra a chance de QUADRA, não de quina', () => {
+  const cartoes = [{ numeros: [1, 2, 3, 4, 5] }];
+  const html = sandbox.calcularChancesBolao(cartoes, 'quina');
+
+  assert.match(html, /CHANCE \(QUADRA\)/);
+});

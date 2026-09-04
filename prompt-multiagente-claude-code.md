@@ -309,6 +309,20 @@ Adicionado "preencher por texto" nos fluxos 2 e 3, já que o usuário vai transc
 
 `CACHE_NAME` do `sw.js` v23→v24.
 
+## Rodada 16 — "Chance real" vira chance de quadra/13 pontos + grade de números mais estreita
+
+**"Chance real" mostrava a chance do prêmio MÁXIMO** (sena/15 pontos/quina) — usuário mandou print mostrando "0,0070%" com 85 cartões cobrindo 100% do universo da Mega, e pediu pra mostrar a chance de uma faixa mais alcançável: **quadra na Mega e na Quina, 13 pontos na Lotofácil**. Isso não é mais o mesmo tipo de cálculo (`combinação(n,k)/total`, que mede "cobrir o k-conjunto inteiro" = só o prêmio máximo) — virou a probabilidade hipergeométrica de acertar EXATAMENTE j das k dezenas sorteadas:
+
+```
+P(exatamente j acertos) = C(n,j) × C(N-n, k-j) / C(N,k)
+```
+
+somada entre os cartões do bolão (mesma lógica de agregação — valor esperado — já usada no "bilhetes equivalentes"). O rótulo do card mudou pra deixar explícito qual faixa está sendo mostrada: "CHANCE (QUADRA)" ou "CHANCE (13 PTS)". As estrelas/bilhetes continuam olhando pro prêmio máximo (não pedido pra mudar). 3 testes novos de regressão trancando o valor exato pra um cartão mínimo de cada loteria (ex.: Mega 6 números → C(6,4)·C(54,2)/C(60,6) ≈ 0,04%, contra 0,007% de antes pro mesmo caso da tela real).
+
+**Grade de seleção de números mais estreita**: usuário reportou que as caixinhas onde clica os números (com o mouse) estavam largas demais, exigindo deslocar o mouse mais do que precisava. A pior era a grade do "Cadastro em Lote" (só Lotofácil, 25 números em só 7 colunas — a mais larga do sistema); aumentada pra 13 colunas. O padrão geral (`.grade-numeros`, usado no "Modo Seleção" também) foi de 10 pra 12 colunas — precisou mexer em dois lugares porque o "Modo Seleção" define a largura via `style.gridTemplateColumns` no JS (sobrescreve a classe CSS).
+
+Badge index v3.8→v3.9, `CACHE_NAME` do `sw.js` v24→v25.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
