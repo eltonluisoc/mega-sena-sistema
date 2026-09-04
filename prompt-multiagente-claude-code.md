@@ -203,6 +203,17 @@ Sequência de feedback real de uso, culminando numa reestruturação grande:
 
 **Recalibração (mesmo dia)**: o usuário testou e reportou um caso concreto — 3 cartões de Lotofácil com 18 números (2.448 bilhetes) batendo EXCELENTE, o que "não pode" pra um bolão desse tamanho. A correção por probabilidade real (acima) era matematicamente consistente, mas na prática generosa demais com a Lotofácil: seu universo é ~15x menor que o da Mega, então qualquer fatia dele "pesa" mais em %, fazendo bolões pequenos baterem EXCELENTE fácil demais. Pedido explícito do usuário: Mega mantém o critério atual (confirmado correto); Lotofácil sobe bastante (ÓTIMO/EXCELENTE têm que ser "muito acima da média"); Quina desce bastante. Voltou a ser número ABSOLUTO de bilhetes (mais fácil de calibrar contra exemplos reais), com uma faixa por loteria (`FAIXAS_ESTRELAS` em `script.js`) em vez de uma fórmula só: Mega inalterada (10000/5000/1000/100), Lotofácil bem mais alta (60000/20000/1500/300 — o caso dos 3 cartões de 18 números cai em BOM), Quina bem mais baixa (2000/800/200/50). "CHANCE REAL" continua no card (informação honesta, comparável entre as 3), só deixou de ser a base das estrelas. `CACHE_NAME` do `sw.js` v17→v18.
 
+**2ª correção de visual (mesmo dia)**: o usuário testou o fundo animado colorido + esferas flutuando e achou "muito ruim" — pediu design "estilo Apple", minimalista, citando um artigo sobre sites minimalistas como referência (princípios: paletas neutras/monocromáticas, tipografia sans-serif com espaçamento generoso, bastante espaço em branco, motion sutil). Reescrito o bloco `<style>` embutido do `index.html` do zero:
+- Removido: gradiente animado girando, 6 esferas flutuando, texto do logo com brilho animado, glow pulsante na tagline.
+- Paleta neutra: fundo cinza-claro `#f5f5f7` (o mesmo tom que a Apple usa em apple.com), superfícies brancas, texto quase-preto `#1d1d1f`, um único acento azul `#0071e3` (a cor de botão/link oficial da Apple) — nada mais de gradiente multicolorido.
+- Nav (`.top-bar`) virou uma barra fixa (`sticky`) enxuta com vidro fosco (`backdrop-filter: blur`) e hairline fina embaixo, só com a marca — a tagline saiu de dentro dela.
+- Nova seção `.hero` abaixo da nav com a tagline como título de destaque (headline grande, subtítulo pequeno) — separa "marca" de "mensagem".
+- `.loteria-selector` virou um controle segmentado (padrão iOS/macOS): uma trilha cinza-claro com o item ativo "flutuando" em branco por cima, em vez de 3 caixas soltas com borda.
+- `.card-header` neutro (fundo transparente, texto escuro) com um "dot" colorido de 8px no lugar da barra cheia de cor (`.bg-blue`/`.bg-green`/`.bg-orange` viraram só a cor do dot).
+- Botões: pill sólido (`border-radius: 980px`, o valor exato que a Apple usa), sem sombra pesada, feedback só um leve `scale(0.98)` no clique.
+- Motion restante é só fade+slide sutil na entrada (hero e cards), nada de cor girando ou texto brilhando — ainda desliga com `prefers-reduced-motion`.
+- Badge de versão do index v3.6→v3.7, `CACHE_NAME` do `sw.js` v18→v19.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

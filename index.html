@@ -4,146 +4,233 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>Bolões Aleatórios</title>
-    
+
     <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#1e3a8a">
+    <meta name="theme-color" content="#f5f5f7">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Bolões Aleatórios">
-    
+
     <link rel="apple-touch-icon" href="/mega-sena-sistema/icon.png">
-    
+
     <!-- CSS Externo -->
     <link rel="stylesheet" href="style.css">
 
     <!-- ================================================================
          VISUAL PREMIUM — só da página inicial (index). Embutido aqui, não
          em style.css, de propósito: style.css é compartilhado com
-         admin.html/consulta.html/participantes.html, e esse fundo animado
-         + motion é pensado só pra "vitrine" pública, não pras telas de
-         trabalho (admin). Cards continuam 100% opacos/legíveis — só o
-         "clima" ao redor deles ganhou profundidade e movimento.
+         admin.html/consulta.html/participantes.html, e essa direção
+         (minimalista, estilo Apple) é pensada só pra "vitrine" pública,
+         não pras telas de trabalho (admin). 2ª versão: a primeira usava
+         fundo animado colorido + esferas flutuando — o usuário achou
+         "muito ruim" e pediu algo minimalista, com técnicas tipo Apple:
+         paleta neutra (branco/cinza-claro + 1 único acento azul),
+         bastante espaço em branco, tipografia grande e confiante,
+         "controle segmentado" no seletor de loteria (padrão iOS/macOS)
+         em vez de 3 caixas soltas, cabeçalhos de card neutros com um
+         "dot" colorido no lugar de barras cheias de cor, motion restrito
+         a fade/slide sutil (sem gradiente girando, sem texto brilhando).
          ================================================================ -->
     <style>
+        :root {
+            --bg: #f5f5f7;
+            --surface: #ffffff;
+            --text: #1d1d1f;
+            --text-secondary: #6e6e73;
+            --accent: #0071e3;
+            --accent-hover: #0058b3;
+            --hairline: rgba(0, 0, 0, 0.08);
+            --radius-lg: 20px;
+            --radius-md: 14px;
+            --radius-pill: 980px;
+        }
+
         body {
-            background: linear-gradient(-45deg, #1e3a8a, #0f766e, #6d28d9, #1e3a8a);
-            background-size: 400% 400%;
-            animation: gradientFlow 20s ease infinite;
-            position: relative;
-            overflow-x: hidden;
-        }
-        @keyframes gradientFlow {
-            0%   { background-position: 0% 50%; }
-            50%  { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
+            background: var(--bg);
+            color: var(--text);
         }
 
-        /* Esferas decorativas flutuando — nod discreto ao tema "bolas de
-           loteria", atrás de tudo, sem interceptar cliques nem atrapalhar
-           leitura (blur alto, opacidade baixa). */
-        .bg-orbs {
-            position: fixed;
-            inset: 0;
-            z-index: 0;
-            overflow: hidden;
-            pointer-events: none;
-        }
-        .bg-orbs span {
-            position: absolute;
-            border-radius: 50%;
-            filter: blur(1px);
-            opacity: 0.16;
-            background: radial-gradient(circle at 32% 30%, rgba(255,255,255,0.9), transparent 70%), #fbbf24;
-            animation: floatOrb 26s ease-in-out infinite;
-        }
-        .bg-orbs span:nth-child(1) { width: 90px;  height: 90px;  left: 8%;  top: 18%; animation-duration: 22s; }
-        .bg-orbs span:nth-child(2) { width: 130px; height: 130px; left: 78%; top: 10%; animation-duration: 30s; animation-delay: -4s; background-color: #34d399; }
-        .bg-orbs span:nth-child(3) { width: 60px;  height: 60px;  left: 85%; top: 55%; animation-duration: 18s; animation-delay: -8s; background-color: #60a5fa; }
-        .bg-orbs span:nth-child(4) { width: 100px; height: 100px; left: 15%; top: 68%; animation-duration: 26s; animation-delay: -12s; background-color: #a78bfa; }
-        .bg-orbs span:nth-child(5) { width: 50px;  height: 50px;  left: 45%; top: 8%;  animation-duration: 16s; animation-delay: -6s; }
-        .bg-orbs span:nth-child(6) { width: 75px;  height: 75px;  left: 55%; top: 80%; animation-duration: 24s; animation-delay: -10s; background-color: #34d399; }
-        @keyframes floatOrb {
-            0%, 100% { transform: translate(0, 0) scale(1); }
-            33%      { transform: translate(24px, -30px) scale(1.08); }
-            66%      { transform: translate(-18px, 18px) scale(0.94); }
-        }
-
-        .top-bar, .loteria-selector, .container, .footer { position: relative; z-index: 1; }
-
+        /* ===== Nav — enxuta, vidro fosco, hairline fina no lugar de
+           sombra pesada ===== */
         .top-bar {
-            background: rgba(15, 23, 42, 0.7);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.82);
+            backdrop-filter: saturate(180%) blur(20px);
+            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            border-bottom: 1px solid var(--hairline);
+            padding: 14px 20px;
         }
         .logo {
-            display: inline-block;
-            background: linear-gradient(90deg, #fbbf24, #fde68a, #fbbf24);
-            background-size: 200% auto;
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-            animation: shine 4s linear infinite;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text);
+            letter-spacing: -0.01em;
         }
-        @keyframes shine { to { background-position: -200% center; } }
-        .subtitle { animation: pulseGlow 2.4s ease-in-out infinite; }
-        @keyframes pulseGlow {
-            0%, 100% { opacity: 0.85; text-shadow: 0 0 0 rgba(245,158,11,0); }
-            50%      { opacity: 1;    text-shadow: 0 0 12px rgba(245,158,11,0.7); }
+        .version {
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+        /* A tagline saiu da nav e virou o hero abaixo — nav fica só com
+           a marca, do jeito que uma barra de navegação enxuta deve ser. */
+        .top-bar .subtitle { display: none; }
+
+        /* ===== Hero — uma linha de destaque, sem gradiente girando ===== */
+        .hero {
+            text-align: center;
+            padding: 36px 20px 22px;
+            animation: fadeUp 0.6s ease both;
+        }
+        .hero-title {
+            font-size: clamp(24px, 5vw, 32px);
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin: 0 0 4px;
+        }
+        .hero-subtitle {
+            font-size: 14px;
+            color: var(--text-secondary);
+            font-weight: 400;
+            margin: 0;
         }
 
-        /* Cards: entrada suave e escalonada + leve elevação no hover —
-           sombra em camadas dá mais profundidade que o box-shadow único
-           original. */
+        /* ===== Seletor de loteria — controle segmentado (padrão
+           iOS/macOS): uma trilha cinza, o segmento ativo "flutua" em
+           branco por cima, em vez de 3 caixas soltas com borda. ===== */
+        .loteria-selector {
+            max-width: 420px;
+            margin: 0 auto 26px;
+            padding: 4px;
+            background: #e8e8ed;
+            border-radius: var(--radius-pill);
+            display: flex;
+            gap: 2px;
+            flex-wrap: nowrap;
+        }
+        .loteria-btn {
+            flex: 1;
+            width: auto;
+            background: transparent;
+            border: none;
+            border-radius: var(--radius-pill);
+            padding: 9px 6px;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            cursor: pointer;
+            transition: background 0.25s ease, box-shadow 0.25s ease;
+        }
+        .loteria-btn .loteria-icon { font-size: 15px; display: inline; }
+        .loteria-btn .loteria-nome {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-top: 0;
+            letter-spacing: 0;
+        }
+        .loteria-btn:hover:not(.active) { background: rgba(255, 255, 255, 0.6); }
+        .loteria-btn.active {
+            background: var(--surface);
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+        }
+        .loteria-btn.active .loteria-nome { color: var(--text); }
+
+        /* ===== Cards — superfície branca sobre o cinza-claro, cabeçalho
+           neutro com um "dot" de cor no lugar da barra cheia ===== */
+        .container { padding-top: 2px; }
         .card {
-            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18), 0 2px 8px rgba(15, 23, 42, 0.08);
-            animation: cardIn 0.55s ease both;
-            transition: transform 0.25s ease, box-shadow 0.25s ease;
+            background: var(--surface);
+            border: 1px solid var(--hairline);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+            animation: fadeUp 0.5s ease both;
+            transition: box-shadow 0.2s ease;
         }
-        .card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 18px 40px rgba(15, 23, 42, 0.22), 0 4px 10px rgba(15, 23, 42, 0.1);
-        }
-        @keyframes cardIn {
-            from { opacity: 0; transform: translateY(18px); }
+        .card:hover { box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06); }
+        .container .card:nth-of-type(1) { animation-delay: .04s; }
+        .container .card:nth-of-type(2) { animation-delay: .09s; }
+        .container .card:nth-of-type(3) { animation-delay: .14s; }
+        .container .card:nth-of-type(4) { animation-delay: .19s; }
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(12px); }
             to   { opacity: 1; transform: translateY(0); }
         }
-        .container .card:nth-of-type(1) { animation-delay: .05s; }
-        .container .card:nth-of-type(2) { animation-delay: .12s; }
-        .container .card:nth-of-type(3) { animation-delay: .19s; }
-        .container .card:nth-of-type(4) { animation-delay: .26s; }
 
-        /* Seletor de loteria: gradiente no estado ativo + leve elevação */
-        .loteria-btn {
-            transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+        .card-header {
+            background: transparent !important;
+            color: var(--text) !important;
+            font-size: 15px;
+            font-weight: 600;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--hairline);
+            display: flex;
+            align-items: center;
         }
-        .loteria-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
-        .loteria-btn.active {
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-            box-shadow: 0 8px 20px rgba(37, 99, 235, 0.45);
-            transform: translateY(-2px);
+        .bg-blue::before, .bg-green::before, .bg-orange::before, .bg-purple::before {
+            content: '';
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 9px;
+            flex-shrink: 0;
+        }
+        .bg-blue::before   { background: var(--accent); }
+        .bg-green::before  { background: #34c759; }
+        .bg-orange::before { background: #ff9500; }
+        .bg-purple::before { background: #af52de; }
+
+        /* ===== Botões — pill sólido, sem sombra pesada, feedback só no
+           toque (scale sutil), sem elevação exagerada ===== */
+        button {
+            background: var(--accent);
+            border-radius: var(--radius-pill);
+            font-weight: 600;
+            letter-spacing: -0.01em;
+            box-shadow: none;
+            transition: background 0.2s ease, transform 0.15s ease;
+        }
+        button:hover { background: var(--accent-hover); }
+        button:active { transform: scale(0.98); }
+
+        select, .form-control {
+            border-radius: var(--radius-md);
+            border: 1px solid var(--hairline);
+            background: #fbfbfd;
         }
 
-        /* Respeita quem prefere menos movimento na tela — motion vira só
-           decoração estática, nada de essencial depende dela. */
+        label { color: var(--text); }
+
+        .empty-state, .loading { color: var(--text-secondary); }
+
+        .footer {
+            background: transparent;
+            color: var(--text-secondary);
+            border-top: 1px solid var(--hairline);
+            margin-top: 40px;
+        }
+
+        /* Respeita quem prefere menos movimento — motion vira decoração
+           opcional, nada de essencial depende dela. */
         @media (prefers-reduced-motion: reduce) {
-            body, .card, .logo, .subtitle, .bg-orbs span {
-                animation: none !important;
-                transition: none !important;
-            }
+            .hero, .card { animation: none !important; }
+            * { transition: none !important; }
         }
     </style>
 </head>
 <body>
-    <div class="bg-orbs" aria-hidden="true">
-        <span></span><span></span><span></span><span></span><span></span><span></span>
+    <div class="top-bar">
+        <div class="logo">🎲 Bolões Aleatórios<span class="version">v3.7</span></div>
     </div>
 
-    <div class="top-bar">
-        <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">v3.6</span></div>
-        <div class="subtitle">🏆 RUMO AO GRANDE PRÊMIO 🏆</div>
+    <div class="hero">
+        <h1 class="hero-title">🏆 Rumo ao grande prêmio</h1>
+        <p class="hero-subtitle">Confira resultados e acompanhe seus bolões da sorte</p>
     </div>
 
     <!-- Seletor de Loteria -->
@@ -165,7 +252,7 @@
     <div class="container">
         <!-- Card: Bolão Aberto (destaque) -->
         <div id="cardBolaoAberto" style="display: none; margin-bottom: 20px;">
-            <div class="card" style="background: linear-gradient(135deg, #fef3c7 0%, #ffffff 100%); border: 2px solid #f59e0b; animation: pulse 1.5s infinite;">
+            <div class="card" style="background: #fffaf0; border: 1px solid #f5c451;">
                 <div class="card-body" id="bolaoAbertoContainer">
                     <div class="empty-state">Carregando...</div>
                 </div>
@@ -182,21 +269,21 @@
                 <option value="">Carregando concursos...</option>
             </select>
         </div>
-        
+
         <div class="form-group">
             <label>👥 BOLÃO:</label>
             <select id="bolaoSelect">
                 <option value="todos">Todos os bolões</option>
             </select>
         </div>
-        
+
         <!-- Área de cartões -->
         <div id="cartoesArea">
             <div class="empty-state">📋 Selecione um concurso para ver os cartões</div>
         </div>
-        
+
         <button id="btnConferir" style="margin-bottom: 15px;">🎲 CONFERIR RESULTADOS</button>
-        
+
         <div id="resultadosArea">
             <div class="empty-state">🔍 Clique em "Conferir Resultados" para ver os acertos</div>
         </div>
@@ -231,7 +318,7 @@
     <div class="footer">
         <div>© 2026 Bolões Aleatórios - Versão 3.0</div>
         <div style="font-size: 11px;">Desenvolvido por Elton Luis</div>
-        <button id="btnInstalarApp" style="background: #3b82f6; color: white; border: none; padding: 6px 15px; border-radius: 30px; font-size: 11px; font-weight: 700; margin-top: 8px; width: auto; cursor: pointer; box-shadow: 0 2px 8px rgba(59,130,246,0.4);">📱 SALVAR COMO APP</button>
+        <button id="btnInstalarApp" style="background: #0071e3; color: white; border: none; padding: 8px 18px; border-radius: 980px; font-size: 11px; font-weight: 700; margin-top: 8px; width: auto; cursor: pointer;">📱 SALVAR COMO APP</button>
     </div>
 
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -239,7 +326,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-analytics-compat.js"></script>
     <script src="firebase-config.js"></script>
     <script src="script.js"></script>
-    
+
     <script>
         if ('serviceWorker' in navigator && window.location.hostname !== '127.0.0.1' && window.location.hostname !== 'localhost') {
             window.addEventListener('load', () => {
@@ -248,7 +335,7 @@
                     .catch(error => console.log('❌ Service Worker falhou:', error));
             });
         }
-        
+
         // Forçar recarregamento dos bolões especiais
         setTimeout(() => {
             if (typeof carregarBolaoAtivo === 'function') {
