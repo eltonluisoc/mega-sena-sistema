@@ -255,6 +255,25 @@ Usuário perguntou se o admin também tinha o tratamento novo (não tinha — s�
 
 `CACHE_NAME` do `sw.js` v21→v22.
 
+## Rodada 13 — Recoloração completa do admin.js + números dos cartões viram bolinhas
+
+Usuário: "não tocou pois são 3500 linhas? Quero que faça o melhor" — cobrando terminar o que ficou pendente na Rodada 12, mais um problema específico: "ainda acho ruim a forma de informar os números dos cartões". Confirmado: manter páginas separadas (sem pedido de unificar).
+
+**Recoloração completa do `admin.js`**: as 25 ocorrências de `#3b82f6` (+ 2 de `rgba(59,130,246,...)`) que geram HTML dinamicamente (botões, badges, bordas) viraram `#0071e3`/`rgba(0,113,227,...)` — mesmo acento do resto do sistema agora. `#1e293b` usado como cor de TEXTO (19 ocorrências) ficou como estava, mesma lógica do admin.html: visualmente quase idêntico ao `#1d1d1f`, não valia o risco.
+
+**Números dos cartões — o problema real**: 3 lugares diferentes mostravam os números de um cartão como texto cru/tags cinzas retangulares em fonte monoespaçada minúscula (10px na Lotofácil, pra caber até 20 números) — nada a ver com a "bolinha" que o próprio site público usa pra mostrar dezena sorteada:
+1. Lista principal de cartões (`exibirCartoesAdmin`) — tags `background:#e2e8f0` monoespaçadas.
+2. Prévia do lote ao cadastrar em massa (`atualizarPrevia`) — pior ainda, só uma string de texto "01 02 03..." sem nenhum estilo.
+3. Prévia da seleção enquanto o admin clica nos números pra montar um cartão (`atualizarPreviaSelecao`) — tags azuis também monoespaçadas.
+
+Corrigido: nova classe `.numero-cartao-badge` (bolinha, fundo neutro, texto escuro, negrito) em `admin.html`, com variantes `-sm` (compacta, pra prévia do lote onde cabem várias linhas) e `-accent` (azul, pra números "em edição" antes de salvar — diferencia visualmente de um cartão já salvo). Tamanho da bolinha é FIXO — cartão com mais números só ocupa mais linhas (`flex-wrap`), nunca fica com fonte menor. Aproveitado pra também tirar o `style=""` inline redundante que duplicava/conflitava com a classe `.cartao-item` já existente, e adicionar um contador "N números" no cabeçalho de cada cartão da lista.
+
+**Não mexido**: um resumo de grupo de duplicados (`detectar duplicados`) que mostra os números como uma única string monoespaçada de resumo (não por-número) — é um caso de uso diferente (rótulo de uma linha, não lista visual), ficou como estava.
+
+**Combinado, mas ainda pendente** (o usuário quer discutir depois): se existe uma forma mais rápida/melhor de INSERIR cartões (o fluxo de cadastro em si, não só a exibição) — assunto da próxima rodada.
+
+`CACHE_NAME` do `sw.js` v22→v23.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

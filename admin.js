@@ -275,9 +275,9 @@ function atualizarGradeSelecaoVisual() {
         const num = parseInt(btn.dataset.numero);
         if (numerosSelecionados.includes(num)) {
             btn.classList.add('selecionado');
-            btn.style.background = '#3b82f6';
+            btn.style.background = '#0071e3';
             btn.style.color = 'white';
-            btn.style.borderColor = '#3b82f6';
+            btn.style.borderColor = '#0071e3';
             btn.style.transform = 'scale(1.05)';
         } else {
             btn.classList.remove('selecionado');
@@ -308,7 +308,7 @@ function atualizarContadorSelecao() {
         } else {
             return;
         }
-        const cor = numerosSelecionados.length >= minNumeros ? '#10b981' : '#3b82f6';
+        const cor = numerosSelecionados.length >= minNumeros ? '#10b981' : '#0071e3';
         contador.textContent = `${numerosSelecionados.length} números selecionados (mínimo ${minNumeros})`;
         contador.style.color = cor;
     }
@@ -328,7 +328,7 @@ function atualizarPreviaSelecao() {
     
     let html = '';
     for (const n of numerosSelecionados) {
-        html += `<span style="background: #3b82f6; color: white; padding: 2px 8px; border-radius: 4px; font-family: monospace; font-size: 13px;">${n.toString().padStart(2, '0')}</span>`;
+        html += `<span class="numero-cartao-badge numero-cartao-badge-sm numero-cartao-badge-accent">${n.toString().padStart(2, '0')}</span>`;
     }
     previa.innerHTML = html;
 }
@@ -556,14 +556,21 @@ function exibirCartoesAdmin() {
     }
     
     let html = '';
-    const fontSize = loteriaAdmin === 'mega' ? '12px' : (loteriaAdmin === 'lotofacil' ? '10px' : '11px');
-    
+
+    // Números do cartão: antes eram tags cinzas retangulares em fonte
+    // monoespaçada minúscula (10px na Lotofácil, pra caber os até 20
+    // números) — difícil de ler rápido e sem nada em comum com a "bolinha"
+    // que o site público usa pra mostrar dezena sorteada. Virou uma
+    // bolinha só (.numero-cartao-badge, definida em admin.html), tamanho
+    // fixo e legível não importa quantos números o cartão tenha — mais
+    // números só ocupam mais linhas (flex-wrap), não ficam menores.
     for (const cartao of cartoesFiltrados) {
         const dataFormatada = cartao.dataCadastro ? new Date(cartao.dataCadastro).toLocaleDateString('pt-BR') : 'Data não disponível';
         const tipoParticipacao = cartao.tipoParticipacao === 'cota' ? '🎟️ Cota' : '👥 Exclusivo';
-        
+        const qtdNumeros = cartao.numeros.length;
+
         html += `
-            <div class="cartao-item" style="border:1px solid #ddd; border-radius:8px; padding:12px; margin-bottom:10px; background:#f8fafc;">
+            <div class="cartao-item">
                 <div style="display:flex; align-items:flex-start; gap:12px; flex-wrap:wrap;">
                     <div><input type="checkbox" class="checkbox-cartao" data-id="${cartao.id}" style="width:22px; height:22px;"></div>
                     <div style="flex:1; min-width:150px;">
@@ -571,16 +578,17 @@ function exibirCartoesAdmin() {
                             <div>
                                 <strong>Cartão #${cartao.id ? cartao.id.slice(-6) : '???'}</strong>
                                 <span style="font-size:11px; color:#64748b; margin-left:8px;">${tipoParticipacao}</span>
+                                <span style="font-size:11px; color:#94a3b8; margin-left:8px;">${qtdNumeros} números</span>
                             </div>
                             <div style="display:flex; gap:6px;">
-                                <button class="btn-editar" data-id="${cartao.id}" style="background:#3b82f6; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px;">✏️ Editar</button>
+                                <button class="btn-editar" data-id="${cartao.id}" style="background:#0071e3; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px;">✏️ Editar</button>
                             </div>
                         </div>
                         <div style="font-size:12px; color:#666; margin:5px 0;">
                             Concurso ${cartao.concurso} | Bolão: ${cartao.bolao || 'Sem Bolão'} | 📅 ${dataFormatada}
                         </div>
-                        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">
-                            ${cartao.numeros.map(n => `<span style="background:#e2e8f0; padding:5px 10px; border-radius:6px; font-family:monospace; font-size:${fontSize};">${n.toString().padStart(2,'0')}</span>`).join('')}
+                        <div class="numeros-cartao-lista">
+                            ${cartao.numeros.map(n => `<span class="numero-cartao-badge">${n.toString().padStart(2,'0')}</span>`).join('')}
                         </div>
                     </div>
                 </div>
@@ -867,7 +875,7 @@ async function carregarBoloesParaGerenciar() {
                     
                     <!-- LINHA 1: Checkbox + Título + Status + Destaque Badge -->
                     <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                        <input type="checkbox" class="checkbox-bolao" data-id="${bolao.id}" ${checked} style="width: 20px; height: 20px; cursor: pointer; accent-color: #3b82f6; flex-shrink: 0;">
+                        <input type="checkbox" class="checkbox-bolao" data-id="${bolao.id}" ${checked} style="width: 20px; height: 20px; cursor: pointer; accent-color: #0071e3; flex-shrink: 0;">
                         <strong style="font-size: 14px; color: #1e293b;">${bolao.titulo || 'Sem título'}</strong>
                         <span style="font-size: 11px; background: ${statusBg}; color: ${statusColor}; padding: 2px 10px; border-radius: 30px; font-weight: 600;">${statusIcon} ${status.toUpperCase()}</span>
                         <span style="font-size: 11px; color: #64748b;">👥 ${bolao.participantes?.length || 0}</span>
@@ -909,7 +917,7 @@ async function carregarBoloesParaGerenciar() {
                     
                     <!-- LINHA 4: Botões (Final do card) -->
                     <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
-                        <button class="btn-link-participantes" data-id="${bolao.id}" data-titulo="${escapeHtml(bolao.titulo)}" style="background: #3b82f6; color: white; border: none; padding: 4px 14px; border-radius: 20px; cursor: pointer; font-size: 11px; font-weight: 600;">📋 LINK</button>
+                        <button class="btn-link-participantes" data-id="${bolao.id}" data-titulo="${escapeHtml(bolao.titulo)}" style="background: #0071e3; color: white; border: none; padding: 4px 14px; border-radius: 20px; cursor: pointer; font-size: 11px; font-weight: 600;">📋 LINK</button>
                         <button class="btn-excluir-bolao" data-id="${bolao.id}" data-titulo="${escapeHtml(bolao.titulo)}" style="background: #ef4444; color: white; border: none; padding: 4px 14px; border-radius: 20px; cursor: pointer; font-size: 11px; font-weight: 600;">🗑️ EXCLUIR</button>
                     </div>
                 </div>
@@ -1082,7 +1090,7 @@ async function verificarDuplicados() {
                     <span>📊 ${snapshot.size} cartões | 🔁 ${totalDuplicados} duplicados</span>
                 </div>
                 <div style="font-size:13px;color:#78350f;margin-top:6px;">
-                    💡 <strong>Clique no cartão</strong> que deseja manter. O selecionado fica <strong style="color:#3b82f6;">AZUL</strong>.
+                    💡 <strong>Clique no cartão</strong> que deseja manter. O selecionado fica <strong style="color:#0071e3;">AZUL</strong>.
                 </div>
             </div>
             <div style="max-height:450px;overflow-y:auto;margin-bottom:16px;">
@@ -1118,13 +1126,13 @@ async function verificarDuplicados() {
                          data-grupo="${grupoId}" 
                          data-id="${cartaoId}"
                          style="
-                             background: ${isFirst ? '#3b82f6' : '#ffffff'};
+                             background: ${isFirst ? '#0071e3' : '#ffffff'};
                              border: 3px solid ${isFirst ? '#1d4ed8' : '#e2e8f0'};
                              border-radius: 10px;
                              padding: 14px 16px;
                              cursor: pointer;
                              transition: all 0.2s;
-                             box-shadow: ${isFirst ? '0 4px 12px rgba(59,130,246,0.3)' : 'none'};
+                             box-shadow: ${isFirst ? '0 4px 12px rgba(0,113,227,0.3)' : 'none'};
                          "
                          onclick="selecionarDuplicado('${grupoId}', '${cartaoId}')"
                          onmouseover="this.style.transform='scale(1.02)'"
@@ -1259,9 +1267,9 @@ function selecionarDuplicado(grupoId, cartaoId) {
         const id = item.dataset.id;
         const isSelected = id === cartaoId;
         
-        item.style.background = isSelected ? '#3b82f6' : '#ffffff';
+        item.style.background = isSelected ? '#0071e3' : '#ffffff';
         item.style.borderColor = isSelected ? '#1d4ed8' : '#e2e8f0';
-        item.style.boxShadow = isSelected ? '0 4px 12px rgba(59,130,246,0.3)' : 'none';
+        item.style.boxShadow = isSelected ? '0 4px 12px rgba(0,113,227,0.3)' : 'none';
         
         const textSpans = item.querySelectorAll('span');
         textSpans.forEach(span => {
@@ -1399,7 +1407,7 @@ async function editarCartao(id) {
                     </select>
                 </div>
                 
-                <button id="salvarEdicao" style="width: 100%; padding: 14px; background: #3b82f6; color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 16px; cursor: pointer;">
+                <button id="salvarEdicao" style="width: 100%; padding: 14px; background: #0071e3; color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 16px; cursor: pointer;">
                     💾 SALVAR ALTERAÇÕES
                 </button>
             </div>
@@ -1588,7 +1596,7 @@ function abrirModalAlterarTipo() {
             <div style="font-size: 32px; margin-bottom: 8px;">🔄</div>
             <div style="font-weight: bold; font-size: 18px; margin-bottom: 4px;">ALTERAR TIPO</div>
             <div style="font-size: 13px; color: #64748b; margin-bottom: 20px;">${selecionados.length} cartão(ões) selecionado(s) — escolha o novo tipo:</div>
-            <button id="btnTipoExclusivo" style="width:100%; padding: 14px; background: #3b82f6; color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 15px; cursor: pointer; margin-bottom: 10px;">👥 GRUPO EXCLUSIVO</button>
+            <button id="btnTipoExclusivo" style="width:100%; padding: 14px; background: #0071e3; color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 15px; cursor: pointer; margin-bottom: 10px;">👥 GRUPO EXCLUSIVO</button>
             <button id="btnTipoCota" style="width:100%; padding: 14px; background: #8b5cf6; color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 15px; cursor: pointer; margin-bottom: 10px;">🎟️ COTA DE BOLÃO</button>
             <button id="btnCancelarAlterarTipo" style="width:100%; padding: 10px; background: transparent; color: #64748b; border: none; font-size: 13px; cursor: pointer;">Cancelar</button>
         </div>
@@ -1697,7 +1705,7 @@ function mostrarModalLink(bolaoId, bolaoTitulo) {
                 <code style="font-size: 12px; color: #1e293b;">${link}</code>
             </div>
             <div style="display: flex; gap: 10px;">
-                <button id="btnCopiarLink" style="flex: 1; padding: 12px; background: #3b82f6; color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 14px;">📋 COPIAR LINK</button>
+                <button id="btnCopiarLink" style="flex: 1; padding: 12px; background: #0071e3; color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 14px;">📋 COPIAR LINK</button>
                 <button id="btnFecharModalLink" style="flex: 1; padding: 12px; background: #64748b; color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 14px;">FECHAR</button>
             </div>
             <div id="feedbackCopiar" style="display: none; margin-top: 10px; padding: 8px; background: #d1fae5; border-radius: 8px; color: #065f46; font-size: 13px;">✅ Link copiado com sucesso!</div>
@@ -1715,7 +1723,7 @@ function mostrarModalLink(bolaoId, bolaoTitulo) {
             this.style.background = '#10b981';
             this.textContent = '✅ COPIADO!';
             setTimeout(() => {
-                this.style.background = '#3b82f6';
+                this.style.background = '#0071e3';
                 this.textContent = '📋 COPIAR LINK';
                 feedback.style.display = 'none';
             }, 3000);
@@ -1800,9 +1808,9 @@ function atualizarGradeVisual() {
         const num = parseInt(btn.dataset.numero);
         if (cartao.includes(num)) {
             btn.classList.add('selecionado');
-            btn.style.background = '#3b82f6';
+            btn.style.background = '#0071e3';
             btn.style.color = 'white';
-            btn.style.borderColor = '#3b82f6';
+            btn.style.borderColor = '#0071e3';
             btn.style.transform = 'scale(1.05)';
         } else {
             btn.classList.remove('selecionado');
@@ -1819,7 +1827,7 @@ function atualizarContador() {
     const contador = document.getElementById('contadorNumeros');
     if (contador) {
         contador.textContent = `${cartao.length}/${MAX_NUMEROS_LOTOFACIL} números selecionados`;
-        contador.style.color = cartao.length === MAX_NUMEROS_LOTOFACIL ? '#10b981' : '#3b82f6';
+        contador.style.color = cartao.length === MAX_NUMEROS_LOTOFACIL ? '#10b981' : '#0071e3';
     }
 }
 
@@ -1832,17 +1840,26 @@ function atualizarPrevia() {
         return;
     }
     
+    // Antes era uma string crua "01 02 03..." em texto colorido — difícil
+    // de bater o olho e ver se os números fazem sentido. Vira a mesma
+    // bolinha (.numero-cartao-badge) da lista principal de cartões, só
+    // que na variante compacta (-sm), porque aqui são várias linhas de
+    // uma vez (até 20 cartões na prévia).
     let html = '';
     const maxExibir = Math.min(cartoesLote.length, 20);
     for (let i = 0; i < maxExibir; i++) {
         const numeros = cartoesLote[i] || [];
         const preenchido = numeros.length === MAX_NUMEROS_LOTOFACIL;
         const status = preenchido ? '✅' : '❌';
-        const cor = preenchido ? '#10b981' : '#ef4444';
-        const numsStr = numeros.map(n => n.toString().padStart(2, '0')).join(' ');
-        html += `<div style="color: ${cor};">
-            #${i+1}: ${numsStr || '(vazio)'} ${status}
-        </div>`;
+        const badgesHtml = numeros
+            .map(n => `<span class="numero-cartao-badge numero-cartao-badge-sm">${n.toString().padStart(2, '0')}</span>`)
+            .join('');
+        html += `
+            <div class="cartao-preview-lote">
+                <span class="cartao-preview-lote-label">#${i + 1}</span>
+                <span class="numeros-cartao-lista">${badgesHtml || '<em style="color:#94a3b8; font-size:12px;">(vazio)</em>'}</span>
+                <span class="cartao-preview-lote-status">${status}</span>
+            </div>`;
     }
     if (cartoesLote.length > maxExibir) {
         html += `<div style="color: #94a3b8;">... e mais ${cartoesLote.length - maxExibir} cartões</div>`;
@@ -2235,7 +2252,7 @@ async function carregarTokens() {
                         <code style="font-size: 12px; word-break: break-all;">${link}</code>
                     </div>
                     <div style="display: flex; gap: 8px;">
-                        <button class="btn-copiar-link btn-sm" data-link="${link}" style="background: #3b82f6; border: none; padding: 6px 12px; border-radius: 20px; color: white; cursor: pointer; font-size: 11px;">📋 COPIAR LINK</button>
+                        <button class="btn-copiar-link btn-sm" data-link="${link}" style="background: #0071e3; border: none; padding: 6px 12px; border-radius: 20px; color: white; cursor: pointer; font-size: 11px;">📋 COPIAR LINK</button>
                         <button class="btn-revogar-token btn-sm" data-token="${token.token}" style="background: #ef4444; border: none; padding: 6px 12px; border-radius: 20px; color: white; cursor: pointer; font-size: 11px;">❌ REVOGAR</button>
                     </div>
                 </div>
@@ -2455,7 +2472,7 @@ async function carregarReservas() {
                     <div style="font-size: 12px; color: #64748b; margin-bottom: 8px;">
                         🆔 ${reserva.participanteId || reserva.id.substring(0, 8)} • 📅 ${dataAtualizacao}
                     </div>
-                    <button class="btn-ver-historico" data-id="${reserva.id}" data-nome="${escapeHtml(reserva.nome)}" style="background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; width: 100%; touch-action: manipulation;">
+                    <button class="btn-ver-historico" data-id="${reserva.id}" data-nome="${escapeHtml(reserva.nome)}" style="background: #0071e3; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; width: 100%; touch-action: manipulation;">
                         📜 VER HISTÓRICO
                     </button>
                     <div id="historico-${reserva.id}" style="display: none; margin-top: 12px; background: white; border-radius: 8px; padding: 12px; font-size: 13px; max-height: 200px; overflow-y: auto; border: 1px solid #e2e8f0;"></div>
@@ -2611,7 +2628,7 @@ function abrirModalRegistrarMovimento() {
             </div>
 
             <div style="display: flex; gap: 8px; margin-bottom: 14px;">
-                <button id="btnMovPessoaExistente" type="button" style="flex:1; padding: 10px; border-radius: 10px; border: 2px solid #3b82f6; background: #3b82f6; color: white; font-weight: 600; cursor: pointer;">Pessoa existente</button>
+                <button id="btnMovPessoaExistente" type="button" style="flex:1; padding: 10px; border-radius: 10px; border: 2px solid #0071e3; background: #0071e3; color: white; font-weight: 600; cursor: pointer;">Pessoa existente</button>
                 <button id="btnMovPessoaNova" type="button" style="flex:1; padding: 10px; border-radius: 10px; border: 2px solid #e2e8f0; background: white; color: #64748b; font-weight: 600; cursor: pointer;">Pessoa nova</button>
             </div>
 
@@ -2662,11 +2679,11 @@ function abrirModalRegistrarMovimento() {
 
     function atualizarToggle() {
         if (pessoaExistente) {
-            btnExistente.style.background = '#3b82f6'; btnExistente.style.color = 'white'; btnExistente.style.borderColor = '#3b82f6';
+            btnExistente.style.background = '#0071e3'; btnExistente.style.color = 'white'; btnExistente.style.borderColor = '#0071e3';
             btnNova.style.background = 'white'; btnNova.style.color = '#64748b'; btnNova.style.borderColor = '#e2e8f0';
             camposExistente.style.display = ''; camposNovo.style.display = 'none';
         } else {
-            btnNova.style.background = '#3b82f6'; btnNova.style.color = 'white'; btnNova.style.borderColor = '#3b82f6';
+            btnNova.style.background = '#0071e3'; btnNova.style.color = 'white'; btnNova.style.borderColor = '#0071e3';
             btnExistente.style.background = 'white'; btnExistente.style.color = '#64748b'; btnExistente.style.borderColor = '#e2e8f0';
             camposNovo.style.display = ''; camposExistente.style.display = 'none';
         }

@@ -426,6 +426,70 @@
             border-color: #94a3b8;
         }
 
+        /* Números do cartão — antes eram tags cinzas retangulares em
+           fonte monoespaçada minúscula (chegava a 10px na Lotofácil, pra
+           caber até 20 números), difícil de ler rápido. Vira uma bolinha
+           só, tamanho fixo — mais números ocupam mais linhas, nunca
+           ficam menores. Mesma ideia visual das dezenas sorteadas no
+           site público (círculo com número), pra ficar familiar. */
+        .numeros-cartao-lista {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+        .numero-cartao-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #f5f5f7;
+            border: 1px solid #e2e8f0;
+            color: #1d1d1f;
+            font-weight: 700;
+            font-size: 13px;
+            font-variant-numeric: tabular-nums;
+            flex-shrink: 0;
+        }
+        .numero-cartao-badge-sm {
+            width: 24px;
+            height: 24px;
+            font-size: 11px;
+        }
+        /* Números ainda sendo escolhidos (prévia da seleção, antes de
+           salvar) ganham a cor de destaque — diferencia "em edição" dos
+           números de um cartão já salvo (neutro, cinza). */
+        .numero-cartao-badge-accent {
+            background: #0071e3;
+            border-color: #0071e3;
+            color: white;
+        }
+        .cartao-preview-lote {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .cartao-preview-lote:last-child { border-bottom: none; }
+        .cartao-preview-lote-label {
+            flex-shrink: 0;
+            width: 34px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #64748b;
+        }
+        .cartao-preview-lote .numeros-cartao-lista {
+            flex: 1;
+            margin-top: 0;
+        }
+        .cartao-preview-lote-status {
+            flex-shrink: 0;
+            font-size: 14px;
+        }
+
         /* ============================================ */
         /* RESERVAS */
         /* ============================================ */
