@@ -8,7 +8,7 @@ Quero que você atue como um **orquestrador de agentes** para evoluir o sistema 
 - **Stack atual:**
   - Site público + painel admin: HTML/CSS/JavaScript puro (sem framework, sem build step), hospedado no GitHub Pages
   - Backend: Firebase — Firestore (banco de dados), Firebase Authentication (login do admin), Firebase Analytics
-  - Automação: 1 Cloud Function agendada em `functions/index.js` (bot Telegram de loteria acumulada — hoje redundante com `bot-telegram.js` via GitHub Actions; candidata a remoção futura)
+  - Automação: nenhuma no momento — o bot Telegram de loteria acumulada (`functions/index.js` duplicado + `bot-telegram.js`/GitHub Actions) foi removido na Rodada 14 (token exposto no repo público + usuário não usava)
   - Ferramenta desktop paralela: `bolao_pro_v3.py` (Python 3 + Tkinter + SQLite), usada para gestão offline de bolões/reservas financeiras, sincroniza com o mesmo Firestore via REST API
 - **Descrição atual:** Sistema para gerir bolões de loteria (Mega-Sena, Lotofácil, Quina): cadastro de cartões (individual, em lote, ou via ferramenta desktop), conferência automática de resultados, gestão de participantes/pagamentos/reservas financeiras, geração de links de acesso pessoal por token, dashboard com estatísticas. `index.html` é a página pública onde participantes conferem resultados e sua situação; `admin.html` é de uso exclusivo do dono do sistema.
 - **Objetivo da nova versão:** Evoluir o sistema para um padrão profissional — seguro, sem código morto/duplicado, com métricas confiáveis e telas revisadas uma a uma — com a perspectiva de eventualmente se tornar um produto rentável (não só uso pessoal).
@@ -273,6 +273,23 @@ Corrigido: nova classe `.numero-cartao-badge` (bolinha, fundo neutro, texto escu
 **Combinado, mas ainda pendente** (o usuário quer discutir depois): se existe uma forma mais rápida/melhor de INSERIR cartões (o fluxo de cadastro em si, não só a exibição) — assunto da próxima rodada.
 
 `CACHE_NAME` do `sw.js` v22→v23.
+
+## Rodada 14 — Token do Telegram exposto no repo público + discussão sobre inserção de cartões
+
+Usuário pediu sugestões pra melhorar a INSERÇÃO de cartões (não só a exibição, já corrigida na Rodada 13) — "leitura da imagem do cartão ou outra opção?". Ao investigar a infraestrutura de Cloud Functions existente pra avaliar viabilidade, achado um problema de segurança real:
+
+**Token do Telegram exposto**: `functions/index.js` (uma cópia antiga, não usada — a function real e implantada fica em `functions/functions/index.js`, apontada por `functions/firebase.json`) tinha um token de bot do Telegram **hardcoded em texto puro**, commitado. Confirmado via API do GitHub: o repositório `eltonluisoc/mega-sena-sistema` é **público**. Avisado o usuário antes de qualquer ação (não é algo pra corrigir em silêncio). Usuário confirmou que já revogou o token no BotFather e não usa Telegram — pedido pra excluir tudo relacionado:
+- `functions/index.js` (duplicado com o token) — removido.
+- `bot-telegram.js` (script standalone, usava variável de ambiente — sem token hardcoded, mas parte da mesma automação não usada) — removido.
+- `.github/workflows/telegram-bot.yml` (GitHub Action que rodava o script acima) — removido.
+- `axios` tirado do `package.json` raiz (única coisa que dependia dele era o bot removido).
+- A function real (`functions/functions/index.js`) não tinha nada de Telegram — não foi tocada.
+- **O token em si continua no HISTÓRICO do git** (remover o arquivo não apaga commits antigos) — mas como já foi revogado no BotFather, o token vazado não vale mais nada.
+
+**Sugestões de inserção de cartões** (apresentadas, ainda não implementadas — usuário está avaliando custo antes de decidir): usuário revelou que gera os cartões no app oficial da Caixa e fica com a IMAGEM do cartão gerado — não digita/escolhe números manualmente. Isso muda a resposta:
+1. **Geração aleatória automática** (sem custo, sem infra nova) — só faz sentido se os números fossem escolhidos pelo sistema, o que não é o caso aqui.
+2. **Colar em lote (texto)** (sem custo, sem infra nova) — ainda útil como via alternativa, mas não resolve o caso principal (a imagem já existe, ninguém digitou os números em lugar nenhum ainda).
+3. **Leitura da imagem por IA com visão (Cloud Function)** — a que resolve o caso real do usuário: imagem do app da Caixa é limpa (sem inclinação/reflexo/vinco), ideal pra uma IA com visão identificar quais números estão marcados. Requer: nova Cloud Function (infraestrutura já existe e funciona — `functions/functions/`), uma chave de API de IA com visão (custo pequeno por imagem, usuário pediu estimativa antes de decidir), sempre pré-preenchendo a grade de seleção já existente pra confirmação humana antes de salvar (nunca salvar direto da leitura).
 
 ## Agentes a utilizar
 
