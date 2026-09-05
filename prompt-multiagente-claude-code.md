@@ -323,6 +323,14 @@ somada entre os cartões do bolão (mesma lógica de agregação — valor esper
 
 Badge index v3.8→v3.9, `CACHE_NAME` do `sw.js` v24→v25.
 
+## Rodada 17 — Grade de números: colunas fixas em vez de flexíveis (correção do ajuste anterior)
+
+O ajuste da Rodada 16 (10→12 colunas, 7→13 colunas) reduziu a largura, mas ainda usava `1fr` — colunas que ESTICAM pra preencher toda a largura disponível. Usuário mandou print (grade de 60 números da Mega, 12 por linha) e explicou o que faltava: quer **10 por linha**, mas a caixinha em si **pequena e fixa**, sem esticar pra ocupar o espaço sobrando.
+
+Trocado `repeat(N, 1fr)` por `repeat(10, 40px)` + `justify-content: start` nos dois lugares (`.grade-numeros` em admin.html e o `style.gridTemplateColumns` setado via JS em `inicializarGradeSelecaoIndividual`, que sobrescreve a classe) — agora a largura de cada caixinha é fixa (40px) independente da largura do container; o espaço sobrando na linha fica em branco, de propósito. Adicionado `overflow-x: auto` no container como rede de segurança: numa tela estreita (celular), 10 colunas de 40px + gaps podem passar da largura disponível — vira rolagem horizontal em vez de estourar o layout.
+
+`CACHE_NAME` do `sw.js` v25→v26.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
