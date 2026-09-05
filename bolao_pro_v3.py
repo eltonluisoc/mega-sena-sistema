@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.0
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.1
+Correções v6.1 (ajuste de feedback do usuário sobre o v6.0):
+ - "📊 Ganhos por Loteria" e "➕ Registrar Lançamento" saíram de um bloco
+   solto acima das tabelas (sem relação clara com o resto da tela) e
+   foram pro card "Histórico de Lançamentos" — são ações/consultas
+   sobre o mesmo assunto desse card (ganhos/saques do organizador),
+   não da tela toda.
 Correções v6.0 (Início vira layout mestre-detalhe — proposta do Fable):
  - "Início" não usa mais Notebook interno (2 sub-abas). Virou um
    PanedWindow: lista de bolões numa coluna fixa à ESQUERDA (sempre
@@ -965,7 +971,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.0")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.1")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1143,7 +1149,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.0",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.1",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -3788,14 +3794,6 @@ class BolaoApp:
             val_lbl.pack(anchor="w")
             self._adm_kpis[attr] = val_lbl
 
-        # ── Ações rápidas ─────────────────────────────────────────
-        acoes_fr = tk.Frame(p, bg="#1a2a3a")
-        acoes_fr.pack(fill="x", padx=20, pady=(0,10))
-        btn(acoes_fr, "📊 Ver Ganhos por Loteria", CORES["btn_roxo"],
-            self._abrir_ganhos_por_loteria, width=24).pack(side="left")
-        btn(acoes_fr, "➕ Registrar Lançamento", CORES["btn_verde"],
-            self._abrir_registrar_lancamento, width=22).pack(side="left", padx=8)
-
         # ── Depósitos Pendentes | Participantes Atrasados ────────
         mid1 = tk.Frame(p, bg="#1a2a3a")
         mid1.pack(fill="both", expand=True, padx=20, pady=(0,8))
@@ -3848,6 +3846,17 @@ class BolaoApp:
         sec_hist = tk.LabelFrame(mid2, text="  HISTÓRICO DE LANÇAMENTOS  ",
             bg="#243447", fg="white", font=("Arial",9,"bold"), bd=1, padx=6, pady=4)
         sec_hist.grid(row=0, column=1, sticky="nsew")
+
+        # Ganhos por Loteria / Registrar Lançamento — moradas aqui porque
+        # são ações e consultas sobre o MESMO assunto deste card (os
+        # lançamentos de ganho/saque do organizador), não da tela toda —
+        # antes ficavam soltas acima, longe do que se referem.
+        top_hist = tk.Frame(sec_hist, bg="#243447"); top_hist.pack(fill="x", pady=(0,4))
+        btn(top_hist, "📊 Ganhos por Loteria", CORES["btn_roxo"],
+            self._abrir_ganhos_por_loteria, width=17).pack(side="left", padx=(0,4))
+        btn(top_hist, "➕ Novo Lançamento", CORES["btn_verde"],
+            self._abrir_registrar_lancamento, width=15).pack(side="left")
+
         cols_h = {"ID":40,"Bolao":120,"Loteria":80,"Concurso":65,
                   "Valor":90,"Tipo":70,"Descricao":140,"Data":90}
         fr_h, self.adm_tree_hist = make_tree(sec_hist, cols_h, height=8)
@@ -4671,7 +4680,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.0</span>
+        <span>Sistema de Gestão de Bolões v6.1</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -6564,7 +6573,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.0</span>
+        <span>Sistema de Gestão de Bolões v6.1</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
