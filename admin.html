@@ -355,31 +355,37 @@
                nunca estoura, nunca precisa rolar, em nenhuma tela. */
             grid-template-columns: repeat(10, 1fr);
             justify-content: start;
-            gap: 6px;
-            max-width: 480px;
+            gap: 7px;
+            /* 560px / 10 colunas ≈ 50px de caixinha — antes (repeat(10,
+               40px), 9 gaps de 6px) o total dava só 454px; o primeiro
+               ajuste deste max-width tinha ficado em 480px, um aumento
+               de ~2,6px por caixinha — pequeno demais pra notar. Este
+               valor é maior de propósito, pra ficar perceptível no
+               desktop, mas ainda cabe fluido em telas de celular. */
+            max-width: 560px;
         }
 
         .numero-btn {
-            padding: 9px 4px;
+            padding: 10px 4px;
             border: 2px solid #e2e8f0;
             border-radius: 8px;
             background: white;
-            font-size: 14px;
+            font-size: 15px;
             font-weight: bold;
             cursor: pointer;
             transition: all 0.15s;
             color: #1e293b;
             font-family: monospace;
-            min-height: 42px;
+            min-height: 46px;
             touch-action: manipulation;
         }
 
         /* Quina tem 80 números (8 linhas de 10) — levemente mais compacto
            pra não esticar demais a altura da grade inteira. */
         .numero-btn.compacto {
-            font-size: 12px;
-            padding: 7px 2px;
-            min-height: 34px;
+            font-size: 13px;
+            padding: 8px 2px;
+            min-height: 38px;
         }
 
         .numero-btn:hover {
