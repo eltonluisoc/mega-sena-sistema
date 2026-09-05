@@ -365,6 +365,22 @@ Usuário pediu uma "análise completa via agentes" do sistema desktop, insatisfe
 
 Versão v5.4 → v5.5 (Financeiro) → v6.0 (Início mestre-detalhe).
 
+## Rodada 20 — Ajuste de posição dos botões (v6.1) + Participantes consolidado (v6.2)
+
+Usuário testou o v6.0 e aprovou tudo, com um único ajuste cosmético: os botões "📊 Ver Ganhos por Loteria" e "➕ Registrar Lançamento" estavam soltos acima das tabelas da Visão Geral, sem relação clara com o resto da tela — pediu pra mover pro card "Histórico de Lançamentos", já que são ações sobre o mesmo assunto desse card (ganhos/saques do organizador). Aprovou o resto e pediu pra continuar desenvolvendo os itens pendentes da Rodada 19.
+
+**v6.1**: bloco solto "Ações rápidas" removido de `_build_dashboard`; os 2 botões (relabelados "📊 Ganhos por Loteria" / "➕ Novo Lançamento") passaram a viver dentro do `LabelFrame` "HISTÓRICO DE LANÇAMENTOS", acima da árvore.
+
+**v6.2**: consolidação de Participantes (4→2 sub-abas), primeiro item pendente da Rodada 19:
+- `_build_cad` ("➕ Novo Participante", uma das 4 sub-abas) virou popup `_abrir_popup_novo_participante` — mesmo padrão de popup-ificação já usado em Início/Financeiro (Toplevel com canvas rolável, mantendo os mesmos nomes de atributo internos, então `_cadastrar`/`_cadastrar_e_pagar`/`_cad_adm_toggle`/`_calcular_valor_cotas`/`_imp_buscar`/`_imp_importar` não precisaram de nenhuma mudança).
+- `_build_cad_editar` ("✏ Editar Participante", outra das 4) virou popup `_abrir_popup_editar_participante(participante_id=None)`, aceitando um id opcional pra já abrir com o participante pré-selecionado (usado no duplo-clique).
+- A lista "👥 Participantes" (a sub-aba que sobrou, hoje só listagem) ganhou: botão "➕ Novo Participante" (chama o popup novo), campo de busca por nome (filtra em memória, mesmo padrão de `_filtrar_situacao_participantes` da Rodada 19 — sem reconsultar o banco a cada tecla) e duplo-clique numa linha abre a edição já com esse participante (a árvore já usava `iid=str(participante_id)`, então não precisou de busca por nome pra achar o id).
+- Resultado: Participantes foi de 4 sub-abas ("Cadastrar", "Editar", "Pessoas/Unificar" e a lista) pra 2 ("👥 Participantes" e "🔗 Pessoas/Unificar").
+
+**Ainda pendente** (itens 2 e 3 da Rodada 19, não pedidos explicitamente ainda): unificar "Situação dos Participantes" + "Pendências deste Bolão" numa lista só, e rebaixar o combo do cabeçalho a indicador/atalho (sugestão do Fable).
+
+Versão v6.0 → v6.1 (botões) → v6.2 (Participantes).
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
