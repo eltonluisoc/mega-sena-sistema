@@ -410,6 +410,20 @@ Usuário relatou que "Potencial do Bolão" mostrava 104 cartões no concurso 305
 
 Versão web (Service Worker) v27 → v28.
 
+## Rodada 23 — Grade de números: fluida em vez de fixa (resolve desktop pequeno demais E mobile com scroll escondendo colunas)
+
+Usuário testou a grade de largura fixa (40px, da Rodada 17) e trouxe dois problemas opostos: no desktop, a fonte/caixinha ficou pequena demais (pediu aumentar "um pouco, pouco"); no celular, 10 colunas de 40px passavam da largura da tela, e colunas 9/10 só apareciam rolando a barra horizontal — "PÉSSIMO" (palavra do usuário).
+
+**Causa raiz do problema do celular**: já existia uma media query `@media (max-width:768px) { .grade-numeros { grid-template-columns: repeat(5,1fr); } }` pensada pra mobile — só que nunca fazia efeito, porque tanto `#gradeNumeros` (HTML) quanto `#gradeSelecaoIndividual` (JS, em `inicializarGradeSelecaoIndividual`) tinham `style="grid-template-columns: repeat(10, 40px)"` **inline**, e estilo inline sempre vence regra de classe, media query ou não.
+
+**Correção**: trocado `repeat(10, 40px)` fixo por `repeat(10, 1fr)` fluido + `max-width: 480px` no container (`.grade-numeros`). Resolve os dois lados de uma vez: no desktop o `max-width` impede as caixinhas de esticar demais (era o problema ORIGINAL da Rodada 16 que pediu largura fixa); no celular, 1fr sempre divide a largura disponível entre as 10 colunas igualmente — nunca estoura, nunca precisa rolar, em qualquer tela. A media query de 5 colunas virou desnecessária e foi removida. Fonte/moldura dos botões subiu um pouco (13px/38px → 14px/42px, padding 8px→9px) — o pedido do "aumentar um pouco" do desktop. Quina (80 números, 8 linhas) ganhou uma classe `.numero-btn.compacto` (12px/34px) só pra ela, evitando que a grade fique alta demais.
+
+Removidos de vez os estilos inline duplicados (`grade.style.gridTemplateColumns/justifyContent/gap` em JS, e o `style=""` no HTML) que causavam a raiz do bug — tamanho/layout da grade agora vive 100% no CSS.
+
+`sw.js`: `CACHE_NAME` → v29.
+
+Versão web (Service Worker) v28 → v29.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
