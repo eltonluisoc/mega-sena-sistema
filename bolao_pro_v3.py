@@ -1,7 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v5.4
+SISTEMA DE GESTÃO DE BOLÕES PRO v5.5
+Correções v5.5 (Fase 2 da revisão multiagente — Financeiro 7→6 abas):
+ - "🔍 Visualizar / Recibo" fundida em "💳 Pagamentos" (era "Registrar"):
+   mesmo participante, mesmos dados — a aba de Registrar já tinha cards
+   com tudo que "Dados do Participante" mostrava em texto, só faltava
+   o histórico de pagamentos e o botão de recibo. Elimina de vez o
+   StringVar `_pag_part_sync`, que só existia pra sincronizar as duas
+   abas e fingir que eram uma coisa só.
+ - Removido código morto confirmado por grep: `_editar_part`/
+   `_form_part`/`_remover_part` — um segundo formulário de editar/
+   remover participante, sem nenhum botão que o chamasse em lugar
+   nenhum do sistema (editar/remover já é coberto pela aba
+   Participantes).
 Correções v5.4 ("Pendências por Bolão" virou seção de "Bolão Selecionado"):
  - A aba "📅 Pendências por Bolão" (com uma sub-aba por bolão — uma
    segunda forma de escolher bolão, diferente dos cartões) deixou de
@@ -934,7 +946,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v5.4")
+        self.root.title("Sistema de Gestão de Bolões PRO v5.5")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1112,7 +1124,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v5.4",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v5.5",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -1189,27 +1201,25 @@ class BolaoApp:
         nb_part.add(self.tab_cad_lista, text="📋 Lista / Remover")
         nb_part.add(self.tab_pessoas,   text="🔗 Pessoas / Unificar")
 
-        # ── Financeiro (7 sub-abas — "Editar" foi removida, redundante
-        # com "Histórico": busca por nome + duplo-clique já cobria tudo,
-        # e "Histórico" ganhou um botão Excluir pra fechar a diferença) ──
+        # ── Financeiro (6 sub-abas — "Editar" já tinha sido removida,
+        # redundante com "Histórico"; "Visualizar/Recibo" foi fundida em
+        # "Pagamentos" na revisão multiagente, pelo mesmo motivo: eram a
+        # mesma tela por participante, só sincronizadas por um StringVar
+        # pra fingir que eram uma coisa só) ──────────────────────────
         nb_fin = ttk.Notebook(self.tab_grp_fin, style="Inner.TNotebook")
         nb_fin.pack(fill="both", expand=True, padx=4, pady=4)
         self.tab_pag    = tk.Frame(nb_fin, bg=CORES["bg_frame"])
-        self.tab_vis    = tk.Frame(nb_fin, bg=CORES["bg_frame"])
         self.tab_dep    = tk.Frame(nb_fin, bg=CORES["bg_frame"])
         self.tab_rel    = tk.Frame(nb_fin, bg=CORES["bg_frame"])
         self.tab_rsv    = tk.Frame(nb_fin, bg=CORES["bg_frame"])
         self.tab_hist   = tk.Frame(nb_fin, bg=CORES["bg_frame"])
         self.tab_import = tk.Frame(nb_fin, bg=CORES["bg_frame"])
-        nb_fin.add(self.tab_pag,    text="💳 Registrar")
-        nb_fin.add(self.tab_vis,    text="🔍 Visualizar / Recibo")
+        nb_fin.add(self.tab_pag,    text="💳 Pagamentos")
         nb_fin.add(self.tab_dep,    text="🏦 Depositos")
         nb_fin.add(self.tab_rel,    text="📊 Relatorio")
         nb_fin.add(self.tab_rsv,    text="💰 Reservas Pessoais")
         nb_fin.add(self.tab_hist,   text="📋 Historico")
         nb_fin.add(self.tab_import, text="📥 Importar Extrato")
-
-        self._pag_part_sync = tk.StringVar()
 
         # ── Gestao: Caixa/Premios + Pendencias por Bolao ─────────────
         nb_gestao = ttk.Notebook(self.tab_grp_gestao, style="Inner.TNotebook")
@@ -1235,7 +1245,6 @@ class BolaoApp:
         self._build_cad_editar()
         self._build_cad_lista()
         self._build_pag()
-        self._build_vis()
         self._build_importar()
         self._build_rel()
         self._build_dep()
@@ -2372,12 +2381,18 @@ class BolaoApp:
 
         btn(row_cb, "🔄 Atualizar lista", CORES["btn_azul"],
             self._refresh_all, width=18).pack(side="left", padx=4)
+        btn(row_cb, "🧾 Emitir Recibo", CORES["btn_verde"],
+            self._emitir_recibo, width=16).pack(side="left", padx=4)
 
         # ── Informações do participante — cards visuais ──────────
         self._sec_pag_info = tk.Frame(p, bg=CORES["bg_frame"])
         self._sec_pag_info.pack(fill="x", padx=20, pady=6)
         self._pag_cards_frame = tk.Frame(self._sec_pag_info, bg=CORES["bg_frame"])
         self._pag_cards_frame.pack(fill="x")
+        self._pag_obs_lbl = tk.Label(self._sec_pag_info, text="", bg=CORES["bg_frame"],
+                                      fg=CORES["fg_label"], font=("Arial",8), anchor="w",
+                                      wraplength=760, justify="left")
+        self._pag_obs_lbl.pack(fill="x", pady=(4,0))
 
         # ── Formulário de pagamento ──────────────────────────────
         sec3 = section(p, "REGISTRAR PAGAMENTO")
@@ -2414,16 +2429,18 @@ class BolaoApp:
         btn(bf, "💳  REGISTRAR PAGAMENTO", CORES["btn_azul"],
             self._registrar_pag, width=26).pack(side="left")
 
+        # ── Histórico de pagamentos deste participante — antes era a
+        # aba separada "Visualizar / Recibo", que só existia por causa de
+        # como o código cresceu (fundida na revisão multiagente: mesmo
+        # participante, mesma tela, sem precisar de um mecanismo de
+        # sincronização entre duas abas pra fingir que eram uma coisa só).
+        sec4 = section(p, "HISTÓRICO DE PAGAMENTOS DESTE PARTICIPANTE")
+        sec4.pack(fill="both", expand=True, padx=20, pady=(6,10))
+        cols_hist = {"ID Pag.":70,"Mês Ref.":100,"Data Pag.":130,"Valor (R$)":120,"Depositado":110,"Obs.":200}
+        fr_hist, self.pag_hist_tree = make_tree(sec4, cols_hist, height=8)
+        fr_hist.pack(fill="both", expand=True)
+
     def _pag_cb_sel(self, e=None):
-        """Sincroniza seleção entre abas de Pagamentos e chama _pag_info."""
-        sel = self.pag_cb.get()
-        self._pag_part_sync.set(sel)
-        # Sincroniza vis_cb
-        try:
-            if sel in self.vis_cb["values"]:
-                self.vis_cb.set(sel)
-                self._vis_sel()
-        except: pass
         self._pag_info()
 
     def _pag_info(self, e=None):
@@ -2431,7 +2448,11 @@ class BolaoApp:
         # Limpa cards anteriores
         for w in self._pag_cards_frame.winfo_children():
             w.destroy()
-        if not sel: return
+        if not sel:
+            self._pag_obs_lbl.configure(text="")
+            try: self.pag_hist_tree.delete(*self.pag_hist_tree.get_children())
+            except Exception: pass
+            return
         m = re.search(r"\(ID: (\d+)\)", sel)
         if not m: return
         pid = int(m.group(1))
@@ -2439,7 +2460,7 @@ class BolaoApp:
         pt  = self.db.fetchone("SELECT * FROM participantes WHERE id=?",(pid,))
         if not pt: return
         pgs   = self.db.fetchall(
-            "SELECT * FROM pagamentos WHERE participante_id=? AND bolao_id=?",(pid,bid))
+            "SELECT * FROM pagamentos WHERE participante_id=? AND bolao_id=? ORDER BY id",(pid,bid))
         pago  = sum(x["valor"] for x in pgs)
         ve    = pt["valor_esperado"] or 0
         saldo = max(0, ve - pago)
@@ -2482,6 +2503,15 @@ class BolaoApp:
                      font=("Arial",7,"bold")).pack(anchor="w")
             tk.Label(c, text=valor, bg=cor, fg="white",
                      font=("Arial",11,"bold")).pack(anchor="w", pady=(1,0))
+
+        self._pag_obs_lbl.configure(text="Obs.: " + (pt["observacoes"] or "-"))
+
+        self.pag_hist_tree.delete(*self.pag_hist_tree.get_children())
+        for pgx in pgs:
+            dep = "✅ Sim" if pgx["depositado"] else "❌ Não"
+            self.pag_hist_tree.insert("","end", iid=str(pgx["id"]), values=(
+                pgx["id"], pgx["mes_referencia"], pgx["data_pagamento"],
+                fmt_brl(pgx["valor"]), dep, pgx["observacoes"] or "-"))
 
         self.pag_val.delete(0,"end")
         self.pag_val.focus_set()
@@ -4248,7 +4278,7 @@ class BolaoApp:
     # ════════════════════════════════════════════════════════════
     def _emitir_recibo(self):
         try:
-            sel = self.vis_cb.get()
+            sel = self.pag_cb.get()
             if not sel:
                 messagebox.showwarning("Atencao","Selecione um participante!"); return
             pid = int(re.search(r"\(ID: (\d+)\)", sel).group(1))
@@ -4397,7 +4427,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v5.4</span>
+        <span>Sistema de Gestão de Bolões v5.5</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -4532,108 +4562,25 @@ class BolaoApp:
 
 
     # ════════════════════════════════════════════════════════════
-    def _build_vis(self):
-        p = self.tab_vis
-        top=tk.Frame(p,bg=CORES["bg_frame"]); top.pack(fill="x",padx=20,pady=10)
-        tk.Label(top,text="Participante:",bg=CORES["bg_frame"],font=("Arial",9,"bold"),
-                 fg=CORES["fg_label"]).pack(side="left")
-        self.vis_cb=ttk.Combobox(top,width=40,state="readonly",font=("Arial",9))
-        self.vis_cb.pack(side="left",padx=8)
-        self.vis_cb.bind("<<ComboboxSelected>>",self._vis_sel)
-        btn(top,"🔄 Atualizar",CORES["btn_azul"],self._vis_sel,width=14).pack(side="left",padx=4)
-        btn(top,"🧾 Emitir Recibo",CORES["btn_verde"],self._emitir_recibo,width=16).pack(side="left",padx=4)
+    #  [_build_vis / _vis_limpar / _vis_sel — REMOVIDAS]
+    #  Era a aba "🔍 Visualizar / Recibo" — fundida em "💳 Pagamentos"
+    #  (_build_pag) na revisão multiagente: mesmo participante, mesmos
+    #  dados (a aba de Registrar já tinha cards com tudo que "Dados do
+    #  Participante" mostrava em texto), só faltava o histórico e o
+    #  botão de recibo, agora dentro de _pag_info/_build_pag. Isso
+    #  elimina de vez o StringVar _pag_part_sync, que só existia pra
+    #  fingir que as duas abas eram uma coisa só.
+    # ════════════════════════════════════════════════════════════
 
-        si=section(p,"DADOS DO PARTICIPANTE"); si.pack(fill="x",padx=20,pady=(0,8))
-        self.vis_info=tk.Text(si,height=5,state="disabled",relief="flat",
-                              bg=CORES["bg_section"],font=("Arial",9),fg=CORES["fg_label"])
-        self.vis_info.pack(fill="x")
-
-        sp=section(p,"HISTÓRICO DE PAGAMENTOS"); sp.pack(fill="both",expand=True,padx=20,pady=(0,10))
-        cols={"ID Pag.":70,"Mês Ref.":100,"Data Pag.":130,"Valor (R$)":120,"Depositado":110,"Obs.":200}
-        fr,self.vis_tree=make_tree(sp,cols,height=10); fr.pack(fill="both",expand=True)
-
-    def _vis_limpar(self):
-        """Limpa o painel de visualização ao trocar de bolão."""
-        try:
-            self.vis_info.configure(state="normal")
-            self.vis_info.delete("1.0","end")
-            self.vis_info.configure(state="disabled")
-            self.vis_tree.delete(*self.vis_tree.get_children())
-        except: pass
-
-    def _vis_sel(self, e=None):
-        sel=self.vis_cb.get()
-        if not sel: return
-        pid=int(re.search(r"\(ID: (\d+)\)",sel).group(1))
-        bid=self.bid.get()
-        pt=self.db.fetchone("SELECT * FROM participantes WHERE id=?",(pid,))
-        pgs=self.db.fetchall("SELECT * FROM pagamentos WHERE participante_id=? AND bolao_id=? ORDER BY id",(pid,bid))
-        pago=sum(x["valor"] for x in pgs)
-        saldo=(pt["valor_esperado"] or 0)-pago
-        status="✅ QUITADO" if saldo<=0 else "⚠ PENDENTE"
-        info=(f"Nome: {pt['nome']}  |  Tel: {pt['telefone'] or '-'}  |  PIX: {pt['chave_pix'] or '-'}\n"
-              f"Valor Esperado: {fmt_brl(pt['valor_esperado'])}  |  Total Pago: {fmt_brl(pago)}  |  "
-              f"Saldo: {fmt_brl(max(0,saldo))}  |  Status: {status}\nObs.: {pt['observacoes'] or '-'}")
-        self.vis_info.configure(state="normal")
-        self.vis_info.delete("1.0","end"); self.vis_info.insert("1.0",info)
-        self.vis_info.configure(state="disabled")
-        self.vis_tree.delete(*self.vis_tree.get_children())
-        for pg in pgs:
-            dep="✅ Sim" if pg["depositado"] else "❌ Não"
-            self.vis_tree.insert("","end",iid=str(pg["id"]),values=(
-                pg["id"],pg["mes_referencia"],pg["data_pagamento"],
-                fmt_brl(pg["valor"]),dep,pg["observacoes"] or "-"))
-
-    def _editar_part(self):
-        sel=self.vis_cb.get()
-        if not sel: messagebox.showwarning("Atenção","Selecione um participante!"); return
-        pid=int(re.search(r"\(ID: (\d+)\)",sel).group(1))
-        pt=self.db.fetchone("SELECT * FROM participantes WHERE id=?",(pid,))
-        self._form_part(pt)
-
-    def _form_part(self, pt):
-        win=tk.Toplevel(self.root); win.title("Editar Participante")
-        win.geometry("500x420"); win.configure(bg=CORES["bg_section"]); win.grab_set()
-        tk.Label(win,text="EDITAR PARTICIPANTE",bg=CORES["bg_section"],
-                 fg=CORES["fg_title"],font=("Arial",12,"bold")).pack(pady=10)
-        form=tk.Frame(win,bg=CORES["bg_section"],padx=25); form.pack(fill="both",expand=True)
-        fields=[("Nome Completo:","nome"),("Telefone (WhatsApp):","telefone"),
-                ("Chave PIX:","chave_pix"),("Valor Total Esperado (R$):","valor_esperado"),
-                ("Observações:","observacoes")]
-        vars_={}
-        for i,(lbl,key) in enumerate(fields):
-            tk.Label(form,text=lbl,bg=CORES["bg_section"],fg=CORES["fg_label"],
-                     font=("Arial",9,"bold")).grid(row=i*2,column=0,sticky="w",pady=(6,0))
-            w=entry(form,width=46)
-            # Formata valor_esperado com vírgula para evitar confusão com ponto decimal
-            if key == "valor_esperado":
-                try:
-                    val_fmt = f"{float(pt[key] or 0):.2f}".replace(".", ",")
-                except:
-                    val_fmt = "0,00"
-                w.insert(0, val_fmt)
-            else:
-                val = pt[key] if pt[key] is not None else ""
-                w.insert(0, str(val))
-            w.grid(row=i*2+1,column=0,sticky="ew"); vars_[key]=w
-        form.columnconfigure(0,weight=1)
-        def salvar():
-            self.db.execute(
-                "UPDATE participantes SET nome=?,telefone=?,chave_pix=?,valor_esperado=?,observacoes=? WHERE id=?",
-                (vars_["nome"].get(), vars_["telefone"].get(), vars_["chave_pix"].get(),
-                 to_float(vars_["valor_esperado"].get()), vars_["observacoes"].get(), pt["id"]))
-            messagebox.showinfo("Sucesso","Participante atualizado!"); win.destroy()
-            self._refresh_all(); self._vis_sel()
-        btn(form,"💾 SALVAR",CORES["btn_verde"],salvar,width=18).grid(row=20,column=0,pady=14,sticky="e")
-
-    def _remover_part(self):
-        sel=self.vis_cb.get()
-        if not sel: messagebox.showwarning("Atenção","Selecione um participante!"); return
-        pid=int(re.search(r"\(ID: (\d+)\)",sel).group(1))
-        pt=self.db.fetchone("SELECT * FROM participantes WHERE id=?",(pid,))
-        if messagebox.askyesno("Confirmar",f"Remover '{pt['nome']}'?"):
-            self.db.execute("UPDATE participantes SET ativo=0 WHERE id=?",(pid,))
-            messagebox.showinfo("Removido","Participante removido."); self._refresh_all()
+    # ════════════════════════════════════════════════════════════
+    #  [_editar_part / _form_part / _remover_part — REMOVIDAS]
+    #  Código morto confirmado na revisão multiagente: um segundo
+    #  formulário de editar/remover participante, idêntico em campos ao
+    #  de "Editar Participante" (_cad_edit_salvar), mas sem nenhum botão
+    #  que o chamasse em lugar nenhum do sistema (grep confirmou zero
+    #  chamadas). Editar/remover participante já é coberto pela aba
+    #  "Participantes".
+    # ════════════════════════════════════════════════════════════
 
     # ════════════════════════════════════════════════════════════
     #  [ANTIGA ABA 5 — EDITAR PAGAMENTOS — REMOVIDA]
@@ -6408,7 +6355,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v5.4</span>
+        <span>Sistema de Gestão de Bolões v5.5</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -7350,14 +7297,11 @@ class BolaoApp:
         items_todos = [f"{dict(p)['nome']} (ID: {dict(p)['id']})" for p in todos]
 
         self.pag_cb["values"]  = items_todos
-        self.vis_cb["values"]  = items_todos
         try: self.cad_edit_cb["values"] = items_todos
         except: pass
-        try: self.pag_cb.set("")
-        except: pass
         try:
-            self.vis_cb.set("")
-            self._vis_limpar()
+            self.pag_cb.set("")
+            self._pag_info()
         except: pass
         try: self.cad_edit_cb.set("")
         except: pass
@@ -7399,8 +7343,6 @@ class BolaoApp:
         # Só atualiza a LISTA de opções dos combos — não mexe na seleção
         # atual do usuário (.set() fica intocado de propósito).
         try: self.pag_cb["values"] = items_todos
-        except Exception: pass
-        try: self.vis_cb["values"] = items_todos
         except Exception: pass
         try: self.cad_edit_cb["values"] = items_todos
         except Exception: pass
