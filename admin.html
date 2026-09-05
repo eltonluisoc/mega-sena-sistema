@@ -344,33 +344,42 @@
         /* ============================================ */
         .grade-numeros {
             display: grid;
-            /* Colunas de largura FIXA (não "1fr", que estica cada
-               caixinha pra preencher a linha toda) — pedido do usuário:
-               10 números por linha, mas caixinha pequena, sem esticar.
-               O espaço sobrando na linha fica em branco, de propósito. */
-            grid-template-columns: repeat(10, 40px);
+            /* Colunas FLUIDAS (1fr), mas com max-width no container —
+               isso resolve os dois problemas de uma vez: no desktop, o
+               max-width impede as caixinhas de esticar demais (esticar
+               foi o problema original que pediu largura fixa); no
+               celular, largura FIXA (40px) é que criava o problema
+               novo — 10 colunas de 40px passavam da tela e escondiam as
+               colunas 9/10 atrás de rolagem horizontal. Com 1fr, as 10
+               colunas sempre dividem igualmente a largura disponível —
+               nunca estoura, nunca precisa rolar, em nenhuma tela. */
+            grid-template-columns: repeat(10, 1fr);
             justify-content: start;
             gap: 6px;
-            max-width: 100%;
-            /* Em telas estreitas (celular), 10 colunas fixas podem passar
-               da largura disponível — vira rolagem horizontal em vez de
-               estourar o layout. */
-            overflow-x: auto;
+            max-width: 480px;
         }
 
         .numero-btn {
-            padding: 8px 4px;
+            padding: 9px 4px;
             border: 2px solid #e2e8f0;
             border-radius: 8px;
             background: white;
-            font-size: 13px;
+            font-size: 14px;
             font-weight: bold;
             cursor: pointer;
             transition: all 0.15s;
             color: #1e293b;
             font-family: monospace;
-            min-height: 38px;
+            min-height: 42px;
             touch-action: manipulation;
+        }
+
+        /* Quina tem 80 números (8 linhas de 10) — levemente mais compacto
+           pra não esticar demais a altura da grade inteira. */
+        .numero-btn.compacto {
+            font-size: 12px;
+            padding: 7px 2px;
+            min-height: 34px;
         }
 
         .numero-btn:hover {
@@ -1014,9 +1023,6 @@
             .reservas-grid {
                 grid-template-columns: 1fr;
             }
-            .grade-numeros {
-                grid-template-columns: repeat(5, 1fr);
-            }
             .bolao-config {
                 grid-template-columns: 1fr 1fr;
                 gap: 6px 10px;
@@ -1375,7 +1381,7 @@
                             <input type="text" id="numerosTextoLote" class="form-control" placeholder="Ou digite/cole os 15 números deste cartão">
                             <button id="btnPreencherLoteTexto" type="button" class="btn btn-primary" style="width: auto; white-space: nowrap;">✍️ Preencher</button>
                         </div>
-                        <div class="grade-numeros" id="gradeNumeros" style="grid-template-columns: repeat(10, 40px); justify-content: start;"></div>
+                        <div class="grade-numeros" id="gradeNumeros"></div>
                         <div style="text-align: center; margin-top: 12px;"><span id="contadorNumeros" style="font-size: 14px; font-weight: 600; color: #0071e3;">0/15 números selecionados</span></div>
                         <div style="display: flex; justify-content: center; gap: 12px; margin-top: 16px; flex-wrap: wrap;">
                             <button id="btnCartaoAnterior" class="btn btn-secondary" style="min-width: 80px;">◀</button>

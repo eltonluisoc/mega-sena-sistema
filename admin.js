@@ -213,25 +213,16 @@ function inicializarGradeSelecaoIndividual() {
     else if (loteriaAdmin === 'quina') totalNumeros = 80;
     else totalNumeros = 60;
     
-    // Colunas de largura FIXA (não "1fr") — pedido do usuário: 10 números
-    // por linha, mas caixinha pequena, sem esticar pra preencher a linha
-    // toda (mesmo ajuste do padrão .grade-numeros em admin.html; aqui
-    // precisa ser repetido porque style.gridTemplateColumns inline
-    // sobrescreve a classe).
-    grade.style.gridTemplateColumns = 'repeat(10, 40px)';
-    grade.style.justifyContent = 'start';
-    grade.style.gap = '6px';
-    
+    // Tamanho/colunas ficam 100% no CSS (.grade-numeros/.numero-btn em
+    // admin.html) — nada de estilo inline aqui. Botão inline sobrescrevia
+    // a classe e, com isso, também sobrescrevia a regra que faz a grade
+    // caber na tela do celular sem rolagem horizontal.
     grade.innerHTML = '';
     for (let i = 1; i <= totalNumeros; i++) {
         const btn = document.createElement('button');
-        btn.className = 'numero-btn';
+        btn.className = 'numero-btn' + (totalNumeros > 60 ? ' compacto' : '');
         btn.dataset.numero = i;
         btn.textContent = i.toString().padStart(2, '0');
-        btn.style.fontSize = (totalNumeros > 60) ? '11px' : '13px';
-        btn.style.padding = (totalNumeros > 60) ? '6px 2px' : '8px 4px';
-        btn.style.minHeight = (totalNumeros > 60) ? '32px' : '38px';
-        btn.style.borderRadius = '6px';
         btn.onclick = () => toggleNumeroSelecao(i);
         grade.appendChild(btn);
     }
