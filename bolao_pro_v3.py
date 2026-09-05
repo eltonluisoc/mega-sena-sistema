@@ -1,7 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.1
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.2
+Correções v6.2 (Participantes consolidado — 4 abas viram 2):
+ - "➕ Novo Participante" e "✏ Editar Participante" (2 das 4 sub-abas
+   de Participantes) viraram popups abertos a partir da lista "👥
+   Participantes", mesmo padrão já usado em Início/Financeiro: uma
+   lista só, com botão "+ Novo" e duplo-clique pra editar, em vez de
+   abas fixas pro mesmo assunto.
+ - A lista de Participantes ganhou busca por nome (filtro ao digitar,
+   sem nova consulta ao banco) e duplo-clique abre a edição já com o
+   participante selecionado.
 Correções v6.1 (ajuste de feedback do usuário sobre o v6.0):
  - "📊 Ganhos por Loteria" e "➕ Registrar Lançamento" saíram de um bloco
    solto acima das tabelas (sem relação clara com o resto da tela) e
@@ -971,7 +980,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.1")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.2")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1149,7 +1158,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.1",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.2",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -1232,16 +1241,15 @@ class BolaoApp:
             _f.place(relx=0, rely=0, relwidth=1, relheight=1)
         self._inicio_modo_atual = "geral"
 
-        # ── Participantes (4 sub-abas) ───────────────────────────────
+        # ── Participantes (2 sub-abas — "Novo" e "Editar" viraram
+        # popups abertos a partir da lista, mesmo padrão já usado em
+        # Financeiro/Início: uma lista só, com "+ Novo" e duplo-clique
+        # pra editar, em vez de 3 abas pro mesmo assunto) ────────────
         nb_part = ttk.Notebook(self.tab_grp_part, style="Inner.TNotebook")
         nb_part.pack(fill="both", expand=True, padx=4, pady=4)
-        self.tab_cad_novo  = tk.Frame(nb_part, bg=CORES["bg_frame"])
-        self.tab_cad_edit  = tk.Frame(nb_part, bg=CORES["bg_frame"])
         self.tab_cad_lista = tk.Frame(nb_part, bg=CORES["bg_frame"])
         self.tab_pessoas   = tk.Frame(nb_part, bg=CORES["bg_frame"])
-        nb_part.add(self.tab_cad_novo,  text="➕ Novo Participante")
-        nb_part.add(self.tab_cad_edit,  text="✏ Editar Participante")
-        nb_part.add(self.tab_cad_lista, text="📋 Lista / Remover")
+        nb_part.add(self.tab_cad_lista, text="👥 Participantes")
         nb_part.add(self.tab_pessoas,   text="🔗 Pessoas / Unificar")
 
         # ── Financeiro (6 sub-abas — "Editar" já tinha sido removida,
@@ -1286,8 +1294,6 @@ class BolaoApp:
         self._build_dashboard()
         self._build_bolao_sel()
         self.tab_dash.tkraise()
-        self._build_cad()
-        self._build_cad_editar()
         self._build_cad_lista()
         self._build_pag()
         self._build_importar()
@@ -1362,11 +1368,33 @@ class BolaoApp:
     # ════════════════════════════════════════════════════════════
     #  ABA CADASTRAR — Novo Participante
     # ════════════════════════════════════════════════════════════
-    def _build_cad(self):
-        p = self.tab_cad_novo
+    def _abrir_popup_novo_participante(self):
+        """Popup de cadastro de participante — antes era a aba própria
+        "➕ Novo Participante", ocupando espaço full-time na navegação
+        por uma ação ocasional (mesmo padrão já usado em "Registrar
+        Lançamento"). Recria os mesmos atributos self._cv/self._cv_is_adm/
+        self._imp_* de sempre, então _cadastrar/_cadastrar_e_pagar/
+        _cad_adm_toggle/_calcular_valor_cotas/_preencher_valor_cad/
+        _imp_buscar/_imp_importar continuam funcionando sem nenhuma
+        mudança neles."""
+        win = tk.Toplevel(self.root)
+        win.title("Novo Participante")
+        win.geometry("640x760")
+        win.configure(bg=CORES["bg_frame"])
+        win.grab_set(); win.lift(); win.focus_force()
+
+        canvas = tk.Canvas(win, bg=CORES["bg_frame"], highlightthickness=0)
+        sb = ttk.Scrollbar(win, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+        p = tk.Frame(canvas, bg=CORES["bg_frame"])
+        canvas_window = canvas.create_window((0, 0), window=p, anchor="nw")
+        canvas.bind("<Configure>", lambda e: canvas.itemconfig(canvas_window, width=e.width))
+        p.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
 
         outer = tk.Frame(p, bg=CORES["bg_frame"])
-        outer.pack(fill="both", expand=True, padx=40, pady=20)
+        outer.pack(fill="both", expand=True, padx=30, pady=20)
 
         sec = section(outer, "CADASTRAR NOVO PARTICIPANTE", pady=16)
         sec.pack(fill="x")
@@ -1457,6 +1485,11 @@ class BolaoApp:
             self._cadastrar, width=18).pack(side="left")
         btn(bf, "💳 CADASTRAR + PAGAR", CORES["btn_azul"],
             self._cadastrar_e_pagar, width=22).pack(side="left", padx=8)
+        # "Cadastrar" limpa o formulário e continua aberto de propósito
+        # (cadastrar vários participantes seguidos sem reabrir o popup)
+        # — por isso precisa de um jeito explícito de fechar quando
+        # terminar, já que virou popup em vez de aba fixa.
+        btn(bf, "Fechar", CORES["btn_cinza"], win.destroy, width=10).pack(side="left", padx=8)
 
         tk.Label(sec, text="* campo obrigatório", bg=CORES["bg_section"],
                  fg="#999", font=("Arial",8,"italic")).grid(
@@ -2282,16 +2315,30 @@ class BolaoApp:
         self._imp_sel_ids = set()
         self._imp_pdf_path.set("")
         self._imp_status.configure(text="")
-    def _build_cad_editar(self):
-        p = self.tab_cad_edit
+    def _abrir_popup_editar_participante(self, participante_id=None):
+        """Popup de edição de participante — antes era a aba própria
+        "✏ Editar Participante". Se participante_id for informado (ex.:
+        duplo-clique numa linha da lista de Participantes), já abre com
+        esse participante selecionado e o formulário preenchido."""
+        win = tk.Toplevel(self.root)
+        win.title("Editar Participante")
+        win.geometry("560x420")
+        win.configure(bg=CORES["bg_frame"])
+        win.grab_set(); win.lift(); win.focus_force()
+        p = win
 
         top = tk.Frame(p, bg=CORES["bg_frame"]); top.pack(fill="x", padx=20, pady=12)
         tk.Label(top, text="Participante:", bg=CORES["bg_frame"],
                  fg=CORES["fg_label"], font=("Arial",9,"bold")).pack(side="left")
-        self.cad_edit_cb = ttk.Combobox(top, width=50, state="readonly", font=("Arial",10))
+        self.cad_edit_cb = ttk.Combobox(top, width=42, state="readonly", font=("Arial",10))
         self.cad_edit_cb.pack(side="left", padx=8)
         self.cad_edit_cb.bind("<<ComboboxSelected>>", self._cad_edit_sel)
-        btn(top, "🔄", CORES["btn_azul"], self._refresh_all, width=4).pack(side="left")
+
+        bid = self.bid.get()
+        todos = self.db.fetchall(
+            "SELECT * FROM participantes WHERE bolao_id=? AND ativo=1 ORDER BY nome", (bid,))
+        items_todos = [f"{dict(pt)['nome']} (ID: {dict(pt)['id']})" for pt in todos]
+        self.cad_edit_cb["values"] = items_todos
 
         self._cad_edit_form_frame = tk.Frame(p, bg=CORES["bg_frame"])
         self._cad_edit_form_frame.pack(fill="x", padx=20)
@@ -2309,6 +2356,15 @@ class BolaoApp:
             self._cad_edit_vars[key] = w
         bf = tk.Frame(sec_e, bg=CORES["bg_section"]); bf.grid(row=6,column=0,columnspan=2,sticky="w",pady=8)
         btn(bf,"💾 SALVAR ALTERAÇÕES",CORES["btn_verde"],self._cad_edit_salvar,width=22).pack(side="left",padx=4)
+        btn(bf,"Fechar",CORES["btn_cinza"],win.destroy,width=10).pack(side="left",padx=4)
+
+        if participante_id is not None:
+            for item in items_todos:
+                m = re.search(r"\(ID: (\d+)\)", item)
+                if m and int(m.group(1)) == participante_id:
+                    self.cad_edit_cb.set(item)
+                    self._cad_edit_sel()
+                    break
 
     def _cad_edit_sel(self, e=None):
         sel = self.cad_edit_cb.get()
@@ -2351,23 +2407,38 @@ class BolaoApp:
         p = self.tab_cad_lista
 
         top = tk.Frame(p, bg=CORES["bg_frame"]); top.pack(fill="x", padx=20, pady=10)
+        btn(top,"➕ Novo Participante",CORES["btn_verde"],self._abrir_popup_novo_participante,width=18).pack(side="left",padx=4)
         btn(top,"🔄 Atualizar",CORES["btn_azul"],self._cad_lista_load,width=14).pack(side="left",padx=4)
         btn(top,"🗑 Remover Selecionado",CORES["btn_vermelho"],self._cad_remover,width=22).pack(side="left",padx=4)
-        tk.Label(top, text="  ⚠ Não é possível remover participante com pagamentos depositados.",
+
+        top2 = tk.Frame(p, bg=CORES["bg_frame"]); top2.pack(fill="x", padx=20, pady=(0,6))
+        tk.Label(top2, text="🔎 Buscar:", bg=CORES["bg_frame"], fg=CORES["fg_label"],
+                 font=("Arial",9,"bold")).pack(side="left")
+        self._cad_lista_busca_var = tk.StringVar()
+        e_busca = entry(top2, width=30, textvariable=self._cad_lista_busca_var)
+        e_busca.pack(side="left", padx=6)
+        self._cad_lista_busca_var.trace_add("write", lambda *a: self._filtrar_cad_lista())
+        tk.Label(top2, text="  ⚠ Não é possível remover participante com pagamentos depositados.",
                  bg=CORES["bg_frame"], fg="#e67e22", font=("Arial",8,"italic")).pack(side="left",padx=8)
 
         sec = section(p,"PARTICIPANTES DO BOLÃO ATIVO")
-        sec.pack(fill="both", expand=True, padx=20, pady=(0,10))
+        sec.pack(fill="both", expand=True, padx=20, pady=(0,4))
         cols = {"ID":50,"Nome":220,"Telefone":140,"Cotas":60,"Valor Esperado":130,"Status":120}
         fr, self._cad_lista_tree = make_tree(sec, cols, height=20)
         fr.pack(fill="both", expand=True)
         self._cad_lista_tree.tag_configure("quitado", background="#d5f5e3")
         self._cad_lista_tree.tag_configure("pendente", background="#fde8d8")
+        self._cad_lista_tree.bind("<Double-1>", self._cad_lista_dblclick)
+        tk.Label(p, text="💡 Duplo clique num participante para editar seus dados.",
+                 bg=CORES["bg_frame"], fg=CORES["fg_label"], font=("Arial",8,"italic")).pack(
+                 anchor="w", padx=20, pady=(0,10))
 
     def _cad_lista_load(self):
         bid = self.bid.get()
-        self._cad_lista_tree.delete(*self._cad_lista_tree.get_children())
-        if not bid: return
+        self._cad_lista_dados_full = []
+        if not bid:
+            self._filtrar_cad_lista()
+            return
         b   = self.db.fetchone("SELECT * FROM boloes WHERE id=?", (bid,))
         bd  = dict(b) if b else {}
         vt  = float(bd.get("valor_total",0) or 0)
@@ -2385,9 +2456,24 @@ class BolaoApp:
             saldo = max(0, ve-pago)
             status = "✅ Quitado" if saldo<=0 else "⚠ Pendente"
             tag    = "quitado" if saldo<=0 else "pendente"
-            self._cad_lista_tree.insert("","end", iid=str(pt_d["id"]), tags=(tag,), values=(
-                pt_d["id"], pt_d["nome"], pt_d["telefone"] or "-",
-                cotas, fmt_brl(ve), status))
+            self._cad_lista_dados_full.append(
+                (pt_d["id"], pt_d["nome"], pt_d["telefone"] or "-", cotas, fmt_brl(ve), status, tag))
+        self._filtrar_cad_lista()
+
+    def _filtrar_cad_lista(self):
+        termo = getattr(self, "_cad_lista_busca_var", None)
+        termo = termo.get().strip().lower() if termo else ""
+        self._cad_lista_tree.delete(*self._cad_lista_tree.get_children())
+        for pid, nome, tel, cotas, ve_show, status, tag in getattr(self, "_cad_lista_dados_full", []):
+            if termo and termo not in nome.lower():
+                continue
+            self._cad_lista_tree.insert("","end", iid=str(pid), tags=(tag,),
+                values=(pid, nome, tel, cotas, ve_show, status))
+
+    def _cad_lista_dblclick(self, event):
+        sel = self._cad_lista_tree.selection()
+        if not sel: return
+        self._abrir_popup_editar_participante(participante_id=int(sel[0]))
 
     def _cad_remover(self):
         sel = self._cad_lista_tree.selection()
@@ -4680,7 +4766,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.1</span>
+        <span>Sistema de Gestão de Bolões v6.2</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -6573,7 +6659,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.1</span>
+        <span>Sistema de Gestão de Bolões v6.2</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
