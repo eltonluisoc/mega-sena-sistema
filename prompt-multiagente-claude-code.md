@@ -381,6 +381,23 @@ Usuário testou o v6.0 e aprovou tudo, com um único ajuste cosmético: os botõ
 
 Versão v6.0 → v6.1 (botões) → v6.2 (Participantes).
 
+## Rodada 21 — Situação dos Participantes funde com Pendências deste Bolão (v6.3)
+
+Usuário pediu pra continuar desenvolvendo os itens pendentes da Rodada 19. Item escolhido: unificar "Situação dos Participantes" (coluna estreita à esquerda em "Bolão Selecionado", com busca por nome, uma consulta) e "Pendências deste Bolão" (seção de largura toda, logo abaixo, outra consulta) — as duas mostravam pago/saldo/status do mesmo participante, só com layout e nível de detalhe diferentes.
+
+**Achado ao comparar as duas consultas**: o status de "Situação dos Participantes" vinha de `_status_part_adm` → `_status_part(pago, ve, parc_esp, parc)`, passando a parcela **sem** multiplicar por `n_cotas`; já "Pendências" fazia `_status_part(pago, ve, parc_esp, parc_val * n_cotas)`, multiplicando certo. Resultado: um participante com 2+ cotas podia acumular pagamentos suficientes pra 1 cota e já aparecer "🟦 Em Dia" em "Situação", mesmo devendo pela segunda cota — um bug real de exibição, não só duplicação de tela.
+
+**Implementado**:
+- "Pendências deste Bolão" removida por completo (`_atualizar_pendencias_bolao_sel`, `_pend_registrar_dblclick`, `_pend_tree`/`_pend_mes_lbl`/`_pend_rodape_lbl` — tudo apagado).
+- "Situação dos Participantes" ganhou a coluna **Cotas** e o resumo de rodapé (`_dash_sit_rodape_lbl`: "N pendente(s) | M em dia/quitado(s) | Parcelas esperadas: X") que só existiam em Pendências.
+- Corrigido o bug: `_dash_load` agora calcula `n_cotas` por participante e passa `parc_d * n_cotas` pra `_status_part_adm`. Status agora distingue 3 estados (✅ Quitado / 🟦 Em Dia / ⚠ Pendente) — antes "Situação" só mostrava Quitado/Pendente (binário), escondendo o "em dia mas não quitado" que só "Pendências" sabia calcular.
+- Botões "Encerrar Bolão"/"Reativar Encerrado" (ficavam no cabeçalho da seção removida) foram pro cabeçalho do topo da tela, ao lado do botão de atualizar (🔄).
+- `_filtrar_situacao_participantes`/`_dash_sit_dblclick` ajustados pro novo formato de tupla (7 campos, incluindo `n_cotas`) e pra nova posição da coluna Saldo (índice 3, não mais 2).
+
+**Ainda pendente** (item 3 da Rodada 19, não pedido explicitamente ainda): rebaixar o combo do cabeçalho a indicador/atalho (sugestão do Fable) — o combo continua funcional, convivendo com a lista da coluna esquerda como segundo caminho pro mesmo resultado.
+
+Versão v6.2 → v6.3.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
