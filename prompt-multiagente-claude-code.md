@@ -424,6 +424,16 @@ Removidos de vez os estilos inline duplicados (`grade.style.gridTemplateColumns/
 
 Versão web (Service Worker) v28 → v29.
 
+## Rodada 24 — Aumento da Rodada 23 era pequeno demais pra notar
+
+Usuário testou a Rodada 23 no "Modo Seleção" (desktop) e disse não ter percebido nenhum aumento de fonte ou largura. Conta: o `max-width` escolhido (480px) contra o total antigo fixo (`repeat(10,40px)` + 9 gaps de 6px = 454px) só dava ~2,6px a mais por caixinha — matematicamente um aumento, mas pequeno demais pra ser visível. Não era bug de cache nem de override de CSS (conferido: nenhuma outra regra `.numero-btn`/`#gradeSelecaoIndividual` no arquivo, nenhum estilo inline sobrando).
+
+Corrigido subindo o `max-width` pra 560px (~50px por caixinha) e a fonte/moldura dos botões junto (14px/42px → 15px/46px, padding 9px→10px; a variante `.compacto` da Quina foi junto: 12px/34px → 13px/38px). Continua fluido (`1fr`), então o comportamento sem rolagem horizontal no celular da Rodada 23 não muda em nada — só o teto no desktop subiu.
+
+`sw.js`: `CACHE_NAME` → v30.
+
+Versão web (Service Worker) v29 → v30.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
