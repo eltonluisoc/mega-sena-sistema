@@ -339,6 +339,32 @@ Usuário testou a Rodada 17 e mandou print mostrando 12 colunas ainda — a muda
 
 `CACHE_NAME` do `sw.js` v26→v27.
 
+## Rodada 19 — Revisão multiagente completa do desktop: Início vira mestre-detalhe (v5.4 → v6.0)
+
+Usuário pediu uma "análise completa via agentes" do sistema desktop, insatisfeito com a usabilidade de "Início > Visão Geral" e "Bolão Selecionado" ("muito bagunçadas"), com "50 abas para assuntos correlatos" e sem jeito de clicar no nome de um participante pra registrar pagamento. Pediu resumo pra aprovar antes de implementar.
+
+**3 agentes de pesquisa (background, só leitura) rodaram em paralelo**:
+1. **Arquiteto de Navegação** — mapeou as 22 abas + ~21 popups do sistema (a soma real por trás da sensação de "50 abas"). Achou: mesma pergunta (participante × situação de pagamento) calculada em 4 lugares com queries independentes (mesmo padrão do bug do ADM isento, Rodada 6); "Registrar" e "Visualizar/Recibo" eram a mesma tela por participante, só sincronizadas por um StringVar; 3 funções de código morto (`_editar_part`/`_form_part`/`_remover_part`, zero chamadas); dois popups diferentes chamados "Editar Pessoa".
+2. **UX Visão Geral/Bolão Selecionado** — achou que "Início" usa tema escuro enquanto o resto do app é claro; paletas de cor diferentes entre as duas sub-abas (mesma cor significando coisas diferentes); dois seletores de bolão concorrentes (combo do cabeçalho + cartões); nenhuma árvore com busca, altura fixa de 8-12 linhas pra bolões de 50+ participantes.
+3. **Fluxo de Pagamento Rápido** — documentou o precedente já existente (`_pend_registrar_dblclick`, duplo-clique em "Pendências deste Bolão") e achou que ele **não respeitava o aviso de "participante isento"** que o formulário principal (`_registrar_pag`) tem — um buraco de segurança que generalizar sem corrigir replicaria em todo canto novo.
+
+**Usuário aprovou tudo** e pediu adicionalmente uma proposta do modelo **Fable** especificamente pra navegabilidade de "Início". Fable propôs ir além do esboço original (que mantinha 2 sub-abas): trocar por um **layout mestre-detalhe fixo** (`ttk.PanedWindow`, nativo do Tkinter) — lista de bolões numa coluna à esquerda, sempre visível, conteúdo à direita trocando sem trocar de aba. Usuário escolheu a proposta do Fable.
+
+**Implementado**:
+- **`_build_tabs`**: "Início" trocou de `ttk.Notebook` (2 sub-abas) pra `tk.PanedWindow` — coluna esquerda (`self.tab_inicio_lista`, largura fixa 220px) + coluna direita (`self.tab_dash`/`self.tab_bolao` empilhados com `.place()` + `.tkraise()`, técnica clássica de "notebook sem abas" do Tkinter).
+- **Nova `_build_inicio_lista`**: item fixo "📊 Visão Geral" no topo (realçado quando é o modo ativo) + lista rolável de bolões abaixo, com o mesmo badge de status (✅ em dia / ⚠ N atrasado(s)) que já existia nos cartões antigos.
+- **Nova `_mostrar_inicio_modo(modo)`**: troca `tab_dash`↔`tab_bolao` via `tkraise()`. `_ir_para_visao_geral()` chama isso + `_refresh_dados_visiveis()`. `_selecionar_bolao_via_cartao` (renomeado internamente, mesma função) chama `_selecionar_bolao_por_id` (já fazia `_refresh_all()`) + `_mostrar_inicio_modo("bolao")`.
+- **`_atualizar_cartoes_bolao`**: virou lista vertical (era grade 5 colunas) — mesma função, conteúdo redesenhado pra caber na coluna estreita.
+- **`_build_bolao_sel`**: removido o cabeçalho "Selecione um bolão" (a seleção só existe na coluna esquerda agora) — elimina o "qual dos dois seletores vale?" que a segunda rodada de agentes apontou.
+- **Correção do buraco de segurança**: extraída `_confirmar_pagamento_isento(pid, bid)` de dentro de `_registrar_pag`, e criado `_abrir_popup_registrar_pagamento(participante_id, bolao_id, valor_sugerido, nome_exibicao)` — popup único reaproveitado por `_pend_registrar_dblclick` (que antes reimplementava o INSERT sem a checagem de isento) e pelo novo duplo-clique em "Situação dos Participantes" (`_dash_sit_dblclick`). Os dois agora respeitam o mesmo aviso.
+- **Duplo clique estendido**: "Situação dos Participantes" (dentro de Bolão Selecionado) ganhou duplo-clique pra registrar pagamento — antes só existia em "Pendências deste Bolão". Funciona pra pendente ou já quitado (permite adiantar/pagamento extra). iid da árvore virou `"p<participante_id>"`, eliminando busca por nome (mais seguro que o padrão do precedente).
+- **Busca por nome**: novo campo de filtro em "Situação dos Participantes" (`_filtrar_situacao_participantes`, refiltra em memória sem reconsultar o banco a cada tecla).
+- **Financeiro (Fase 2, feita antes da parte do Início)**: "Visualizar/Recibo" fundida em "Pagamentos" (era "Registrar") — 7→6 sub-abas, elimina o StringVar `_pag_part_sync`. Removidas as 3 funções de código morto confirmadas.
+
+**Pendente (próxima rodada, se o usuário quiser continuar)**: consolidar Participantes (4→2 sub-abas), unificar de vez "Situação dos Participantes" + "Pendências deste Bolão" numa lista só (hoje coexistem, ambas com ação, mas ainda são 2 queries separadas), e rebaixar o combo do cabeçalho a indicador/atalho (sugestão do Fable, não implementada — o combo continua funcional, só que agora convive com a lista da esquerda como segundo caminho pro mesmo resultado).
+
+Versão v5.4 → v5.5 (Financeiro) → v6.0 (Início mestre-detalhe).
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

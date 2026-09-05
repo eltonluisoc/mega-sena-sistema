@@ -1,7 +1,26 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v5.5
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.0
+Correções v6.0 (Início vira layout mestre-detalhe — proposta do Fable):
+ - "Início" não usa mais Notebook interno (2 sub-abas). Virou um
+   PanedWindow: lista de bolões numa coluna fixa à ESQUERDA (sempre
+   visível, nunca "some" atrás de uma troca de aba) + conteúdo à
+   direita trocando com tkraise() entre "Visão Geral" e "Bolão
+   Selecionado" — sem trocar de aba. O item "📊 Visão Geral" fica
+   fixado no topo da lista, acima dos bolões.
+ - O antigo cabeçalho "Selecione um bolão" (dentro da aba Bolão
+   Selecionado) foi removido — a seleção agora só existe na coluna
+   esquerda (_build_inicio_lista), evitando o "qual dos dois vale?"
+   entre ela e o combo do cabeçalho.
+ - Duplo clique agora funciona em "Situação dos Participantes" também
+   (antes só em "Pendências deste Bolão") — mesmo popup rápido de
+   pagamento (_abrir_popup_registrar_pagamento, extraído/generalizado
+   de código antes duplicado). Funciona pra pendente ou quitado.
+ - Novo campo de busca por nome em "Situação dos Participantes".
+ - Corrigido: o popup de pagamento por duplo-clique não respeitava o
+   aviso de "participante isento" que o formulário principal já tinha
+   — centralizado em _confirmar_pagamento_isento(), usado pelos dois.
 Correções v5.5 (Fase 2 da revisão multiagente — Financeiro 7→6 abas):
  - "🔍 Visualizar / Recibo" fundida em "💳 Pagamentos" (era "Registrar"):
    mesmo participante, mesmos dados — a aba de Registrar já tinha cards
@@ -946,7 +965,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v5.5")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.0")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1124,7 +1143,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v5.5",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.0",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -1180,14 +1199,32 @@ class BolaoApp:
         self.tab_cad     = self.tab_grp_part
         self.tab_pag_grp = self.tab_grp_fin
 
-        # ── Inicio: Visao Geral (todos os boloes) + Bolao Selecionado
-        # (resumo, detalhe e pendencias do bolao escolhido nos cartoes) ──
-        nb_inicio = ttk.Notebook(self.tab_grp_inicio, style="Inner.TNotebook")
-        nb_inicio.pack(fill="both", expand=True, padx=4, pady=4)
-        self.tab_dash  = tk.Frame(nb_inicio, bg=CORES["bg_frame"])
-        self.tab_bolao = tk.Frame(nb_inicio, bg=CORES["bg_frame"])
-        nb_inicio.add(self.tab_dash,  text="🏠 Visão Geral")
-        nb_inicio.add(self.tab_bolao, text="🎯 Bolão Selecionado")
+        # ── Inicio ────────────────────────────────────────────────────
+        # Layout mestre-detalhe fixo (proposta do modelo Fable pra
+        # navegabilidade, aprovada pelo usuário): antes eram 2 sub-abas
+        # (Notebook) — trocar de bolão exigia entrar na aba "Bolão
+        # Selecionado" primeiro, escondendo o seletor sempre que se
+        # estava vendo a Visão Geral. Agora é um PanedWindow: a lista de
+        # bolões fica numa coluna à ESQUERDA, sempre visível, e o
+        # conteúdo à direita troca entre "Visão Geral" e "Bolão
+        # Selecionado" com tkraise() (2 frames empilhados na mesma área —
+        # a técnica clássica de "notebook sem abas" do Tkinter), sem
+        # nunca esconder a lista. Ver _build_inicio_lista/_mostrar_inicio_modo.
+        pw_inicio = tk.PanedWindow(self.tab_grp_inicio, orient="horizontal",
+                                    bg="#0d1b2a", sashwidth=5, bd=0, sashrelief="flat")
+        pw_inicio.pack(fill="both", expand=True, padx=4, pady=4)
+
+        self.tab_inicio_lista = tk.Frame(pw_inicio, bg="#1a2a3a")
+        pw_inicio.add(self.tab_inicio_lista, minsize=190, width=220)
+
+        _inicio_content = tk.Frame(pw_inicio, bg=CORES["bg_frame"])
+        pw_inicio.add(_inicio_content, minsize=420)
+
+        self.tab_dash  = tk.Frame(_inicio_content, bg=CORES["bg_frame"])
+        self.tab_bolao = tk.Frame(_inicio_content, bg="#1a2a3a")
+        for _f in (self.tab_dash, self.tab_bolao):
+            _f.place(relx=0, rely=0, relwidth=1, relheight=1)
+        self._inicio_modo_atual = "geral"
 
         # ── Participantes (4 sub-abas) ───────────────────────────────
         nb_part = ttk.Notebook(self.tab_grp_part, style="Inner.TNotebook")
@@ -1239,8 +1276,10 @@ class BolaoApp:
         nb_sys.add(self.tab_pub, text="🌐 Site / Publicar")
 
         # ── Constrói o conteúdo de todas as abas ────────────────
+        self._build_inicio_lista()
         self._build_dashboard()
         self._build_bolao_sel()
+        self.tab_dash.tkraise()
         self._build_cad()
         self._build_cad_editar()
         self._build_cad_lista()
@@ -1263,9 +1302,14 @@ class BolaoApp:
         # _refresh_all() — essa última também limpa formulários/seleções
         # em aberto, o que ia apagar o que o usuário estivesse digitando
         # só por ter clicado em outra aba e voltado.
+        # nb_inicio saiu da lista: "Início" não usa mais Notebook interno
+        # (virou PanedWindow) — sua atualização é feita explicitamente em
+        # _ir_para_visao_geral()/_selecionar_bolao_via_cartao(), disparada
+        # pelo clique na lista da esquerda, não por um evento de troca de
+        # aba que não existe mais ali.
         def _on_qualquer_troca_de_aba(event):
             self.root.after(50, self._refresh_dados_visiveis)
-        for _nb in (self.nb, nb_inicio, nb_part, nb_fin, nb_gestao, nb_sys):
+        for _nb in (self.nb, nb_part, nb_fin, nb_gestao, nb_sys):
             _nb.bind("<<NotebookTabChanged>>", _on_qualquer_troca_de_aba)
 
     # ════════════════════════════════════════════════════════════
@@ -2516,6 +2560,88 @@ class BolaoApp:
         self.pag_val.delete(0,"end")
         self.pag_val.focus_set()
 
+    def _confirmar_pagamento_isento(self, pid, bid):
+        """Se o participante é o ADM isento deste bolão, avisa antes de
+        registrar um pagamento (não bloqueia — pode ser contribuição
+        voluntária intencional). Retorna True se pode prosseguir, False
+        se o usuário cancelou. Centralizado aqui porque mais de um ponto
+        do sistema registra pagamento (formulário principal em
+        Financeiro, e o popup rápido de clique/duplo-clique — ver
+        _abrir_popup_registrar_pagamento) — sem isso, era fácil um novo
+        ponto de clique esquecer esse aviso."""
+        pt_check = self.db.fetchone("SELECT * FROM participantes WHERE id=?", (pid,))
+        b_check  = self.db.fetchone("SELECT adm_paga, adm_nome FROM boloes WHERE id=?", (bid,))
+        if not (pt_check and b_check and not (b_check["adm_paga"] or 0)):
+            return True
+        adm_nome_low = (b_check["adm_nome"] or "").strip().lower()
+        eh_adm_check = bool(pt_check["is_adm"]) or (
+            adm_nome_low and adm_nome_low in (pt_check["nome"] or "").lower())
+        if not eh_adm_check:
+            return True
+        # É o ADM isento — pagamento real fica "escondido" nos totais
+        # (o ADM isento não entra em Total Esperado/Arrecadado, mas um
+        # pagamento registrado pra ele ENTRA na soma de "pagamentos",
+        # inflando a aba Depósitos mesmo assim).
+        return messagebox.askyesno("Participante isento",
+            f"'{pt_check['nome']}' está configurado como ADM ISENTO neste "
+            f"bolão (não paga). Registrar um pagamento mesmo assim vai "
+            f"aparecer no 'Total Recebido' da aba Depósitos.\n\n"
+            f"Tem certeza que quer registrar?")
+
+    def _abrir_popup_registrar_pagamento(self, participante_id, bolao_id,
+                                          valor_sugerido=0, nome_exibicao=None):
+        """Popup rápido de registro de pagamento — o mesmo usado por
+        qualquer lugar do sistema onde clicar/duplo-clicar num
+        participante deve abrir direto o registro, sem precisar ir pra
+        aba Financeiro e buscar o nome de novo. Único ponto (fora do
+        formulário principal, _registrar_pag) que faz esse INSERT —
+        centralizado aqui pra sempre respeitar a mesma checagem de
+        "participante isento"."""
+        pt = self.db.fetchone("SELECT nome FROM participantes WHERE id=?", (participante_id,))
+        if not pt: return
+        nome_p = nome_exibicao or pt["nome"]
+
+        from datetime import date as _d2
+        win = tk.Toplevel(self.root); win.title("Registrar Pagamento")
+        win.geometry("400x220"); win.configure(bg=CORES["bg_section"])
+        win.grab_set(); win.lift()
+        tk.Label(win, text="Registrar pagamento — " + nome_p,
+                 bg=CORES["bg_section"], fg="white",
+                 font=("Arial",10,"bold")).pack(pady=(14,8), padx=16, anchor="w")
+        r_ = tk.Frame(win, bg=CORES["bg_section"]); r_.pack(fill="x", padx=16, pady=4)
+        tk.Label(r_, text="Valor (R$):", bg=CORES["bg_section"],
+                 fg=CORES["fg_label"], font=("Arial",9,"bold")).pack(side="left")
+        e_val = entry(r_, width=14); e_val.pack(side="left", padx=8)
+        e_val.insert(0, "{:.2f}".format(valor_sugerido or 0).replace(".",","))
+        tk.Label(r_, text="Data:", bg=CORES["bg_section"],
+                 fg=CORES["fg_label"], font=("Arial",9,"bold")).pack(side="left")
+        e_dt = entry(r_, width=12); e_dt.pack(side="left", padx=4)
+        e_dt.insert(0, _d2.today().strftime("%d/%m/%Y"))
+        r2_ = tk.Frame(win, bg=CORES["bg_section"]); r2_.pack(fill="x", padx=16, pady=4)
+        tk.Label(r2_, text="Obs.:", bg=CORES["bg_section"],
+                 fg=CORES["fg_label"], font=("Arial",9,"bold")).pack(side="left")
+        e_obs = entry(r2_, width=32); e_obs.pack(side="left", padx=8)
+        def _confirmar():
+            from datetime import datetime as _dt3
+            try: v_pg = float(e_val.get().replace(",","."))
+            except Exception: messagebox.showerror("Erro","Valor inválido"); return
+            if v_pg <= 0: messagebox.showerror("Erro","Informe um valor válido"); return
+            if not self._confirmar_pagamento_isento(participante_id, bolao_id):
+                return
+            dt_raw = e_dt.get().strip()
+            try: mes_ref = _dt3.strptime(dt_raw,"%d/%m/%Y").strftime("%m/%Y")
+            except Exception: mes_ref = ""
+            self.db.execute(
+                "INSERT INTO pagamentos (participante_id,bolao_id,mes_referencia,"
+                "valor,data_pagamento,depositado,observacoes) VALUES (?,?,?,?,?,0,?)",
+                (participante_id, bolao_id, mes_ref, v_pg, dt_raw,
+                 e_obs.get() or "Registrado via painel"))
+            win.destroy(); self._refresh_all()
+            messagebox.showinfo("OK", "Pagamento de " + nome_p + " registrado!")
+        bf_ = tk.Frame(win, bg=CORES["bg_section"]); bf_.pack(pady=12)
+        btn(bf_, "Registrar", CORES["btn_verde"], _confirmar, width=14).pack(side="left", padx=6)
+        btn(bf_, "Cancelar",  CORES["btn_cinza"], win.destroy, width=10).pack(side="left", padx=6)
+
     def _registrar_pag(self):
         sel = self.pag_cb.get()
         if not sel: messagebox.showwarning("Atenção","Selecione um participante!"); return
@@ -2524,25 +2650,8 @@ class BolaoApp:
         v   = to_float(self.pag_val.get())
         if v<=0: messagebox.showwarning("Atenção","Informe um valor válido!"); return
 
-        # Avisa antes de registrar pagamento pro ADM isento nesse bolão —
-        # é o tipo de lançamento que fica "escondido" nos totais (o ADM
-        # isento não entra em Total Esperado/Arrecadado, mas um pagamento
-        # real registrado pra ele ENTRA na soma de "pagamentos", inflando
-        # a aba Depósitos mesmo assim). Avisa, não bloqueia — pode ser
-        # intencional (contribuição voluntária).
-        pt_check = self.db.fetchone("SELECT * FROM participantes WHERE id=?", (pid,))
-        b_check  = self.db.fetchone("SELECT adm_paga, adm_nome FROM boloes WHERE id=?", (bid,))
-        if pt_check and b_check and not (b_check["adm_paga"] or 0):
-            adm_nome_low = (b_check["adm_nome"] or "").strip().lower()
-            eh_adm_check = bool(pt_check["is_adm"]) or (
-                adm_nome_low and adm_nome_low in (pt_check["nome"] or "").lower())
-            if eh_adm_check:
-                if not messagebox.askyesno("Participante isento",
-                    f"'{pt_check['nome']}' está configurado como ADM ISENTO neste "
-                    f"bolão (não paga). Registrar um pagamento mesmo assim vai "
-                    f"aparecer no 'Total Recebido' da aba Depósitos.\n\n"
-                    f"Tem certeza que quer registrar?"):
-                    return
+        if not self._confirmar_pagamento_isento(pid, bid):
+            return
 
         self.db.execute(
             "INSERT INTO pagamentos (participante_id,bolao_id,mes_referencia,valor,data_pagamento,observacoes)"
@@ -3544,6 +3653,72 @@ class BolaoApp:
         messagebox.showinfo("Exportado", f"Histórico salvo em:\n{path}")
 
     # ════════════════════════════════════════════════════════════
+    #  INÍCIO — COLUNA ESQUERDA FIXA (lista de bolões + Visão Geral)
+    # ════════════════════════════════════════════════════════════
+    def _build_inicio_lista(self):
+        """Coluna esquerda fixa de 'Início' — o ÚNICO lugar que TROCA de
+        bolão (o combo do cabeçalho continua funcionando, mas só
+        reflete/atalha essa mesma seleção). Fica sempre visível, ao
+        contrário da antiga aba 'Bolão Selecionado', que escondia o
+        seletor sempre que se estava vendo a Visão Geral."""
+        p = self.tab_inicio_lista
+
+        hdr = tk.Frame(p, bg="#0d1b2a", pady=10)
+        hdr.pack(fill="x")
+        tk.Label(hdr, text="🎲  BOLÕES", bg="#0d1b2a", fg="#667788",
+                 font=("Arial",8,"bold")).pack(anchor="w", padx=14)
+
+        self._inicio_item_geral = tk.Frame(p, bg="#4f46e5", padx=14, pady=10, cursor="hand2")
+        self._inicio_item_geral.pack(fill="x")
+        lbl_geral = tk.Label(self._inicio_item_geral, text="📊  Visão Geral",
+                              bg="#4f46e5", fg="white", font=("Arial",10,"bold"), anchor="w")
+        lbl_geral.pack(fill="x")
+        for w in (self._inicio_item_geral, lbl_geral):
+            w.bind("<Button-1>", lambda e: self._ir_para_visao_geral())
+
+        tk.Frame(p, bg="#334455", height=1).pack(fill="x", pady=(8,6))
+        tk.Label(p, text="MEUS BOLÕES", bg="#1a2a3a", fg="#667788",
+                 font=("Arial",7,"bold")).pack(anchor="w", padx=14, pady=(0,4))
+
+        # Lista rolável — mesma técnica de canvas+scroll já usada no
+        # resto do sistema (liga/desliga o scroll do mouse via
+        # Enter/Leave, porque bind() direto no canvas só dispara sobre
+        # a área vazia dele).
+        canvas = tk.Canvas(p, bg="#1a2a3a", highlightthickness=0)
+        sb = ttk.Scrollbar(p, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+        self._sel_bolao_frame = tk.Frame(canvas, bg="#1a2a3a")
+        canvas_window = canvas.create_window((0,0), window=self._sel_bolao_frame, anchor="nw")
+        canvas.bind("<Configure>", lambda e: canvas.itemconfig(canvas_window, width=e.width))
+        self._sel_bolao_frame.bind(
+            "<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        def _scroll(e):
+            canvas.yview_scroll(int(-1*(e.delta/120)), "units")
+        canvas.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", _scroll))
+        canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
+
+    def _mostrar_inicio_modo(self, modo):
+        """Troca qual frame aparece na coluna direita de Início — 'geral'
+        (Visão Geral) ou 'bolao' (Bolão Selecionado) — usando tkraise()
+        em vez de Notebook (2 frames empilhados na mesma área: a técnica
+        clássica de "notebook sem abas" do Tkinter). Só troca o que está
+        visível; não decide sozinho quando recarregar dados — cada
+        chamador (clique na lista) já cuida disso do jeito adequado."""
+        self._inicio_modo_atual = modo
+        if modo == "bolao":
+            self.tab_bolao.tkraise()
+        else:
+            self.tab_dash.tkraise()
+        try: self._atualizar_cartoes_bolao()
+        except Exception: pass
+
+    def _ir_para_visao_geral(self):
+        self._mostrar_inicio_modo("geral")
+        self._refresh_dados_visiveis()
+
+    # ════════════════════════════════════════════════════════════
     #  ABA DASHBOARD
     # ════════════════════════════════════════════════════════════
     def _build_dashboard(self):
@@ -3704,10 +3879,11 @@ class BolaoApp:
         canvas.bind("<Leave>", _desligar_scroll)
 
     def _build_bolao_sel(self):
-        """Aba própria "🎯 Bolão Selecionado" — separada da Visão Geral a
-        pedido do usuário: numa aba só, a rolagem ficava longa e incômoda.
-        Aqui: seletor de cartões, depois resumo, depois detalhe de UM
-        bolão por vez — a Visão Geral (todos os bolões) fica na aba anterior."""
+        """Conteúdo do modo "🎯 Bolão Selecionado" da coluna direita de
+        Início — resumo, depois detalhe de UM bolão por vez. O seletor
+        (antes um cabeçalho de cartões aqui dentro) agora mora na coluna
+        esquerda fixa (_build_inicio_lista), sempre visível — ver
+        _mostrar_inicio_modo."""
         p = self.tab_bolao
         p.configure(bg="#1a2a3a")
 
@@ -3723,27 +3899,12 @@ class BolaoApp:
         # comentário equivalente em _build_dashboard).
         p.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
 
-        # ── Cabeçalho + seletor de bolão — cartões clicáveis (mais fácil
-        # de achar e trocar do que o combo pequeno do cabeçalho) ─────────
-        hdr2 = tk.Frame(p, bg="#1a2a3a", pady=10)
-        hdr2.pack(fill="x", padx=20)
-        tk.Label(hdr2, text="🎯  Selecione um bolão",
-                 bg="#1a2a3a", fg="white", font=("Arial",14,"bold")).pack(side="left")
-        btn(hdr2, "🔄", CORES["btn_azul"], self._recarregar_visao_geral, width=4).pack(side="right")
-        tk.Label(p, text="Clique num bolão abaixo para ver o resumo e os detalhes dele.",
-                 bg="#1a2a3a", fg="#8899aa", font=("Arial",8)).pack(padx=20, anchor="w", pady=(0,6))
-
-        self._sel_bolao_frame = tk.Frame(p, bg="#1a2a3a")
-        self._sel_bolao_frame.pack(fill="x", padx=20, pady=(0,12))
-
-        # ── Divisor fino antes do resumo/detalhe ──────────────────
-        tk.Frame(p, bg="#334455", height=2).pack(fill="x", padx=20, pady=(0,10))
-
-        hdr3 = tk.Frame(p, bg="#1a2a3a", pady=4)
+        hdr3 = tk.Frame(p, bg="#1a2a3a", pady=10)
         hdr3.pack(fill="x", padx=20)
         self._dash_bolao_lbl = tk.Label(hdr3, text="",
                  bg="#1a2a3a", fg="white", font=("Arial",13,"bold"))
         self._dash_bolao_lbl.pack(side="left")
+        btn(hdr3, "🔄", CORES["btn_azul"], self._recarregar_visao_geral, width=4).pack(side="right")
 
         # ── Resumo — 6 cards compactos deste bolão ────────────────
         kpi_row = tk.Frame(p, bg="#1a2a3a")
@@ -3792,12 +3953,36 @@ class BolaoApp:
                                 bg="#243447", fg="white",
                                 font=("Arial",9,"bold"), bd=1, padx=6, pady=6)
         sec_sit.grid(row=0, column=0, sticky="nsew", padx=(0,4))
-        sec_sit.rowconfigure(0, weight=1); sec_sit.columnconfigure(0, weight=1)
+        sec_sit.rowconfigure(0, weight=0); sec_sit.rowconfigure(1, weight=1)
+        sec_sit.rowconfigure(2, weight=0)
+        sec_sit.columnconfigure(0, weight=1)
+
+        # Busca por nome — faltava em toda árvore do sistema (achado da
+        # revisão multiagente: inviável rolar manualmente uma lista de
+        # 50+ participantes procurando um nome).
+        busca_fr = tk.Frame(sec_sit, bg="#243447")
+        busca_fr.grid(row=0, column=0, sticky="ew", pady=(0,4))
+        tk.Label(busca_fr, text="🔍", bg="#243447", fg="#8899aa",
+                 font=("Arial",9)).pack(side="left")
+        self._dash_sit_busca_var = tk.StringVar()
+        busca_entry = entry(busca_fr, width=1, textvariable=self._dash_sit_busca_var)
+        busca_entry.pack(side="left", fill="x", expand=True, padx=(4,0))
+        self._dash_sit_busca_var.trace_add(
+            "write", lambda *a: self._filtrar_situacao_participantes())
+
         cols_s = {"Nome":190, "Pago":100, "Saldo":100, "Status":90}
         fr_s, self._dash_tree_sit = make_tree(sec_sit, cols_s, height=10)
-        fr_s.grid(row=0, column=0, sticky="nsew")
+        fr_s.grid(row=1, column=0, sticky="nsew")
         self._dash_tree_sit.tag_configure("quitado",  background="#d5f5e3")
         self._dash_tree_sit.tag_configure("pendente", background="#fde8d8")
+        # Duplo clique registra pagamento direto — mesmo popup rápido já
+        # usado em "Pendências deste Bolão" (_abrir_popup_registrar_
+        # pagamento). Funciona pra qualquer status (pendente ou já
+        # quitado, pra permitir adiantar um pagamento extra).
+        self._dash_tree_sit.bind("<Double-1>", self._dash_sit_dblclick)
+        tk.Label(sec_sit, text="💡 Duplo clique num participante para registrar pagamento",
+                 bg="#243447", fg="#667788", font=("Arial",7)
+                 ).grid(row=2, column=0, sticky="w", pady=(3,0))
 
         # ── Coluna central: últimos pagamentos ───────────────────
         sec_ult = tk.LabelFrame(main, text="  Últimos Pagamentos Recebidos  ",
@@ -3953,22 +4138,38 @@ class BolaoApp:
         self._dash_load()
 
     def _atualizar_cartoes_bolao(self):
-        """Redesenha os cartões clicáveis de seleção de bolão. Cada cartão
-        mostra um badge de status (✅ em dia / ⚠ N atrasado(s)) calculado
-        por _adm_load, pra dar uma pista do bolão sem precisar abri-lo."""
+        """Redesenha a lista de seleção de bolão na coluna esquerda fixa
+        de Início (antes era uma grade de cartões dentro da aba "Bolão
+        Selecionado" — agora é uma lista vertical, sempre visível, e o
+        item "Visão Geral" acima dela também é realçado/apagado daqui,
+        conforme o modo atual). Cada item mostra um badge de status
+        (✅ em dia / ⚠ N atrasado(s)) calculado por _adm_load."""
         frame = self._sel_bolao_frame
         for w in frame.winfo_children():
             w.destroy()
         rows_b = self.db.fetchall("SELECT * FROM boloes WHERE encerrado=0 ORDER BY nome")
         bid_atual = self.bid.get()
+        modo_atual = getattr(self, "_inicio_modo_atual", "geral")
         contagem = getattr(self, "_atrasados_count_por_bolao", {})
-        NCOLS = 5
-        for idx, b in enumerate(rows_b):
+
+        # Realça "Visão Geral" só quando é o modo ativo — apaga quando um
+        # bolão específico está selecionado, pra não parecer que os dois
+        # estão "ativos" ao mesmo tempo.
+        try:
+            geral_ativo = (modo_atual == "geral")
+            cor_geral = "#4f46e5" if geral_ativo else "#243447"
+            fg_geral  = "white" if geral_ativo else "#aad4f5"
+            self._inicio_item_geral.configure(bg=cor_geral)
+            for child in self._inicio_item_geral.winfo_children():
+                child.configure(bg=cor_geral, fg=fg_geral)
+        except Exception:
+            pass
+
+        for b in rows_b:
             bd = dict(b)
-            selecionado = bd["id"] == bid_atual
+            selecionado = (modo_atual == "bolao") and (bd["id"] == bid_atual)
             cor_bg = "#4f46e5" if selecionado else "#243447"
             cor_fg = "white" if selecionado else "#aad4f5"
-            marca = "✅ " if selecionado else ""
 
             n_atr_bolao = contagem.get(bd["nome"])
             if n_atr_bolao is None:
@@ -3980,24 +4181,26 @@ class BolaoApp:
                 badge_txt = f"⚠ {n_atr_bolao} atrasado(s)"
                 badge_fg  = "#ffe0c0" if selecionado else "#ffb066"
 
-            card = tk.Frame(frame, bg=cor_bg, padx=14, pady=8, cursor="hand2",
-                             highlightthickness=1, highlightbackground="#334455")
-            card.grid(row=idx // NCOLS, column=idx % NCOLS, padx=4, pady=4, sticky="w")
-            lbl_nome = tk.Label(card, text=marca + bd["nome"], bg=cor_bg, fg=cor_fg,
-                                 font=("Arial",9,"bold"), wraplength=170, justify="left")
-            lbl_nome.pack(anchor="w")
+            card = tk.Frame(frame, bg=cor_bg, padx=14, pady=8, cursor="hand2")
+            card.pack(fill="x")
+            lbl_nome = tk.Label(card, text=bd["nome"], bg=cor_bg, fg=cor_fg,
+                                 font=("Arial",9,"bold"), anchor="w",
+                                 wraplength=180, justify="left")
+            lbl_nome.pack(fill="x")
             lbl_badge = tk.Label(card, text=badge_txt, bg=cor_bg, fg=badge_fg,
-                                  font=("Arial",7,"bold"))
-            lbl_badge.pack(anchor="w")
+                                  font=("Arial",7,"bold"), anchor="w")
+            lbl_badge.pack(fill="x")
+            tk.Frame(frame, bg="#0d1b2a", height=1).pack(fill="x")
             for w2 in (card, lbl_nome, lbl_badge):
                 w2.bind("<Button-1>", lambda e, i=bd["id"]: self._selecionar_bolao_via_cartao(i))
         if not rows_b:
-            tk.Label(frame, text="Nenhum bolão ativo — cadastre um em '+ Novo Bolão'.",
-                     bg="#1a2a3a", fg="#8899aa", font=("Arial",9,"italic")).grid(row=0, column=0)
+            tk.Label(frame, text="Nenhum bolão ativo.\nCadastre em '+ Novo Bolão'.",
+                     bg="#1a2a3a", fg="#8899aa", font=("Arial",8,"italic"),
+                     justify="left", wraplength=180).pack(fill="x", padx=10, pady=10)
 
     def _selecionar_bolao_via_cartao(self, bid):
-        self._selecionar_bolao_por_id(bid)
-        self._atualizar_cartoes_bolao()
+        self._selecionar_bolao_por_id(bid)  # já faz _refresh_all()
+        self._mostrar_inicio_modo("bolao")
 
     def _abrir_ganhos_por_loteria(self):
         """Janela com o resumo de ganhos por loteria (taxa_adm) — tirado
@@ -4170,13 +4373,15 @@ class BolaoApp:
             else:            pendentes_n += 1
             st_show = "✅ Quitado" if "QUITADO" in status_txt else "⚠ Pendente"
             pago_show = pago_f if pago_f is not None else 0
-            dados_sit.append((pt_d["nome"], pago_show, saldo_f, st_show, tag))
+            dados_sit.append((pt_d["nome"], pago_show, saldo_f, st_show, tag, pt_d["id"]))
 
         # ADM configurado mas não cadastrado como participante → adiciona
-        # linha sintética só pra exibição (não entra em nenhum total)
+        # linha sintética só pra exibição (não entra em nenhum total).
+        # id=None marca que essa linha não tem duplo-clique de pagamento
+        # (não existe registro em "participantes" pra vincular).
         if adm_nome_real and not adm_ja_listado and not adm_paga:
             quitados += 1
-            dados_sit.append((adm_nome_real, 0, 0, "✅ Quitado", "quitado"))
+            dados_sit.append((adm_nome_real, 0, 0, "✅ Quitado", "quitado", None))
 
         # ── KPIs ────────────────────────────────────────────────
         # Cotas totais = soma das cotas individuais (quem tem 2 cotas conta 2)
@@ -4199,11 +4404,12 @@ class BolaoApp:
         self._dash_pct_lbl.configure(
             text=f"{pct:.1f}%  —  {fmt_brl(total_pago)} de {fmt_brl(total_esp)}")
 
-        # ── Situação participantes ───────────────────────────────
-        self._dash_tree_sit.delete(*self._dash_tree_sit.get_children())
-        for nome, pago, saldo, status, tag in sorted(dados_sit, key=lambda x: x[0]):
-            self._dash_tree_sit.insert("","end", tags=(tag,), values=(
-                nome, fmt_brl(pago), fmt_brl(saldo), status))
+        # ── Situação participantes — guarda a lista completa (pra busca
+        # por nome refiltrar sem precisar reconsultar o banco a cada
+        # tecla) e desenha via _filtrar_situacao_participantes(), que
+        # também é chamada direto pela busca.
+        self._dash_sit_dados_full = sorted(dados_sit, key=lambda x: x[0])
+        self._filtrar_situacao_participantes()
 
         # ── Últimos 20 pagamentos ────────────────────────────────
         self._dash_tree_ult.delete(*self._dash_tree_ult.get_children())
@@ -4272,6 +4478,44 @@ class BolaoApp:
             f"Cotas: {cotas_ocup_d}/{max_cotas_d}  |  "
             f"Atualizado: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
         ))
+
+    def _filtrar_situacao_participantes(self):
+        """Redesenha 'Situação dos Participantes' a partir da lista já
+        carregada (_dash_sit_dados_full), filtrando por nome — chamada
+        tanto pelo carregamento normal (_dash_load) quanto a cada tecla
+        digitada na busca, sem precisar reconsultar o banco."""
+        termo = getattr(self, "_dash_sit_busca_var", None)
+        termo = (termo.get().strip().lower() if termo else "")
+        dados = getattr(self, "_dash_sit_dados_full", [])
+        self._dash_tree_sit.delete(*self._dash_tree_sit.get_children())
+        for nome, pago, saldo, status, tag, pid_row in dados:
+            if termo and termo not in nome.lower():
+                continue
+            kwargs = {"iid": f"p{pid_row}"} if pid_row is not None else {}
+            self._dash_tree_sit.insert("","end", tags=(tag,), values=(
+                nome, fmt_brl(pago), fmt_brl(saldo), status), **kwargs)
+
+    def _dash_sit_dblclick(self, event):
+        """Duplo clique numa linha de 'Situação dos Participantes' — abre
+        o popup rápido de registro de pagamento. Funciona pra qualquer
+        status (pendente ou já quitado, permitindo adiantar um
+        pagamento extra) — só não faz nada na linha sintética do ADM
+        configurado mas não cadastrado (sem participante_id real)."""
+        sel = self._dash_tree_sit.selection()
+        if not sel: return
+        iid = sel[0]
+        if not iid.startswith("p"): return
+        try: pid_row = int(iid[1:])
+        except ValueError: return
+        bid_ = self.bid.get()
+        if not bid_: return
+        vals = self._dash_tree_sit.item(iid, "values")
+        nome_p = vals[0] if vals else ""
+        saldo_str = str(vals[2]).replace("R$","").replace(".","").replace(",",".").strip() if vals else "0"
+        try: saldo_v = float(saldo_str)
+        except Exception: saldo_v = 0
+        self._abrir_popup_registrar_pagamento(pid_row, bid_, valor_sugerido=saldo_v,
+                                               nome_exibicao=nome_p)
 
     # ════════════════════════════════════════════════════════════
     #  RECIBO DE QUITAÇÃO (imagem PNG)
@@ -4427,7 +4671,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v5.5</span>
+        <span>Sistema de Gestão de Bolões v6.0</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -5556,8 +5800,9 @@ class BolaoApp:
                  "pra registrar o pagamento")
 
     def _pend_registrar_dblclick(self, event):
-        """Duplo clique numa linha PENDENTE da seção Pendências — abre um
-        mini popup de registro de pagamento pro bolão selecionado."""
+        """Duplo clique numa linha PENDENTE da seção Pendências — abre o
+        popup rápido de registro de pagamento (_abrir_popup_registrar_
+        pagamento) pro bolão selecionado."""
         sel = self._pend_tree.selection()
         if not sel: return
         vals = self._pend_tree.item(sel[0], "values")
@@ -5569,47 +5814,11 @@ class BolaoApp:
             "SELECT id FROM participantes WHERE bolao_id=? AND ativo=1 AND nome=?",
             (bid_, nome_p))
         if not pt: return
-        pid_p = pt["id"]
         falta_str = str(vals[2]).replace("R$","").replace(".","").replace(",",".").strip()
         try: falta_v = float(falta_str)
         except Exception: falta_v = 0
-
-        from datetime import date as _d2
-        win = tk.Toplevel(self.root); win.title("Registrar Pagamento")
-        win.geometry("400x220"); win.configure(bg=CORES["bg_section"])
-        win.grab_set(); win.lift()
-        tk.Label(win, text="Registrar pagamento — " + nome_p,
-                 bg=CORES["bg_section"], fg="white",
-                 font=("Arial",10,"bold")).pack(pady=(14,8), padx=16, anchor="w")
-        r_ = tk.Frame(win, bg=CORES["bg_section"]); r_.pack(fill="x", padx=16, pady=4)
-        tk.Label(r_, text="Valor (R$):", bg=CORES["bg_section"],
-                 fg=CORES["fg_label"], font=("Arial",9,"bold")).pack(side="left")
-        e_val = entry(r_, width=14); e_val.pack(side="left", padx=8)
-        e_val.insert(0, "{:.2f}".format(falta_v).replace(".",","))
-        tk.Label(r_, text="Data:", bg=CORES["bg_section"],
-                 fg=CORES["fg_label"], font=("Arial",9,"bold")).pack(side="left")
-        e_dt = entry(r_, width=12); e_dt.pack(side="left", padx=4)
-        e_dt.insert(0, _d2.today().strftime("%d/%m/%Y"))
-        r2_ = tk.Frame(win, bg=CORES["bg_section"]); r2_.pack(fill="x", padx=16, pady=4)
-        tk.Label(r2_, text="Obs.:", bg=CORES["bg_section"],
-                 fg=CORES["fg_label"], font=("Arial",9,"bold")).pack(side="left")
-        e_obs = entry(r2_, width=32); e_obs.pack(side="left", padx=8)
-        def _confirmar():
-            from datetime import datetime as _dt3
-            try: v_pg = float(e_val.get().replace(",","."))
-            except Exception: messagebox.showerror("Erro","Valor inválido"); return
-            dt_raw = e_dt.get().strip()
-            try: mes_ref = _dt3.strptime(dt_raw,"%d/%m/%Y").strftime("%m/%Y")
-            except Exception: mes_ref = ""
-            self.db.execute(
-                "INSERT INTO pagamentos (participante_id,bolao_id,mes_referencia,"
-                "valor,data_pagamento,depositado,observacoes) VALUES (?,?,?,?,?,0,?)",
-                (pid_p, bid_, mes_ref, v_pg, dt_raw, e_obs.get() or "Registrado via painel"))
-            win.destroy(); self._refresh_all()
-            messagebox.showinfo("OK", "Pagamento de " + nome_p + " registrado!")
-        bf_ = tk.Frame(win, bg=CORES["bg_section"]); bf_.pack(pady=12)
-        btn(bf_, "Registrar", CORES["btn_verde"], _confirmar, width=14).pack(side="left", padx=6)
-        btn(bf_, "Cancelar",  CORES["btn_cinza"], win.destroy, width=10).pack(side="left", padx=6)
+        self._abrir_popup_registrar_pagamento(pt["id"], bid_, valor_sugerido=falta_v,
+                                               nome_exibicao=nome_p)
 
     def _adm_encerrar_bolao(self):
         """Encerra o bolão atualmente selecionado nos cartões de
@@ -6355,7 +6564,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v5.5</span>
+        <span>Sistema de Gestão de Bolões v6.0</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
