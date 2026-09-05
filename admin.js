@@ -423,6 +423,40 @@ function navegarSelecao(direcao) {
 }
 
 // ============================================
+// VERIFICAÇÃO DE DUPLICADO EM TEMPO REAL
+// ============================================
+// Antes só existia "🔁 Verificar Duplicados" (manual, depois do fato) —
+// achado real: um lote de cartões da Mega no concurso 3054 foi salvo
+// duas vezes sem o usuário perceber (5 cartões idênticos entraram 2x
+// cada), e só apareceu horas depois ao conferir o "Potencial do Bolão".
+// Agora todo cadastro individual (grade ou texto) checa ANTES de salvar
+// e bloqueia de vez — não é aviso pra ignorar, é bloqueio mesmo, a
+// pedido do usuário ("não deveria deixar em hipótese alguma").
+// Escopo: mesma loteria + mesmo concurso + mesmo bolão — dois bolões
+// diferentes baterem nos mesmos números por acaso não é erro; dentro do
+// mesmo bolão, é.
+async function existeCartaoDuplicado(tipo, concurso, bolao, numerosOrdenados) {
+    try {
+        const snapshot = await db.collection('cartoes')
+            .where('tipo', '==', tipo)
+            .where('concurso', '==', concurso)
+            .where('bolao', '==', bolao)
+            .get();
+        const chave = numerosOrdenados.join(',');
+        for (const doc of snapshot.docs) {
+            const d = doc.data();
+            if (!d.numeros) continue;
+            const chaveExistente = d.numeros.slice().sort((a, b) => a - b).join(',');
+            if (chaveExistente === chave) return true;
+        }
+        return false;
+    } catch (error) {
+        console.error('Erro ao verificar duplicado:', error);
+        return false; // falha na checagem não deve travar o cadastro
+    }
+}
+
+// ============================================
 // ADICIONAR CARTÃO ATUAL DA SELEÇÃO
 // ============================================
 async function adicionarCartaoSelecaoAtual() {
@@ -472,7 +506,12 @@ async function adicionarCartaoSelecaoAtual() {
     }
     
     const numeros = [...numerosSelecionados].sort((a, b) => a - b);
-    
+
+    if (await existeCartaoDuplicado(loteriaAdmin, concurso, bolao, numeros)) {
+        showToast(`❌ Cartão já existe nesse bolão/concurso! Números: ${numeros.join(', ')}`, 'error');
+        return;
+    }
+
     try {
         await db.collection('cartoes').add({
             concurso: concurso,
@@ -2076,7 +2115,18 @@ async function gerarLote() {
         showToast(`⚠️ Você tem ${cartoesLote.length} cartões, mas configurou ${qtdCartoes}.`, 'warning');
         return;
     }
-    
+
+    // Repetir o MESMO cartão em concursos DIFERENTES é o uso normal desta
+    // tela — o que não pode é dois cartões DENTRO do mesmo lote serem
+    // idênticos entre si (aí sim vira duplicata real dentro do mesmo
+    // concurso). Checagem local, sem ida ao banco — o lote inteiro ainda
+    // não foi salvo nesse ponto.
+    const chavesLote = cartoesLote.map(c => c.slice().sort((a, b) => a - b).join(','));
+    if (new Set(chavesLote).size !== chavesLote.length) {
+        showToast('❌ Há 2+ cartões com os mesmos números dentro do lote! Corrija antes de gerar.', 'error');
+        return;
+    }
+
     const total = qtdCartoes * qtdConcursos;
     const confirmar = confirm(
         `⚠️ CONFIRMAR GERAÇÃO EM LOTE\n\n` +
@@ -2213,7 +2263,12 @@ async function adicionarCartaoIndividual() {
     }
     
     numeros.sort((a, b) => a - b);
-    
+
+    if (await existeCartaoDuplicado(loteriaAdmin, concurso, bolao, numeros)) {
+        showToast(`❌ Cartão já existe nesse bolão/concurso! Números: ${numeros.join(', ')}`, 'error');
+        return;
+    }
+
     try {
         await db.collection('cartoes').add({
             concurso: concurso,
@@ -2281,7 +2336,12 @@ async function adicionarCartaoIndividualSelecao() {
     }
     
     const numeros = [...numerosSelecionados].sort((a, b) => a - b);
-    
+
+    if (await existeCartaoDuplicado(loteriaAdmin, concurso, bolao, numeros)) {
+        showToast(`❌ Cartão já existe nesse bolão/concurso! Números: ${numeros.join(', ')}`, 'error');
+        return;
+    }
+
     try {
         await db.collection('cartoes').add({
             concurso: concurso,
