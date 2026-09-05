@@ -1,5 +1,5 @@
 // Service Worker para Bolões Aleatórios PWA
-const CACHE_NAME = 'boloes-aleatorios-v26';  // ← VERSÃO ATUALIZADA
+const CACHE_NAME = 'boloes-aleatorios-v27';  // ← VERSÃO ATUALIZADA
 const BASE_PATH = '/mega-sena-sistema/';
 
 // Lista de arquivos locais para cache
@@ -57,7 +57,12 @@ self.addEventListener('fetch', event => {
   }
 
   event.respondWith(
-    fetch(event.request)
+    // "no-store" força ignorar o cache HTTP do próprio navegador — sem
+    // isso, o fetch() aqui dentro respeitava o Cache-Control: max-age=600
+    // que o GitHub Pages manda nos arquivos, então "rede primeiro" virava
+    // na prática "cache do navegador primeiro" por até 10 minutos depois
+    // de cada deploy, escondendo atualizações mesmo com o SW atualizado.
+    fetch(event.request, { cache: 'no-store' })
       .then(response => {
         if (response && response.status === 200 && response.type === 'basic') {
           const responseToCache = response.clone();

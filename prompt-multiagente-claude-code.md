@@ -331,6 +331,14 @@ Trocado `repeat(N, 1fr)` por `repeat(10, 40px)` + `justify-content: start` nos d
 
 `CACHE_NAME` do `sw.js` v25→v26.
 
+## Rodada 18 — Bug real de cache: "rede primeiro" do Service Worker não era de verdade
+
+Usuário testou a Rodada 17 e mandou print mostrando 12 colunas ainda — a mudança parecia não ter ido pro ar. Investigado: `curl` direto na URL pública confirmou que o `admin.js` publicado **já tinha** a correção (`repeat(10, 40px)`) — o servidor estava certo. O problema era client-side: o GitHub Pages manda os arquivos com `Cache-Control: max-age=600` (10 minutos), e o `fetch(event.request)` dentro do `sw.js` (comentado como "rede primeiro") não tinha nenhuma opção de cache — então esse fetch respeitava o cache HTTP normal do navegador, e "rede primeiro" virava, na prática, "cache do navegador primeiro" por até 10 minutos depois de cada deploy. O Service Worker em si podia estar atualizado (`skipWaiting`/`clients.claim` já ativos) e mesmo assim servir JS/HTML antigo por causa disso.
+
+**Correção**: `fetch(event.request, { cache: 'no-store' })` — força ignorar o cache HTTP do navegador nessa chamada, sem afetar o cache MANUAL que o próprio SW já mantém em `caches.open(CACHE_NAME)` pra funcionar offline (esse continua servindo como fallback só quando a rede falha, que é o objetivo real do "offline-first com fallback"). Instrução dada ao usuário nesse meio-tempo: Ctrl+Shift+R (hard refresh) resolve na hora, sem precisar esperar os 10 minutos.
+
+`CACHE_NAME` do `sw.js` v26→v27.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
