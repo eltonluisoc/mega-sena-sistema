@@ -398,6 +398,18 @@ Usuário pediu pra continuar desenvolvendo os itens pendentes da Rodada 19. Item
 
 Versão v6.2 → v6.3.
 
+## Rodada 22 — Cartão duplicado agora é bloqueado no cadastro, não só detectado depois (web v28)
+
+Usuário relatou que "Potencial do Bolão" mostrava 104 cartões no concurso 3054, mas ele lembrava de ter lançado só 72. Investigação (consulta read-only direto no Firestore de produção, usando o mesmo acesso público que o site já usa — sem tocar em nada) confirmou: os 104 cartões existem de verdade, todos no bolão "Bolão 10,00", Mega-Sena. Achado real dentro desse total: **5 pares de cartões idênticos** (mesmas 8 dezenas cada par), lançados ~17 minutos um do outro — um lote salvo duas vezes sem o usuário perceber. Os outros ~27 cartões "a mais" eram todos combinações distintas, não duplicatas — ou seja, o usuário só tinha subestimado quantos cartões realmente lançou; "Potencial do Bolão" estava contando certo. Usuário apagou os 5 pares manualmente e pediu: o sistema **nunca deveria deixar um duplicado entrar, avisando na hora**, não só detectável depois via "🔁 Verificar Duplicados" (ferramenta manual que já existia).
+
+**Implementado em `admin.js`**:
+- Nova `existeCartaoDuplicado(tipo, concurso, bolao, numerosOrdenados)`: consulta os cartões já salvos com a mesma loteria + concurso + bolão e compara os números (ordenados) contra o cartão prestes a ser salvo. Escopo é por bolão de propósito — dois bolões DIFERENTES baterem nos mesmos números por acaso não é erro; dentro do MESMO bolão, é.
+- Chamada nos 3 pontos onde um cartão individual é salvo direto no Firestore (grade de seleção, texto avulso, seleção-em-lote) — se já existir, a gravação é **bloqueada** (não é um aviso ignorável) e mostra os números do cartão batido.
+- `gerarLote` (gerador em massa da Lotofácil, N cartões × M concursos) ganhou uma checagem equivalente, mas local/sem ida ao banco: compara os cartões DENTRO do próprio lote entre si antes de gerar. Repetir o mesmo cartão em concursos diferentes continua sendo o uso normal dessa tela (não bloqueado); dois cartões idênticos dentro do mesmo lote, sim.
+- `sw.js`: `CACHE_NAME` → v28.
+
+Versão web (Service Worker) v27 → v28.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
