@@ -1,7 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.2
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.3
+Correções v6.3 (Situação dos Participantes funde com Pendências deste Bolão):
+ - As duas tabelas que mostravam a mesma coisa por participante (pago/
+   saldo/status) em "Bolão Selecionado" — "Situação dos Participantes"
+   (coluna estreita, com busca) e "Pendências deste Bolão" (largura
+   toda, embaixo) — viraram uma só. "Situação dos Participantes" ganhou
+   a coluna Cotas e o resumo de rodapé (N pendente(s) | M em dia/
+   quitado(s) | Parcelas esperadas) que só existiam em Pendências.
+ - Corrigido de quebra: o status desta tabela não multiplicava a
+   parcela por n_cotas (só "Pendências" fazia isso certo) — um
+   participante com 2+ cotas podia aparecer "🟦 Em Dia" antes da hora.
+   Agora o status distingue Quitado/Em Dia/Pendente (antes só Quitado/
+   Pendente).
+ - Botões "Encerrar Bolão"/"Reativar Encerrado" (que ficavam no
+   cabeçalho da seção removida) foram para o cabeçalho do topo da tela
+   (ao lado do botão de atualizar).
 Correções v6.2 (Participantes consolidado — 4 abas viram 2):
  - "➕ Novo Participante" e "✏ Editar Participante" (2 das 4 sub-abas
    de Participantes) viraram popups abertos a partir da lista "👥
@@ -980,7 +995,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.2")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.3")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1158,7 +1173,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.2",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.3",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -4000,6 +4015,12 @@ class BolaoApp:
                  bg="#1a2a3a", fg="white", font=("Arial",13,"bold"))
         self._dash_bolao_lbl.pack(side="left")
         btn(hdr3, "🔄", CORES["btn_azul"], self._recarregar_visao_geral, width=4).pack(side="right")
+        # Vieram da antiga seção "Pendências deste Bolão" (fundida em
+        # "Situação dos Participantes" — ver comentário em sec_sit).
+        btn(hdr3, "Encerrar Bolão", CORES["btn_vermelho"],
+            self._adm_encerrar_bolao, width=14).pack(side="right", padx=4)
+        btn(hdr3, "Reativar Encerrado", CORES["btn_cinza"],
+            self._adm_reativar_bolao, width=16).pack(side="right", padx=4)
 
         # ── Resumo — 6 cards compactos deste bolão ────────────────
         kpi_row = tk.Frame(p, bg="#1a2a3a")
@@ -4044,12 +4065,21 @@ class BolaoApp:
         main.rowconfigure(0, weight=1)
 
         # ── Coluna esquerda: situação dos participantes ──────────
+        # Fundida com a antiga seção "Pendências deste Bolão" (que ficava
+        # abaixo, ocupando a largura toda) — as duas mostravam a mesma
+        # informação por participante (pago/saldo/status) em duas tabelas
+        # e duas consultas separadas; a única coisa que só existia em
+        # "Pendências" era a coluna Cotas e o resumo de rodapé, agora
+        # incorporados aqui. Bônus: corrigiu um bug real — o status desta
+        # tabela não multiplicava a parcela por n_cotas (feito só do lado
+        # de "Pendências"), então um participante com 2+ cotas podia
+        # aparecer "EM DIA" cedo demais.
         sec_sit = tk.LabelFrame(main, text="  Situação dos Participantes  ",
                                 bg="#243447", fg="white",
                                 font=("Arial",9,"bold"), bd=1, padx=6, pady=6)
         sec_sit.grid(row=0, column=0, sticky="nsew", padx=(0,4))
         sec_sit.rowconfigure(0, weight=0); sec_sit.rowconfigure(1, weight=1)
-        sec_sit.rowconfigure(2, weight=0)
+        sec_sit.rowconfigure(2, weight=0); sec_sit.rowconfigure(3, weight=0)
         sec_sit.columnconfigure(0, weight=1)
 
         # Busca por nome — faltava em toda árvore do sistema (achado da
@@ -4065,19 +4095,23 @@ class BolaoApp:
         self._dash_sit_busca_var.trace_add(
             "write", lambda *a: self._filtrar_situacao_participantes())
 
-        cols_s = {"Nome":190, "Pago":100, "Saldo":100, "Status":90}
-        fr_s, self._dash_tree_sit = make_tree(sec_sit, cols_s, height=10)
+        cols_s = {"Nome":170, "Cotas":50, "Pago":95, "Saldo":95, "Status":85}
+        fr_s, self._dash_tree_sit = make_tree(sec_sit, cols_s, height=12)
         fr_s.grid(row=1, column=0, sticky="nsew")
         self._dash_tree_sit.tag_configure("quitado",  background="#d5f5e3")
+        self._dash_tree_sit.tag_configure("emdia",    background="#d9edf7")
         self._dash_tree_sit.tag_configure("pendente", background="#fde8d8")
         # Duplo clique registra pagamento direto — mesmo popup rápido já
-        # usado em "Pendências deste Bolão" (_abrir_popup_registrar_
-        # pagamento). Funciona pra qualquer status (pendente ou já
-        # quitado, pra permitir adiantar um pagamento extra).
+        # usado antes só em "Pendências deste Bolão" (_abrir_popup_
+        # registrar_pagamento). Funciona pra qualquer status (pendente ou
+        # já quitado, pra permitir adiantar um pagamento extra).
         self._dash_tree_sit.bind("<Double-1>", self._dash_sit_dblclick)
         tk.Label(sec_sit, text="💡 Duplo clique num participante para registrar pagamento",
                  bg="#243447", fg="#667788", font=("Arial",7)
                  ).grid(row=2, column=0, sticky="w", pady=(3,0))
+        self._dash_sit_rodape_lbl = tk.Label(sec_sit, text="",
+                 bg="#243447", fg="#8899aa", font=("Arial",7))
+        self._dash_sit_rodape_lbl.grid(row=3, column=0, sticky="w", pady=(1,0))
 
         # ── Coluna central: últimos pagamentos ───────────────────
         sec_ult = tk.LabelFrame(main, text="  Últimos Pagamentos Recebidos  ",
@@ -4166,37 +4200,6 @@ class BolaoApp:
                           font=("Arial",9,"bold"))
             lv.pack(side="right")
             self._dash_info_labels[attr] = lv
-
-        # ── PENDÊNCIAS DESTE BOLÃO ─────────────────────────────────
-        # Antes era uma aba própria ("📅 Pendências por Bolão") com uma
-        # sub-aba por bolão — obrigava escolher o bolão de novo, de um
-        # jeito diferente dos cartões acima. Agora é só mais uma seção
-        # aqui, já filtrada pro bolão selecionado (ver
-        # _atualizar_pendencias_bolao_sel, chamada por _dash_load).
-        hdr_pend = tk.Frame(p, bg="#1a2a3a", pady=4)
-        hdr_pend.pack(fill="x", padx=20, pady=(14,4))
-        tk.Label(hdr_pend, text="📅  Pendências deste Bolão",
-                 bg="#1a2a3a", fg="white", font=("Arial",12,"bold")).pack(side="left")
-        self._pend_mes_lbl = tk.Label(hdr_pend, text="",
-                 bg="#1a2a3a", fg="#aad4f5", font=("Arial",8))
-        self._pend_mes_lbl.pack(side="left", padx=12)
-        btn(hdr_pend, "Encerrar Bolão", CORES["btn_vermelho"],
-            self._adm_encerrar_bolao, width=16).pack(side="right", padx=4)
-        btn(hdr_pend, "Reativar Encerrado", CORES["btn_cinza"],
-            self._adm_reativar_bolao, width=18).pack(side="right", padx=4)
-
-        sec_pend = tk.Frame(p, bg="#1a2a3a")
-        sec_pend.pack(fill="both", padx=20, pady=(0,6))
-        cols_pend = {"Participante":220,"Total Pago":110,"Falta":110,"Cotas":55,"Situação":140}
-        fr_pend, self._pend_tree = make_tree(sec_pend, cols_pend, height=12)
-        fr_pend.pack(fill="both", expand=True)
-        self._pend_tree.tag_configure("pend",  background="#fde8d8", foreground="#8b1a1a")
-        self._pend_tree.tag_configure("emdia", background="#d5f5e3", foreground="#1a5c2a")
-        self._pend_tree.tag_configure("quit",  background="#afffca", foreground="#0a3a1a")
-        self._pend_tree.bind("<Double-1>", self._pend_registrar_dblclick)
-        self._pend_rodape_lbl = tk.Label(sec_pend, text="",
-                 bg="#1a2a3a", fg="#aad4f5", font=("Arial",8))
-        self._pend_rodape_lbl.pack(anchor="w", pady=(4,0))
 
         # ── Rodapé ───────────────────────────────────────────────
         rod = tk.Frame(p, bg="#151f2b", pady=5)
@@ -4411,7 +4414,10 @@ class BolaoApp:
 
         if not bid:
             self._dash_bolao_lbl.configure(text="Nenhum bolão selecionado")
-            try: self._pend_tree.delete(*self._pend_tree.get_children())
+            try:
+                self._dash_sit_dados_full = []
+                self._filtrar_situacao_participantes()
+                self._dash_sit_rodape_lbl.configure(text="")
             except Exception: pass
             return
 
@@ -4420,8 +4426,6 @@ class BolaoApp:
         bd = dict(b)
         self._dash_bolao_lbl.configure(
             text=f"🎯  {bd['nome']}  —  {bd.get('loteria','Mega-Sena')}")
-        try: self._atualizar_pendencias_bolao_sel(bd)
-        except Exception: pass
 
         partic   = self.db.fetchall(
             "SELECT * FROM participantes WHERE bolao_id=? AND ativo=1 ORDER BY nome", (bid,))
@@ -4430,6 +4434,7 @@ class BolaoApp:
         adm_nome_real  = bd.get("adm_nome","").strip()
         adm_ja_listado = False
         _,parc_esp_d,parc_d = self._calc_parcela_atual(bd)
+        vt = float(bd.get("valor_total") or 0)
 
         total_esp = total_pago = total_saldo = 0
         quitados = pendentes_n = 0
@@ -4442,6 +4447,11 @@ class BolaoApp:
                 (pt_d["id"], bid))
             pago = row["t"] or 0
             ve   = pt_d["valor_esperado"] or 0
+            # Cotas desta pessoa — precisa multiplicar a parcela abaixo,
+            # senão quem tem 2+ cotas aparece "em dia" cedo demais (bug
+            # que só existia aqui; a extinta "Pendências deste Bolão" já
+            # multiplicava certo).
+            n_cotas = max(1, round(ve/vt)) if vt > 0 and ve > 0 else 1
 
             # Detecta ADM por flag OU por nome
             eh_adm = bool(pt_d.get("is_adm")) or (
@@ -4450,7 +4460,7 @@ class BolaoApp:
                 adm_ja_listado = True
 
             status_txt, tag, pago_f, saldo_f = self._status_part_adm(
-                {"is_adm": eh_adm}, pago, ve, parc_esp_d, parc_d, adm_paga)
+                {"is_adm": eh_adm}, pago, ve, parc_esp_d, parc_d * n_cotas, adm_paga)
 
             # ADM isento não entra em NENHUM total financeiro (nem esperado,
             # nem arrecadado, nem pendente) — ele não paga, então o
@@ -4466,9 +4476,11 @@ class BolaoApp:
             total_saldo += saldo_f
             if saldo_f <= 0: quitados    += 1
             else:            pendentes_n += 1
-            st_show = "✅ Quitado" if "QUITADO" in status_txt else "⚠ Pendente"
+            if "QUITADO" in status_txt:   st_show = "✅ Quitado"
+            elif "EM DIA" in status_txt:  st_show = "🟦 Em Dia"
+            else:                         st_show = "⚠ Pendente"
             pago_show = pago_f if pago_f is not None else 0
-            dados_sit.append((pt_d["nome"], pago_show, saldo_f, st_show, tag, pt_d["id"]))
+            dados_sit.append((pt_d["nome"], n_cotas, pago_show, saldo_f, st_show, tag, pt_d["id"]))
 
         # ADM configurado mas não cadastrado como participante → adiciona
         # linha sintética só pra exibição (não entra em nenhum total).
@@ -4476,7 +4488,7 @@ class BolaoApp:
         # (não existe registro em "participantes" pra vincular).
         if adm_nome_real and not adm_ja_listado and not adm_paga:
             quitados += 1
-            dados_sit.append((adm_nome_real, 0, 0, "✅ Quitado", "quitado", None))
+            dados_sit.append((adm_nome_real, 1, 0, 0, "✅ Quitado", "quitado", None))
 
         # ── KPIs ────────────────────────────────────────────────
         # Cotas totais = soma das cotas individuais (quem tem 2 cotas conta 2)
@@ -4505,6 +4517,16 @@ class BolaoApp:
         # também é chamada direto pela busca.
         self._dash_sit_dados_full = sorted(dados_sit, key=lambda x: x[0])
         self._filtrar_situacao_participantes()
+
+        # Resumo de rodapé — antes só existia na extinta "Pendências
+        # deste Bolão" (contagem por "tag" de status, não pelo saldo
+        # total usado nos KPIs acima — ver comentário na criação de
+        # sec_sit sobre a diferença entre os dois critérios).
+        n_pend_tag = sum(1 for d in dados_sit if d[5] == "pendente")
+        n_ok_tag   = len(dados_sit) - n_pend_tag
+        self._dash_sit_rodape_lbl.configure(text=(
+            f"{n_pend_tag} pendente(s)  |  {n_ok_tag} em dia/quitado(s)  |  "
+            f"Parcelas esperadas: {parc_esp_d}"))
 
         # ── Últimos 20 pagamentos ────────────────────────────────
         self._dash_tree_ult.delete(*self._dash_tree_ult.get_children())
@@ -4583,12 +4605,12 @@ class BolaoApp:
         termo = (termo.get().strip().lower() if termo else "")
         dados = getattr(self, "_dash_sit_dados_full", [])
         self._dash_tree_sit.delete(*self._dash_tree_sit.get_children())
-        for nome, pago, saldo, status, tag, pid_row in dados:
+        for nome, n_cotas, pago, saldo, status, tag, pid_row in dados:
             if termo and termo not in nome.lower():
                 continue
             kwargs = {"iid": f"p{pid_row}"} if pid_row is not None else {}
             self._dash_tree_sit.insert("","end", tags=(tag,), values=(
-                nome, fmt_brl(pago), fmt_brl(saldo), status), **kwargs)
+                nome, f"{n_cotas}x", fmt_brl(pago), fmt_brl(saldo), status), **kwargs)
 
     def _dash_sit_dblclick(self, event):
         """Duplo clique numa linha de 'Situação dos Participantes' — abre
@@ -4606,7 +4628,7 @@ class BolaoApp:
         if not bid_: return
         vals = self._dash_tree_sit.item(iid, "values")
         nome_p = vals[0] if vals else ""
-        saldo_str = str(vals[2]).replace("R$","").replace(".","").replace(",",".").strip() if vals else "0"
+        saldo_str = str(vals[3]).replace("R$","").replace(".","").replace(",",".").strip() if vals else "0"
         try: saldo_v = float(saldo_str)
         except Exception: saldo_v = 0
         self._abrir_popup_registrar_pagamento(pid_row, bid_, valor_sugerido=saldo_v,
@@ -4766,7 +4788,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.2</span>
+        <span>Sistema de Gestão de Bolões v6.3</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -5615,16 +5637,17 @@ class BolaoApp:
     # ════════════════════════════════════════════════════════════
     #  ABA — ADMINISTRAÇÃO (taxa de organização)
     # ════════════════════════════════════════════════════════════
-    # [ABA "PENDÊNCIAS POR BOLÃO" — VIROU SEÇÃO DE "BOLÃO SELECIONADO"]
+    # [ABA "PENDÊNCIAS POR BOLÃO" — VIROU SEÇÃO DE "BOLÃO SELECIONADO",
+    #  DEPOIS FUNDIDA EM "SITUAÇÃO DOS PARTICIPANTES"]
     # A pedido do usuário: a aba separada obrigava escolher o bolão duas
     # vezes (uma nos cartões de "Bolão Selecionado", outra nas sub-abas
-    # daqui) usando duas formas diferentes de seleção. Agora só existe
-    # uma: os cartões. A seção de pendências (com Encerrar/Reativar Bolão)
-    # foi pra dentro de _build_bolao_sel(), escopada ao bolão já
-    # selecionado — ver _atualizar_pendencias_bolao_sel(), chamada por
-    # _dash_load(). _adm_encerrar_bolao()/_adm_reativar_bolao() continuam
-    # existindo, só que operando no bolão selecionado (self.bid) em vez de
-    # depender de qual sub-aba estava visível.
+    # daqui) usando duas formas diferentes de seleção. Virou seção dentro
+    # de _build_bolao_sel(), e depois foi fundida de vez em "Situação dos
+    # Participantes" (mesma info por participante, duas tabelas e duas
+    # consultas — ver comentário na criação de sec_sit). Os botões
+    # Encerrar/Reativar Bolão foram pro cabeçalho (hdr3). _adm_encerrar_
+    # bolao()/_adm_reativar_bolao() continuam existindo, operando no
+    # bolão selecionado (self.bid).
 
     def _adm_registrar(self):
         tipo_full = self.adm_tipo.get()
@@ -5833,87 +5856,6 @@ class BolaoApp:
                 r["concurso"] or "-", fmt_brl(val),
                 r["tipo"], r["descricao"] or "-", r["data_registro"] or "-"),
                 tags=(tag,))
-
-    def _atualizar_pendencias_bolao_sel(self, bd):
-        """Recarrega a seção "Pendências deste Bolão" dentro da aba
-        "Bolão Selecionado" — só o bolão atualmente escolhido nos
-        cartões (antes essa lista vivia numa aba própria, com uma
-        sub-aba por bolão)."""
-        from datetime import date as _date
-        mes_atual = _date.today().strftime("%m/%Y")
-        self._pend_mes_lbl.configure(
-            text="Parcela de " + mes_atual + "  |  Vermelho=pendente  |  Verde=em dia/quitado")
-
-        self._pend_tree.delete(*self._pend_tree.get_children())
-        bid_p = bd["id"]
-        vt = float(bd.get("valor_total") or 0)
-        if vt <= 0:
-            self._pend_rodape_lbl.configure(text="Bolão sem valor de cota definido.")
-            return
-
-        _, parc_esp, parc_val = self._calc_parcela_atual(bd)
-
-        partic_bol = self.db.fetchall(
-            "SELECT * FROM participantes WHERE bolao_id=? AND ativo=1 ORDER BY nome",
-            (bid_p,))
-        adm_nome_low = (bd.get("adm_nome","") or "").strip().lower()
-        adm_paga = bd.get("adm_paga", 0)
-
-        pag_rows = self.db.fetchall(
-            "SELECT participante_id, SUM(valor) as t FROM pagamentos "
-            "WHERE bolao_id=? GROUP BY participante_id", (bid_p,))
-        pag_map = {r["participante_id"]: float(r["t"] or 0) for r in pag_rows}
-
-        pendentes = []; em_dia = []
-        for pt in partic_bol:
-            pt_d = dict(pt)
-            eh_adm = bool(pt_d.get("is_adm")) or (
-                adm_nome_low and adm_nome_low in pt_d["nome"].lower())
-            if eh_adm and not adm_paga: continue
-            ve    = float(pt_d.get("valor_esperado") or 0)
-            pago  = pag_map.get(pt_d["id"], 0)
-            n_cotas = max(1, round(ve / vt)) if vt > 0 and ve > 0 else 1
-            val_esp_agora = parc_esp * parc_val * n_cotas
-            status, _ = self._status_part(pago, ve, parc_esp, parc_val * n_cotas)
-            if "PENDENTE" in status:
-                pendentes.append((pt_d["nome"], pago, max(0, val_esp_agora - pago), n_cotas))
-            else:
-                em_dia.append((pt_d["nome"], pago, n_cotas, status))
-
-        for nome, pago, falta, nc in sorted(pendentes, key=lambda x: x[0]):
-            self._pend_tree.insert("","end", iid="pend|"+nome, tags=("pend",), values=(
-                nome, fmt_brl(pago), fmt_brl(falta), str(nc)+"x", "PENDENTE"))
-        for nome, pago, nc, st in sorted(em_dia, key=lambda x: x[0]):
-            tag = "quit" if "QUITADO" in st else "emdia"
-            self._pend_tree.insert("","end", iid="ok|"+nome, tags=(tag,), values=(
-                nome, fmt_brl(pago), "—", str(nc)+"x", st))
-
-        n_pend = len(pendentes)
-        self._pend_rodape_lbl.configure(
-            text=str(n_pend)+" pendente(s)  |  "+str(len(em_dia))+" em dia/quitado(s)  |  "
-                 "Parcelas esperadas: "+str(parc_esp)+"  |  Duplo clique numa linha PENDENTE "
-                 "pra registrar o pagamento")
-
-    def _pend_registrar_dblclick(self, event):
-        """Duplo clique numa linha PENDENTE da seção Pendências — abre o
-        popup rápido de registro de pagamento (_abrir_popup_registrar_
-        pagamento) pro bolão selecionado."""
-        sel = self._pend_tree.selection()
-        if not sel: return
-        vals = self._pend_tree.item(sel[0], "values")
-        if not vals or "PENDENTE" not in str(vals[4]): return
-        bid_ = self.bid.get()
-        if not bid_: return
-        nome_p = vals[0]
-        pt = self.db.fetchone(
-            "SELECT id FROM participantes WHERE bolao_id=? AND ativo=1 AND nome=?",
-            (bid_, nome_p))
-        if not pt: return
-        falta_str = str(vals[2]).replace("R$","").replace(".","").replace(",",".").strip()
-        try: falta_v = float(falta_str)
-        except Exception: falta_v = 0
-        self._abrir_popup_registrar_pagamento(pt["id"], bid_, valor_sugerido=falta_v,
-                                               nome_exibicao=nome_p)
 
     def _adm_encerrar_bolao(self):
         """Encerra o bolão atualmente selecionado nos cartões de
@@ -6659,7 +6601,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.2</span>
+        <span>Sistema de Gestão de Bolões v6.3</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
