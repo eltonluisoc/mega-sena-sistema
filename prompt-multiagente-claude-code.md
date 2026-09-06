@@ -451,6 +451,20 @@ Usuário viu o banner "Melhor Resultado do Concurso" (Bolão 10,00 bateu QUADRA 
 
 Versão web (Service Worker) v30 → v31.
 
+## Rodada 26 — Mesmo bug de aposta múltipla, agora no ranking "Top Concursos" do dashboard admin (v32)
+
+Usuário viu os cards "TOP CONCURSOS MEGA-SENA/LOTOFÁCIL/QUINA" do dashboard admin (ex.: "Concurso 3054 — 2 quadras") e perguntou se precisava do mesmo ajuste da Rodada 25. Sim — era o idêntico bug, só que no admin em vez do site público: `porConcursoPorLoteria[tipo][concurso]` guardava `{maxAcertos, quantidade}` contando CARTÕES com aquele nível de acerto, não prêmios reais. Um cartão de aposta múltipla (mais números que o mínimo) vale várias apostas simples, cada uma podendo cair numa faixa diferente — um cartão de 8 números com 4 acertos rende 6 quadras (e 16 ternos e 6 duques ao mesmo tempo), não "1 quadra".
+
+**Implementado em `admin.js`**:
+- Nova `contarPremiosPorFaixaAdmin(qtdNumeros, acertos, k)` — mesma fórmula hipergeométrica de `contarPremiosPorFaixa` em `script.js` (duplicada por não ter build step entre os dois arquivos, mesmo padrão já usado em `combinacao`/`combinacaoAdmin`).
+- `porConcursoPorLoteria[tipo][concurso]` virou um acumulador por faixa (`{2:N, 3:N, 4:N, ...}`, somando prêmios reais de todos os cartões daquele concurso) em vez de `{maxAcertos, quantidade}` de cartões. O ranking top-3 agora pega, pra cada concurso, a MAIOR faixa com prêmio real (`> 0`) e usa a soma real como quantidade.
+- Removidos os campos `quadras`/`ternos`/`duques` de `boloesPorLoteria` — setados desde sempre mas nunca lidos por nada (código morto, confirmado via grep).
+- 4 testes novos em `test/calculos-admin.test.js`, incluindo o caso do usuário (cartão de 8 números, 4 acertos = 6 quadras no ranking, não 2).
+
+`sw.js`: `CACHE_NAME` → v32.
+
+Versão web (Service Worker) v31 → v32.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
