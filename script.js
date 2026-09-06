@@ -468,12 +468,68 @@ function calcularChancesBolao(cartoesBolao, loteria) {
 
 function ordenarCartoesPorAcertos(cartoesLista, numerosSorteados) {
     if (!numerosSorteados) return cartoesLista;
-    
+
     return [...cartoesLista].sort((a, b) => {
         const acertosA = a.numeros.filter(n => numerosSorteados.includes(n)).length;
         const acertosB = b.numeros.filter(n => numerosSorteados.includes(n)).length;
         return acertosB - acertosA;
     });
+}
+
+// ============================================
+// CONTAGEM DE PRÊMIOS — aposta múltipla vale VÁRIAS apostas simples
+// ============================================
+// Um cartão com mais números que o mínimo da loteria (ex.: 8 números na
+// Mega, em vez de 6) é uma "aposta múltipla": na prática, equivale a
+// C(qtdNumeros, k) apostas simples jogadas de uma vez (k = tamanho da
+// aposta simples — 6 na Mega, 5 na Quina, 15 na Lotofácil), exatamente
+// como a Caixa paga de verdade. Contar "1 cartão = 1 prêmio" (como este
+// código fazia antes) subestima o prêmio real: um cartão de 8 números
+// da Mega com 4 acertos não vale 1 quadra, vale C(4,4)×C(4,2) = 6
+// quadras — e ainda esconde 16 ternos e 6 duques no mesmo cartão, que
+// antes nem apareciam. Pra um cartão do tamanho mínimo (o caso mais
+// comum), a fórmula devolve exatamente 1 prêmio na faixa dos acertos,
+// igual ao comportamento antigo.
+function contarPremiosPorFaixa(qtdNumeros, acertos, k) {
+    const porFaixa = {};
+    const jMin = Math.max(0, k - (qtdNumeros - acertos));
+    const jMax = Math.min(acertos, k);
+    for (let j = jMin; j <= jMax; j++) {
+        porFaixa[j] = combinacao(acertos, j) * combinacao(qtdNumeros - acertos, k - j);
+    }
+    return porFaixa;
+}
+
+function calcularPremios(cartoesLista, numerosSorteados, loteria) {
+    const k = loteria === 'lotofacil' ? 15 : (loteria === 'quina' ? 5 : 6);
+    const somaFaixas = { sena:0, quina:0, quadra:0, terno:0, duque:0,
+                          pontos15:0, pontos14:0, pontos13:0, pontos12:0, pontos11:0 };
+    const nomesPorJ = loteria === 'lotofacil'
+        ? { 15:'pontos15', 14:'pontos14', 13:'pontos13', 12:'pontos12', 11:'pontos11' }
+        : { 6:'sena', 5:'quina', 4:'quadra', 3:'terno', 2:'duque' };
+
+    cartoesLista.forEach(cartao => {
+        const acertos = cartao.numeros.filter(n => numerosSorteados.includes(n)).length;
+        const faixas = contarPremiosPorFaixa(cartao.numeros.length, acertos, k);
+        for (const [j, qtd] of Object.entries(faixas)) {
+            const nome = nomesPorJ[j];
+            if (nome) somaFaixas[nome] += qtd;
+        }
+    });
+    return somaFaixas;
+}
+
+// Nota exibida sob o resumo de prêmios só quando existe pelo menos um
+// cartão com mais números que o mínimo da loteria — sem isso, os
+// números de SENA/QUINA/QUADRA/etc. batem exatamente com a contagem de
+// cartões (1 cartão = 1 prêmio) e a nota seria só ruído.
+function notaApostaMultiplaHtml(cartoesLista, loteria) {
+    const k = loteria === 'lotofacil' ? 15 : (loteria === 'quina' ? 5 : 6);
+    const temMultipla = cartoesLista.some(c => c.numeros.length > k);
+    if (!temMultipla) return '';
+    return `<div style="font-size: 11px; color: #64748b; text-align: center; margin: -6px 0 14px;">
+        💡 Cartões com mais de ${k} números valem várias apostas simples — os números acima contam <strong>prêmios</strong>, não cartões.
+    </div>`;
 }
 
 // ============================================
@@ -488,15 +544,43 @@ function nomeNivelAcerto(loteria, acertos) {
 // Só acende para resultados realmente notáveis (quadra+ na Mega/Quina,
 // 13+ pontos na Lotofácil) — duque/terno são comuns demais pra virar
 // comemoração, banalizaria o destaque.
-function gerarBannerTrofeu(melhorCartao, melhorAcertos, loteria) {
+function gerarBannerTrofeu(melhorCartao, melhorAcertos, loteria, numerosSorteados) {
     if (!melhorCartao || !melhorAcertos) return '';
     const piso = loteria === 'lotofacil' ? 13 : 4;
     if (melhorAcertos < piso) return '';
 
     const nivel = nomeNivelAcerto(loteria, melhorAcertos);
+    // Número batido (⭐ + dourado) vs número do cartão que não saiu —
+    // antes os 8 (ou mais) números do cartão apareciam todos iguais,
+    // sem dar pra ver de cara QUAIS bateram.
     const numerosHtml = melhorCartao.numeros
-        .map(n => `<span style="font-family:monospace;font-size:12px;font-weight:800;background:#2e7d32;color:white;border-radius:8px;padding:6px 8px;min-width:26px;text-align:center;display:inline-block;box-shadow:0 2px 4px rgba(0,0,0,0.15);">${n.toString().padStart(2, '0')}</span>`)
+        .map(n => {
+            const bateu = numerosSorteados && numerosSorteados.includes(n);
+            const bg = bateu ? '#f59e0b' : '#2e7d32';
+            const estrela = bateu ? '⭐' : '';
+            return `<span style="font-family:monospace;font-size:12px;font-weight:800;background:${bg};color:white;border-radius:8px;padding:6px 8px;min-width:26px;text-align:center;display:inline-block;box-shadow:0 2px 4px rgba(0,0,0,0.15);">${estrela}${n.toString().padStart(2, '0')}</span>`;
+        })
         .join('');
+
+    // Cartão com mais números que o mínimo da loteria (aposta múltipla)
+    // vale VÁRIAS apostas simples na mesma faixa de prêmio — 4 acertos
+    // num cartão de 8 números não é "1 quadra", é uma pra cada
+    // combinação de 6 que cobre exatamente esses 4 acertos. Deixa isso
+    // explícito aqui, no cartão que mais chamou atenção, pra não parecer
+    // que o resumo abaixo (que já soma isso certo) "inventou" números.
+    const k = loteria === 'lotofacil' ? 15 : (loteria === 'quina' ? 5 : 6);
+    let notaMultipla = '';
+    if (melhorCartao.numeros.length > k) {
+        const faixas = contarPremiosPorFaixa(melhorCartao.numeros.length, melhorAcertos, k);
+        const qtdNesseNivel = faixas[melhorAcertos] || 0;
+        if (qtdNesseNivel > 1) {
+            notaMultipla = `
+                <div style="margin-top: 8px; font-size: 11px; color: #92400e; background: rgba(245,158,11,0.12); border-radius: 8px; padding: 6px 8px;">
+                    💡 Cartão de ${melhorCartao.numeros.length} números (aposta múltipla) = várias apostas simples de uma vez.
+                    Esses ${melhorAcertos} acertos valem <strong>${qtdNesseNivel}× ${nivel}</strong>, não só 1.
+                </div>`;
+        }
+    }
 
     return `
         <div style="background: linear-gradient(135deg, #fef3c7 0%, #ffffff 55%); border: 2px solid #f59e0b; border-radius: 16px; padding: 14px; margin-bottom: 12px;">
@@ -509,6 +593,7 @@ function gerarBannerTrofeu(melhorCartao, melhorAcertos, loteria) {
                 </div>
             </div>
             <div style="display: flex; gap: 5px; flex-wrap: wrap;">${numerosHtml}</div>
+            ${notaMultipla}
         </div>
     `;
 }
@@ -577,36 +662,12 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         const cartoesOrdenados = ordenarCartoesPorAcertos(cartoesFiltrados, numerosSorteados);
         const chancesHtml = calcularChancesBolao(cartoesFiltrados, loteria);
 
-        let premios = {};
-        if (loteria === 'mega') {
-            premios = {
-                sena: cartoesOrdenados.filter(r => r.numeros.filter(n => numerosSorteados.includes(n)).length >= 6).length,
-                quina: cartoesOrdenados.filter(r => r.numeros.filter(n => numerosSorteados.includes(n)).length === 5).length,
-                quadra: cartoesOrdenados.filter(r => r.numeros.filter(n => numerosSorteados.includes(n)).length === 4).length,
-                terno: cartoesOrdenados.filter(r => r.numeros.filter(n => numerosSorteados.includes(n)).length === 3).length,
-                duque: cartoesOrdenados.filter(r => r.numeros.filter(n => numerosSorteados.includes(n)).length === 2).length
-            };
-        } else if (loteria === 'lotofacil') {
-            premios = {
-                pontos15: cartoesOrdenados.filter(r => r.numeros.filter(n => numerosSorteados.includes(n)).length >= 15).length,
-                pontos14: cartoesOrdenados.filter(r => r.numeros.filter(n => numerosSorteados.includes(n)).length === 14).length,
-                pontos13: cartoesOrdenados.filter(r => r.numeros.filter(n => numerosSorteados.includes(n)).length === 13).length,
-                pontos12: cartoesOrdenados.filter(r => r.numeros.filter(n => numerosSorteados.includes(n)).length === 12).length,
-                pontos11: cartoesOrdenados.filter(r => r.numeros.filter(n => numerosSorteados.includes(n)).length === 11).length
-            };
-        } else {
-            premios = {
-                quina: cartoesOrdenados.filter(r => r.numeros.filter(n => numerosSorteados.includes(n)).length >= 5).length,
-                quadra: cartoesOrdenados.filter(r => r.numeros.filter(n => numerosSorteados.includes(n)).length === 4).length,
-                terno: cartoesOrdenados.filter(r => r.numeros.filter(n => numerosSorteados.includes(n)).length === 3).length,
-                duque: cartoesOrdenados.filter(r => r.numeros.filter(n => numerosSorteados.includes(n)).length === 2).length
-            };
-        }
-        
+        const premios = calcularPremios(cartoesOrdenados, numerosSorteados, loteria);
+
         const melhorCartaoSalvo = cartoesOrdenados[0];
         const melhorAcertosSalvo = melhorCartaoSalvo ? melhorCartaoSalvo.numeros.filter(n => numerosSorteados.includes(n)).length : 0;
 
-        let html = gerarBannerTrofeu(melhorCartaoSalvo, melhorAcertosSalvo, loteria);
+        let html = gerarBannerTrofeu(melhorCartaoSalvo, melhorAcertosSalvo, loteria, numerosSorteados);
         html += chancesHtml;
         html += `<div class="resultado-resumo">`;
 
@@ -633,7 +694,8 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         }
         html += `<div class="resultado-resumo-item"><div class="resultado-resumo-numero">${cartoesOrdenados.length}</div><div class="resultado-resumo-label">CARTÕES</div></div>`;
         html += `</div>`;
-        
+        html += notaApostaMultiplaHtml(cartoesOrdenados, loteria);
+
         html += `<div class="numeros-sorteados">${numerosSorteados.map(n => `<div class="numero-sorteado-card">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`;
         html += `<button id="btnWhatsAppResultado" style="background:#25D366; width:100%; padding:12px; border-radius:30px; margin-bottom:20px; font-weight:bold;">📱 COMPARTILHAR RESULTADO NO WHATSAPP</button>`;
         html += `<div class="aviso-conferido" style="background: #d1fae5; padding: 8px; border-radius: 12px; text-align: center; font-size: 12px; color: #065f46; margin-top: 10px;">
@@ -1228,32 +1290,8 @@ async function conferirResultados() {
         return { ...cartao, acertos };
     }).sort((a, b) => b.acertos - a.acertos);
     
-    let premios = {};
-    if (loteriaAtual === 'mega') {
-        premios = {
-            sena: cartoesComAcertos.filter(r => r.acertos >= 6).length,
-            quina: cartoesComAcertos.filter(r => r.acertos === 5).length,
-            quadra: cartoesComAcertos.filter(r => r.acertos === 4).length,
-            terno: cartoesComAcertos.filter(r => r.acertos === 3).length,
-            duque: cartoesComAcertos.filter(r => r.acertos === 2).length
-        };
-    } else if (loteriaAtual === 'lotofacil') {
-        premios = {
-            pontos15: cartoesComAcertos.filter(r => r.acertos >= 15).length,
-            pontos14: cartoesComAcertos.filter(r => r.acertos === 14).length,
-            pontos13: cartoesComAcertos.filter(r => r.acertos === 13).length,
-            pontos12: cartoesComAcertos.filter(r => r.acertos === 12).length,
-            pontos11: cartoesComAcertos.filter(r => r.acertos === 11).length
-        };
-    } else {
-        premios = {
-            quina: cartoesComAcertos.filter(r => r.acertos >= 5).length,
-            quadra: cartoesComAcertos.filter(r => r.acertos === 4).length,
-            terno: cartoesComAcertos.filter(r => r.acertos === 3).length,
-            duque: cartoesComAcertos.filter(r => r.acertos === 2).length
-        };
-    }
-    
+    const premios = calcularPremios(cartoesComAcertos, numerosSorteados, loteriaAtual);
+
     ultimoResultadoConcurso = concurso;
     ultimoResultadoDados = { numeros: numerosSorteados, dataSorteio, premios };
 
@@ -1266,7 +1304,7 @@ async function conferirResultados() {
     // MONTAR RESUMO (TROFÉU + POTENCIAL DO BOLÃO + ESTATÍSTICAS, SEM CARTÕES)
     // ============================================================
     const melhorCartaoConferir = cartoesComAcertos[0];
-    let html = gerarBannerTrofeu(melhorCartaoConferir, melhorCartaoConferir ? melhorCartaoConferir.acertos : 0, loteriaAtual);
+    let html = gerarBannerTrofeu(melhorCartaoConferir, melhorCartaoConferir ? melhorCartaoConferir.acertos : 0, loteriaAtual, numerosSorteados);
     html += calcularChancesBolao(cartoesParaEstatisticas, loteriaAtual);
 
     html += `<div class="resultado-resumo">`;
@@ -1293,7 +1331,8 @@ async function conferirResultados() {
     }
     html += `<div class="resultado-resumo-item"><div class="resultado-resumo-numero">${cartoesComAcertos.length}</div><div class="resultado-resumo-label">CARTÕES</div></div>`;
     html += `</div>`;
-    
+    html += notaApostaMultiplaHtml(cartoesComAcertos, loteriaAtual);
+
     html += `<div class="numeros-sorteados">${numerosSorteados.map(n => `<div class="numero-sorteado-card">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`;
     if (dataSorteio) {
         let dataFormatada = '';

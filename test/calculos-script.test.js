@@ -148,3 +148,36 @@ test('calcularChancesBolao - Quina mostra a chance de QUADRA, não de quina', ()
 
   assert.match(html, /CHANCE \(QUADRA\)/);
 });
+
+// Pedido do usuário: um cartão de 8 números na Mega com 4 acertos não é
+// "1 quadra" — é uma aposta múltipla, equivalente a C(8,6)=28 apostas
+// simples de uma vez. Das 28, C(4,4)·C(4,2)=6 batem exatamente quadra
+// (mais C(4,3)·C(4,3)=16 ternos e C(4,2)·C(4,4)=6 duques escondidos no
+// mesmo cartão — soma 28, confere com o total de apostas do cartão).
+test('contarPremiosPorFaixa - cartão de 8 números com 4 acertos vale 6 quadras, não 1', () => {
+  const faixas = sandbox.contarPremiosPorFaixa(8, 4, 6);
+  assert.equal(faixas[4], 6);
+  assert.equal(faixas[3], 16);
+  assert.equal(faixas[2], 6);
+  const total = Object.values(faixas).reduce((a, b) => a + b, 0);
+  assert.equal(total, sandbox.combinacao(8, 6));
+});
+
+test('contarPremiosPorFaixa - cartão do tamanho mínimo vale exatamente 1 prêmio (comportamento antigo)', () => {
+  const faixas = sandbox.contarPremiosPorFaixa(6, 4, 6);
+  assert.deepEqual(Object.keys(faixas).map(Number), [4]);
+  assert.equal(faixas[4], 1);
+});
+
+test('calcularPremios - soma corretamente as apostas múltiplas de vários cartões da Mega', () => {
+  const numerosSorteados = [1, 2, 3, 4, 5, 6];
+  const cartoes = [
+    { numeros: [1, 2, 3, 4, 5, 6] },          // cartão mínimo, acerta os 6 -> 1 sena
+    { numeros: [1, 2, 3, 4, 20, 21, 22, 23] }, // 8 números, 4 acertos -> 6 quadra + 16 terno + 6 duque
+  ];
+  const premios = sandbox.calcularPremios(cartoes, numerosSorteados, 'mega');
+  assert.equal(premios.sena, 1);
+  assert.equal(premios.quadra, 6);
+  assert.equal(premios.terno, 16);
+  assert.equal(premios.duque, 6);
+});
