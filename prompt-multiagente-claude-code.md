@@ -434,6 +434,23 @@ Corrigido subindo o `max-width` pra 560px (~50px por caixinha) e a fonte/moldura
 
 Versão web (Service Worker) v29 → v30.
 
+## Rodada 25 — Cartão com mais números que o mínimo vale VÁRIAS apostas, não 1 (web v31)
+
+Usuário viu o banner "Melhor Resultado do Concurso" (Bolão 10,00 bateu QUADRA com um cartão de 8 números) e fez duas perguntas: (1) dava pra marcar com estrela quais dos 8 números do cartão foram os que bateram? (2) acertar 4 números num cartão de 8 é só 1 quadra ou são várias?
+
+**Resposta pra (2), e por que era um bug real**: um cartão de 8 números é uma "aposta múltipla" — na Mega, equivale a jogar C(8,6)=28 apostas simples de uma vez, exatamente como a Caixa paga de verdade. Com 4 dos 8 números batendo, as 28 apostas simples embutidas nesse cartão se dividem em C(4,4)·C(4,2)=**6 que batem quadra**, C(4,3)·C(4,3)=16 que batem terno, e C(4,2)·C(4,4)=6 que batem duque (soma 28, confere). O resumo de prêmios (`SENA/QUINA/QUADRA/TERNO/DUQUE`, e `PONTOS` na Lotofácil) sempre contou "1 cartão = 1 prêmio", ignorando essa multiplicidade — sub-contava (e ainda escondia terno/duque) de todo cartão com mais números que o mínimo da loteria (6 na Mega, 5 na Quina, 15 na Lotofácil). Cartão do tamanho mínimo (o caso mais comum) não muda: continua contando exatamente 1 prêmio, igual sempre foi.
+
+**Implementado em `script.js`**:
+- `contarPremiosPorFaixa(qtdNumeros, acertos, k)`: hipergeométrica (mesma família de fórmula já usada em `calcularChancesBolao`) — para cada faixa `j` possível, `C(acertos,j)·C(qtdNumeros-acertos,k-j)`.
+- `calcularPremios(cartoesLista, numerosSorteados, loteria)`: soma isso pra cada cartão, substituindo os 2 blocos de contagem `filter(...).length` duplicados (um em `exibirResultadoSalvo`, outro em `conferirResultados`) por uma função só.
+- `notaApostaMultiplaHtml(...)`: nota "💡 Cartões com mais de N números valem várias apostas simples — os números acima contam prêmios, não cartões", só aparece quando existe pelo menos um cartão de aposta múltipla no bolão (senão seria ruído).
+- **Resposta pra (1)**: `gerarBannerTrofeu` agora recebe `numerosSorteados` e marca com ⭐ + fundo dourado os números do cartão vencedor que bateram (os que não bateram continuam verdes) — antes todos os números do cartão apareciam idênticos, sem dar pra distinguir os acertos a olho. O banner também ganhou uma nota específica pro cartão vencedor quando ele é aposta múltipla (ex.: "Esses 4 acertos valem 6× QUADRA, não só 1").
+- 3 testes novos em `test/calculos-script.test.js`, incluindo o caso exato do usuário (8 números, 4 acertos).
+
+`sw.js`: `CACHE_NAME` → v31.
+
+Versão web (Service Worker) v30 → v31.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
