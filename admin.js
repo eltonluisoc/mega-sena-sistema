@@ -3284,6 +3284,11 @@ function calcularEstatisticas(cartoes, resultados) {
     // 2. Melhor resultado por CONCURSO (para o ranking top-3 por loteria)
     const porConcursoPorLoteria = { mega: {}, lotofacil: {}, quina: {} };
 
+    const minPicksPorTipo = { mega: 6, lotofacil: 15, quina: 5 };
+    // Do maior pro menor — usado pra achar a MELHOR faixa batida num
+    // concurso (a Quina só sorteia 5 dezenas, então não tem faixa 6).
+    const tiersPorTipo = { mega: [6,5,4,3,2], lotofacil: [15,14,13,12,11], quina: [5,4,3,2] };
+
     for (const cartao of cartoes) {
         const tipo = cartao.tipo || 'mega';
         const concurso = cartao.concurso ? parseInt(cartao.concurso) : null;
@@ -3311,10 +3316,7 @@ function calcularEstatisticas(cartoes, resultados) {
                 concurso: concurso,
                 totalAcertos: 0,
                 totalCartoes: 0,
-                maxAcertos: 0,
-                quadras: 0,
-                ternos: 0,
-                duques: 0
+                maxAcertos: 0
             };
         }
 
@@ -3324,34 +3326,45 @@ function calcularEstatisticas(cartoes, resultados) {
         if (acertos > boloesPorLoteria[chave].maxAcertos) {
             boloesPorLoteria[chave].maxAcertos = acertos;
         }
-        if (acertos >= 4) boloesPorLoteria[chave].quadras++;
-        if (acertos >= 3) boloesPorLoteria[chave].ternos++;
-        if (acertos >= 2) boloesPorLoteria[chave].duques++;
 
-        // Melhor resultado do concurso (para o ranking top-3)
-        if (concurso !== null && porConcursoPorLoteria[tipo]) {
+        // Ranking top-3 por concurso: soma PRÊMIOS reais, não cartões. Um
+        // cartão de aposta múltipla (mais números que o mínimo da loteria)
+        // vale várias apostas simples de uma vez, cada uma podendo cair
+        // numa faixa — um cartão de 8 números da Mega com 4 acertos rende
+        // 6 quadras (E 16 ternos E 6 duques ao mesmo tempo, não só
+        // "quadra") — mesma lógica de calcularPremios() no site público
+        // (script.js). Contar "1 cartão = 1 prêmio no nível máximo" (como
+        // este código fazia antes) sub-contava qualquer aposta múltipla.
+        if (concurso !== null && dezenasSorteadas.length > 0 && porConcursoPorLoteria[tipo]) {
             const pc = porConcursoPorLoteria[tipo];
-            if (!pc[concurso]) pc[concurso] = { maxAcertos: 0, quantidade: 0 };
-            if (acertos > pc[concurso].maxAcertos) {
-                pc[concurso] = { maxAcertos: acertos, quantidade: 1 };
-            } else if (acertos > 0 && acertos === pc[concurso].maxAcertos) {
-                pc[concurso].quantidade++;
+            if (!pc[concurso]) pc[concurso] = {};
+            const faixas = contarPremiosPorFaixaAdmin(cartao.numeros.length, acertos, minPicksPorTipo[tipo]);
+            for (const [j, qtd] of Object.entries(faixas)) {
+                pc[concurso][j] = (pc[concurso][j] || 0) + qtd;
             }
         }
     }
 
     // Top 3 concursos por loteria (só concursos com resultado conferido e
     // que bateram um nível que realmente conta como prêmio — 1 acerto
-    // solto não é uma conquista, é ruído)
+    // solto não é uma conquista, é ruído). Pra cada concurso, o "nível"
+    // exibido é o MAIOR com prêmio real (> 0), e a quantidade é a soma de
+    // prêmios reais nesse nível — não mais contagem de cartões.
     const limiarPremio = { mega: 2, lotofacil: 11, quina: 2 };
     const top3PorLoteria = { mega: [], lotofacil: [], quina: [] };
     for (const tipo of ['mega', 'lotofacil', 'quina']) {
+        const tiers = tiersPorTipo[tipo];
         top3PorLoteria[tipo] = Object.keys(porConcursoPorLoteria[tipo])
-            .map(concurso => ({ concurso, ...porConcursoPorLoteria[tipo][concurso] }))
-            .filter(item => item.maxAcertos >= limiarPremio[tipo])
-            // desempate por quantidade de cartões que bateram o nível, não só
-            // pelo número do concurso: 2 ternos no mesmo concurso é mais
-            // notável que 1 terno em outro
+            .map(concurso => {
+                const porFaixa = porConcursoPorLoteria[tipo][concurso];
+                const melhorTier = tiers.find(t => porFaixa[t] > 0);
+                if (melhorTier === undefined) return null;
+                return { concurso, maxAcertos: melhorTier, quantidade: porFaixa[melhorTier] };
+            })
+            .filter(item => item && item.maxAcertos >= limiarPremio[tipo])
+            // desempate por quantidade de prêmios no nível, não só pelo
+            // número do concurso: 2 quadras no mesmo concurso é mais
+            // notável que 1 quadra em outro
             .sort((a, b) => b.maxAcertos - a.maxAcertos || b.quantidade - a.quantidade || Number(a.concurso) - Number(b.concurso))
             .slice(0, 3);
     }
@@ -3405,6 +3418,25 @@ function combinacaoAdmin(n, k) {
         resultado *= (n - k + i) / i;
     }
     return Math.round(resultado);
+}
+
+// Quantos prêmios reais (apostas simples) um cartão rende em cada faixa
+// de acerto — um cartão com mais números que o mínimo da loteria (ex.:
+// 8 na Mega em vez de 6) é uma aposta múltipla e pode render VÁRIOS
+// prêmios, inclusive em faixas diferentes ao mesmo tempo (4 de 8
+// acertos = quadra E terno E duque no mesmo cartão). Cartão do tamanho
+// mínimo devolve exatamente 1 prêmio na faixa dos acertos, como sempre.
+// Duplicada em script.js como contarPremiosPorFaixa() (sem build step
+// pra compartilhar módulo entre as páginas) — mantenha as duas
+// sincronizadas.
+function contarPremiosPorFaixaAdmin(qtdNumeros, acertos, k) {
+    const porFaixa = {};
+    const jMin = Math.max(0, k - (qtdNumeros - acertos));
+    const jMax = Math.min(acertos, k);
+    for (let j = jMin; j <= jMax; j++) {
+        porFaixa[j] = combinacaoAdmin(acertos, j) * combinacaoAdmin(qtdNumeros - acertos, k - j);
+    }
+    return porFaixa;
 }
 
 // Formata "2 ternos" / "1 quadra" / "3 pontos" para o ranking top-3
