@@ -336,21 +336,28 @@ function parsearComprovanteCaixa(texto, opts = {}) {
     const mConc = t.match(/Concurso:\s*(\d{1,7})/i);
     if (mConc) resultado.concurso = mConc[1];
 
-    // Jogos: a partir de "Seus Números:", cada "Jogo N" é seguido das
-    // dezenas separadas por " | ". A linha de telefones ("0800 726 0101
-    // ...") não tem "|", então nunca é capturada; o \s+ entre "Jogo N" e
-    // as dezenas cobre tanto quebra de linha quanto espaço (o pdf.js pode
-    // não preservar a quebra).
+    // Jogos: cada um é uma sequência de dezenas ligadas por " | ".
+    // NÃO dá pra ancorar no rótulo "Jogo N": no comprovante de 2 colunas,
+    // o pdf.js devolve "Jogo 1" e "Jogo 2" na MESMA linha (lado a lado),
+    // e as duas fileiras de dezenas também — ancorar em "Jogo N" só pegava
+    // a primeira. Em vez disso, casa toda sequência de 1-2 dígitos ligada
+    // por "|": onde uma coluna acaba e a outra começa há um ESPAÇO (não
+    // "|"), então "... | 60 09 | 13 | ..." se separa sozinho em 2 jogos.
+    // A linha de telefones ("0800 726 0101") não tem "|", nunca casa.
     const idxSeus = t.search(/Seus\s+N[uú]meros/i);
     const secao = idxSeus >= 0 ? t.slice(idxSeus) : t;
-    const reJogo = /Jogo\s+\d+\s+(\d{1,2}(?:\s*\|\s*\d{1,2})+)/g;
+    // {2,} = 3+ dezenas: nenhum jogo real tem menos de 5 (mínimo da
+    // Quina), mas pega jogos curtos/corrompidos pra validação reclamar
+    // em vez de eles sumirem sem aviso. O comprovante não tem nenhuma
+    // outra sequência "N | N | N" fora do bloco de jogos.
+    const reRunDezenas = /\d{1,2}(?:\s*\|\s*\d{1,2}){2,}/g;
     let m;
-    while ((m = reJogo.exec(secao)) !== null) {
-        resultado.jogos.push(m[1].split('|').map(x => parseInt(x.trim(), 10)));
+    while ((m = reRunDezenas.exec(secao)) !== null) {
+        resultado.jogos.push(m[0].split('|').map(x => parseInt(x.trim(), 10)));
     }
 
     if (resultado.jogos.length === 0) {
-        resultado.erro = 'Nenhum "Jogo N" reconhecido no bloco "Seus Números".';
+        resultado.erro = 'Nenhum jogo (sequência de dezenas com " | ") reconhecido no bloco "Seus Números".';
         return resultado;
     }
 
@@ -538,12 +545,24 @@ function renderImportacaoPdf() {
                 ${totalValidos} jogo(s) válido(s) para cadastrar · ${totalErros} PDF(s) com erro
                 ${divergenciasPendentes > 0 ? ` · <strong style="color:#854d0e;">${divergenciasPendentes} divergência(s) pendente(s)</strong>` : ''}
             </div>
-            <button id="btnConfirmarImportPdf" class="btn btn-success btn-block" ${podeConfirmar ? '' : 'disabled'}>
-                ✅ Confirmar e cadastrar ${totalValidos} cartão(ões)
-            </button>`;
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button id="btnConfirmarImportPdf" class="btn btn-success" style="flex:1;min-width:200px;" ${podeConfirmar ? '' : 'disabled'}>
+                    ✅ Confirmar e cadastrar ${totalValidos} cartão(ões)
+                </button>
+                <button id="btnLimparImportPdf" class="btn btn-secondary" style="min-width:120px;">🗑️ Limpar</button>
+            </div>`;
         const btn = document.getElementById('btnConfirmarImportPdf');
         if (btn) btn.onclick = confirmarImportacaoPdf;
+        const btnLimpar = document.getElementById('btnLimparImportPdf');
+        if (btnLimpar) btnLimpar.onclick = limparImportacaoPdf;
     }
+}
+
+function limparImportacaoPdf() {
+    pdfImportEstado = [];
+    const inp = document.getElementById('pdfImportInput');
+    if (inp) inp.value = '';
+    renderImportacaoPdf();
 }
 
 function setOverrideImportPdf(idx, valor) {

@@ -108,6 +108,52 @@ test('comprovante2: extrai os 10 jogos de 9 dezenas, todos válidos', () => {
   assert.ok(r.validacao.every(v => v.ok));
 });
 
+// O comprovante é 2 colunas — o pdf.js devolve "Jogo 1"/"Jogo 2" na
+// MESMA linha e as duas fileiras de dezenas também. O parser precisa
+// separar as colunas pelo espaço (não "|") entre "... | 60" e "09 | ...".
+test('layout de 2 colunas (pdf.js junta as colunas numa linha só) — pega os 2 jogos', () => {
+  const texto = `Loterias
+Comprovante de Aposta Bolão Mega-Sena
+Modalidade: Mega-Sena Terminal aposta: 3359
+Cota: 54/90 Concurso: 3056
+Seus Números:
+Jogo 1 Jogo 2
+12 | 14 | 19 | 27 | 41 | 45 | 48 | 54 | 59 | 60 09 | 13 | 18 | 22 | 25 | 36 | 40 | 47 | 53 | 54
+0800 726 0101 4004 0104 0800 104 0104 0800 726 0207 0800 725 7474
+Página: 1 de 1`;
+  const r = parsear(texto, { loteriaEsperada: 'mega', concursoEsperado: '3056' });
+  assert.equal(r.status, 'ok');
+  assert.equal(r.jogos.length, 2);
+  assert.deepEqual(plano(r.jogos[0]), [12, 14, 19, 27, 41, 45, 48, 54, 59, 60]);
+  assert.deepEqual(plano(r.jogos[1]), [9, 13, 18, 22, 25, 36, 40, 47, 53, 54]);
+  assert.ok(r.validacao.every(v => v.ok));
+});
+
+test('2 colunas × 5 linhas (10 jogos numa linha por par) — pega os 10', () => {
+  const texto = `Modalidade: Mega-Sena Terminal aposta: 1
+Cota: 1/100 Concurso: 3056
+Seus Números:
+Jogo 1 Jogo 2
+05 | 14 | 17 | 33 | 39 | 42 | 44 | 48 | 54 06 | 14 | 19 | 31 | 32 | 41 | 42 | 48 | 50
+Jogo 3 Jogo 4
+03 | 04 | 07 | 10 | 30 | 31 | 47 | 55 | 60 02 | 04 | 09 | 11 | 14 | 30 | 50 | 52 | 54
+Jogo 5 Jogo 6
+03 | 14 | 20 | 22 | 30 | 39 | 47 | 57 | 58 10 | 11 | 16 | 18 | 29 | 45 | 48 | 54 | 56
+Jogo 7 Jogo 8
+17 | 22 | 30 | 36 | 38 | 46 | 50 | 55 | 60 23 | 27 | 29 | 36 | 39 | 43 | 46 | 51 | 52
+Jogo 9 Jogo 10
+01 | 10 | 17 | 25 | 28 | 32 | 34 | 35 | 57 01 | 02 | 08 | 13 | 24 | 31 | 36 | 58 | 60
+Página: 1 de 1`;
+  const r = parsear(texto, { loteriaEsperada: 'mega', concursoEsperado: '3056' });
+  assert.equal(r.status, 'ok');
+  assert.equal(r.jogos.length, 10);
+  assert.ok(r.jogos.every(j => j.length === 9));
+  assert.deepEqual(plano(r.jogos[0]), [5, 14, 17, 33, 39, 42, 44, 48, 54]);
+  assert.deepEqual(plano(r.jogos[1]), [6, 14, 19, 31, 32, 41, 42, 48, 50]);
+  assert.deepEqual(plano(r.jogos[9]), [1, 2, 8, 13, 24, 31, 36, 58, 60]);
+  assert.ok(r.validacao.every(v => v.ok));
+});
+
 test('divergência de concurso é sinalizada, não bloqueia a extração', () => {
   const r = parsear(COMPROVANTE_1, { loteriaEsperada: 'mega', concursoEsperado: '3050' });
   assert.equal(r.status, 'ok');
