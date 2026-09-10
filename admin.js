@@ -256,6 +256,350 @@ function parseNumerosTexto(texto, { minNumeros, maxNumeros, maxValor, label }) {
 }
 
 // ============================================
+// IMPORTAÇÃO DE COMPROVANTE PDF DA CAIXA
+// ============================================
+// O app da Caixa gera um "Comprovante de Aposta Bolão" em PDF com camada
+// de TEXTO real embutida (não é imagem) — dá pra extrair os jogos direto,
+// sem OCR. Este módulo: extrai o texto (pdf.js, no navegador), roda um
+// parser de regex por cima, e devolve os jogos pra revisão antes de
+// gravar na MESMA estrutura do cadastro manual (coleção "cartoes").
+
+function semAcento(s) {
+    return (s || '')
+        .replace(/[áàâãä]/gi, 'a')
+        .replace(/[éèêë]/gi, 'e')
+        .replace(/[íìîï]/gi, 'i')
+        .replace(/[óòôõö]/gi, 'o')
+        .replace(/[úùûü]/gi, 'u')
+        .replace(/ç/gi, 'c');
+}
+
+// Texto impresso no comprovante → chave interna de loteria do sistema.
+const MODALIDADE_IMPORT = {
+    'mega-sena': { tipo: 'mega',      label: 'Mega-Sena' },
+    'megasena':  { tipo: 'mega',      label: 'Mega-Sena' },
+    'mega':      { tipo: 'mega',      label: 'Mega-Sena' },
+    'lotofacil': { tipo: 'lotofacil', label: 'Lotofácil' },
+    'quina':     { tipo: 'quina',     label: 'Quina' },
+};
+
+const ROTULO_LOTERIA = { mega: 'Mega-Sena', lotofacil: 'Lotofácil', quina: 'Quina' };
+
+// PURA (sem DOM / sem pdf.js) — recebe o texto já extraído do PDF e os
+// valores que o usuário informou na tela (loteria/concurso), devolve os
+// jogos + validação + divergências. Testável direto no node --test.
+function parsearComprovanteCaixa(texto, opts = {}) {
+    const { loteriaEsperada = null, concursoEsperado = null } = opts;
+    const resultado = {
+        status: 'erro',
+        erro: null,
+        modalidade: null,
+        modalidadeLabel: null,
+        concurso: null,
+        jogos: [],
+        validacao: [],
+        divergencias: []
+    };
+
+    const t = String(texto || '').replace(/\r\n?/g, '\n');
+
+    // PDF sem camada de texto (ou layout totalmente fora do esperado):
+    // rejeita com mensagem clara, NÃO tenta OCR.
+    const temMarcadores = /Seus\s+N[uú]meros/i.test(t) || /Concurso:/i.test(t);
+    if (t.trim().length < 150 || !temMarcadores) {
+        resultado.erro = 'PDF sem texto extraível ou fora do layout de comprovante da Caixa — cadastre manualmente.';
+        return resultado;
+    }
+
+    // Modalidade: campo "Modalidade: X" (ou cabeçalho "Comprovante de
+    // Aposta Bolão X"). "Mega-Sena" tem hífen; "Lotofácil"/"Quina" são uma
+    // palavra só (com acento).
+    const rawModalidade =
+        (t.match(/Modalidade:\s*([A-Za-zÀ-ÿ]+(?:-[A-Za-zÀ-ÿ]+)?)/i) || [])[1] ||
+        (t.match(/Comprovante de Aposta Bol[aã]o\s+([A-Za-zÀ-ÿ]+(?:-[A-Za-zÀ-ÿ]+)?)/i) || [])[1] ||
+        null;
+
+    if (!rawModalidade) {
+        resultado.erro = 'Não foi possível identificar a modalidade no comprovante.';
+        return resultado;
+    }
+    const mapaModalidade = MODALIDADE_IMPORT[semAcento(rawModalidade).toLowerCase().trim()];
+    if (!mapaModalidade) {
+        resultado.erro = `Modalidade "${rawModalidade}" ainda não suportada na importação.`;
+        return resultado;
+    }
+    resultado.modalidade = mapaModalidade.tipo;
+    resultado.modalidadeLabel = mapaModalidade.label;
+
+    // Concurso: "Concurso: 3056" (a linha também tem "Cota: 54/90" — o
+    // rótulo "Concurso:" desambigua).
+    const mConc = t.match(/Concurso:\s*(\d{1,7})/i);
+    if (mConc) resultado.concurso = mConc[1];
+
+    // Jogos: a partir de "Seus Números:", cada "Jogo N" é seguido das
+    // dezenas separadas por " | ". A linha de telefones ("0800 726 0101
+    // ...") não tem "|", então nunca é capturada; o \s+ entre "Jogo N" e
+    // as dezenas cobre tanto quebra de linha quanto espaço (o pdf.js pode
+    // não preservar a quebra).
+    const idxSeus = t.search(/Seus\s+N[uú]meros/i);
+    const secao = idxSeus >= 0 ? t.slice(idxSeus) : t;
+    const reJogo = /Jogo\s+\d+\s+(\d{1,2}(?:\s*\|\s*\d{1,2})+)/g;
+    let m;
+    while ((m = reJogo.exec(secao)) !== null) {
+        resultado.jogos.push(m[1].split('|').map(x => parseInt(x.trim(), 10)));
+    }
+
+    if (resultado.jogos.length === 0) {
+        resultado.erro = 'Nenhum "Jogo N" reconhecido no bloco "Seus Números".';
+        return resultado;
+    }
+
+    // Validação por jogo — mesmas regras do cadastro manual (regrasLoteria)
+    const regras = regrasLoteria(resultado.modalidade);
+    for (const jogo of resultado.jogos) {
+        const ordenado = [...jogo].sort((a, b) => a - b);
+        const unicos = new Set(jogo);
+        let erroJogo = null;
+        if (jogo.some(n => !Number.isInteger(n))) erroJogo = 'dezena ilegível';
+        else if (jogo.length < regras.minNumeros) erroJogo = `mínimo ${regras.minNumeros} dezenas (veio ${jogo.length})`;
+        else if (jogo.length > regras.maxNumeros) erroJogo = `máximo ${regras.maxNumeros} dezenas (veio ${jogo.length})`;
+        else if (unicos.size !== jogo.length) erroJogo = 'dezena repetida no mesmo jogo';
+        else if (jogo.some(n => n < 1 || n > regras.maxValor)) erroJogo = `dezena fora do intervalo 1–${regras.maxValor}`;
+        resultado.validacao.push({ jogo: ordenado, ok: erroJogo === null, erro: erroJogo });
+    }
+
+    // Divergências vs. o que o usuário informou na tela (não bloqueiam a
+    // extração — a tela avisa e deixa ele decidir "cadastrar assim mesmo").
+    if (loteriaEsperada && resultado.modalidade !== loteriaEsperada) {
+        resultado.divergencias.push(
+            `PDF é ${resultado.modalidadeLabel}, mas a loteria selecionada é ${ROTULO_LOTERIA[loteriaEsperada] || loteriaEsperada}`);
+    }
+    if (concursoEsperado && resultado.concurso && String(concursoEsperado) !== String(resultado.concurso)) {
+        resultado.divergencias.push(
+            `PDF é do concurso ${resultado.concurso}, mas você selecionou ${concursoEsperado}`);
+    }
+
+    resultado.status = 'ok';
+    return resultado;
+}
+
+// ---- Camada browser (pdf.js) — não testada em node, só I/O ----------
+
+// pdf.js carregado sob demanda (só quando a tela de importação é usada),
+// do mesmo CDN dos outros scripts do admin. Não entra no cache do
+// Service Worker (é cross-origin, igual o sheetjs).
+const PDFJS_VER = '3.11.174';
+let _pdfJsPromise = null;
+function carregarPdfJs() {
+    if (typeof window !== 'undefined' && window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+    if (_pdfJsPromise) return _pdfJsPromise;
+    _pdfJsPromise = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VER}/pdf.min.js`;
+        s.onload = () => {
+            if (!window.pdfjsLib) { reject(new Error('pdf.js não inicializou')); return; }
+            window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+                `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VER}/pdf.worker.min.js`;
+            resolve(window.pdfjsLib);
+        };
+        s.onerror = () => reject(new Error('Não foi possível baixar o pdf.js (sem internet?)'));
+        document.head.appendChild(s);
+    });
+    return _pdfJsPromise;
+}
+
+async function extrairTextoPdf(file) {
+    const pdfjsLib = await carregarPdfJs();
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    let texto = '';
+    for (let p = 1; p <= pdf.numPages; p++) {
+        const page = await pdf.getPage(p);
+        const content = await page.getTextContent();
+        // Reagrupa os fragmentos por posição vertical pra reconstruir
+        // linhas (o comprovante é 2 colunas; a ordem crua do pdf.js nem
+        // sempre é topo→base). Cada linha vira uma linha de texto.
+        const linhas = new Map();
+        for (const item of content.items) {
+            if (!item.str || !item.str.trim()) continue;
+            const y = Math.round(item.transform[5]);
+            let chave = y;
+            for (const k of linhas.keys()) { if (Math.abs(k - y) <= 3) { chave = k; break; } }
+            if (!linhas.has(chave)) linhas.set(chave, []);
+            linhas.get(chave).push({ x: item.transform[4], s: item.str });
+        }
+        [...linhas.keys()].sort((a, b) => b - a).forEach(y => {
+            const linha = linhas.get(y).sort((a, b) => a.x - b.x).map(o => o.s).join(' ');
+            texto += linha.replace(/[ \t]+/g, ' ').trim() + '\n';
+        });
+        texto += '\n';
+    }
+    return texto;
+}
+
+// ---- Tela de importação -------------------------------------------------
+
+let pdfImportEstado = []; // [{ arquivo, resultado, override }]
+
+function _importConfigAtual() {
+    return {
+        loteria: (document.getElementById('pdfImportLoteria') || {}).value || 'mega',
+        concurso: ((document.getElementById('pdfImportConcurso') || {}).value || '').trim(),
+        bolao: ((document.getElementById('pdfImportBolao') || {}).value || '').trim(),
+        tipoParticipacao: (document.getElementById('pdfImportTipo') || {}).value || 'exclusivo'
+    };
+}
+
+async function processarPdfsImportacao(fileList) {
+    const cfg = _importConfigAtual();
+    if (!cfg.concurso || !cfg.bolao) {
+        showToast('⚠️ Informe concurso e bolão antes de importar os PDFs.', 'warning');
+        return;
+    }
+    const arquivos = Array.from(fileList || []).filter(f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf');
+    if (arquivos.length === 0) { showToast('⚠️ Selecione ao menos um PDF.', 'warning'); return; }
+
+    showLoading(`Lendo ${arquivos.length} PDF(s)...`);
+    pdfImportEstado = [];
+    for (const file of arquivos) {
+        let resultado;
+        try {
+            const texto = await extrairTextoPdf(file);
+            resultado = parsearComprovanteCaixa(texto, {
+                loteriaEsperada: cfg.loteria,
+                concursoEsperado: cfg.concurso
+            });
+        } catch (e) {
+            resultado = { status: 'erro', erro: 'Falha ao ler o PDF: ' + (e.message || e), jogos: [], validacao: [], divergencias: [] };
+        }
+        pdfImportEstado.push({ arquivo: file.name, resultado, override: false });
+    }
+    hideLoading();
+    renderImportacaoPdf();
+}
+
+function _chipsDezenas(dezenas, ok) {
+    const bg = ok ? '#dcfce7' : '#fee2e2';
+    const fg = ok ? '#166534' : '#991b1b';
+    return dezenas.map(n => `<span style="display:inline-block;min-width:22px;text-align:center;background:${bg};color:${fg};border-radius:6px;padding:2px 6px;margin:2px;font-family:monospace;font-size:12px;font-weight:700;">${String(n).padStart(2, '0')}</span>`).join('');
+}
+
+function renderImportacaoPdf() {
+    const cont = document.getElementById('pdfImportResultados');
+    const rodape = document.getElementById('pdfImportRodape');
+    if (!cont) return;
+
+    if (pdfImportEstado.length === 0) { cont.innerHTML = ''; if (rodape) rodape.innerHTML = ''; return; }
+
+    let totalValidos = 0, totalErros = 0, divergenciasPendentes = 0;
+
+    cont.innerHTML = pdfImportEstado.map((item, idx) => {
+        const r = item.resultado;
+        if (r.status === 'erro') {
+            totalErros++;
+            return `<div class="card" style="border-left:4px solid #ef4444;">
+                <div style="font-weight:700;color:#991b1b;">❌ ${item.arquivo}</div>
+                <div style="font-size:13px;color:#64748b;margin-top:4px;">${r.erro || 'não reconhecido'}</div>
+            </div>`;
+        }
+        const jogosValidos = r.validacao.filter(v => v.ok).length;
+        const temDiverg = r.divergencias.length > 0;
+        const contam = !temDiverg || item.override;
+        if (contam) totalValidos += jogosValidos;
+        if (temDiverg && !item.override) divergenciasPendentes++;
+
+        const linhasJogos = r.validacao.map((v, j) => `
+            <div style="margin:4px 0;">
+                <span style="font-size:12px;color:#475569;font-weight:600;margin-right:6px;">Jogo ${j + 1}${v.ok ? '' : ' ⚠️'}</span>
+                ${_chipsDezenas(v.jogo, v.ok)}
+                ${v.ok ? '' : `<span style="font-size:11px;color:#991b1b;margin-left:6px;">${v.erro}</span>`}
+            </div>`).join('');
+
+        const divergHtml = temDiverg ? `
+            <div style="background:#fef9c3;border-radius:8px;padding:8px 10px;margin:8px 0;font-size:12px;color:#854d0e;">
+                ⚠️ ${r.divergencias.join(' · ')}
+                <label style="display:block;margin-top:6px;font-weight:600;cursor:pointer;">
+                    <input type="checkbox" ${item.override ? 'checked' : ''} onchange="setOverrideImportPdf(${idx}, this.checked)"> Cadastrar assim mesmo
+                </label>
+            </div>` : '';
+
+        return `<div class="card" style="border-left:4px solid ${contam && jogosValidos > 0 ? '#22c55e' : '#f59e0b'};">
+            <div style="font-weight:700;color:#166534;">✅ ${item.arquivo}</div>
+            <div style="font-size:13px;color:#64748b;margin:4px 0;">${r.modalidadeLabel} · concurso ${r.concurso || '?'} · ${r.jogos.length} jogo(s) · ${jogosValidos} válido(s)</div>
+            ${divergHtml}
+            ${linhasJogos}
+        </div>`;
+    }).join('');
+
+    if (rodape) {
+        const podeConfirmar = totalValidos > 0 && divergenciasPendentes === 0;
+        rodape.innerHTML = `
+            <div style="font-size:13px;color:#475569;margin-bottom:8px;">
+                ${totalValidos} jogo(s) válido(s) para cadastrar · ${totalErros} PDF(s) com erro
+                ${divergenciasPendentes > 0 ? ` · <strong style="color:#854d0e;">${divergenciasPendentes} divergência(s) pendente(s)</strong>` : ''}
+            </div>
+            <button id="btnConfirmarImportPdf" class="btn btn-success btn-block" ${podeConfirmar ? '' : 'disabled'}>
+                ✅ Confirmar e cadastrar ${totalValidos} cartão(ões)
+            </button>`;
+        const btn = document.getElementById('btnConfirmarImportPdf');
+        if (btn) btn.onclick = confirmarImportacaoPdf;
+    }
+}
+
+function setOverrideImportPdf(idx, valor) {
+    if (pdfImportEstado[idx]) pdfImportEstado[idx].override = !!valor;
+    renderImportacaoPdf();
+}
+
+async function confirmarImportacaoPdf() {
+    const cfg = _importConfigAtual();
+    if (!cfg.concurso || !cfg.bolao) { showToast('⚠️ Informe concurso e bolão.', 'warning'); return; }
+
+    // Monta a fila de jogos a gravar (só PDFs ok, sem divergência
+    // pendente, e só os jogos que passaram na validação).
+    const aGravar = [];
+    for (const item of pdfImportEstado) {
+        const r = item.resultado;
+        if (r.status !== 'ok') continue;
+        if (r.divergencias.length > 0 && !item.override) continue;
+        r.validacao.forEach(v => { if (v.ok) aGravar.push(v.jogo); });
+    }
+    if (aGravar.length === 0) { showToast('⚠️ Nenhum jogo válido para cadastrar.', 'warning'); return; }
+
+    showLoading(`Cadastrando ${aGravar.length} cartão(ões)...`);
+    let ok = 0, dup = 0, erro = 0;
+    for (const jogo of aGravar) {
+        const numeros = [...jogo].sort((a, b) => a - b);
+        try {
+            if (await existeCartaoDuplicado(cfg.loteria, cfg.concurso, cfg.bolao, numeros)) { dup++; continue; }
+            await db.collection('cartoes').add({
+                concurso: cfg.concurso,
+                bolao: cfg.bolao,
+                numeros: numeros,
+                tipo: cfg.loteria,
+                tipoParticipacao: cfg.tipoParticipacao,
+                admin: true,
+                dataCadastro: new Date().toISOString(),
+                totalNumeros: numeros.length,
+                origem: 'importacao-pdf'
+            });
+            ok++;
+        } catch (e) {
+            console.error('Erro ao gravar cartão importado:', e);
+            erro++;
+        }
+    }
+    hideLoading();
+    showToast(`✅ ${ok} cadastrado(s)` + (dup ? ` · ${dup} pulado(s) (duplicado)` : '') + (erro ? ` · ${erro} com erro` : ''), erro ? 'warning' : 'success');
+
+    pdfImportEstado = [];
+    const inp = document.getElementById('pdfImportInput');
+    if (inp) inp.value = '';
+    renderImportacaoPdf();
+    if (typeof carregarDadosAdmin === 'function') carregarDadosAdmin();
+}
+
+// ============================================
 // TOGGLE NÚMERO NA SELEÇÃO INDIVIDUAL
 // ============================================
 function toggleNumeroSelecao(numero) {
@@ -3590,7 +3934,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnVerificarDuplicados) {
         btnVerificarDuplicados.addEventListener('click', verificarDuplicados);
     }
-    
+
+    const pdfImportInput = document.getElementById('pdfImportInput');
+    if (pdfImportInput) {
+        pdfImportInput.addEventListener('change', (e) => processarPdfsImportacao(e.target.files));
+    }
+
     if (btnEntrarSenha) btnEntrarSenha.onclick = entrarComSenha;
     if (senhaAdminInput) senhaAdminInput.onkeypress = (e) => { if (e.key === 'Enter') entrarComSenha(); };
     if (btnSair) btnSair.onclick = sair;

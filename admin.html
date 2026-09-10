@@ -1134,6 +1134,9 @@
             <button class="sidebar-item" data-section="cadastro">
                 <span class="icon">📝</span> Cadastro
             </button>
+            <button class="sidebar-item" data-section="importar">
+                <span class="icon">📄</span> Importar PDF
+            </button>
             <button class="sidebar-item" data-section="cartoes">
                 <span class="icon">📋</span> Cartões
             </button>
@@ -1425,6 +1428,55 @@
                     </div>
                 </div>
 
+            </section>
+
+            <!-- ============================================ -->
+            <!-- SEÇÃO: IMPORTAR PDF -->
+            <!-- ============================================ -->
+            <section id="section-importar" class="section">
+                <div class="card" style="border: 2px solid #0071e3;">
+                    <div class="card-header">📄 IMPORTAR COMPROVANTE PDF DA CAIXA</div>
+                    <div style="font-size: 13px; color: #64748b; margin-bottom: 14px;">
+                        Sobe um ou vários PDFs do app da Caixa ("Comprovante de Aposta Bolão").
+                        Os jogos são lidos direto do texto do PDF — nada de digitar. Confira e confirme antes de gravar.
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>🎰 Loteria</label>
+                            <select id="pdfImportLoteria" class="form-control">
+                                <option value="mega">Mega-Sena</option>
+                                <option value="lotofacil">Lotofácil</option>
+                                <option value="quina">Quina</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>📌 Concurso</label>
+                            <input type="number" id="pdfImportConcurso" class="form-control" placeholder="Ex: 3056">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>👥 Bolão</label>
+                            <input type="text" id="pdfImportBolao" class="form-control" placeholder="Ex: Bolão 10,00">
+                        </div>
+                        <div class="form-group">
+                            <label>🎯 Tipo</label>
+                            <select id="pdfImportTipo" class="form-control">
+                                <option value="exclusivo">👥 Grupo Exclusivo</option>
+                                <option value="cota">🎟️ Cota de Bolão</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>📎 Arquivos PDF (pode selecionar vários)</label>
+                        <input type="file" id="pdfImportInput" class="form-control" accept="application/pdf,.pdf" multiple>
+                    </div>
+                </div>
+
+                <div id="pdfImportResultados"></div>
+                <div id="pdfImportRodape" style="margin-top: 12px;"></div>
             </section>
 
             <!-- ============================================ -->
