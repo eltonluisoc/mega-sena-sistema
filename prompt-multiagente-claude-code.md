@@ -486,6 +486,18 @@ Usuário pediu pra eliminar a digitação manual dos jogos ao cadastrar cartelas
 
 Versão web (Service Worker) v32 → v33.
 
+## Rodada 28 — Importação de PDF só trazia 1 coluna de jogos (v34)
+
+Usuário testou: comprovante1 (2 jogos) importou só 1; comprovante2 (10 jogos) importou só os 5 da coluna da esquerda. Causa: o comprovante é de **2 colunas**, e o pdf.js (via a reconstrução de linha por posição vertical do `extrairTextoPdf`) devolve "Jogo 1" e "Jogo 2" na MESMA linha, lado a lado, e as duas fileiras de dezenas também. O parser ancorava em `Jogo\s+\d+\s+(dezenas)` — só casava a primeira coluna de cada linha.
+
+**Correção**: parar de ancorar no rótulo "Jogo N". Agora casa toda sequência de dezenas ligadas por "|" (`/\d{1,2}(?:\s*\|\s*\d{1,2}){2,}/g`) dentro do bloco "Seus Números". A fronteira entre as colunas tem um ESPAÇO, não "|", então `... | 60 09 | 13 | ...` se separa sozinho em 2 jogos. A linha de telefones (`0800 726 0101 ...`) não tem "|", continua nunca casando. O `{2,}` (3+ dezenas) pega até jogo curto/corrompido pra validação reclamar em vez de sumir sem aviso — o comprovante não tem nenhuma outra sequência `N | N | N` fora dos jogos.
+
+Também: botão "🗑️ Limpar" no rodapé da importação pra descartar a lista e recomeçar (antes só tinha "Confirmar e cadastrar"). 2 testes novos de layout 2 colunas.
+
+`sw.js`: `CACHE_NAME` → v34.
+
+Versão web (Service Worker) v33 → v34.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
