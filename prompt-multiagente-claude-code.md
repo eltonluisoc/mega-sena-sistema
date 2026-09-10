@@ -465,6 +465,27 @@ Usuário viu os cards "TOP CONCURSOS MEGA-SENA/LOTOFÁCIL/QUINA" do dashboard ad
 
 Versão web (Service Worker) v31 → v32.
 
+## Rodada 27 — Importação de comprovante PDF da Caixa no admin (v33)
+
+Usuário pediu pra eliminar a digitação manual dos jogos ao cadastrar cartelas: subir o PDF "Comprovante de Aposta Bolão" gerado pelo app da Caixa (tem camada de texto real embutida, não é imagem — extraível sem OCR) e o sistema cadastrar os jogos sozinho. Pediu a arquitetura antes de implementar; aprovou e mandou 2 PDFs de exemplo.
+
+**Decisão de arquitetura**: roda 100% no navegador (o site é estático, sem backend). As libs Python que ele citou (pdfplumber/PyMuPDF) não valem — o equivalente browser é **pdf.js** (Mozilla), carregado sob demanda do cdnjs (mesmo padrão dos outros scripts CDN do admin; não entra no cache do SW).
+
+**Implementado**:
+- Nova seção lateral "📄 Importar PDF" no `admin.html` — 4 campos mestre (Loteria, Concurso, Bolão, Tipo, iguais ao cadastro manual) + upload múltiplo de PDFs.
+- `parsearComprovanteCaixa(texto, {loteriaEsperada, concursoEsperado})` em `admin.js` — **função pura**, testável no `node --test`. Regex sobre o texto extraído → `modalidade` (campo "Modalidade:" ou cabeçalho), `concurso` (`Concurso:\s*(\d+)`, desambiguado do "Cota: 54/90" na mesma linha), `jogos` (cada "Jogo N" seguido das dezenas separadas por " | " — a linha de telefones "0800..." não tem "|", nunca é capturada). Um PDF pode ter vários jogos → todos retornados, cada um vira um cartão.
+- Validação por jogo com as mesmas `regrasLoteria()` do cadastro manual (contagem de dezenas, intervalo, sem repetida). Divergência de concurso/modalidade vs. o que o usuário informou **avisa mas não bloqueia** (checkbox "cadastrar assim mesmo").
+- `extrairTextoPdf(file)` — camada browser (pdf.js), reconstrói linhas agrupando fragmentos por posição vertical. Só I/O, não testada em node.
+- Fila de múltiplos PDFs, resultado por arquivo, erro gracioso: PDF sem texto → rejeita com mensagem clara (**nunca tenta OCR**), modalidade não suportada → não inventa dado. Grava só após "Confirmar", passando pelo bloqueio de duplicado da Rodada 22, com `origem: 'importacao-pdf'` no documento. QR Code ignorado por completo (é só token de referência da Caixa).
+- `MODALIDADE_IMPORT` mapeia o texto impresso → chave interna (mega/lotofacil/quina). `semAcento()` novo helper (map de acentuadas, ASCII-safe no fonte).
+- 8 testes em `test/parser-comprovante.test.js` com o texto real dos 2 PDFs de exemplo (comprovante1: 2 jogos de 10 dezenas; comprovante2: 10 jogos de 9), + divergência de concurso/modalidade, PDF vazio, modalidade não suportada, jogo com dezena repetida/fora do range/contagem errada.
+
+**Pendente de teste pelo usuário**: a camada do pdf.js (extração no browser) não dá pra rodar no `node --test` — testar com os 2 PDFs reais e conferir se a revisão na tela mostra 2 e 10 jogos.
+
+`sw.js`: `CACHE_NAME` → v33.
+
+Versão web (Service Worker) v32 → v33.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
