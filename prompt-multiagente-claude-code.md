@@ -513,6 +513,20 @@ Usuário testou com um comprovante Lotofácil "da Independência" (17 dezenas po
 
 Versão web (Service Worker) v34 → v35.
 
+## Rodada 30 — Correção da Rodada 29 não cobria o formato real de itens do pdf.js (v36)
+
+Usuário testou o mesmo comprovante Lotofácil "da Independência" depois do fix da Rodada 29 e viu o MESMO sintoma (Jogo 1 com 29 números, Jogo 2 com 5) — o fix não resolveu de fato.
+
+**Causa raiz do fix ter falhado**: o limiar de "isso é um gap de coluna" usava a mediana dos gaps calculada a partir dos itens **da própria linha**. Isso funciona bem quando uma linha tem muitos itens (um por número/pipe — o que os testes sintéticos da Rodada 29 simulavam). Mas no pdf.js real, tudo indica que cada fileira de dezenas de uma coluna é **um único item de texto** (o PDF gerador da Caixa desenha a linha toda de uma vez, não número por número) — então uma linha com 2 colunas tem só 2 itens, ou seja, **1 gap medido**. "A mediana dos gaps desta linha" e "o gap que eu preciso avaliar" viravam o MESMO número — nunca dava pra classificar um gap como "muito maior que o normal" comparando ele com ele mesmo. Os testes da Rodada 29 não cobriam esse formato (item-por-token vs. item-por-linha), por isso passavam mas o bug real persistiu.
+
+**Correção**: trocado o limiar de "mediana local" pra **tamanho da fonte** (`Math.hypot(transform[2], transform[3])` do item do pdf.js — a escala vertical do texto, robusta a rotação, sempre presente independente de quantos itens existem na linha). Um espaço em branco normal entre palavras é uma fração do tamanho da fonte; o vão entre 2 colunas de um formulário é ordens de grandeza maior — limiar = `max(fontSize × 8, 40)`. `extrairDadosPdf` agora também captura `width` e `fontSize` de cada item (antes só `str`/`x`/`y`).
+
+Novo teste com fixture sintética no formato "1 item de texto por linha por coluna" (não 1 por token) reproduz o bug exato que persistiu e confirma a correção — é o caso que faltava cobertura antes.
+
+`sw.js`: `CACHE_NAME` → v36.
+
+Versão web (Service Worker) v35 → v36.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
