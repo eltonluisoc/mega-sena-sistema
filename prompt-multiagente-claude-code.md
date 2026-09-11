@@ -555,6 +555,20 @@ Usuário cadastrou cartões duplicados (o próprio sistema avisou), foi excluir 
 
 Versão web (Service Worker) v38 → v39.
 
+## Rodada 33 — Filtro de bolão na aba Cartões + Verificar Duplicados isolado por loteria (v40)
+
+Usuário testou a Rodada 32 e trouxe 2 pontos: (1) um mesmo concurso pode ter vários bolões diferentes cadastrados — precisava dar pra restringir a um bolão específico, não só ao concurso inteiro; (2) ao trocar de loteria, cartões de OUTRA loteria não podiam continuar aparecendo.
+
+**Bolão (1)**: novo `<select>` "Bolão" na aba Cartões, ao lado do filtro de concurso — `carregarBoloesFiltro()` popula com os bolões que existem na combinação loteria+concurso atual (recalculado sempre que a loteria ou o concurso mudam). Filtra tanto a lista de cartões quanto o escopo do "🔍 Verificar Duplicados".
+
+**Loteria vazando (2) — bug real encontrado**: `verificarDuplicados()` nunca filtrava por `tipo` na consulta ao Firestore, só por número de concurso (`where('concurso','==',concurso)`). Se o mesmo número de concurso existisse em 2 loterias diferentes, cartões de uma loteria que nem era a selecionada na tela apareciam misturados nos resultados. Corrigido acrescentando `.where('tipo','==',loteriaAdmin)` à consulta (2 filtros de igualdade — mesmo padrão já usado em `existeCartaoDuplicado` desde a Rodada 22, não precisa de índice composto novo). Bolão é filtrado no cliente, depois da consulta (mesmo padrão do site público pra esse tipo de filtro combinado).
+
+Também: trocar de loteria, ou mudar o filtro de concurso/bolão, agora esconde o resultado de "Verificar Duplicados" anterior — era de outro escopo (loteria/concurso/bolão diferentes) e ficava visível na tela depois da troca, dando a impressão de "cartão de outra loteria aparecendo".
+
+`sw.js`: `CACHE_NAME` → v40.
+
+Versão web (Service Worker) v39 → v40.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
