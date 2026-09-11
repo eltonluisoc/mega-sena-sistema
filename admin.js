@@ -563,6 +563,47 @@ function _importConfigAtual() {
     };
 }
 
+// DIAGNÓSTICO TEMPORÁRIO — 2 tentativas de corrigir a separação de
+// colunas (Rodadas 29 e 30) não resolveram o bug de verdade porque
+// nenhuma delas foi testada contra a forma REAL como o pdf.js quebra o
+// texto em itens (não dá pra rodar pdf.js fora do navegador). Em vez de
+// arriscar uma 3ª tentativa às cegas, isso imprime no console (F12 →
+// Console) uma tabela com cada item extraído (linha, texto, x, largura,
+// fonte, y) — print/screenshot dessa tabela e manda de volta, daí a
+// próxima correção é calibrada nos dados reais em vez de suposição.
+// Remover depois que o bug for resolvido de vez.
+function _debugItensImportacaoPdf(nomeArquivo, itens) {
+    try {
+        const linhas = [];
+        for (const it of itens) {
+            let linha = linhas.find(l => Math.abs(l.y - it.y) <= 3);
+            if (!linha) { linha = { y: it.y, itens: [] }; linhas.push(linha); }
+            linha.itens.push(it);
+        }
+        linhas.sort((a, b) => b.y - a.y);
+        linhas.forEach(l => l.itens.sort((a, b) => a.x - b.x));
+
+        const tabela = [];
+        linhas.forEach((l, li) => {
+            l.itens.forEach((it, ii) => {
+                tabela.push({
+                    linha: li,
+                    item: ii,
+                    texto: it.str,
+                    x: Math.round(it.x),
+                    width: it.width != null ? Math.round(it.width) : null,
+                    fontSize: it.fontSize != null ? Math.round(it.fontSize * 10) / 10 : null,
+                    y: Math.round(it.y)
+                });
+            });
+        });
+        console.log(`%c[debug importação PDF] ${nomeArquivo} — itens extraídos do pdf.js:`, 'font-weight:bold;color:#0071e3;');
+        console.table(tabela);
+    } catch (e) {
+        console.error('Erro ao logar debug de importação:', e);
+    }
+}
+
 async function processarPdfsImportacao(fileList) {
     const cfg = _importConfigAtual();
     if (!cfg.concurso || !cfg.bolao) {
@@ -578,6 +619,7 @@ async function processarPdfsImportacao(fileList) {
         let resultado;
         try {
             const { texto, itens } = await extrairDadosPdf(file);
+            _debugItensImportacaoPdf(file.name, itens);
             resultado = parsearComprovanteCaixa(texto, {
                 loteriaEsperada: cfg.loteria,
                 concursoEsperado: cfg.concurso,
