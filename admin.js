@@ -328,26 +328,33 @@ function extrairJogosDoTexto(texto) {
 //
 // O limiar usa o TAMANHO DA FONTE (sempre presente), não uma mediana de
 // gaps calculada a partir dos próprios itens da linha — no PDF real,
-// cada fileira de dezenas de uma coluna costuma ser UM item só (o
-// pdf.js não quebra em um item por número), então a linha às vezes tem
-// só 2 itens (1 por coluna). Com só 1 gap medido, "mediana dos gaps
-// desta linha" e "o gap de coluna que preciso avaliar" são o MESMO
-// número — nunca dava pra classificar como grande comparando com ele
-// mesmo (raiz do problema persistindo mesmo após a 1ª correção). O
-// tamanho da fonte não depende de quantos itens existem: um espaço em
-// branco normal é uma fração dele; o vão entre 2 colunas de um
-// formulário é ordens de grandeza maior.
+// cada fileira de dezenas de uma coluna é UM item só (confirmado com o
+// log de debug da Rodada 31: 'texto:"01 | 03 | ... | 17 |", x:38,
+// width:231' e 'texto:"01 | 02 | ... | 18 |", x:300, width:231'), então
+// a linha tem só 2 itens (1 por coluna). Com só 1 gap medido, "mediana
+// dos gaps desta linha" nunca dava pra classificar como grande
+// comparando com ele mesmo.
+//
+// Só que o mesmo log mostrou algo inesperado: o gap REAL entre as 2
+// colunas de dezenas é só 31 (269→300, fonte 10) — bem menor que
+// qualquer limiar "generoso" tentado antes (a coluna de dezenas é
+// LARGA, quase encosta na coluna vizinha). Um limiar pequeno é seguro
+// aqui porque cada linha do bloco "Seus Números" já É 1 item por
+// coluna — não tem separação interna a proteger dentro do próprio
+// jogo. E um limiar pequeno "errar pra mais" em outras partes da
+// página (rótulo:valor da tabela "Dados da Aposta", por exemplo) é
+// inofensivo: só o que tem "|" entra na conta de extrairJogosDoTexto.
 function extrairJogosDeItensPosicionados(itens) {
     if (!itens || itens.length === 0) return [];
     const validos = itens.filter(it => it && it.str && it.str.trim());
     if (validos.length === 0) return [];
 
     const largura = (it) => (typeof it.width === 'number' && it.width > 0) ? it.width : 0;
-    const fontesValidas = validos.map(it => it.fontSize).filter(f => typeof f === 'number' && f > 0);
+    const fontesValidas = validos.map(it => it.fontSize).filter(f => typeof f === 'number' && f > 0).sort((a, b) => a - b);
     const fontTipica = fontesValidas.length > 0
-        ? fontesValidas.reduce((s, f) => s + f, 0) / fontesValidas.length
+        ? fontesValidas[Math.floor(fontesValidas.length / 2)]
         : 10;
-    const limiarColuna = Math.max(fontTipica * 8, 40);
+    const limiarColuna = Math.max(fontTipica * 2.5, 15);
 
     const linhas = [];
     for (const it of validos) {
