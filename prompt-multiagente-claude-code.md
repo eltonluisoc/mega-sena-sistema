@@ -603,6 +603,19 @@ Usuário voltou com 2 pontos: (1) "continua errado o cadastro" — registros ant
 
 Versão desktop v6.4.1 → v6.4.2.
 
+## Rodada 37 — Alterar/recuperar senha do admin direto no painel web (v41)
+
+Usuário recusou a proposta de Windows Hello (Rodada 36, item 3) — "só faz o tratamento para erro de senha" — e pediu, além disso, uma forma de trocar a senha de login sem depender do Firebase Console. Mesma conta (`eltonluisoc@gmail.com`) é usada no login do site E do desktop, então resolver no site vale pros dois.
+
+**Implementado em `admin.html`/`admin.js`**:
+- **"Esqueci minha senha"** — link no modal de login → `sendPasswordResetEmail(ADMIN_EMAIL)`, manda link de redefinição por e-mail. Cobre o caso de nem conseguir entrar.
+- **Card "🔐 SEGURANÇA"** na aba Config → botão "Alterar Senha" abre um modal pedindo senha atual + nova senha + confirmação. Antes de chamar `updatePassword`, reautentica com `reauthenticateWithCredential` — trocar senha é operação sensível, o Firebase exige login "recente" pra permitir; sem reautenticar, uma sessão já aberta há um tempo cairia em `auth/requires-recent-login` em vez de trocar.
+- Erros comuns (senha atual errada, nova senha fraca, muitas tentativas, sessão antiga) mostram mensagem em português, não o código cru do Firebase — mesmo espírito do tratamento de erro de login da Rodada 36, agora também nessa tela.
+
+`sw.js`: `CACHE_NAME` → v41.
+
+Versão web (Service Worker) v40 → v41.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
