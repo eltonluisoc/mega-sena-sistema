@@ -1,7 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.3
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.4
+Correções v6.4 (Reservas: retry no "too many requests" + lançamento em lote):
+ - Verificação de reservas pendentes do site na abertura do app tentava
+   só 1 vez; um "429 Too Many Requests" do Firestore (limite de quota,
+   não é o app pedindo demais) já mostrava erro na hora. Agora tenta
+   de novo (até 2x, com espera curta) antes de desistir.
+ - Nova aba "Reservas Pessoais": botão "📦 Lançamento em Lote" —
+   registra Tipo/Valor/Data (e Loteria/Concurso/Descrição se DÉBITO)
+   pra VÁRIAS pessoas de uma vez, igual já existia no site (admin.js,
+   "📦 LANÇAMENTO EM LOTE"). Lista de pessoas com busca por nome,
+   "marcar visíveis"/"desmarcar todos", e validação de saldo (pra
+   débito) resumida numa única confirmação pro lote inteiro.
+ - Removida uma chamada morta (sincronizar_reserva) que nunca
+   funcionou — a função não existia neste arquivo, então todo
+   lançamento de reserva sempre lançava um erro silencioso. A
+   sincronização com o site continua sendo o botão "📤 Sincronizar
+   Reservas com Site" (reenvia o saldo atual de todo mundo).
 Correções v6.3 (Situação dos Participantes funde com Pendências deste Bolão):
  - As duas tabelas que mostravam a mesma coisa por participante (pago/
    saldo/status) em "Bolão Selecionado" — "Situação dos Participantes"
@@ -995,7 +1011,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.3")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.4")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1046,17 +1062,34 @@ class BolaoApp:
         (fila reservas_movimentos_pendentes) pro SQLite local, e some com o
         item da fila depois de importar com sucesso. Antes disso só existia
         sincronização desktop→site; isso fecha o caminho contrário."""
-        import urllib.request, urllib.error, json, re as _re
+        import urllib.request, urllib.error, json, re as _re, time as _time
 
         url = ("https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
                "/databases/(default)/documents/reservas_movimentos_pendentes")
-        try:
-            req = urllib.request.Request(url, method="GET", headers=_firebase_headers())
-            with urllib.request.urlopen(req, timeout=15) as r:
-                dados = json.loads(r.read().decode("utf-8"))
-        except Exception as ex:
-            self._status("❌ Erro ao verificar reservas do site: " + str(ex)[:90], cor="#ff6b6b")
-            return
+        # "429 Too Many Requests" aqui é limite de quota do projeto no
+        # Firestore (é uma única requisição no startup, sem loop nem
+        # retry — não é o app pedindo demais), então costuma ser
+        # passageiro. Tenta de novo com espera curta antes de desistir,
+        # em vez de já mostrar erro na primeira falha.
+        dados = None
+        for tentativa in range(3):
+            try:
+                req = urllib.request.Request(url, method="GET", headers=_firebase_headers())
+                with urllib.request.urlopen(req, timeout=15) as r:
+                    dados = json.loads(r.read().decode("utf-8"))
+                break
+            except urllib.error.HTTPError as ex:
+                if ex.code == 429 and tentativa < 2:
+                    # Espera curta — isso roda na thread da UI (startup),
+                    # espera longa demais travaria a janela.
+                    self._status(f"🔄 Reservas do site ocupado, tentando de novo ({tentativa+1}/2)...")
+                    _time.sleep(1 * (tentativa + 1))
+                    continue
+                self._status("❌ Erro ao verificar reservas do site: " + str(ex)[:90], cor="#ff6b6b")
+                return
+            except Exception as ex:
+                self._status("❌ Erro ao verificar reservas do site: " + str(ex)[:90], cor="#ff6b6b")
+                return
 
         docs = dados.get("documents", [])
         if not docs:
@@ -1173,7 +1206,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.3",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.4",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -4788,7 +4821,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.3</span>
+        <span>Sistema de Gestão de Bolões v6.4</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -6170,6 +6203,8 @@ class BolaoApp:
         bf_f = tk.Frame(sec_form, bg="#243447"); bf_f.pack(fill="x", pady=6)
         btn(bf_f, "💳 REGISTRAR", CORES["btn_verde"],
             self._rsv_registrar, width=18).pack(side="left", padx=4)
+        btn(bf_f, "📦 Lançamento em Lote", CORES["btn_roxo"],
+            self._abrir_popup_lote_reserva, width=20).pack(side="left", padx=4)
         btn(bf_f, "🗑 Excluir Selecionado", CORES["btn_vermelho"],
             self._rsv_excluir_mov, width=22).pack(side="left", padx=4)
 
@@ -6352,23 +6387,13 @@ class BolaoApp:
             "VALUES (?,?,?,?,?,?,?)",
             (pid, tipo, v, dt, lot, conc, desc))
 
-        # ── Sincroniza automaticamente com Firebase ──────────────
-        ps = self.db.fetchone("SELECT nome FROM reservas_pessoas WHERE id=?", (pid,))
-        nome_rsv  = ps["nome"] if ps else "Desconhecido"
-        tipo_fire = "deposito" if tipo == "CRÉDITO" else \
-                    ("uso" if (lot or conc) else "saque")
-        try:
-            sincronizar_reserva(
-                pessoa_id = pid,
-                nome      = nome_rsv,
-                tipo      = tipo_fire,
-                valor     = v,
-                descricao = desc or f"{tipo_fire.capitalize()} via sistema",
-                loteria   = lot  or None,
-                concurso  = conc or None,
-            )
-        except Exception as e:
-            print(f"[Sync reserva] {e}")
+        # Sincronização com o site é manual — botão "📤 Sincronizar
+        # Reservas com Site" (_pub_sincronizar_reservas), que reenvia o
+        # saldo atual de todo mundo. Havia uma tentativa de sincronizar
+        # cada lançamento na hora (sincronizar_reserva(...)) que nunca
+        # funcionou — a função nem existia neste arquivo, então todo
+        # registro aqui sempre lançava NameError, silenciado por um
+        # except genérico. Removida.
 
         # Limpa campos após registrar
         self._rsv_val.delete(0,"end")
@@ -6382,6 +6407,209 @@ class BolaoApp:
         # Reseleciona a pessoa para atualizar histórico
         self._rsv_tree_sal.selection_set(str(pid))
         self._rsv_sel_pessoa()
+
+    def _abrir_popup_lote_reserva(self):
+        """Lançamento em lote de reserva — mesmo Tipo/Valor/Data (e, se
+        DÉBITO, Loteria/Concurso/Descrição) pra várias pessoas de uma vez,
+        em vez de repetir _rsv_registrar pessoa por pessoa. Já existia no
+        site (admin.js, "📦 LANÇAMENTO EM LOTE"); isso replica o mesmo
+        padrão aqui — 1 INSERT em reservas_movimentos por pessoa marcada,
+        todos com os mesmos valores compartilhados."""
+        win = tk.Toplevel(self.root)
+        win.title("Lançamento em Lote — Reservas Pessoais")
+        win.geometry("620x680")
+        win.configure(bg=CORES["bg_frame"])
+        win.grab_set(); win.lift(); win.focus_force()
+
+        # ── Campos compartilhados (topo, fixo) ───────────────────
+        sec_form = tk.LabelFrame(win, text="  DADOS DO LANÇAMENTO (aplicados a todos os marcados)  ",
+                                  bg="#243447", fg="white",
+                                  font=("Arial",9,"bold"), bd=1, padx=10, pady=8)
+        sec_form.pack(fill="x", padx=16, pady=(16,8))
+
+        r0 = tk.Frame(sec_form, bg="#243447"); r0.pack(fill="x", pady=3)
+        tk.Label(r0, text="Tipo:", bg="#243447", fg="#aad4f5",
+                 font=("Arial",9,"bold")).pack(side="left")
+        tipo_cb = ttk.Combobox(r0, width=16, state="readonly", font=("Arial",9),
+                                values=["CRÉDITO (entrada)", "DÉBITO (uso)"])
+        tipo_cb.set("CRÉDITO (entrada)")
+        tipo_cb.pack(side="left", padx=8)
+
+        tk.Label(r0, text="Valor por pessoa (R$):", bg="#243447", fg="#aad4f5",
+                 font=("Arial",9,"bold")).pack(side="left", padx=(8,0))
+        val_entry = entry(r0, width=12); val_entry.pack(side="left", padx=8)
+
+        r1 = tk.Frame(sec_form, bg="#243447"); r1.pack(fill="x", pady=3)
+        tk.Label(r1, text="Data:", bg="#243447", fg="#aad4f5",
+                 font=("Arial",9,"bold")).pack(side="left")
+        dt_entry = entry(r1, width=12)
+        dt_entry.insert(0, date.today().strftime("%d/%m/%Y"))
+        dt_entry.pack(side="left", padx=8)
+
+        debito_frame = tk.Frame(sec_form, bg="#243447")
+        debito_frame.pack(fill="x", pady=3)
+        tk.Label(debito_frame, text="Loteria:", bg="#243447", fg="#aad4f5",
+                 font=("Arial",9,"bold")).pack(side="left")
+        lot_cb = ttk.Combobox(debito_frame, values=LOTERIAS, width=14,
+                               state="readonly", font=("Arial",9))
+        lot_cb.set("Mega-Sena")
+        lot_cb.pack(side="left", padx=8)
+        tk.Label(debito_frame, text="Concurso:", bg="#243447", fg="#aad4f5",
+                 font=("Arial",9,"bold")).pack(side="left")
+        conc_entry = entry(debito_frame, width=10)
+        conc_entry.pack(side="left", padx=8)
+        tk.Label(debito_frame, text="Descrição:", bg="#243447", fg="#aad4f5",
+                 font=("Arial",9,"bold")).pack(side="left")
+        desc_entry = entry(debito_frame, width=18)
+        desc_entry.pack(side="left", padx=8)
+        debito_frame.pack_forget()  # só aparece em DÉBITO, igual ao form de 1
+
+        def _on_tipo(e=None):
+            if "DÉBITO" in tipo_cb.get():
+                debito_frame.pack(fill="x", pady=3)
+            else:
+                debito_frame.pack_forget()
+        tipo_cb.bind("<<ComboboxSelected>>", _on_tipo)
+
+        # ── Rodapé (fixo, embaixo) — empacotado ANTES da lista de
+        # pessoas pra sobrar espaço pra ela no meio sem empurrar os
+        # botões pra fora da tela ────────────────────────────────────
+        rodape = tk.Frame(win, bg=CORES["bg_frame"])
+        rodape.pack(side="bottom", fill="x", padx=16, pady=12)
+        contador_lbl = tk.Label(rodape, text="0 pessoa(s) selecionada(s)",
+                                 bg=CORES["bg_frame"], fg="#aad4f5",
+                                 font=("Arial",9,"bold"))
+        contador_lbl.pack(anchor="w", pady=(0,6))
+        bf_rodape = tk.Frame(rodape, bg=CORES["bg_frame"])
+        bf_rodape.pack(fill="x")
+        btn(bf_rodape, "💳 Registrar para os marcados", CORES["btn_verde"],
+            lambda: _confirmar(), width=26).pack(side="left", padx=4)
+        btn(bf_rodape, "Fechar", CORES["btn_cinza"], win.destroy, width=10).pack(side="left", padx=4)
+
+        # ── Lista de pessoas (meio, rolável) ─────────────────────
+        sec_lista = tk.LabelFrame(win, text="  PESSOAS  ",
+                                   bg="#243447", fg="white",
+                                   font=("Arial",9,"bold"), bd=1, padx=8, pady=6)
+        sec_lista.pack(fill="both", expand=True, padx=16, pady=(0,8))
+
+        top_lista = tk.Frame(sec_lista, bg="#243447"); top_lista.pack(fill="x", pady=(0,6))
+        tk.Label(top_lista, text="🔍", bg="#243447", fg="#8899aa",
+                 font=("Arial",9)).pack(side="left")
+        busca_var = tk.StringVar()
+        busca_entry = entry(top_lista, width=1, textvariable=busca_var)
+        busca_entry.pack(side="left", fill="x", expand=True, padx=(4,8))
+        btn(top_lista, "Marcar visíveis", CORES["btn_azul"],
+            lambda: _marcar(True), width=14).pack(side="left", padx=2)
+        btn(top_lista, "Desmarcar todos", CORES["btn_cinza"],
+            lambda: _marcar(False), width=14).pack(side="left", padx=2)
+
+        canvas = tk.Canvas(sec_lista, bg="#1a2a3a", highlightthickness=0)
+        sb = ttk.Scrollbar(sec_lista, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+        lista_frame = tk.Frame(canvas, bg="#1a2a3a")
+        canvas_window = canvas.create_window((0, 0), window=lista_frame, anchor="nw")
+        canvas.bind("<Configure>", lambda e: canvas.itemconfig(canvas_window, width=e.width))
+        lista_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+
+        def _scroll(e): canvas.yview_scroll(int(-1*(e.delta/120)), "units")
+        canvas.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", _scroll))
+        canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
+
+        # Pessoas + saldo atual, carregados uma vez (evita reconsultar o
+        # banco a cada tecla da busca — mesmo padrão já usado em outras
+        # listas com filtro deste sistema).
+        pessoas = self.db.fetchall("SELECT * FROM reservas_pessoas WHERE ativo=1 ORDER BY nome")
+        dados_pessoas = []
+        for ps in pessoas:
+            pid_ = ps["id"]
+            cred = self.db.fetchone(
+                "SELECT SUM(valor) as t FROM reservas_movimentos WHERE pessoa_id=? AND tipo='CRÉDITO'",
+                (pid_,))["t"] or 0
+            deb = self.db.fetchone(
+                "SELECT SUM(valor) as t FROM reservas_movimentos WHERE pessoa_id=? AND tipo='DÉBITO'",
+                (pid_,))["t"] or 0
+            dados_pessoas.append({"pid": pid_, "nome": ps["nome"], "saldo": float(cred) - float(deb)})
+
+        vars_checkbox = {d["pid"]: tk.IntVar(value=0) for d in dados_pessoas}
+        linhas_visiveis = []  # pids atualmente filtrados (pra "marcar visíveis")
+
+        def _atualizar_contador():
+            n = sum(1 for v in vars_checkbox.values() if v.get())
+            contador_lbl.configure(text=f"{n} pessoa(s) selecionada(s)")
+
+        def _renderizar(*_a):
+            for w in lista_frame.winfo_children():
+                w.destroy()
+            linhas_visiveis.clear()
+            termo = busca_var.get().strip().lower()
+            for d in dados_pessoas:
+                if termo and termo not in d["nome"].lower():
+                    continue
+                linhas_visiveis.append(d["pid"])
+                row = tk.Frame(lista_frame, bg="#1a2a3a")
+                row.pack(fill="x", padx=4, pady=2)
+                cor_saldo = "#afffca" if d["saldo"] > 0 else "#ffaaaa"
+                tk.Checkbutton(
+                    row, text=f"{d['nome']}  —  saldo {fmt_brl(d['saldo'])}",
+                    variable=vars_checkbox[d["pid"]],
+                    bg="#1a2a3a", fg=cor_saldo, selectcolor="#243447",
+                    activebackground="#1a2a3a", font=("Arial",9),
+                    command=_atualizar_contador
+                ).pack(anchor="w")
+
+        def _marcar(valor):
+            for pid_ in linhas_visiveis:
+                vars_checkbox[pid_].set(1 if valor else 0)
+            _atualizar_contador()
+
+        busca_var.trace_add("write", _renderizar)
+        _renderizar()
+
+        def _confirmar():
+            tipo_full = tipo_cb.get()
+            tipo = "CRÉDITO" if "CRÉDITO" in tipo_full else "DÉBITO"
+
+            v = to_float(val_entry.get())
+            if v <= 0:
+                messagebox.showwarning("Atenção", "Informe um valor por pessoa válido!"); return
+
+            selecionados = [pid_ for pid_, var in vars_checkbox.items() if var.get()]
+            if not selecionados:
+                messagebox.showwarning("Atenção", "Marque ao menos uma pessoa!"); return
+
+            dt = dt_entry.get().strip() or date.today().strftime("%d/%m/%Y")
+            lot = lot_cb.get() if tipo == "DÉBITO" else ""
+            conc = conc_entry.get().strip() if tipo == "DÉBITO" else ""
+            desc = desc_entry.get().strip() if tipo == "DÉBITO" else ""
+
+            if tipo == "DÉBITO":
+                por_pid = {d["pid"]: d for d in dados_pessoas}
+                insuficientes = [
+                    f"{por_pid[pid_]['nome']} (saldo {fmt_brl(por_pid[pid_]['saldo'])})"
+                    for pid_ in selecionados if v > por_pid[pid_]["saldo"]
+                ]
+                if insuficientes:
+                    texto = "\n".join(insuficientes[:12])
+                    if len(insuficientes) > 12:
+                        texto += f"\n… e mais {len(insuficientes)-12}"
+                    if not messagebox.askyesno("Saldo Insuficiente",
+                        f"{len(insuficientes)} pessoa(s) vão ficar com saldo negativo:\n\n"
+                        f"{texto}\n\nContinuar mesmo assim (pra todo mundo do lote)?"):
+                        return
+
+            for pid_ in selecionados:
+                self.db.execute(
+                    "INSERT INTO reservas_movimentos "
+                    "(pessoa_id, tipo, valor, data_mov, loteria, concurso, descricao) "
+                    "VALUES (?,?,?,?,?,?,?)",
+                    (pid_, tipo, v, dt, lot, conc, desc))
+
+            self._rsv_load()
+            messagebox.showinfo("Lançamento em Lote",
+                f"{len(selecionados)} lançamento(s) de {fmt_brl(v)} registrado(s) com sucesso!")
+            win.destroy()
 
     def _rsv_excluir_mov(self):
         sel = self._rsv_tree_hist.selection()
@@ -6601,7 +6829,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.3</span>
+        <span>Sistema de Gestão de Bolões v6.4</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
