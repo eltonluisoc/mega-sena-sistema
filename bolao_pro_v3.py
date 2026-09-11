@@ -1,7 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.4.1
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.4.2
+Correções v6.4.2 (editar lançamento de reserva + erro de senha claro):
+ - Aba "Reservas Pessoais" ganhou "✏ Editar Selecionado" — corrige um
+   lançamento já salvo (tipo/valor/data/loteria/concurso/descrição)
+   direto na tela, sem precisar excluir e recadastrar. O campo Concurso
+   já mostra só os dígitos ao abrir, mesmo se o registro antigo tinha
+   lixo salvo (ex.: "3057-942,25" vira "3057942" pra editar — corrija
+   pra "3057" e salve).
+ - Login do Firebase com senha errada mostrava o erro cru do Firebase
+   (JSON, código HTTP) na caixinha. Agora reconhece o código de erro
+   (INVALID_LOGIN_CREDENTIALS etc.) e mostra "Senha incorreta." — e
+   outros casos comuns (conta desativada, muitas tentativas) também
+   viram mensagem em português.
 Correções v6.4.1 (campo Concurso das Reservas só aceita número):
  - Campo "Concurso" (registro individual e lançamento em lote de
    Reservas Pessoais) virou entry_numerico() — só aceita dígitos, tecla
@@ -730,9 +742,28 @@ def _firebase_login():
     except urllib.error.HTTPError as e:
         _firebase_token_cache["senha"] = None  # senha errada — pede de novo na próxima
         corpo_erro = e.read().decode("utf-8") if e.fp else ""
-        raise RuntimeError(
-            "Falha no login do Firebase: HTTP %s — %s" % (e.code, corpo_erro[:200])
-        )
+        # O Identity Toolkit devolve um código de erro específico no JSON
+        # (ex.: INVALID_LOGIN_CREDENTIALS) — antes isso ia cru pro
+        # messagebox ("Falha no login do Firebase: HTTP 400 — {...json...}"),
+        # em vez de dizer claramente "senha errada".
+        codigo_erro = ""
+        try:
+            codigo_erro = json.loads(corpo_erro).get("error", {}).get("message", "")
+        except Exception:
+            pass
+        mensagens_amigaveis = {
+            "INVALID_LOGIN_CREDENTIALS": "Senha incorreta.",
+            "INVALID_PASSWORD": "Senha incorreta.",
+            "EMAIL_NOT_FOUND": "E-mail do admin não encontrado no Firebase.",
+            "USER_DISABLED": "Essa conta foi desativada no Firebase.",
+            "TOO_MANY_ATTEMPTS_TRY_LATER": "Muitas tentativas com senha errada — "
+                "aguarde um pouco antes de tentar de novo.",
+        }
+        msg = mensagens_amigaveis.get(codigo_erro)
+        if not msg:
+            msg = "Falha no login do Firebase (HTTP %s%s)." % (
+                e.code, " — " + codigo_erro if codigo_erro else "")
+        raise RuntimeError(msg)
 
     _firebase_token_cache["id_token"] = dados["idToken"]
     _firebase_token_cache["expira_em"] = agora + int(dados.get("expiresIn", "3600")) - 60
@@ -1026,7 +1057,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.4.1")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.4.2")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1221,7 +1252,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.4.1",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.4.2",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -4836,7 +4867,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.4.1</span>
+        <span>Sistema de Gestão de Bolões v6.4.2</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -6220,6 +6251,8 @@ class BolaoApp:
             self._rsv_registrar, width=18).pack(side="left", padx=4)
         btn(bf_f, "📦 Lançamento em Lote", CORES["btn_roxo"],
             self._abrir_popup_lote_reserva, width=20).pack(side="left", padx=4)
+        btn(bf_f, "✏ Editar Selecionado", CORES["btn_laranja"],
+            self._rsv_editar_mov, width=20).pack(side="left", padx=4)
         btn(bf_f, "🗑 Excluir Selecionado", CORES["btn_vermelho"],
             self._rsv_excluir_mov, width=22).pack(side="left", padx=4)
 
@@ -6644,6 +6677,105 @@ class BolaoApp:
                 self._rsv_tree_sal.selection_set(str(pid))
                 self._rsv_sel_pessoa()
 
+    def _rsv_editar_mov(self):
+        """Corrige um lançamento já salvo (ex.: Concurso digitado errado)
+        sem precisar excluir e recadastrar — pedido depois de um
+        lançamento ter salvo "3057-942,25" no Concurso antes do campo
+        virar numérico (entry_numerico não valida o que já estava
+        digitado antes dela existir, só impede digitar coisa nova)."""
+        sel = self._rsv_tree_hist.selection()
+        if not sel:
+            messagebox.showwarning("Atenção", "Selecione um lançamento no histórico!"); return
+        mid = int(sel[0])
+        m = self.db.fetchone("SELECT * FROM reservas_movimentos WHERE id=?", (mid,))
+        if not m:
+            messagebox.showerror("Erro", "Lançamento não encontrado."); return
+
+        win = tk.Toplevel(self.root)
+        win.title(f"Editar Lançamento #{mid}")
+        win.geometry("420x400")
+        win.configure(bg=CORES["bg_section"])
+        win.grab_set(); win.lift(); win.focus_force()
+
+        tk.Label(win, text=f"EDITAR LANÇAMENTO #{mid}", bg=CORES["bg_section"],
+                 fg=CORES["fg_title"], font=("Arial",11,"bold")).pack(pady=12)
+
+        form = tk.Frame(win, bg=CORES["bg_section"], padx=24); form.pack(fill="x")
+
+        tk.Label(form, text="Tipo:", bg=CORES["bg_section"], fg=CORES["fg_label"],
+                 font=("Arial",9,"bold")).grid(row=0, column=0, sticky="w", pady=6)
+        tipo_cb = ttk.Combobox(form, width=16, state="readonly", font=("Arial",9),
+                                values=["CRÉDITO (entrada)", "DÉBITO (uso)"])
+        tipo_cb.set("CRÉDITO (entrada)" if m["tipo"] == "CRÉDITO" else "DÉBITO (uso)")
+        tipo_cb.grid(row=0, column=1, sticky="w", pady=6)
+
+        tk.Label(form, text="Valor (R$):", bg=CORES["bg_section"], fg=CORES["fg_label"],
+                 font=("Arial",9,"bold")).grid(row=1, column=0, sticky="w", pady=6)
+        val_e = entry(form, width=16)
+        val_e.insert(0, fmt_brl(m["valor"]).replace("R$", "").strip())
+        val_e.grid(row=1, column=1, sticky="w", pady=6)
+
+        tk.Label(form, text="Data:", bg=CORES["bg_section"], fg=CORES["fg_label"],
+                 font=("Arial",9,"bold")).grid(row=2, column=0, sticky="w", pady=6)
+        dt_e = entry(form, width=16)
+        dt_e.insert(0, m["data_mov"] or "")
+        dt_e.grid(row=2, column=1, sticky="w", pady=6)
+
+        debito_frame = tk.Frame(form, bg=CORES["bg_section"])
+        debito_frame.grid(row=3, column=0, columnspan=2, sticky="w", pady=(2,4))
+        tk.Label(debito_frame, text="Loteria:", bg=CORES["bg_section"], fg=CORES["fg_label"],
+                 font=("Arial",9,"bold")).grid(row=0, column=0, sticky="w", pady=4)
+        lot_cb = ttk.Combobox(debito_frame, values=LOTERIAS, width=14,
+                               state="readonly", font=("Arial",9))
+        lot_cb.set(m["loteria"] or "Mega-Sena")
+        lot_cb.grid(row=0, column=1, sticky="w", padx=8, pady=4)
+        tk.Label(debito_frame, text="Concurso:", bg=CORES["bg_section"], fg=CORES["fg_label"],
+                 font=("Arial",9,"bold")).grid(row=1, column=0, sticky="w", pady=4)
+        conc_e = entry_numerico(debito_frame, width=10)
+        # Registros antigos podem ter salvo lixo além do número (o motivo
+        # desta tela existir) — mantém só os dígitos ao carregar, já
+        # corrigindo na exibição.
+        conc_e.insert(0, re.sub(r"\D", "", m["concurso"] or ""))
+        conc_e.grid(row=1, column=1, sticky="w", padx=8, pady=4)
+        tk.Label(debito_frame, text="Descrição:", bg=CORES["bg_section"], fg=CORES["fg_label"],
+                 font=("Arial",9,"bold")).grid(row=2, column=0, sticky="w", pady=4)
+        desc_e = entry(debito_frame, width=22)
+        desc_e.insert(0, m["descricao"] or "")
+        desc_e.grid(row=2, column=1, sticky="w", padx=8, pady=4)
+
+        def _toggle(e=None):
+            if "DÉBITO" in tipo_cb.get():
+                debito_frame.grid()
+            else:
+                debito_frame.grid_remove()
+        tipo_cb.bind("<<ComboboxSelected>>", _toggle)
+        _toggle()
+
+        def _salvar():
+            tipo = "CRÉDITO" if "CRÉDITO" in tipo_cb.get() else "DÉBITO"
+            v = to_float(val_e.get())
+            if v <= 0:
+                messagebox.showwarning("Atenção", "Informe um valor válido!"); return
+            dt = dt_e.get().strip()
+            lot = lot_cb.get() if tipo == "DÉBITO" else ""
+            conc = conc_e.get().strip() if tipo == "DÉBITO" else ""
+            desc = desc_e.get().strip() if tipo == "DÉBITO" else ""
+            self.db.execute(
+                "UPDATE reservas_movimentos SET tipo=?, valor=?, data_mov=?, "
+                "loteria=?, concurso=?, descricao=? WHERE id=?",
+                (tipo, v, dt, lot, conc, desc, mid))
+            win.destroy()
+            self._rsv_load()
+            sel_p = self._rsv_cb_pessoa.get()
+            mp = re.search(r"\(ID: (\d+)\)", sel_p)
+            if mp:
+                pid_ = int(mp.group(1))
+                self._rsv_tree_sal.selection_set(str(pid_))
+                self._rsv_sel_pessoa()
+            messagebox.showinfo("Salvo", "Lançamento atualizado!")
+
+        btn(win, "💾 Salvar", CORES["btn_verde"], _salvar, width=16).pack(pady=14)
+
     def _rsv_nova_pessoa(self):
         win = tk.Toplevel(self.root); win.title("Nova Pessoa — Reservas")
         win.geometry("420x300"); win.configure(bg=CORES["bg_section"]); win.grab_set()
@@ -6844,7 +6976,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.4.1</span>
+        <span>Sistema de Gestão de Bolões v6.4.2</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
