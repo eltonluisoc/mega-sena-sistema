@@ -1234,11 +1234,18 @@ function setLoteriaAdmin(loteria) {
     console.log(`🔄 Mudando loteria admin para: ${loteria}`);
     loteriaAdmin = loteria;
     
+    // 2 seletores independentes compartilham o mesmo estado (loteriaAdmin):
+    // o da aba Cadastro (adminBtn*) e o da aba Cartões (cartoesBtn*, pra
+    // filtrar a lista/duplicados por loteria sem precisar ir na Cadastro
+    // só pra trocar). Os dois têm que ficar sincronizados.
     const btnMega = document.getElementById('adminBtnMega');
     const btnLotofacil = document.getElementById('adminBtnLotofacil');
     const btnQuina = document.getElementById('adminBtnQuina');
-    
-    [btnMega, btnLotofacil, btnQuina].forEach(btn => {
+    const cartoesBtnMega = document.getElementById('cartoesBtnMega');
+    const cartoesBtnLotofacil = document.getElementById('cartoesBtnLotofacil');
+    const cartoesBtnQuina = document.getElementById('cartoesBtnQuina');
+
+    [btnMega, btnLotofacil, btnQuina, cartoesBtnMega, cartoesBtnLotofacil, cartoesBtnQuina].forEach(btn => {
         if (btn) {
             btn.classList.remove('active');
             btn.style.transform = 'scale(1)';
@@ -1246,18 +1253,20 @@ function setLoteriaAdmin(loteria) {
             btn.style.boxShadow = 'none';
         }
     });
-    
-    let btnSelecionado = null;
-    if (loteria === 'mega') btnSelecionado = btnMega;
-    else if (loteria === 'lotofacil') btnSelecionado = btnLotofacil;
-    else if (loteria === 'quina') btnSelecionado = btnQuina;
-    
-    if (btnSelecionado) {
-        btnSelecionado.classList.add('active');
-        btnSelecionado.style.transform = 'scale(0.98)';
-        btnSelecionado.style.filter = 'brightness(0.9)';
-        btnSelecionado.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.1)';
-    }
+
+    let btnsSelecionados = [];
+    if (loteria === 'mega') btnsSelecionados = [btnMega, cartoesBtnMega];
+    else if (loteria === 'lotofacil') btnsSelecionados = [btnLotofacil, cartoesBtnLotofacil];
+    else if (loteria === 'quina') btnsSelecionados = [btnQuina, cartoesBtnQuina];
+
+    btnsSelecionados.forEach(btnSelecionado => {
+        if (btnSelecionado) {
+            btnSelecionado.classList.add('active');
+            btnSelecionado.style.transform = 'scale(0.98)';
+            btnSelecionado.style.filter = 'brightness(0.9)';
+            btnSelecionado.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.1)';
+        }
+    });
     
     const cardLote = document.getElementById('cardLote');
     if (cardLote) {
@@ -4121,6 +4130,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (adminBtnMega) adminBtnMega.onclick = () => setLoteriaAdmin('mega');
     if (adminBtnLotofacil) adminBtnLotofacil.onclick = () => setLoteriaAdmin('lotofacil');
     if (adminBtnQuina) adminBtnQuina.onclick = () => setLoteriaAdmin('quina');
+    const cartoesBtnMega = document.getElementById('cartoesBtnMega');
+    const cartoesBtnLotofacil = document.getElementById('cartoesBtnLotofacil');
+    const cartoesBtnQuina = document.getElementById('cartoesBtnQuina');
+    if (cartoesBtnMega) cartoesBtnMega.onclick = () => setLoteriaAdmin('mega');
+    if (cartoesBtnLotofacil) cartoesBtnLotofacil.onclick = () => setLoteriaAdmin('lotofacil');
+    if (cartoesBtnQuina) cartoesBtnQuina.onclick = () => setLoteriaAdmin('quina');
     const btnRecarregarLista = document.getElementById('btnRecarregarLista');
     if (btnRecarregarLista) btnRecarregarLista.onclick = carregarDadosAdmin;
     if (btnExcluirSelecionados) btnExcluirSelecionados.onclick = excluirSelecionados;
