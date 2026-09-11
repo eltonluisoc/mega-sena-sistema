@@ -285,6 +285,92 @@ const MODALIDADE_IMPORT = {
 
 const ROTULO_LOTERIA = { mega: 'Mega-Sena', lotofacil: 'Lotofácil', quina: 'Quina' };
 
+// Extrai jogos de um texto JÁ ACHATADO (sem posição) — cada jogo é uma
+// sequência de dezenas ligadas por " | "; onde uma coluna acaba e outra
+// começa há normalmente um ESPAÇO (não "|"), então "... | 60 09 | 13 | ..."
+// se separa sozinho em 2 jogos. A linha de telefones ("0800 726 0101")
+// não tem "|", nunca casa.
+//
+// LIMITAÇÃO CONHECIDA: se um jogo quebra em 2 linhas (ex.: Lotofácil com
+// mais de ~12 dezenas) E o comprovante é de 2 colunas, a coluna A pode
+// terminar a linha com um "|" solto (a quebra caiu bem ali) que "gruda"
+// direto no primeiro número da coluna B — texto puro não tem como
+// distinguir isso de uma continuação de verdade (é literalmente a mesma
+// sequência de caracteres). Por isso extrairJogosDeItensPosicionados
+// (abaixo, usa x/y reais do pdf.js) é SEMPRE preferido quando disponível;
+// esta função é o fallback pra texto simples (1 coluna, ou 2 colunas sem
+// jogo quebrado em 2 linhas) e pro que os testes exercitam direto.
+function extrairJogosDoTexto(texto) {
+    const idxSeus = texto.search(/Seus\s+N[uú]meros/i);
+    const secao = idxSeus >= 0 ? texto.slice(idxSeus) : texto;
+    // {2,} = 3+ dezenas: nenhum jogo real tem menos de 5 (mínimo da
+    // Quina), mas pega jogos curtos/corrompidos pra validação reclamar
+    // em vez de eles sumirem sem aviso. O comprovante não tem nenhuma
+    // outra sequência "N | N | N" fora do bloco de jogos.
+    const reRunDezenas = /\d{1,2}(?:\s*\|\s*\d{1,2}){2,}/g;
+    const jogos = [];
+    let m;
+    while ((m = reRunDezenas.exec(secao)) !== null) {
+        jogos.push(m[0].split('|').map(x => parseInt(x.trim(), 10)));
+    }
+    return jogos;
+}
+
+// Extrai jogos a partir dos itens de texto POSICIONADOS do pdf.js
+// (`{str, x, y}`, coordenadas reais da página) — resolve a limitação de
+// extrairJogosDoTexto acima. Agrupa por LINHA (y) e, dentro de cada
+// linha, separa em "colunas" onde o espaço horizontal é bem maior que o
+// espaço típico entre itens vizinhos da mesma coluna (gap >= 4x a
+// mediana da própria linha). Depois reagrupa por ÍNDICE de coluna (a
+// coluna 0 de todas as linhas forma uma sequência própria, a coluna 1
+// forma outra) — isso mantém uma quebra de linha DENTRO da mesma coluna
+// grudada certo (o \s* do regex ainda emenda through \n) sem nunca
+// misturar com a coluna vizinha.
+function extrairJogosDeItensPosicionados(itens) {
+    if (!itens || itens.length === 0) return [];
+
+    const linhas = [];
+    for (const it of itens) {
+        if (!it || !it.str || !it.str.trim()) continue;
+        let linha = linhas.find(l => Math.abs(l.y - it.y) <= 3);
+        if (!linha) { linha = { y: it.y, itens: [] }; linhas.push(linha); }
+        linha.itens.push(it);
+    }
+    if (linhas.length === 0) return [];
+    linhas.sort((a, b) => b.y - a.y); // topo → base
+    linhas.forEach(l => l.itens.sort((a, b) => a.x - b.x));
+
+    const linhasComSegmentos = linhas.map(l => {
+        const its = l.itens;
+        if (its.length <= 1) return [its];
+        const gaps = [];
+        for (let i = 1; i < its.length; i++) gaps.push(its[i].x - its[i - 1].x);
+        const gapsOrdenados = [...gaps].sort((a, b) => a - b);
+        const mediana = gapsOrdenados[Math.floor(gapsOrdenados.length / 2)] || 1;
+        const limiar = Math.max(mediana * 4, 20);
+        const segmentos = [[its[0]]];
+        for (let i = 1; i < its.length; i++) {
+            if (gaps[i - 1] > limiar) segmentos.push([]);
+            segmentos[segmentos.length - 1].push(its[i]);
+        }
+        return segmentos;
+    });
+
+    const maxColunas = Math.max(...linhasComSegmentos.map(s => s.length));
+    const textoPorColuna = Array.from({ length: maxColunas }, () => []);
+    for (const segmentos of linhasComSegmentos) {
+        for (let c = 0; c < maxColunas; c++) {
+            if (segmentos[c]) textoPorColuna[c].push(segmentos[c].map(it => it.str).join(' '));
+        }
+    }
+
+    const jogos = [];
+    for (const linhasColuna of textoPorColuna) {
+        jogos.push(...extrairJogosDoTexto(linhasColuna.join('\n')));
+    }
+    return jogos;
+}
+
 // PURA (sem DOM / sem pdf.js) — recebe o texto já extraído do PDF e os
 // valores que o usuário informou na tela (loteria/concurso), devolve os
 // jogos + validação + divergências. Testável direto no node --test.
@@ -336,25 +422,15 @@ function parsearComprovanteCaixa(texto, opts = {}) {
     const mConc = t.match(/Concurso:\s*(\d{1,7})/i);
     if (mConc) resultado.concurso = mConc[1];
 
-    // Jogos: cada um é uma sequência de dezenas ligadas por " | ".
-    // NÃO dá pra ancorar no rótulo "Jogo N": no comprovante de 2 colunas,
-    // o pdf.js devolve "Jogo 1" e "Jogo 2" na MESMA linha (lado a lado),
-    // e as duas fileiras de dezenas também — ancorar em "Jogo N" só pegava
-    // a primeira. Em vez disso, casa toda sequência de 1-2 dígitos ligada
-    // por "|": onde uma coluna acaba e a outra começa há um ESPAÇO (não
-    // "|"), então "... | 60 09 | 13 | ..." se separa sozinho em 2 jogos.
-    // A linha de telefones ("0800 726 0101") não tem "|", nunca casa.
-    const idxSeus = t.search(/Seus\s+N[uú]meros/i);
-    const secao = idxSeus >= 0 ? t.slice(idxSeus) : t;
-    // {2,} = 3+ dezenas: nenhum jogo real tem menos de 5 (mínimo da
-    // Quina), mas pega jogos curtos/corrompidos pra validação reclamar
-    // em vez de eles sumirem sem aviso. O comprovante não tem nenhuma
-    // outra sequência "N | N | N" fora do bloco de jogos.
-    const reRunDezenas = /\d{1,2}(?:\s*\|\s*\d{1,2}){2,}/g;
-    let m;
-    while ((m = reRunDezenas.exec(secao)) !== null) {
-        resultado.jogos.push(m[0].split('|').map(x => parseInt(x.trim(), 10)));
-    }
+    // Jogos: de preferência os já extraídos por posição (jogosPreExtraidos,
+    // ver extrairJogosDeItensPosicionados) — o único jeito confiável de
+    // separar colunas quando um jogo quebra em 2 linhas (ver comentário
+    // lá). Sem posição disponível, cai pro extrator em texto puro (serve
+    // pra layout de 1 coluna sem quebra, e é o que os testes exercitam
+    // direto com uma string).
+    resultado.jogos = (opts.jogosPreExtraidos && opts.jogosPreExtraidos.length > 0)
+        ? opts.jogosPreExtraidos
+        : extrairJogosDoTexto(t);
 
     if (resultado.jogos.length === 0) {
         resultado.erro = 'Nenhum jogo (sequência de dezenas com " | ") reconhecido no bloco "Seus Números".';
@@ -415,14 +491,25 @@ function carregarPdfJs() {
     return _pdfJsPromise;
 }
 
-async function extrairTextoPdf(file) {
+// Devolve { texto, itens } — texto achatado (serve pra Modalidade/
+// Concurso, que são "rótulo: valor" na mesma linha, então sobrevivem ao
+// achatamento) + itens posicionados de TODA a página (str/x/y reais do
+// pdf.js), que extrairJogosDeItensPosicionados usa pra separar colunas
+// certo (ver comentário lá — texto achatado sozinho não dá conta de
+// jogo quebrado em 2 linhas dentro de um comprovante de 2 colunas).
+async function extrairDadosPdf(file) {
     const pdfjsLib = await carregarPdfJs();
     const buf = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
     let texto = '';
+    const itens = [];
     for (let p = 1; p <= pdf.numPages; p++) {
         const page = await pdf.getPage(p);
         const content = await page.getTextContent();
+        for (const item of content.items) {
+            if (!item.str || !item.str.trim()) continue;
+            itens.push({ str: item.str, x: item.transform[4], y: item.transform[5] });
+        }
         // Reagrupa os fragmentos por posição vertical pra reconstruir
         // linhas (o comprovante é 2 colunas; a ordem crua do pdf.js nem
         // sempre é topo→base). Cada linha vira uma linha de texto.
@@ -441,7 +528,7 @@ async function extrairTextoPdf(file) {
         });
         texto += '\n';
     }
-    return texto;
+    return { texto, itens };
 }
 
 // ---- Tela de importação -------------------------------------------------
@@ -471,10 +558,11 @@ async function processarPdfsImportacao(fileList) {
     for (const file of arquivos) {
         let resultado;
         try {
-            const texto = await extrairTextoPdf(file);
+            const { texto, itens } = await extrairDadosPdf(file);
             resultado = parsearComprovanteCaixa(texto, {
                 loteriaEsperada: cfg.loteria,
-                concursoEsperado: cfg.concurso
+                concursoEsperado: cfg.concurso,
+                jogosPreExtraidos: extrairJogosDeItensPosicionados(itens)
             });
         } catch (e) {
             resultado = { status: 'erro', erro: 'Falha ao ler o PDF: ' + (e.message || e), jogos: [], validacao: [], divergencias: [] };
