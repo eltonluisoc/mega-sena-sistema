@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.4
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.4.1
+Correções v6.4.1 (campo Concurso das Reservas só aceita número):
+ - Campo "Concurso" (registro individual e lançamento em lote de
+   Reservas Pessoais) virou entry_numerico() — só aceita dígitos, tecla
+   por tecla. Achado real: um lançamento salvou "3057-942,25" no
+   concurso (erro de digitação/colagem) sem nada barrar. Não conserta
+   registros já salvos assim — só evita que aconteça de novo.
 Correções v6.4 (Reservas: retry no "too many requests" + lançamento em lote):
  - Verificação de reservas pendentes do site na abertura do app tentava
    só 1 vez; um "429 Too Many Requests" do Firestore (limite de quota,
@@ -359,6 +365,15 @@ def section(parent, title="", pady=8):
 def entry(parent, width=40, **kw):
     return tk.Entry(parent, width=width, relief="solid", bd=1,
                     font=("Arial",9), **kw)
+
+def entry_numerico(parent, width=40, **kw):
+    """Como entry(), mas só aceita dígitos — usado em campos tipo
+    Concurso, onde qualquer coisa fora número é sempre erro de digitação
+    (ex.: colar/digitar errado virando "3057-942,25" em vez de "3057")."""
+    w = entry(parent, width=width, **kw)
+    vcmd = (parent.register(lambda p: p == "" or p.isdigit()), "%P")
+    w.configure(validate="key", validatecommand=vcmd)
+    return w
 
 def make_tree(parent, cols, height=15):
     style = ttk.Style()
@@ -1011,7 +1026,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.4")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.4.1")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1206,7 +1221,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.4",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.4.1",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -4821,7 +4836,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.4</span>
+        <span>Sistema de Gestão de Bolões v6.4.1</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -6182,7 +6197,7 @@ class BolaoApp:
 
         tk.Label(self._rsv_debito_frame, text="Concurso:", bg="#243447", fg="#aad4f5",
                  font=("Arial",9,"bold")).pack(side="left")
-        self._rsv_conc = entry(self._rsv_debito_frame, width=10)
+        self._rsv_conc = entry_numerico(self._rsv_debito_frame, width=10)
         self._rsv_conc.pack(side="left", padx=8)
 
         tk.Label(self._rsv_debito_frame, text="Descrição:", bg="#243447", fg="#aad4f5",
@@ -6456,7 +6471,7 @@ class BolaoApp:
         lot_cb.pack(side="left", padx=8)
         tk.Label(debito_frame, text="Concurso:", bg="#243447", fg="#aad4f5",
                  font=("Arial",9,"bold")).pack(side="left")
-        conc_entry = entry(debito_frame, width=10)
+        conc_entry = entry_numerico(debito_frame, width=10)
         conc_entry.pack(side="left", padx=8)
         tk.Label(debito_frame, text="Descrição:", bg="#243447", fg="#aad4f5",
                  font=("Arial",9,"bold")).pack(side="left")
@@ -6829,7 +6844,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.4</span>
+        <span>Sistema de Gestão de Bolões v6.4.1</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
