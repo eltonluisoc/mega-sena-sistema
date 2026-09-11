@@ -543,6 +543,18 @@ Novo teste usa os **61 itens reais** do log de debug como fixture (`ITENS_REAIS_
 
 Versão web (Service Worker) v36 → v38.
 
+## Rodada 32 — Aba Cartões (excluir duplicados) só mostrava concursos da Mega (v39)
+
+Usuário cadastrou cartões duplicados (o próprio sistema avisou), foi excluir na aba "Cartões" e só apareciam concursos da Mega-Sena no filtro — precisava excluir de Lotofácil e Quina também.
+
+**Causa**: a lista de cartões, o filtro de concurso e o "🔍 Verificar Duplicados" (tudo na aba Cartões) sempre filtravam por `loteriaAdmin` — uma variável global só trocada pelos botões Mega/Lotofácil/Quina, que existiam **apenas na aba Cadastro**. A aba Cartões não tinha seletor próprio nem indicação visual de qual loteria estava ativa — o usuário via só Mega (o valor padrão) sem entender por quê, e trocar exigia ir na Cadastro só pra isso.
+
+**Correção**: mesmo seletor de loteria (3 botões) adicionado direto na aba Cartões, sincronizado com o da Cadastro — `setLoteriaAdmin()` agora atualiza os 2 conjuntos de botões juntos (clicando de um lado ou de outro, os dois sempre refletem o mesmo estado). Selecionar Lotofácil ou Quina na própria aba Cartões recarrega lista/filtro/duplicados na hora.
+
+`sw.js`: `CACHE_NAME` → v39.
+
+Versão web (Service Worker) v38 → v39.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
