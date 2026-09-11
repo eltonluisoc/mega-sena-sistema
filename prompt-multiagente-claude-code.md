@@ -527,6 +527,22 @@ Novo teste com fixture sintética no formato "1 item de texto por linha por colu
 
 Versão web (Service Worker) v35 → v36.
 
+## Rodada 31 — Diagnóstico + recalibração com dados reais do pdf.js (v37/v38)
+
+Usuário testou a Rodada 30 e viu o MESMO sintoma de novo (Jogo 1 com 29 números, Jogo 2 com 5) — 3ª tentativa consecutiva sem resolver. Em vez de arriscar uma 4ª correção às cegas (o ambiente de desenvolvimento não roda pdf.js, só browser), parei pra instrumentar.
+
+**v37 — diagnóstico**: `_debugItensImportacaoPdf(nomeArquivo, itens)`, chamado logo após `extrairDadosPdf`, imprime no Console (`console.table`) cada item extraído do pdf.js (linha, texto, x, width, fontSize, y). Pedido ao usuário: F12 → Console → reimportar o PDF → print da tabela. Usuário mandou o log completo dos 61 itens do `comprovante2.pdf`.
+
+**O que o log revelou**: cada fileira de dezenas de uma coluna é mesmo 1 item só (confirmando a suposição da Rodada 30) — MAS o gap real entre as 2 colunas de dezenas é só **31 unidades** (coluna A termina em x=269, coluna B começa em x=300, fonte 10) — bem menor que os limiares "generosos" tentados nas Rodadas 29 e 30 (que giravam em 40-80). A coluna de dezenas é larga (231 unidades pra 12 números) e quase encosta na coluna vizinha.
+
+**v38 — recalibração**: limiar trocado pra `max(fontSize × 2.5, 15)` = 25 nesse caso, abaixo do gap real de 31. Um limiar mais agressivo (baixo) é seguro aqui: cada linha do bloco "Seus Números" já é 1 item por coluna (não tem nada pra proteger DENTRO do próprio jogo), e "errar pra mais" no resto da página (tabela "Dados da Aposta", que tem rótulo:valor com gaps parecidos) é inofensivo — só conteúdo com "|" entra na conta de `extrairJogosDoTexto`.
+
+Novo teste usa os **61 itens reais** do log de debug como fixture (`ITENS_REAIS_COMPROVANTE2` em `test/parser-comprovante-posicoes.test.js`) — trava o valor calibrado contra dado real, não mais suposição. O log de debug (v37) foi mantido por enquanto, marcado pra remover quando o usuário confirmar que resolveu de vez.
+
+`sw.js`: `CACHE_NAME` → v37 → v38.
+
+Versão web (Service Worker) v36 → v38.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
