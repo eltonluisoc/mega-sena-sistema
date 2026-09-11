@@ -569,6 +569,20 @@ Também: trocar de loteria, ou mudar o filtro de concurso/bolão, agora esconde 
 
 Versão web (Service Worker) v39 → v40.
 
+## Rodada 34 — Reservas: retry no "too many requests" + lançamento em lote no desktop (v6.4)
+
+Usuário trouxe 2 pedidos sobre o desktop: (1) toda vez que abre o app, aparece "Erro ao verificar reservas do site: HTTP Error 429: Too Many Requests" no rodapé; (2) o site já tem "lançamento em lote" pra uso da reserva (vários lançamentos pro mesmo bolão de uma vez), mas o desktop só cadastra um por um.
+
+**Investigação (agente Explore)** confirmou: o startup faz **uma única** requisição GET a `reservas_movimentos_pendentes` (`_importar_movimentos_pendentes_web`, chamada 400ms depois da janela abrir, via `_login_inicial`) — sem loop, sem retry, sem outro lugar do arquivo repetindo essa chamada. Ou seja, o 429 não é o app pedindo demais; é limite de quota do projeto no Firestore (plano gratuito ou pico de tráfego do ecossistema todo — site público + admin + outras cópias do .exe abrindo ao mesmo tempo), normalmente passageiro.
+
+**1. Retry no 429**: até 2 tentativas extras (espera 1s, depois 2s) antes de mostrar o erro — roda na thread da UI (é o startup), por isso a espera é curta em vez de um backoff longo que travaria a janela por mais tempo.
+
+**2. Lançamento em lote no desktop**: nova ação "📦 Lançamento em Lote" na aba "Reservas Pessoais" (`_abrir_popup_lote_reserva`), espelhando o que já existia no site (`admin.js`, `abrirModalLancamentoLote`) — Tipo/Valor/Data (e Loteria/Concurso/Descrição se DÉBITO) compartilhados pra todo o lote + lista de pessoas com checkbox, busca por nome, "marcar visíveis"/"desmarcar todos". 1 `INSERT` em `reservas_movimentos` por pessoa marcada; validação de saldo insuficiente (débito) resumida numa única confirmação listando quem ficaria negativo, em vez de 1 popup por pessoa.
+
+**Achado incidental**: `_rsv_registrar` (cadastro individual) tentava chamar `sincronizar_reserva(...)` depois de cada lançamento — função que **nunca existiu** neste arquivo, então todo lançamento de reserva sempre lançava `NameError`, silenciado por um `except` genérico (`print` que nem aparece no .exe empacotado). Removida — a sincronização real com o site é o botão manual "📤 Sincronizar Reservas com Site" (reenvia o saldo atual recalculado de todo mundo), que sempre funcionou.
+
+Versão desktop v6.3 → v6.4.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
