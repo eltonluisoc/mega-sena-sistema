@@ -1133,12 +1133,19 @@ function exibirCartoesAdmin() {
     console.log(`📋 Exibindo cartões da loteria: ${loteriaAdmin}`);
     
     let cartoesFiltrados = cartoes.filter(c => c.tipo === loteriaAdmin);
-    
+
     const filtro = document.getElementById('filtroConcursoLista')?.value || 'todos';
     if (filtro !== 'todos') {
         cartoesFiltrados = cartoesFiltrados.filter(c => c.concurso == filtro);
     }
-    
+
+    // Um mesmo concurso pode ter vários bolões diferentes cadastrados —
+    // precisa dar pra restringir a um só, não só ao concurso.
+    const filtroBolao = document.getElementById('filtroBolaoLista')?.value || 'todos';
+    if (filtroBolao !== 'todos') {
+        cartoesFiltrados = cartoesFiltrados.filter(c => (c.bolao || 'Sem Bolão') === filtroBolao);
+    }
+
     const ordenarPor = document.getElementById('ordenarPorLista')?.value || 'data_desc';
     switch(ordenarPor) {
         case 'concurso_desc': cartoesFiltrados.sort((a,b) => (b.concurso||0) - (a.concurso||0)); break;
@@ -1220,10 +1227,33 @@ function carregarConcursosAdmin() {
     const concursos = [...new Set(cartoesFiltrados.map(c => c.concurso))];
     concursos.sort((a,b) => b - a);
     const filtro = document.getElementById('filtroConcursoLista');
-    
+
     if (filtro) {
         filtro.innerHTML = '<option value="todos">Todos os concursos</option>';
         concursos.forEach(c => filtro.innerHTML += `<option value="${c}">Concurso ${c}</option>`);
+    }
+    carregarBoloesFiltro();
+}
+
+// Um mesmo concurso pode ter vários bolões diferentes cadastrados — o
+// filtro de bolão respeita o concurso já escolhido (se houver um
+// específico) além da loteria, então só lista bolões que realmente
+// existem na combinação atual.
+function carregarBoloesFiltro() {
+    const filtroConcurso = document.getElementById('filtroConcursoLista')?.value || 'todos';
+    let cartoesFiltrados = cartoes.filter(c => c.tipo === loteriaAdmin);
+    if (filtroConcurso !== 'todos') {
+        cartoesFiltrados = cartoesFiltrados.filter(c => c.concurso == filtroConcurso);
+    }
+    const boloesEncontrados = [...new Set(cartoesFiltrados.map(c => c.bolao || 'Sem Bolão'))];
+    boloesEncontrados.sort((a, b) => a.localeCompare(b));
+    const select = document.getElementById('filtroBolaoLista');
+    if (select) {
+        select.innerHTML = '<option value="todos">Todos os bolões</option>';
+        boloesEncontrados.forEach(b => {
+            const seguro = escapeHtml(b);
+            select.innerHTML += `<option value="${seguro}">${seguro}</option>`;
+        });
     }
 }
 
@@ -1309,6 +1339,12 @@ function setLoteriaAdmin(loteria) {
     atualizarPreviaSelecao();
     atualizarGradeSelecaoVisual();
     
+    // Resultado de "Verificar Duplicados" é de uma loteria/concurso/bolão
+    // específicos — trocar a loteria sem esconder isso deixava cartões da
+    // loteria ANTERIOR visíveis na tela mesmo depois da troca.
+    const duplicadosResultado = document.getElementById('duplicadosResultado');
+    if (duplicadosResultado) { duplicadosResultado.innerHTML = ''; duplicadosResultado.style.display = 'none'; }
+
     carregarDadosAdmin();
     showToast(`🔄 Mudou para ${loteria.toUpperCase()}`, 'info');
 }
@@ -1639,27 +1675,44 @@ async function carregarBoloesParaGerenciar() {
 // ============================================
 async function verificarDuplicados() {
     const concurso = document.getElementById('filtroConcursoLista').value;
+    const bolaoFiltro = document.getElementById('filtroBolaoLista')?.value || 'todos';
     const container = document.getElementById('duplicadosResultado');
-    
+
     if (!concurso || concurso === 'todos') {
         showToast('⚠️ Selecione um concurso específico!', 'warning');
         return;
     }
-    
+
     showLoading('Verificando cartões do concurso ' + concurso + '...');
-    
+
     try {
-        const snapshot = await db.collection('cartoes').where('concurso', '==', concurso).get();
-        
-        if (snapshot.size === 0) {
+        // Filtra por tipo (loteria) além de concurso — sem isso, um
+        // número de concurso que por acaso existisse em 2 loterias
+        // diferentes misturava cartões de uma loteria que nem era a
+        // selecionada na tela.
+        const snapshotBruto = await db.collection('cartoes')
+            .where('tipo', '==', loteriaAdmin)
+            .where('concurso', '==', concurso)
+            .get();
+
+        // Bolão é filtrado no cliente (não na query) — mesmo padrão já
+        // usado no site público pra esse tipo de filtro combinado.
+        const docs = snapshotBruto.docs.filter(doc => {
+            if (bolaoFiltro === 'todos') return true;
+            const dados = doc.data();
+            return (dados.bolao || 'Sem Bolão') === bolaoFiltro;
+        });
+
+        if (docs.length === 0) {
             hideLoading();
-            container.innerHTML = '<div style="text-align:center;padding:20px;color:#10b981;"><div style="font-size:32px;">✅</div><div style="font-weight:600;margin-top:8px;">Nenhum cartão encontrado para o concurso ' + concurso + '</div></div>';
+            const escopo = bolaoFiltro === 'todos' ? '' : ` no bolão "${escapeHtml(bolaoFiltro)}"`;
+            container.innerHTML = '<div style="text-align:center;padding:20px;color:#10b981;"><div style="font-size:32px;">✅</div><div style="font-weight:600;margin-top:8px;">Nenhum cartão encontrado para o concurso ' + concurso + escopo + '</div></div>';
             container.style.display = 'block';
             return;
         }
-        
+
         const numerosMap = {};
-        snapshot.forEach(doc => {
+        docs.forEach(doc => {
             const data = doc.data();
             const numerosStr = data.numeros.slice().sort((a,b) => a-b).join('|');
             const numerosDisplay = data.numeros.slice().sort((a,b) => a-b).join(', ');
@@ -1698,7 +1751,7 @@ async function verificarDuplicados() {
             <div style="background:#fef3c7;padding:15px 20px;border-radius:12px;margin-bottom:16px;border-left:4px solid #f59e0b;">
                 <div style="font-weight:700;color:#92400e;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:15px;">
                     <span>⚠️ ${gruposDuplicados} grupo(s) de cartões duplicados</span>
-                    <span>📊 ${snapshot.size} cartões | 🔁 ${totalDuplicados} duplicados</span>
+                    <span>📊 ${docs.length} cartões | 🔁 ${totalDuplicados} duplicados</span>
                 </div>
                 <div style="font-size:13px;color:#78350f;margin-top:6px;">
                     💡 <strong>Clique no cartão</strong> que deseja manter. O selecionado fica <strong style="color:#0071e3;">AZUL</strong>.
@@ -4106,6 +4159,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnSalvarSelecao = document.getElementById('btnSalvarSelecao');
     const btnExportar = document.getElementById('btnExportarExcel');
     const filtroConcurso = document.getElementById('filtroConcursoLista');
+    const filtroBolao = document.getElementById('filtroBolaoLista');
     const ordenarPor = document.getElementById('ordenarPorLista');
     const btnGerarToken = document.getElementById('btnGerarToken');
     const btnAtualizarReservas = document.getElementById('btnAtualizarReservas');
@@ -4143,7 +4197,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnSalvarPix) btnSalvarPix.onclick = salvarPixConfig;
     if (btnSalvarSelecao) btnSalvarSelecao.addEventListener('click', salvarConfigBoloes);
     if (btnExportar) btnExportar.onclick = exportarCartoes;
-    if (filtroConcurso) filtroConcurso.onchange = exibirCartoesAdmin;
+    const limparResultadoDuplicados = () => {
+        const d = document.getElementById('duplicadosResultado');
+        if (d) { d.innerHTML = ''; d.style.display = 'none'; }
+    };
+    if (filtroConcurso) filtroConcurso.onchange = () => { carregarBoloesFiltro(); exibirCartoesAdmin(); limparResultadoDuplicados(); };
+    if (filtroBolao) filtroBolao.onchange = () => { exibirCartoesAdmin(); limparResultadoDuplicados(); };
     if (ordenarPor) ordenarPor.onchange = exibirCartoesAdmin;
 
     if (btnGerarToken) {
