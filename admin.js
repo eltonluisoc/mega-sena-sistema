@@ -157,6 +157,72 @@ function sair() {
 }
 
 // ============================================
+// ALTERAR / RECUPERAR SENHA
+// ============================================
+// A mesma conta do Firebase Auth (eltonluisoc@gmail.com) é usada pro
+// login aqui e no app desktop — trocar a senha aqui vale pros dois.
+function enviarResetSenha() {
+    firebase.auth().sendPasswordResetEmail(ADMIN_EMAIL)
+        .then(() => showToast('📧 E-mail de redefinição enviado para ' + ADMIN_EMAIL, 'success'))
+        .catch(error => {
+            console.error('Erro ao enviar reset de senha:', error);
+            showToast('❌ Não foi possível enviar o e-mail: ' + (error.message || error.code), 'error');
+        });
+}
+
+function abrirModalAlterarSenha() {
+    const modal = document.getElementById('modalAlterarSenha');
+    if (!modal) return;
+    ['senhaAtualAlterar', 'novaSenha1', 'novaSenha2'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    modal.classList.add('show');
+    modal.style.display = 'flex';
+}
+
+function fecharModalAlterarSenha() {
+    const modal = document.getElementById('modalAlterarSenha');
+    if (!modal) return;
+    modal.classList.remove('show');
+    modal.style.display = 'none';
+}
+
+async function confirmarAlterarSenha() {
+    const senhaAtual = document.getElementById('senhaAtualAlterar').value;
+    const nova1 = document.getElementById('novaSenha1').value;
+    const nova2 = document.getElementById('novaSenha2').value;
+
+    if (!senhaAtual) { showToast('⚠️ Informe a senha atual', 'warning'); return; }
+    if (!nova1 || nova1.length < 6) { showToast('⚠️ Nova senha precisa ter ao menos 6 caracteres', 'warning'); return; }
+    if (nova1 !== nova2) { showToast('⚠️ As senhas novas não coincidem', 'warning'); return; }
+
+    const user = firebase.auth().currentUser;
+    if (!user) { showToast('⚠️ Sessão expirada — entre de novo antes de trocar a senha', 'warning'); return; }
+
+    try {
+        // Trocar senha é operação sensível — o Firebase exige login
+        // "recente" (poucos minutos) pra permitir. Sem reautenticar
+        // primeiro, uma sessão já aberta há um tempo cai em
+        // auth/requires-recent-login em vez de trocar.
+        const credencial = firebase.auth.EmailAuthProvider.credential(ADMIN_EMAIL, senhaAtual);
+        await user.reauthenticateWithCredential(credencial);
+        await user.updatePassword(nova1);
+        showToast('✅ Senha alterada com sucesso!', 'success');
+        fecharModalAlterarSenha();
+    } catch (error) {
+        console.error('Erro ao trocar senha:', error);
+        const mensagens = {
+            'auth/wrong-password': 'Senha atual incorreta.',
+            'auth/weak-password': 'Nova senha muito fraca (mínimo 6 caracteres).',
+            'auth/too-many-requests': 'Muitas tentativas — aguarde um pouco e tente de novo.',
+            'auth/requires-recent-login': 'Sessão muito antiga — saia e entre de novo antes de trocar a senha.',
+        };
+        showToast('❌ ' + (mensagens[error.code] || 'Erro ao trocar a senha: ' + (error.message || error.code)), 'error');
+    }
+}
+
+// ============================================
 // FUNÇÕES DO DASHBOARD MELHORADAS
 // ============================================
 function atualizarDashboardAdmin() {
@@ -4181,6 +4247,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnEntrarSenha) btnEntrarSenha.onclick = entrarComSenha;
     if (senhaAdminInput) senhaAdminInput.onkeypress = (e) => { if (e.key === 'Enter') entrarComSenha(); };
     if (btnSair) btnSair.onclick = sair;
+
+    const linkEsqueciSenha = document.getElementById('linkEsqueciSenha');
+    if (linkEsqueciSenha) linkEsqueciSenha.addEventListener('click', (e) => { e.preventDefault(); enviarResetSenha(); });
+    const btnAbrirAlterarSenha = document.getElementById('btnAbrirAlterarSenha');
+    if (btnAbrirAlterarSenha) btnAbrirAlterarSenha.onclick = abrirModalAlterarSenha;
+    const btnConfirmarAlterarSenha = document.getElementById('btnConfirmarAlterarSenha');
+    if (btnConfirmarAlterarSenha) btnConfirmarAlterarSenha.onclick = confirmarAlterarSenha;
+    const btnCancelarAlterarSenha = document.getElementById('btnCancelarAlterarSenha');
+    if (btnCancelarAlterarSenha) btnCancelarAlterarSenha.onclick = fecharModalAlterarSenha;
     if (adminBtnMega) adminBtnMega.onclick = () => setLoteriaAdmin('mega');
     if (adminBtnLotofacil) adminBtnLotofacil.onclick = () => setLoteriaAdmin('lotofacil');
     if (adminBtnQuina) adminBtnQuina.onclick = () => setLoteriaAdmin('quina');
