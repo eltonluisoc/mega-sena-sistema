@@ -583,6 +583,12 @@ Usuário trouxe 2 pedidos sobre o desktop: (1) toda vez que abre o app, aparece 
 
 Versão desktop v6.3 → v6.4.
 
+## Rodada 35 — Campo Concurso sem validação (v6.4.1) + 429 é cota do projeto esgotada, não bug de código
+
+Usuário testou o lançamento em lote e achou um registro real com "3057-942,25" no campo Concurso — nada impedia digitar/colar besteira ali. Corrigido com `entry_numerico()` (novo helper, `validate="key"`, só aceita dígito) aplicado nos 2 campos Concurso de Reservas Pessoais (individual e lote). Não conserta o registro já salvo errado (não existe função de editar movimento, só excluir+recriar) — só evita que aconteça de novo. Versão v6.4 → v6.4.1.
+
+**Sobre o "429 Too Many Requests" persistir mesmo depois do retry (Rodada 34)**: o usuário reportou que o erro continuava idêntico. Investigado direto — `curl` na mesma URL do Firestore que o app usa, **sem nenhuma autenticação, de fora do app inteiramente**, devolveu o mesmo `429` com `"message": "Quota exceeded.", "status": "RESOURCE_EXHAUSTED"`. Isso confirma que **não é bug de código nenhum** — é a cota diária de leitura do projeto `mega-sena-sistema` no plano gratuito (Spark) do Firebase esgotada de verdade, compartilhada entre site público + admin + todas as cópias do desktop abertas. Um retry de poucos segundos (a correção da Rodada 34) não tem como resolver isso — só ajudaria contra um pico passageiro de milissegundos, não uma cota diária zerada. Só existem 2 saídas reais: esperar o reset diário do Firebase, ou migrar o projeto pro plano Blaze (pay-as-you-go, cobra só acima de uma faixa gratuita generosa) pra não ter mais esse teto.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
