@@ -317,40 +317,55 @@ function extrairJogosDoTexto(texto) {
 }
 
 // Extrai jogos a partir dos itens de texto POSICIONADOS do pdf.js
-// (`{str, x, y}`, coordenadas reais da página) — resolve a limitação de
-// extrairJogosDoTexto acima. Agrupa por LINHA (y) e, dentro de cada
-// linha, separa em "colunas" onde o espaço horizontal é bem maior que o
-// espaço típico entre itens vizinhos da mesma coluna (gap >= 4x a
-// mediana da própria linha). Depois reagrupa por ÍNDICE de coluna (a
-// coluna 0 de todas as linhas forma uma sequência própria, a coluna 1
-// forma outra) — isso mantém uma quebra de linha DENTRO da mesma coluna
-// grudada certo (o \s* do regex ainda emenda through \n) sem nunca
-// misturar com a coluna vizinha.
+// (`{str, x, y, width, fontSize}`, coordenadas reais da página) —
+// resolve a limitação de extrairJogosDoTexto acima. Agrupa por LINHA (y)
+// e, dentro de cada linha, separa em "colunas" onde o espaço horizontal
+// é bem maior que o tamanho da fonte. Depois reagrupa por ÍNDICE de
+// coluna (a coluna 0 de todas as linhas forma uma sequência própria, a
+// coluna 1 forma outra) — isso mantém uma quebra de linha DENTRO da
+// mesma coluna colada certo (o \s* do regex ainda emenda através do \n)
+// sem nunca misturar com a coluna vizinha.
+//
+// O limiar usa o TAMANHO DA FONTE (sempre presente), não uma mediana de
+// gaps calculada a partir dos próprios itens da linha — no PDF real,
+// cada fileira de dezenas de uma coluna costuma ser UM item só (o
+// pdf.js não quebra em um item por número), então a linha às vezes tem
+// só 2 itens (1 por coluna). Com só 1 gap medido, "mediana dos gaps
+// desta linha" e "o gap de coluna que preciso avaliar" são o MESMO
+// número — nunca dava pra classificar como grande comparando com ele
+// mesmo (raiz do problema persistindo mesmo após a 1ª correção). O
+// tamanho da fonte não depende de quantos itens existem: um espaço em
+// branco normal é uma fração dele; o vão entre 2 colunas de um
+// formulário é ordens de grandeza maior.
 function extrairJogosDeItensPosicionados(itens) {
     if (!itens || itens.length === 0) return [];
+    const validos = itens.filter(it => it && it.str && it.str.trim());
+    if (validos.length === 0) return [];
+
+    const largura = (it) => (typeof it.width === 'number' && it.width > 0) ? it.width : 0;
+    const fontesValidas = validos.map(it => it.fontSize).filter(f => typeof f === 'number' && f > 0);
+    const fontTipica = fontesValidas.length > 0
+        ? fontesValidas.reduce((s, f) => s + f, 0) / fontesValidas.length
+        : 10;
+    const limiarColuna = Math.max(fontTipica * 8, 40);
 
     const linhas = [];
-    for (const it of itens) {
-        if (!it || !it.str || !it.str.trim()) continue;
+    for (const it of validos) {
         let linha = linhas.find(l => Math.abs(l.y - it.y) <= 3);
         if (!linha) { linha = { y: it.y, itens: [] }; linhas.push(linha); }
         linha.itens.push(it);
     }
-    if (linhas.length === 0) return [];
     linhas.sort((a, b) => b.y - a.y); // topo → base
     linhas.forEach(l => l.itens.sort((a, b) => a.x - b.x));
 
     const linhasComSegmentos = linhas.map(l => {
         const its = l.itens;
         if (its.length <= 1) return [its];
-        const gaps = [];
-        for (let i = 1; i < its.length; i++) gaps.push(its[i].x - its[i - 1].x);
-        const gapsOrdenados = [...gaps].sort((a, b) => a - b);
-        const mediana = gapsOrdenados[Math.floor(gapsOrdenados.length / 2)] || 1;
-        const limiar = Math.max(mediana * 4, 20);
         const segmentos = [[its[0]]];
         for (let i = 1; i < its.length; i++) {
-            if (gaps[i - 1] > limiar) segmentos.push([]);
+            const fimAnterior = its[i - 1].x + largura(its[i - 1]);
+            const gap = its[i].x - fimAnterior;
+            if (gap > limiarColuna) segmentos.push([]);
             segmentos[segmentos.length - 1].push(its[i]);
         }
         return segmentos;
@@ -508,7 +523,11 @@ async function extrairDadosPdf(file) {
         const content = await page.getTextContent();
         for (const item of content.items) {
             if (!item.str || !item.str.trim()) continue;
-            itens.push({ str: item.str, x: item.transform[4], y: item.transform[5] });
+            // transform[2]/[3] dão a escala vertical do texto — aproxima o
+            // tamanho da fonte independente de rotação, usado como escala
+            // do limiar de "gap de coluna" em extrairJogosDeItensPosicionados.
+            const fontSize = Math.hypot(item.transform[2], item.transform[3]) || 10;
+            itens.push({ str: item.str, x: item.transform[4], y: item.transform[5], width: item.width, fontSize });
         }
         // Reagrupa os fragmentos por posição vertical pra reconstruir
         // linhas (o comprovante é 2 colunas; a ordem crua do pdf.js nem

@@ -40,6 +40,25 @@ function criarItens(colunas, { passoX = 10, passoY = 15, gapColuna = 450, yInici
   return itens;
 }
 
+// Variante mais fiel ao pdf.js real: CADA LINHA DE UMA COLUNA É UM ÚNICO
+// ITEM (não um por token/número) — foi por isso que a 1ª correção
+// (mediana de gaps DENTRO da linha) não resolveu de verdade: uma linha
+// com só 2 itens (1 por coluna) tem 1 gap só, e "mediana dos gaps desta
+// linha" comparada com "o próprio gap" nunca classifica como grande.
+function criarItensUmItemPorLinha(colunas, { xBase0 = 50, gapColuna = 500, passoY = 15, yInicial = 800, fontSize = 10 } = {}) {
+  const itens = [];
+  const nLinhas = Math.max(...colunas.map(c => c.length));
+  for (let linha = 0; linha < nLinhas; linha++) {
+    const y = yInicial - linha * passoY;
+    colunas.forEach((coluna, colIdx) => {
+      const texto = coluna[linha];
+      if (texto === undefined) return;
+      itens.push({ str: texto, x: xBase0 + colIdx * gapColuna, y, width: texto.length * 5, fontSize });
+    });
+  }
+  return itens;
+}
+
 test('itens vazios/nulos não quebram, devolvem lista vazia', () => {
   assert.deepEqual(plano(extrairJogos([])), []);
   assert.deepEqual(plano(extrairJogos(null)), []);
@@ -97,6 +116,37 @@ test('2 colunas, jogo quebrado em 2 linhas (bug real da Lotofácil da Independê
   );
   assert.equal(jogos[0].length, 17);
   assert.equal(jogos[1].length, 17);
+});
+
+// Mesmo bug, mas com o formato de item mais provável no pdf.js real —
+// cada fileira de dezenas de uma coluna é UM ÚNICO item de texto (não um
+// por número/pipe). É o caso que a 1ª correção (mediana de gaps DENTRO
+// da própria linha) não cobria: com só 2 itens na linha (1 por coluna),
+// há um único gap medido, e ele nunca é maior que "a mediana dele
+// mesmo" — o limiar baseado no tamanho da fonte resolve isso.
+test('2 colunas, 1 item de texto por linha por coluna (formato real do pdf.js — reproduz o bug que persistiu)', () => {
+  const itens = criarItensUmItemPorLinha([
+    [
+      'Jogo 1',
+      '01 | 03 | 05 | 06 | 07 | 09 | 11 | 12 | 13 | 14 | 16 | 17 |',
+      '19 | 20 | 21 | 23 | 24',
+    ],
+    [
+      'Jogo 2',
+      '01 | 02 | 04 | 05 | 06 | 07 | 11 | 12 | 15 | 16 | 17 | 18 |',
+      '19 | 20 | 21 | 24 | 25',
+    ],
+  ]);
+  const jogos = extrairJogos(itens);
+  assert.equal(jogos.length, 2);
+  assert.deepEqual(
+    plano(jogos[0]),
+    [1, 3, 5, 6, 7, 9, 11, 12, 13, 14, 16, 17, 19, 20, 21, 23, 24]
+  );
+  assert.deepEqual(
+    plano(jogos[1]),
+    [1, 2, 4, 5, 6, 7, 11, 12, 15, 16, 17, 18, 19, 20, 21, 24, 25]
+  );
 });
 
 // Ponta a ponta: parsearComprovanteCaixa aceitando jogosPreExtraidos
