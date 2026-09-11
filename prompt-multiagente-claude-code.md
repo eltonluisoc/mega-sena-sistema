@@ -498,6 +498,21 @@ Também: botão "🗑️ Limpar" no rodapé da importação pra descartar a list
 
 Versão web (Service Worker) v33 → v34.
 
+## Rodada 29 — Importação de PDF: jogo quebrado em 2 linhas + 2 colunas misturava os números (v35)
+
+Usuário testou com um comprovante Lotofácil "da Independência" (17 dezenas por jogo, acima do que cabe numa linha só) e achou um caso pior que o da Rodada 28: Jogo 1 veio com 29 números misturados (união dos 2 jogos) e Jogo 2 só com 5 (o resto). Causa: quando um jogo tem dezenas demais pra caber numa linha, o comprovante quebra em 2 linhas — e a quebra caiu bem depois de um "|", deixando a coluna A terminar a 1ª linha com um pipe solto. Ao achatar tudo numa string só (jeito da Rodada 28), esse pipe solto da coluna A grudava direto no primeiro número da coluna B — e isso é **literalmente indistinguível**, em texto puro, de uma continuação de verdade da própria coluna A pra 2ª linha. Não dava pra resolver só com regex melhor; a ambiguidade é real.
+
+**Correção — usar a posição de verdade em vez de texto achatado**:
+- Nova `extrairJogosDeItensPosicionados(itens)`: recebe os itens do pdf.js com x/y reais (não mais só a string final). Agrupa por LINHA (y, tolerância 3px), separa cada linha em "colunas" onde o gap horizontal é ≥4x a mediana dos gaps da própria linha (a coluna A e a coluna B ficam claramente mais afastadas entre si do que os números dentro de cada uma), e reagrupa por ÍNDICE de coluna — coluna 0 de todas as linhas vira uma sequência própria, coluna 1 vira outra. Isso mantém a quebra de linha DENTRO da mesma coluna colada certo (o `\s*` do regex ainda atravessa o `\n`) sem nunca misturar com a coluna vizinha.
+- `extrairJogosDoTexto(texto)`: a lógica antiga (Rodada 28, achatada) virou uma função própria, mantida como **fallback** pra quando não há posição disponível (e é o que os testes com string direta continuam exercitando).
+- `extrairTextoPdf` virou `extrairDadosPdf(file)`, devolvendo `{texto, itens}` — o texto achatado continua servindo pra Modalidade/Concurso (que são "rótulo: valor" na mesma linha, sobrevivem ao achatamento), e os itens posicionados alimentam a extração de jogos.
+- `parsearComprovanteCaixa` ganhou `opts.jogosPreExtraidos` — usa quando fornecido (é o que `processarPdfsImportacao` sempre passa agora), senão cai no fallback em texto puro.
+- 5 testes novos em `test/parser-comprovante-posicoes.test.js`, com fixtures sintéticas de coordenadas reproduzindo o bug exato (2 colunas, jogo de 17 dezenas quebrado em 2 linhas) — confirmando os 2 jogos saem certos, sem mistura.
+
+`sw.js`: `CACHE_NAME` → v35.
+
+Versão web (Service Worker) v34 → v35.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
