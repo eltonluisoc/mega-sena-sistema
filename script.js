@@ -467,7 +467,23 @@ function calcularChancesBolao(cartoesBolao, loteria) {
 }
 
 function ordenarCartoesPorAcertos(cartoesLista, numerosSorteados) {
-    if (!numerosSorteados) return cartoesLista;
+    if (!numerosSorteados) {
+        // Antes de conferir o resultado não existe "acertos" pra ordenar
+        // por — mostra em ordem crescente pelas próprias dezenas do
+        // cartão (comparando posição a posição, ex.: [05,18,23,...] vem
+        // antes de [08,13,23,...]) em vez da ordem crua de gravação no
+        // Firestore. Depois que o resultado é conferido, quem chama esta
+        // função sempre passa numerosSorteados — cai no ramo de baixo,
+        // que não muda em nada (melhor resultado primeiro, como sempre).
+        return [...cartoesLista].sort((a, b) => {
+            const na = a.numeros, nb = b.numeros;
+            const len = Math.min(na.length, nb.length);
+            for (let i = 0; i < len; i++) {
+                if (na[i] !== nb[i]) return na[i] - nb[i];
+            }
+            return na.length - nb.length;
+        });
+    }
 
     return [...cartoesLista].sort((a, b) => {
         const acertosA = a.numeros.filter(n => numerosSorteados.includes(n)).length;
@@ -718,8 +734,9 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
                 else corAcertos = '#cbd5e1';
             }
             
-            const tipoParticipacao = cartao.tipoParticipacao === 'cota' ? '🎟️ Cota' : '👥 Exclusivo';
-            
+            const tipoParticipacao = (cartao.tipoParticipacao === 'cota' ? '🎟️ Cota' : '👥 Exclusivo')
+                + ` · ${cartao.numeros.length} números`;
+
             html += `<div class="cartao-item-unificado">
                         <div class="cartao-header">
                             <span class="cartao-bolao">${cartao.bolao} - ${tipoParticipacao}</span>
@@ -827,7 +844,8 @@ async function mostrarCartoes(numerosSorteados = null) {
             html += `<div style="display:flex;flex-direction:column;gap:10px;">`;
 
             for (const cartao of lista) {
-                const tipoParticipacao = cartao.tipoParticipacao === 'cota' ? '🎟️ Cota' : '👥 Exclusivo';
+                const tipoParticipacao = (cartao.tipoParticipacao === 'cota' ? '🎟️ Cota' : '👥 Exclusivo')
+                    + ` · ${cartao.numeros.length} números`;
                 const acertosCount = numerosSorteados ? cartao.numeros.filter(n => numerosSorteados.includes(n)).length : 0;
                 
                 const numsHtml = cartao.numeros.map(n => {
