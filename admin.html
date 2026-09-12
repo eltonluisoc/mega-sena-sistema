@@ -1045,6 +1045,22 @@
             .bolao-config .estrategia-input {
                 grid-column: span 2;
             }
+            /* Card de "Gerenciar Bolões" (carregarBoloesParaGerenciar):
+               os 4 campos (Status/Destaque/Data limite/Estratégia) ficam
+               lado a lado no desktop porque cabem; no celular, a soma dos
+               min-width de cada um passa da largura da tela e o de
+               Estratégia (o mais largo) fica cortado. Empilha 1 por linha
+               — precisa de !important porque cada campo tem largura fixa
+               em style="" inline (gerado no JS), que sempre vence uma
+               regra de classe sem isso. */
+            .bolao-controles-linha {
+                flex-direction: column !important;
+                gap: 10px !important;
+            }
+            .bolao-controle-campo {
+                min-width: 0 !important;
+                width: 100%;
+            }
             .bolao-header {
                 gap: 6px;
             }

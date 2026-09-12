@@ -1601,8 +1601,8 @@ async function carregarBoloesParaGerenciar() {
                     <!-- Controles: 4 campos lado a lado, cada um com rótulo
                          pequeno em cima — mais fácil de escanear do que a
                          grade "auto 1fr auto 1fr auto" de antes. -->
-                    <div style="display: flex; flex-wrap: wrap; gap: 14px; padding: 12px 0; margin: 10px 0; border-top: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9;">
-                        <div style="min-width: 100px;">
+                    <div class="bolao-controles-linha" style="display: flex; flex-wrap: wrap; gap: 14px; padding: 12px 0; margin: 10px 0; border-top: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9;">
+                        <div class="bolao-controle-campo" style="min-width: 100px;">
                             <div style="font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px;">Status</div>
                             <select class="status-select" data-id="${bolao.id}" style="padding: 6px 8px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 12px; width: 100%;">
                                 <option value="aberto" ${status === 'aberto' ? 'selected' : ''}>🟢 Aberto</option>
@@ -1610,7 +1610,7 @@ async function carregarBoloesParaGerenciar() {
                                 <option value="encerrado" ${status === 'encerrado' ? 'selected' : ''}>🔴 Encerrado</option>
                             </select>
                         </div>
-                        <div>
+                        <div class="bolao-controle-campo">
                             <div style="font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px;">Destaque</div>
                             <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
                                 <label class="switch-destaque" style="position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0;">
@@ -1622,11 +1622,11 @@ async function carregarBoloesParaGerenciar() {
                                 <span id="destaque-label-${bolao.id}" style="font-size: 11px; font-weight: 600; color: ${isDestaque ? '#f59e0b' : '#94a3b8'};">${isDestaque ? 'ON' : 'OFF'}</span>
                             </div>
                         </div>
-                        <div style="min-width: 140px;">
+                        <div class="bolao-controle-campo" style="min-width: 140px;">
                             <div style="font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px;">Data limite</div>
                             <input type="date" class="data-limite-input" data-id="${bolao.id}" value="${dataLimiteMap[bolao.id] || ''}" style="padding: 6px 8px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 12px; width: 100%;">
                         </div>
-                        <div style="flex: 1; min-width: 160px;">
+                        <div class="bolao-controle-campo" style="flex: 1; min-width: 160px;">
                             <div style="font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px;">Estratégia</div>
                             <input type="text" class="estrategia-textarea" data-id="${bolao.id}" value="${estrategiaMap[bolao.id] || ''}" placeholder="Ex: 2 apostas por semana" style="padding: 6px 8px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 12px; width: 100%;">
                         </div>
