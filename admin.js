@@ -1566,25 +1566,28 @@ async function carregarBoloesParaGerenciar() {
             const status = statusMap[bolao.id] || 'andamento';
             const isDestaque = destaqueMap[bolao.id] === true;
             
+            // Tons de sistema da Apple (verde/laranja/vermelho), não mais
+            // as cores genéricas de UI kit de antes — bate com a paleta
+            // que o resto do admin já usa (var(--cor-sucesso) etc.).
             let statusIcon = '';
             let statusColor = '';
             let statusBg = '';
             if (status === 'aberto') {
                 statusIcon = '🟢';
-                statusColor = '#065f46';
-                statusBg = '#d1fae5';
+                statusColor = '#1a7431';
+                statusBg = '#d1f7db';
             } else if (status === 'andamento') {
                 statusIcon = '🟡';
-                statusColor = '#92400e';
-                statusBg = '#fef3c7';
+                statusColor = '#9a5b00';
+                statusBg = '#ffe8cc';
             } else if (status === 'encerrado') {
                 statusIcon = '🔴';
-                statusColor = '#991b1b';
-                statusBg = '#fee2e2';
+                statusColor = '#c41e1a';
+                statusBg = '#ffd9d6';
             }
-            
+
             html += `
-                <div style="padding: 14px 16px; margin-bottom: 10px; background: ${isDestaque ? '#fffbeb' : 'white'}; border-radius: 12px; border: 1px solid ${isDestaque ? '#fde68a' : '#e2e8f0'}; border-left: 4px solid ${status === 'aberto' ? '#10b981' : status === 'andamento' ? '#f59e0b' : '#ef4444'};">
+                <div style="padding: 14px 16px; margin-bottom: 10px; background: ${isDestaque ? '#fffbeb' : 'white'}; border-radius: 12px; border: 1px solid ${isDestaque ? '#fde68a' : '#e2e8f0'}; border-left: 4px solid ${status === 'aberto' ? 'var(--cor-sucesso)' : status === 'andamento' ? 'var(--cor-aviso)' : 'var(--cor-erro)'};">
 
                     <!-- Cabeçalho: checkbox + título + badges (título e a
                          estrela de destaque, se ligada, entram nesta MESMA
