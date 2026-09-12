@@ -616,6 +616,20 @@ Usuário recusou a proposta de Windows Hello (Rodada 36, item 3) — "só faz o 
 
 Versão web (Service Worker) v40 → v41.
 
+## Rodada 38 — Revisão de usabilidade do admin web: menu, Gerenciar Bolões, lista pro WhatsApp, Ver Pendentes (v42)
+
+Usuário pediu uma revisão de usabilidade em 5 pontos do admin web, fechando com "quero versão superior".
+
+1. **Menu lateral em 2 colunas** — 8 itens ocupavam 8 linhas de altura; virou grade 2×4 (ícone empilhado sobre o rótulo, já que lado a lado não cabia em ~120px de coluna). Sidebar alargada de 220px pra 260px pra caber, breakpoint de 1024px ajustado de 180px pra 210px pelo mesmo motivo. Mobile (≤768px) preservado igual — os `.sidebar-item` viram chips horizontais como já eram, só recebendo `flex-direction: row` de volta nesse breakpoint (a base agora é `column`).
+2. **"Gerenciar Bolões" redesenhado** — a grade de controles `auto 1fr auto 1fr auto` (Status/Destaque/Data/Estratégia) virou 4 campos lado a lado, cada um com rótulo pequeno em maiúsculas em cima — bem mais fácil de escanear. Botões "Link"/"Excluir" (antes pills com estilo 100% inline, tamanhos batendo com nada mais do painel) viraram `.btn.btn-primary.btn-sm`/`.btn.btn-danger.btn-sm`. Cuidado extra: o toggle de "Destaque" atualiza a UI na hora via manipulação direta do DOM (sem re-renderizar a lista) — preservada a estrutura exata que esse código depende (primeiro `<div>` do card = cabeçalho, wrapper `.switch-destaque`, badge `.badge-destaque`, span `destaque-label-{id}`), só o visual ao redor mudou.
+3. **"Copiar Lista pro WhatsApp"** — novo botão na aba "Participantes por Bolão": monta uma mensagem formatada (nome, cotas, pago/total, ✅/⚠️ por status) a partir dos mesmos dados já carregados pra tela, e copia pra área de transferência (`navigator.clipboard.writeText`) — pronta pra colar direto num grupo.
+4. **"Ver Pendentes" nas Reservas** — novo botão que lê `reservas_movimentos_pendentes` (a fila que o desktop importa e apaga sozinho) e mostra o que ainda está esperando ser importado. Resolve um risco real: sem isso, não tinha como saber se um lançamento já registrado no site ainda não tinha "chegado" no desktop, abrindo brecha pra registrar o mesmo movimento 2x.
+5. **Botões da aba Reservas padronizados** — "Registrar"/"Lote"/"Atualizar" tinham `min-width` diferentes entre si e um deles reimplementava a cor roxa com `style` inline em vez de usar `.btn-purple` (que já existia no CSS). Agora todos usam `.btn-sm` + a classe de cor certa.
+
+`sw.js`: `CACHE_NAME` → v42.
+
+Versão web (Service Worker) v41 → v42.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
