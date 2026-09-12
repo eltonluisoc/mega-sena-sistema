@@ -469,19 +469,22 @@ function calcularChancesBolao(cartoesBolao, loteria) {
 function ordenarCartoesPorAcertos(cartoesLista, numerosSorteados) {
     if (!numerosSorteados) {
         // Antes de conferir o resultado não existe "acertos" pra ordenar
-        // por — mostra em ordem crescente pelas próprias dezenas do
-        // cartão (comparando posição a posição, ex.: [05,18,23,...] vem
-        // antes de [08,13,23,...]) em vez da ordem crua de gravação no
-        // Firestore. Depois que o resultado é conferido, quem chama esta
-        // função sempre passa numerosSorteados — cai no ramo de baixo,
-        // que não muda em nada (melhor resultado primeiro, como sempre).
+        // por — mostra do cartão com MAIS dezenas pro com menos (o
+        // rótulo "Cota · N números" de cada cartão é exatamente esse
+        // critério, então a lista fica visivelmente em ordem). Em caso de
+        // empate na quantidade, desempata pelas próprias dezenas
+        // (crescente, posição a posição). Depois que o resultado é
+        // conferido, quem chama esta função sempre passa
+        // numerosSorteados — cai no ramo de baixo, que não muda em nada
+        // (melhor resultado primeiro, como sempre).
         return [...cartoesLista].sort((a, b) => {
             const na = a.numeros, nb = b.numeros;
-            const len = Math.min(na.length, nb.length);
+            if (nb.length !== na.length) return nb.length - na.length;
+            const len = na.length;
             for (let i = 0; i < len; i++) {
                 if (na[i] !== nb[i]) return na[i] - nb[i];
             }
-            return na.length - nb.length;
+            return 0;
         });
     }
 

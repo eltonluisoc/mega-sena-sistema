@@ -53,15 +53,23 @@ test('ordenarCartoesPorAcertos - ordena do maior para o menor número de acertos
 // pedido do usuário pra mostrar em ordem crescente pelas próprias
 // dezenas do cartão em vez da ordem crua de gravação no Firestore
 // (comportamento antigo, que este teste travava).
-test('ordenarCartoesPorAcertos - sem números sorteados, ordena pelas próprias dezenas (crescente)', () => {
+test('ordenarCartoesPorAcertos - sem números sorteados, ordena por QUANTIDADE de dezenas (maior pra menor)', () => {
+  const cartoes = [
+    { id: 'b', numeros: [8, 13, 23] },       // 3 dezenas
+    { id: 'a', numeros: [5, 18, 23, 30] },   // 4 dezenas — deve vir primeiro
+    { id: 'c', numeros: [5, 20] },           // 2 dezenas — deve vir por último
+  ];
+  const ordenado = sandbox.ordenarCartoesPorAcertos(cartoes, null);
+  assert.deepEqual(Array.from(ordenado, c => c.id), ['a', 'b', 'c']);
+});
+
+test('ordenarCartoesPorAcertos - sem números sorteados, empate na quantidade desempata pelas dezenas (crescente)', () => {
   const cartoes = [
     { id: 'b', numeros: [8, 13, 23] },
     { id: 'a', numeros: [5, 18, 23] },
-    { id: 'c', numeros: [5, 20] },
   ];
   const ordenado = sandbox.ordenarCartoesPorAcertos(cartoes, null);
-  // a=[5,18,23] < c=[5,20] (empata no 1º número, 18<20 no 2º) < b=[8,...]
-  assert.deepEqual(Array.from(ordenado, c => c.id), ['a', 'c', 'b']);
+  assert.deepEqual(Array.from(ordenado, c => c.id), ['a', 'b']);
 });
 
 test('ordenarCartoesPorAcertos - sem números sorteados, não modifica o array original', () => {
