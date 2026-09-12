@@ -630,6 +630,20 @@ Usuário pediu uma revisão de usabilidade em 5 pontos do admin web, fechando co
 
 Versão web (Service Worker) v41 → v42.
 
+## Rodada 39 — Menu 2 colunas confirmado ok (era cache); campo Estratégia cortado no mobile (v43)
+
+Usuário reportou "o menu continua centralizado e em oito linhas" logo após a Rodada 38. Verificado direto: o código-fonte E o deploy ao vivo no GitHub Pages (`curl` na URL pública) já tinham a grade de 2 colunas correta — confirmando que era cache do navegador/Service Worker, não bug de código (mesma classe de problema já visto nas Rodadas 17-18). Usuário confirmou depois: "no desktop excelente".
+
+**Mas achou um bug real diferente**: no mobile, o card de cada bolão em "Gerenciar Bolões" cortava o campo "Estratégia". Causa: os 4 campos (Status/Destaque/Data limite/Estratégia) da Rodada 38 ficam lado a lado via `flex-wrap`, cada um com `min-width` próprio em `style=""` inline (gerado no JS) — a SOMA dos mínimos (100+140+160+gaps ≈ 430px+) passa da largura de uma tela de celular, e o campo mais largo (Estratégia) é cortado em vez de quebrar linha direito.
+
+**Correção**: novas classes `bolao-controles-linha`/`bolao-controle-campo` no render (`admin.js`) + regra `@media (max-width:768px)` empilhando os 4 campos um por linha no celular. Precisou de `!important` — inline `style=""` sempre vence uma regra de classe sem isso.
+
+**Achado incidental**: existe um sistema CSS completo e já responsivo (`.bolao-card`, `.bolao-header`, `.bolao-config`, `.switch-modern`, `.bolao-actions`) parado no `admin.html`, nunca referenciado em nenhum JS/HTML — claramente uma versão anterior do redesenho de "Gerenciar Bolões" que nunca chegou a ser ligada. Decisão: **não adotar** (arriscado reconstruir a estrutura DOM exata que esse CSS espera, arriscando quebrar algo, sem ganho de correção sobre o fix cirúrgico já aplicado) — mas vale saber que existe, caso alguma rodada futura queira migrar pra ele de propósito.
+
+`sw.js`: `CACHE_NAME` → v43.
+
+Versão web (Service Worker) v42 → v43.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
