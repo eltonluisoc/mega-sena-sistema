@@ -674,6 +674,16 @@ Usuário pediu, no site público (tela de conferência): (1) mostrar quantos nú
 
 Versão web (Service Worker) v44 → v45.
 
+## Rodada 42 — Ordenação da Rodada 41 usava o critério errado (v46)
+
+Usuário testou e apontou: a lista continuava "fora de ordem" (9, 8, 8, 9, 8 números seguidos). Causa: a Rodada 41 implementou "ordem de números" como ordenar pelas DEZENAS em si (`[5,18,23]` antes de `[8,13,23]`) — mas o pedido original era ordenar pela QUANTIDADE de dezenas do cartão, exatamente o critério que o próprio rótulo "Cota · N números" já exibe ao lado. Como o critério usado não batia com o que estava visível na tela, a lista parecia embaralhada mesmo estando "ordenada" (por outra coisa).
+
+**Correção**: `ordenarCartoesPorAcertos` (ramo sem `numerosSorteados`) agora ordena por `numeros.length` decrescente (cartão com mais dezenas primeiro) — desempate por dezenas crescentes pra manter previsibilidade dentro de cartões do mesmo tamanho. Ramo pós-conferência intocado, como sempre.
+
+`sw.js`: `CACHE_NAME` → v46.
+
+Versão web (Service Worker) v45 → v46.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
