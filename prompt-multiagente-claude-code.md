@@ -661,6 +661,19 @@ Usuário pediu pra evoluir o design do admin "estilo Apple". Investigando o CSS 
 
 Versão web (Service Worker) v43 → v44.
 
+## Rodada 41 — Cartões não conferidos ordenam por dezena + rótulo mostra quantidade de números (v45)
+
+Usuário pediu, no site público (tela de conferência): (1) mostrar quantos números tem cada cartão ao lado do rótulo "Cota"/"Exclusivo"; (2) ordenar os cartões pelas próprias dezenas ANTES de conferir o resultado — com o cuidado explícito de não tocar no comportamento pós-conferência, que já mostra do melhor resultado pro pior.
+
+**Implementado em `script.js`**:
+- `ordenarCartoesPorAcertos(cartoesLista, numerosSorteados)` ganhou um ramo pro caso `numerosSorteados` nulo (antes de conferir): ordena pelas próprias dezenas do cartão, comparando posição a posição (`[5,18,23]` antes de `[8,13,23]`). O ramo com `numerosSorteados` preenchido (usado tanto por `mostrarCartoes` logo após conferir quanto por `exibirResultadoSalvo` pra um resultado já salvo antes) continua **idêntico** — ordena por acertos, melhor primeiro, como sempre foi.
+- Rótulo de tipo de participação ganhou a contagem de dezenas ao lado (ex.: "🎟️ Cota · 8 números") — relevante desde a Rodada 25/26 (aposta múltipla pode ter mais números que o mínimo da loteria). Aplicado nos 2 pontos que renderizam esse rótulo (`mostrarCartoes` e `exibirResultadoSalvo`).
+- Teste antigo que travava o comportamento anterior ("sem números sorteados retorna a lista original", sem ordenação nenhuma) foi atualizado pro novo comportamento pedido, mais um teste confirmando que o array original não é mutado (o sort é feito numa cópia).
+
+`sw.js`: `CACHE_NAME` → v45.
+
+Versão web (Service Worker) v44 → v45.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
