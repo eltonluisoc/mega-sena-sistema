@@ -644,6 +644,23 @@ Usuário reportou "o menu continua centralizado e em oito linhas" logo após a R
 
 Versão web (Service Worker) v42 → v43.
 
+## Rodada 40 — Evolução do design do admin web, mais Apple (v44)
+
+Usuário pediu pra evoluir o design do admin "estilo Apple". Investigando o CSS antes de mexer, ficou claro que uma rodada anterior (fora do que está resumido neste arquivo) já tinha estabelecido essa direção: Inter como substituta de SF Pro, `#0071e3` azul, `#1d1d1f` quase-preto na topbar, `#f5f5f7` de fundo, cantos arredondados generosos, sombras suaves, `numero-cartao-badge` imitando a bolinha de dezena sorteada do site público. Ou seja, "evolua" era literal — continuar em cima de uma base já certa, não começar do zero.
+
+**Implementado em `admin.html`**:
+- **Tokens de design** (`:root`): cor/raio/sombra/transição nomeados (`--cor-primaria`, `--cor-sucesso`, `--raio-pill` etc.) substituindo hex espalhado pelo arquivo. As cores semânticas de sucesso/aviso/erro viraram os tons de sistema da própria Apple (verde `#34c759`, laranja `#ff9500`, vermelho `#ff3b30`) em vez das genéricas de UI kit (`#10b981`/`#f59e0b`/`#ef4444`) que só alguns cantos usavam.
+- **Botões (`.btn`) viraram cápsula** (`border-radius: 980px`) — é a assinatura visual mais reconhecível de botão da Apple (App Store, apple.com "Saiba mais"). Toasts também, com sombra mais funda/suave e easing `cubic-bezier` no lugar de `ease` genérico.
+- **Barra superior e menu lateral ganharam vidro fosco** (`backdrop-filter: saturate(180%) blur(20px)` sobre fundo translúcido) em vez de cor sólida — a Apple usa exatamente isso nas próprias barras de navegação (Finder, Mail, barra de menu do macOS).
+- Cabeçalhos de card e números grandes do dashboard com `letter-spacing` mais fechado (efeito SF Pro Display) + `font-variant-numeric: tabular-nums` pra número não "pular" de largura ao trocar.
+- Cores de status em "Gerenciar Bolões" (introduzidas na Rodada 38) trocadas pros tons de sistema da Apple, ficando consistentes com o resto do painel.
+
+**Decidido não fazer**: adotar o sistema `.bolao-card`/`.bolao-config` morto encontrado na Rodada 39 — o risco de reconstruir a estrutura DOM exata que ele espera, só por uma rodada de design, não valia a pena frente ao ganho.
+
+`sw.js`: `CACHE_NAME` → v44.
+
+Versão web (Service Worker) v43 → v44.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
