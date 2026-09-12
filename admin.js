@@ -1584,54 +1584,60 @@ async function carregarBoloesParaGerenciar() {
             }
             
             html += `
-                <div style="padding: 12px 14px; border-bottom: 1px solid #e2e8f0; margin-bottom: 8px; background: ${isDestaque ? '#fef3c7' : 'white'}; border-radius: 10px; border-left: 4px solid ${status === 'aberto' ? '#10b981' : status === 'andamento' ? '#f59e0b' : '#ef4444'};">
-                    
-                    <!-- LINHA 1: Checkbox + Título + Status + Destaque Badge -->
+                <div style="padding: 14px 16px; margin-bottom: 10px; background: ${isDestaque ? '#fffbeb' : 'white'}; border-radius: 12px; border: 1px solid ${isDestaque ? '#fde68a' : '#e2e8f0'}; border-left: 4px solid ${status === 'aberto' ? '#10b981' : status === 'andamento' ? '#f59e0b' : '#ef4444'};">
+
+                    <!-- Cabeçalho: checkbox + título + badges (título e a
+                         estrela de destaque, se ligada, entram nesta MESMA
+                         div — o toggle de destaque insere/remove a estrela
+                         aqui via JS, sem re-renderizar o card inteiro) -->
                     <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                         <input type="checkbox" class="checkbox-bolao" data-id="${bolao.id}" ${checked} style="width: 20px; height: 20px; cursor: pointer; accent-color: #0071e3; flex-shrink: 0;">
-                        <strong style="font-size: 14px; color: #1e293b;">${bolao.titulo || 'Sem título'}</strong>
-                        <span style="font-size: 11px; background: ${statusBg}; color: ${statusColor}; padding: 2px 10px; border-radius: 30px; font-weight: 600;">${statusIcon} ${status.toUpperCase()}</span>
-                        <span style="font-size: 11px; color: #64748b;">👥 ${bolao.participantes?.length || 0}</span>
-                        ${isDestaque ? '<span style="font-size: 10px; background: #f59e0b; color: white; padding: 2px 8px; border-radius: 30px; font-weight: 700;">⭐</span>' : ''}
+                        <strong style="font-size: 15px; color: #1e293b; flex: 1; min-width: 140px;">${escapeHtml(bolao.titulo || 'Sem título')}</strong>
+                        <span style="font-size: 11px; background: ${statusBg}; color: ${statusColor}; padding: 3px 12px; border-radius: 30px; font-weight: 600; white-space: nowrap;">${statusIcon} ${status.toUpperCase()}</span>
+                        <span style="font-size: 11px; color: #64748b; background: #f1f5f9; padding: 3px 10px; border-radius: 30px; white-space: nowrap;">👥 ${bolao.participantes?.length || 0}</span>
+                        ${isDestaque ? '<span class="badge-destaque" style="font-size: 10px; background: #f59e0b; color: white; padding: 2px 8px; border-radius: 30px; font-weight: 700; margin-left: 4px;">⭐</span>' : ''}
                     </div>
-                    
-                    <!-- LINHA 2: Configurações em GRID -->
-                    <div style="margin-top: 8px; display: grid; grid-template-columns: auto 1fr auto 1fr auto; gap: 6px 10px; align-items: center; padding-left: 30px;">
-                        
-                        <!-- DESTAQUE - SWITCH -->
-                        <span style="font-size: 12px; font-weight: 600; color: #1e293b;">⭐</span>
-                        <label class="switch-destaque" style="position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0;">
-                            <input type="checkbox" class="checkbox-destaque" data-id="${bolao.id}" ${isDestaque ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;">
-                            <span class="slider-destaque" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: ${isDestaque ? '#f59e0b' : '#cbd5e1'}; transition: 0.3s; border-radius: 30px;">
-                                <span class="thumb" style="position: absolute; height: 18px; width: 18px; left: ${isDestaque ? '23px' : '3px'}; bottom: 3px; background: white; transition: 0.3s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.15); display: flex; align-items: center; justify-content: center; font-size: 10px;">
-                                    ${isDestaque ? '⭐' : ''}
-                                </span>
-                            </span>
-                        </label>
-                        <span id="destaque-label-${bolao.id}" style="font-size: 11px; font-weight: 600; color: ${isDestaque ? '#f59e0b' : '#94a3b8'}; min-width: 35px;">${isDestaque ? 'ON' : 'OFF'}</span>
-                        
-                        <!-- STATUS -->
-                        <span style="font-size: 12px; font-weight: 600; color: #1e293b;">Status</span>
-                        <select class="status-select" data-id="${bolao.id}" style="padding: 3px 8px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 12px;">
-                            <option value="aberto" ${status === 'aberto' ? 'selected' : ''}>🟢 ABERTO</option>
-                            <option value="andamento" ${status === 'andamento' ? 'selected' : ''}>🟡 ANDAMENTO</option>
-                            <option value="encerrado" ${status === 'encerrado' ? 'selected' : ''}>🔴 ENCERRADO</option>
-                        </select>
+
+                    <!-- Controles: 4 campos lado a lado, cada um com rótulo
+                         pequeno em cima — mais fácil de escanear do que a
+                         grade "auto 1fr auto 1fr auto" de antes. -->
+                    <div style="display: flex; flex-wrap: wrap; gap: 14px; padding: 12px 0; margin: 10px 0; border-top: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9;">
+                        <div style="min-width: 100px;">
+                            <div style="font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px;">Status</div>
+                            <select class="status-select" data-id="${bolao.id}" style="padding: 6px 8px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 12px; width: 100%;">
+                                <option value="aberto" ${status === 'aberto' ? 'selected' : ''}>🟢 Aberto</option>
+                                <option value="andamento" ${status === 'andamento' ? 'selected' : ''}>🟡 Andamento</option>
+                                <option value="encerrado" ${status === 'encerrado' ? 'selected' : ''}>🔴 Encerrado</option>
+                            </select>
+                        </div>
+                        <div>
+                            <div style="font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px;">Destaque</div>
+                            <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
+                                <label class="switch-destaque" style="position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0;">
+                                    <input type="checkbox" class="checkbox-destaque" data-id="${bolao.id}" ${isDestaque ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;">
+                                    <span class="slider-destaque" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: ${isDestaque ? '#f59e0b' : '#cbd5e1'}; transition: 0.3s; border-radius: 30px;">
+                                        <span class="thumb" style="position: absolute; height: 16px; width: 16px; left: ${isDestaque ? '21px' : '3px'}; bottom: 3px; background: white; transition: 0.3s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.15); display: flex; align-items: center; justify-content: center; font-size: 9px;">${isDestaque ? '⭐' : ''}</span>
+                                    </span>
+                                </label>
+                                <span id="destaque-label-${bolao.id}" style="font-size: 11px; font-weight: 600; color: ${isDestaque ? '#f59e0b' : '#94a3b8'};">${isDestaque ? 'ON' : 'OFF'}</span>
+                            </div>
+                        </div>
+                        <div style="min-width: 140px;">
+                            <div style="font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px;">Data limite</div>
+                            <input type="date" class="data-limite-input" data-id="${bolao.id}" value="${dataLimiteMap[bolao.id] || ''}" style="padding: 6px 8px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 12px; width: 100%;">
+                        </div>
+                        <div style="flex: 1; min-width: 160px;">
+                            <div style="font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px;">Estratégia</div>
+                            <input type="text" class="estrategia-textarea" data-id="${bolao.id}" value="${estrategiaMap[bolao.id] || ''}" placeholder="Ex: 2 apostas por semana" style="padding: 6px 8px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 12px; width: 100%;">
+                        </div>
                     </div>
-                    
-                    <!-- LINHA 3: Data + Estratégia -->
-                    <div style="margin-top: 6px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-left: 30px;">
-                        <span style="font-size: 12px; font-weight: 600; color: #1e293b;">📅</span>
-                        <input type="date" class="data-limite-input" data-id="${bolao.id}" value="${dataLimiteMap[bolao.id] || ''}" style="padding: 3px 8px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 12px; max-width: 140px;">
-                        
-                        <span style="font-size: 12px; font-weight: 600; color: #1e293b; margin-left: 4px;">📝</span>
-                        <input type="text" class="estrategia-textarea" data-id="${bolao.id}" value="${estrategiaMap[bolao.id] || ''}" style="flex: 1; min-width: 120px; padding: 3px 8px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 12px;" placeholder="Estratégia...">
-                    </div>
-                    
-                    <!-- LINHA 4: Botões (Final do card) -->
-                    <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
-                        <button class="btn-link-participantes" data-id="${bolao.id}" data-titulo="${escapeHtml(bolao.titulo)}" style="background: #0071e3; color: white; border: none; padding: 4px 14px; border-radius: 20px; cursor: pointer; font-size: 11px; font-weight: 600;">📋 LINK</button>
-                        <button class="btn-excluir-bolao" data-id="${bolao.id}" data-titulo="${escapeHtml(bolao.titulo)}" style="background: #ef4444; color: white; border: none; padding: 4px 14px; border-radius: 20px; cursor: pointer; font-size: 11px; font-weight: 600;">🗑️ EXCLUIR</button>
+
+                    <!-- Ações — botões padronizados (.btn), não mais pills
+                         com tamanho/estilo próprios divergindo do resto do
+                         painel. -->
+                    <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                        <button class="btn-link-participantes btn btn-primary btn-sm" data-id="${bolao.id}" data-titulo="${escapeHtml(bolao.titulo)}">📋 Link</button>
+                        <button class="btn-excluir-bolao btn btn-danger btn-sm" data-id="${bolao.id}" data-titulo="${escapeHtml(bolao.titulo)}">🗑️ Excluir</button>
                     </div>
                 </div>
             `;
@@ -3155,33 +3161,46 @@ function handleSelectChange(event) {
         carregarParticipantesAdmin(id);
     } else {
         document.getElementById('listaParticipantesAdmin').innerHTML = '<div class="empty-state">Selecione um bolão para ver os participantes</div>';
+        const btnCopiar = document.getElementById('btnCopiarListaWhatsApp');
+        if (btnCopiar) btnCopiar.disabled = true;
+        _participantesAdminAtuais = [];
     }
 }
 
+// Guardados aqui pra "Copiar Lista pro WhatsApp" montar a mensagem sem
+// reconsultar o Firestore — mesmos dados já calculados pra tela.
+let _participantesAdminAtuais = [];
+let _bolaoParticipantesAtual = { titulo: '', valorPorCota: 0 };
+
 async function carregarParticipantesAdmin(bolaoId) {
     const container = document.getElementById('listaParticipantesAdmin');
+    const btnCopiar = document.getElementById('btnCopiarListaWhatsApp');
     if (!container) return;
-    
+
     if (!bolaoId) {
         container.innerHTML = '<div class="empty-state">Selecione um bolão para ver os participantes</div>';
+        if (btnCopiar) btnCopiar.disabled = true;
         return;
     }
-    
+
     container.innerHTML = '<div class="loading">🔍 Carregando participantes...</div>';
-    
+    if (btnCopiar) btnCopiar.disabled = true;
+
     try {
         const doc = await db.collection('participantes').doc(bolaoId).get();
         if (!doc.exists) {
             container.innerHTML = '<div class="empty-state">Bolão não encontrado</div>';
             return;
         }
-        
+
         const bolao = doc.data();
         const participantes = bolao.participantes || [];
         const valorPorCota = bolao.valorPorCota || 0;
-        
+        _bolaoParticipantesAtual = { titulo: bolao.titulo || 'Bolão', valorPorCota };
+
         if (participantes.length === 0) {
             container.innerHTML = '<div class="empty-state">Nenhum participante neste bolão</div>';
+            _participantesAdminAtuais = [];
             return;
         }
         
@@ -3239,12 +3258,90 @@ async function carregarParticipantesAdmin(bolaoId) {
             `;
         });
         html += '</div>';
-        
+
         container.innerHTML = html;
-        
+        _participantesAdminAtuais = participantesFormatados;
+        if (btnCopiar) btnCopiar.disabled = false;
+
     } catch (error) {
         console.error('Erro ao carregar participantes:', error);
         container.innerHTML = '<div class="empty-state">❌ Erro ao carregar participantes</div>';
+    }
+}
+
+// Monta a lista de participantes formatada pra colar direto no
+// WhatsApp e copia pra área de transferência — pedido do usuário pra
+// não ter que montar essa mensagem na mão toda vez.
+function copiarListaParticipantesWhatsApp() {
+    if (!_participantesAdminAtuais.length) {
+        showToast('⚠️ Selecione um bolão com participantes primeiro', 'warning');
+        return;
+    }
+
+    const { titulo, valorPorCota } = _bolaoParticipantesAtual;
+    let texto = `📋 *Lista de Participantes — ${titulo}*\n`;
+    texto += `💰 Valor por cota: R$ ${valorPorCota.toFixed(2)}\n\n`;
+
+    _participantesAdminAtuais.forEach((p, i) => {
+        const totalEsperado = p.valorPorCota * p.quantidadeCotas;
+        const icone = p.statusClass === 'pago' ? '✅' : '⚠️';
+        texto += `${i + 1}. ${icone} *${p.nome}* — ${p.quantidadeCotas} cota${p.quantidadeCotas > 1 ? 's' : ''} — `
+               + `R$ ${p.valorPago.toFixed(2)} de R$ ${totalEsperado.toFixed(2)}\n`;
+    });
+
+    const pagos = _participantesAdminAtuais.filter(p => p.statusClass === 'pago').length;
+    texto += `\n📊 Total: ${_participantesAdminAtuais.length} participante(s) — `
+           + `${pagos} pago(s), ${_participantesAdminAtuais.length - pagos} pendente(s)`;
+
+    navigator.clipboard.writeText(texto)
+        .then(() => showToast('✅ Lista copiada! Já pode colar no WhatsApp.', 'success'))
+        .catch(error => {
+            console.error('Erro ao copiar lista:', error);
+            showToast('❌ Não foi possível copiar automaticamente — copie manualmente.', 'error');
+        });
+}
+
+// Mostra os movimentos de reserva já lançados aqui no site mas que o
+// desktop ainda não importou/apagou da fila — pedido do usuário pra
+// conferir antes de registrar de novo e evitar duplicidade.
+async function verPendentesReserva() {
+    const container = document.getElementById('pendentesReservaResultado');
+    if (!container) return;
+    container.style.display = 'block';
+    container.innerHTML = '<div class="loading">🔍 Verificando pendentes...</div>';
+
+    try {
+        const snapshot = await db.collection('reservas_movimentos_pendentes').get();
+        if (snapshot.empty) {
+            container.innerHTML = `
+                <div style="text-align:center;padding:16px;background:#d1fae5;border-radius:12px;color:#065f46;">
+                    <div style="font-size:26px;">✅</div>
+                    <div style="font-weight:600;margin-top:6px;">Nenhum movimento pendente — tudo já foi importado pelo desktop.</div>
+                </div>`;
+            return;
+        }
+
+        const itens = [];
+        snapshot.forEach(doc => itens.push({ id: doc.id, ...doc.data() }));
+        itens.sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')));
+
+        let html = `
+            <div style="background:#fef9c3;padding:12px 16px;border-radius:12px;margin-bottom:10px;border-left:4px solid #f59e0b;">
+                <strong style="color:#854d0e;">⚠️ ${itens.length} movimento(s) ainda não importado(s) pelo desktop</strong>
+                <div style="font-size:12px;color:#78350f;margin-top:4px;">Confira aqui antes de registrar de novo. Cada item some sozinho assim que o app desktop abrir e importar.</div>
+            </div>`;
+        itens.forEach(m => {
+            const tipoLabel = m.tipo === 'deposito' ? '⬆️ Depósito' : '⬇️ Uso/Saque';
+            html += `
+                <div style="background:#f8fafc;border-radius:10px;padding:10px 14px;margin-bottom:8px;border:1px solid #e2e8f0;display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;">
+                    <div><strong>${escapeHtml(m.nome || '?')}</strong> — ${tipoLabel} — R$ ${Number(m.valor || 0).toFixed(2)}</div>
+                    <div style="font-size:12px;color:#64748b;">${escapeHtml(m.data || '-')}${m.descricao ? ' · ' + escapeHtml(m.descricao) : ''}</div>
+                </div>`;
+        });
+        container.innerHTML = html;
+    } catch (error) {
+        console.error('Erro ao verificar pendentes:', error);
+        container.innerHTML = '<div class="empty-state">❌ Erro ao verificar pendentes: ' + (error.message || error) + '</div>';
     }
 }
 
@@ -4256,6 +4353,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnConfirmarAlterarSenha) btnConfirmarAlterarSenha.onclick = confirmarAlterarSenha;
     const btnCancelarAlterarSenha = document.getElementById('btnCancelarAlterarSenha');
     if (btnCancelarAlterarSenha) btnCancelarAlterarSenha.onclick = fecharModalAlterarSenha;
+    const btnCopiarListaWhatsApp = document.getElementById('btnCopiarListaWhatsApp');
+    if (btnCopiarListaWhatsApp) btnCopiarListaWhatsApp.onclick = copiarListaParticipantesWhatsApp;
     if (adminBtnMega) adminBtnMega.onclick = () => setLoteriaAdmin('mega');
     if (adminBtnLotofacil) adminBtnLotofacil.onclick = () => setLoteriaAdmin('lotofacil');
     if (adminBtnQuina) adminBtnQuina.onclick = () => setLoteriaAdmin('quina');
@@ -4296,6 +4395,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     if (btnAtualizarReservas) btnAtualizarReservas.onclick = () => carregarReservas();
+    const btnVerPendentesReserva = document.getElementById('btnVerPendentesReserva');
+    if (btnVerPendentesReserva) btnVerPendentesReserva.onclick = verPendentesReserva;
     const btnRegistrarMovimentoReserva = document.getElementById('btnRegistrarMovimentoReserva');
     if (btnRegistrarMovimentoReserva) btnRegistrarMovimentoReserva.onclick = abrirModalRegistrarMovimento;
     const btnLancamentoLoteReserva = document.getElementById('btnLancamentoLoteReserva');

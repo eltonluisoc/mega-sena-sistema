@@ -125,33 +125,43 @@
         /* MENU LATERAL */
         /* ============================================ */
         .sidebar {
-            flex: 0 0 220px;
+            /* 2 colunas em vez de 1 — 8 itens em 4 linhas de altura em vez
+               de 8, a pedido do usuário ("ocupam muito espaço na tela"). */
+            flex: 0 0 260px;
             background: white;
             border-radius: 16px;
             box-shadow: 0 4px 16px rgba(0,0,0,0.06);
-            padding: 12px 0;
+            padding: 10px;
             position: sticky;
             top: 80px;
-            overflow: hidden;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
             transition: all 0.3s;
         }
 
         .sidebar-item {
+            /* Ícone empilhado sobre o rótulo (em vez de lado a lado) —
+               é o que cabe direito numa coluna de ~120px sem cortar
+               texto como "Importar PDF". */
             display: flex;
+            flex-direction: column;
             align-items: center;
-            gap: 12px;
-            padding: 14px 20px;
+            justify-content: center;
+            gap: 4px;
+            padding: 12px 6px;
             cursor: pointer;
             border: none;
             background: transparent;
-            width: 100%;
-            text-align: left;
-            font-size: 15px;
+            border-radius: 12px;
+            text-align: center;
+            font-size: 12px;
             font-weight: 600;
             color: #64748b;
             transition: all 0.15s;
-            border-left: 4px solid transparent;
-            min-height: 54px;
+            border-bottom: 3px solid transparent;
+            min-height: 70px;
+            line-height: 1.25;
         }
 
         .sidebar-item:hover {
@@ -162,13 +172,11 @@
         .sidebar-item.active {
             background: #e8f2ff;
             color: #0071e3;
-            border-left-color: #0071e3;
+            border-bottom-color: #0071e3;
         }
 
         .sidebar-item .icon {
-            font-size: 20px;
-            width: 28px;
-            text-align: center;
+            font-size: 22px;
         }
 
         .sidebar-item .badge {
@@ -988,7 +996,7 @@
         /* ============================================ */
         @media (max-width: 1024px) {
             .sidebar {
-                flex: 0 0 180px;
+                flex: 0 0 210px;
             }
         }
 
@@ -1008,17 +1016,18 @@
             }
             .sidebar-item {
                 flex: 0 0 auto;
+                flex-direction: row;
                 padding: 10px 14px;
                 font-size: 13px;
                 min-height: 44px;
-                border-left: none;
+                border-bottom: none;
                 border-radius: 30px;
                 background: #f1f5f9;
             }
             .sidebar-item.active {
                 background: #0071e3;
                 color: white;
-                border-left-color: transparent;
+                border-bottom-color: transparent;
             }
             .sidebar-item .badge {
                 display: none;
@@ -1536,9 +1545,10 @@
                 </div>
                 <div class="card">
                     <div class="card-header">👥 PARTICIPANTES POR BOLÃO</div>
-                    <select id="bolaoSelectParticipantes" class="form-control" style="margin-bottom: 15px;">
+                    <select id="bolaoSelectParticipantes" class="form-control" style="margin-bottom: 12px;">
                         <option value="">Selecione um bolão</option>
                     </select>
+                    <button id="btnCopiarListaWhatsApp" class="btn btn-success btn-block" style="margin-bottom: 15px;" disabled>📱 COPIAR LISTA PARA WHATSAPP</button>
                     <div id="listaParticipantesAdmin" style="max-height: 400px; overflow-y: auto;">
                         <div class="empty-state">Selecione um bolão para ver os participantes</div>
                     </div>
@@ -1579,11 +1589,17 @@
                             💵 TOTAL EM RESERVAS: <span id="totalReservas" style="font-size: 22px; color: #10b981; font-weight: 700;">R$ 0,00</span>
                         </div>
                         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                            <button id="btnRegistrarMovimentoReserva" class="btn btn-success" style="width: auto; min-width: 160px;">➕ REGISTRAR MOVIMENTO</button>
-                            <button id="btnLancamentoLoteReserva" class="btn" style="width: auto; min-width: 160px; background: #8b5cf6; color: white;">📦 LANÇAMENTO EM LOTE</button>
-                            <button id="btnAtualizarReservas" class="btn btn-primary" style="width: auto; min-width: 120px;">🔄 ATUALIZAR</button>
+                            <button id="btnRegistrarMovimentoReserva" class="btn btn-success btn-sm">➕ Registrar</button>
+                            <button id="btnLancamentoLoteReserva" class="btn btn-purple btn-sm">📦 Lote</button>
+                            <button id="btnVerPendentesReserva" class="btn btn-warning btn-sm">🔍 Ver Pendentes</button>
+                            <button id="btnAtualizarReservas" class="btn btn-primary btn-sm">🔄 Atualizar</button>
                         </div>
                     </div>
+                    <!-- Movimentos já registrados aqui mas que o desktop ainda não
+                         importou pro SQLite local — sem isso, dá pra registrar o
+                         mesmo lançamento 2x sem perceber que o primeiro ainda
+                         está "no ar". -->
+                    <div id="pendentesReservaResultado" style="display: none; margin-bottom: 16px;"></div>
                     <div id="listaReservas" style="max-height: 500px; overflow-y: auto;">
                         <div class="empty-state">Nenhuma reserva encontrada</div>
                     </div>
