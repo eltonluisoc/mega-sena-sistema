@@ -1,7 +1,32 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.5
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.6
+Correções v6.6 (auditoria matemática: reserva, depósitos pendentes, cotas):
+ - "Situação" contraditória entre telas: Relatório, relatório-texto,
+   exportação Excel e "Cards Visuais" comparavam quanto a pessoa pagou
+   contra a parcela SEM multiplicar pelas cotas dela (só o Dashboard já
+   fazia certo) — quem tinha 2+ cotas podia aparecer "Em Dia"/"Quitado"
+   numa tela e "Pendente" em outra, com o mesmo dado. Lista de
+   "Confirmados" do relatório de WhatsApp tinha o mesmo problema. Criado
+   um único helper (_n_cotas_participante) usado em todo lugar agora.
+ - "✏ Editar Selecionado" (Reservas Pessoais) deixava mudar tipo ou
+   valor de um lançamento já salvo sem checar se o saldo da pessoa
+   ficava negativo — diferente do cadastro normal e do lote, que já
+   avisavam. Agora avisa igual, projetando o saldo antes de salvar.
+ - Import de depósitos/saques pendentes do site podia duplicar um
+   lançamento: o INSERT local já ficava salvo (com commit) antes da
+   exclusão do item na fila do Firestore — se essa exclusão falhasse
+   (rede caiu, app fechou no meio), o mesmo item era importado de novo
+   na próxima abertura. Novo campo origem_doc_id guarda de qual
+   documento da fila veio cada lançamento; antes de inserir, checa se
+   aquele doc_id já foi aplicado.
+ - 5 critérios ligeiramente diferentes (alguns com comparação exata só
+   "CRÉDITO"/"DÉBITO", outros aceitando variantes antigas como
+   "ENTRADA"/"DEPOSITO", um deles com "SAIDA" que os outros não tinham)
+   decidiam separadamente o que conta como crédito/débito no saldo de
+   reserva. Unificados em TIPOS_CREDITO_RESERVA/TIPOS_DEBITO_RESERVA,
+   usados em todo lugar que soma saldo de reserva.
 Correções v6.5 (cadastro de participante: solução profissional):
  - Botão "➕ Novo Participante" renomeado para "➕ Incluir Participante"
    (o nome antigo escondia que o botão também importa membro de bolão
@@ -519,6 +544,7 @@ class Database:
             loteria TEXT,
             concurso TEXT,
             descricao TEXT,
+            origem_doc_id TEXT,
             FOREIGN KEY(pessoa_id) REFERENCES reservas_pessoas(id)
         );
         CREATE TABLE IF NOT EXISTS saques_emergenciais (
@@ -560,6 +586,13 @@ class Database:
             # criava um documento novo no Firebase em vez de atualizar o
             # existente (o antigo ficava orfao, com todo o historico).
             "ALTER TABLE boloes ADD COLUMN firebase_doc_id TEXT",
+            # ID do documento Firestore de origem (fila reservas_movimentos_
+            # pendentes) que gerou este lançamento, quando importado do
+            # site. Evita duplicar o lançamento se o app conseguir inserir
+            # localmente mas falhar ao excluir da fila (rede caiu bem nessa
+            # hora) — na próxima importação, o mesmo doc_id é reconhecido
+            # como já aplicado em vez de virar uma segunda linha.
+            "ALTER TABLE reservas_movimentos ADD COLUMN origem_doc_id TEXT",
         ]
         for m in migs:
             try: c.execute(m)
@@ -803,9 +836,29 @@ def _make_part_id(nome, telefone):
     tel = _re.sub(r"\D","",telefone or "")
     return (id_nome+"_"+tel) if tel else id_nome
 
+# Critério ÚNICO usado em todo lugar do arquivo pra decidir se um
+# reservas_movimentos.tipo conta como crédito ou débito no saldo.
+# Antes cada função tinha o seu próprio critério (algumas comparação
+# exata só com "CRÉDITO"/"DÉBITO", outras aceitando variantes antigas
+# tipo "ENTRADA"/"DEPOSITO", uma delas com "SAIDA" que as outras não
+# tinham) — hoje todo lançamento é sempre gravado como exatamente
+# "CRÉDITO"/"DÉBITO", então na prática não fazia diferença, mas um
+# registro legado/importado fora desse padrão faria o saldo da mesma
+# pessoa divergir dependendo de qual tela você estava olhando.
+TIPOS_CREDITO_RESERVA = ("CRÉDITO", "CREDITO", "ENTRADA", "DEPOSITO", "DEPÓSITO")
+TIPOS_DEBITO_RESERVA  = ("DÉBITO", "DEBITO", "SAQUE", "USO", "SAIDA")
+
+def _eh_credito_reserva(tipo):
+    return (tipo or "").upper() in TIPOS_CREDITO_RESERVA
+
+def _sql_in_tipos(tipos):
+    """Monta a cláusula SQL "IN ('A','B',...)" a partir de uma tupla de
+    strings fixas do próprio código (nunca entrada do usuário)."""
+    return "(" + ",".join("'%s'" % t for t in tipos) + ")"
+
 def _tipo_fb(tipo_db):
     t = (tipo_db or "").upper()
-    if t in ("CREDITO","CRÉDITO","ENTRADA","DEPOSITO","DEPÓSITO"): return "deposito"
+    if t in TIPOS_CREDITO_RESERVA: return "deposito"
     if t in ("DEBITO","DÉBITO","USO"): return "uso"
     return "saque"
 
@@ -857,12 +910,12 @@ def enviar_reservas_para_site(db_file):
         doc_id = _make_part_id(nome, tel)
         ent = conn.execute(
             "SELECT COALESCE(SUM(valor),0) as t FROM reservas_movimentos "
-            "WHERE pessoa_id=? AND UPPER(tipo) IN "
-            "('CRÉDITO','CREDITO','ENTRADA','DEPOSITO','DEPÓSITO')",(pid,)).fetchone()
+            "WHERE pessoa_id=? AND UPPER(tipo) IN " + _sql_in_tipos(TIPOS_CREDITO_RESERVA),
+            (pid,)).fetchone()
         sai = conn.execute(
             "SELECT COALESCE(SUM(valor),0) as t FROM reservas_movimentos "
-            "WHERE pessoa_id=? AND UPPER(tipo) IN "
-            "('DÉBITO','DEBITO','SAIDA','SAQUE','USO')",(pid,)).fetchone()
+            "WHERE pessoa_id=? AND UPPER(tipo) IN " + _sql_in_tipos(TIPOS_DEBITO_RESERVA),
+            (pid,)).fetchone()
         saldo = float(ent["t"] if ent else 0) - float(sai["t"] if sai else 0)
         movs = conn.execute(
             "SELECT * FROM reservas_movimentos WHERE pessoa_id=? ORDER BY id ASC",(pid,)).fetchall()
@@ -1072,7 +1125,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.5")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.6")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1217,13 +1270,26 @@ class BolaoApp:
                     data_mov = f"{d}/{m}/{a}"
 
                 desc_final = (descricao + " (via site)").strip() if descricao else "Via site"
-                self.db.execute(
-                    "INSERT INTO reservas_movimentos "
-                    "(pessoa_id, tipo, valor, data_mov, loteria, concurso, descricao) "
-                    "VALUES (?,?,?,?,?,?,?)",
-                    (pessoa_id, tipo_db, valor, data_mov, "", "", desc_final))
 
-                # Só sai da fila depois de importar com sucesso no SQLite local
+                # Idempotência: se este doc_id já foi importado antes (o
+                # INSERT rodou numa tentativa anterior mas o DELETE da fila
+                # falhou em seguida — rede caiu, app fechou), não insere de
+                # novo. Só tenta limpar a fila e segue pro próximo item, em
+                # vez de duplicar o lançamento (achado real da auditoria:
+                # commit local acontece antes do DELETE no Firestore, então
+                # uma falha bem nesse meio-tempo reimportava o mesmo
+                # depósito/saque numa próxima abertura do app).
+                ja_importado = self.db.fetchone(
+                    "SELECT id FROM reservas_movimentos WHERE origem_doc_id=?", (doc_id,))
+                if not ja_importado:
+                    self.db.execute(
+                        "INSERT INTO reservas_movimentos "
+                        "(pessoa_id, tipo, valor, data_mov, loteria, concurso, descricao, origem_doc_id) "
+                        "VALUES (?,?,?,?,?,?,?,?)",
+                        (pessoa_id, tipo_db, valor, data_mov, "", "", desc_final, doc_id))
+
+                # Só sai da fila depois de garantir que está no SQLite local
+                # (inserido agora, ou já tinha sido inserido antes)
                 del_req = urllib.request.Request(
                     url + "/" + doc_id, method="DELETE", headers=_firebase_headers())
                 urllib.request.urlopen(del_req, timeout=10)
@@ -1267,7 +1333,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.5",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.6",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -2880,6 +2946,19 @@ class BolaoApp:
         parc_esperada = min(meses_vencidos, n_parcelas_total)
         return meses_total, parc_esperada, parc
 
+    def _n_cotas_participante(self, valor_esperado, valor_total_bolao):
+        """Quantas cotas uma pessoa tem, a partir do valor esperado dela e
+        do valor_total (preço de 1 cota) do bolão. Usar SEMPRE que for
+        comparar quanto a pessoa já pagou contra parcelas — do contrário
+        quem tem 2+ cotas aparece "em dia"/"quitado" cedo demais (achado
+        real: já existia certo no Dashboard, mas Relatório, relatório-texto
+        e exportação Excel comparavam contra a parcela "flat", sem
+        multiplicar pelas cotas — mesma pessoa, mesmo dado, status
+        diferente em cada tela)."""
+        ve = valor_esperado or 0
+        vt = valor_total_bolao or 0
+        return max(1, round(ve/vt)) if vt > 0 and ve > 0 else 1
+
     def _status_part(self, pago, val_esp, parc_esp, parc):
         saldo = val_esp - pago
         if saldo <= 0:
@@ -2896,6 +2975,7 @@ class BolaoApp:
         b, partic = self._get_bolao_info()
         if not b: return
         _, parc_esp, parc = self._calc_parcela_atual(b)
+        vt = float(b.get("valor_total") or 0)
         te = tp = ts = 0
 
         # ADM invisível no relatório
@@ -2929,7 +3009,8 @@ class BolaoApp:
             te  += pt_d["valor_esperado"] or 0
             tp  += pago
             ts  += max(0,saldo)
-            status,tag = self._status_part(pago,pt_d["valor_esperado"] or 0,parc_esp,parc)
+            n_cotas = self._n_cotas_participante(pt_d["valor_esperado"] or 0, vt)
+            status,tag = self._status_part(pago,pt_d["valor_esperado"] or 0,parc_esp,parc*n_cotas)
             n_pago = round(pago/parc,1) if parc>0 else 0
             n_tot  = round((pt_d["valor_esperado"] or 0)/parc,0) if parc>0 else 0
             self.rel_tree.insert("","end",tags=(tag,),values=(
@@ -2995,7 +3076,8 @@ class BolaoApp:
                 confirmados.append(pt_d["nome"])
             else:
                 saldo = max(0, ve - pago)
-                if saldo <= 0 or pago >= parc:
+                n_cotas = self._n_cotas_participante(ve, vt)
+                if saldo <= 0 or pago >= parc*n_cotas:
                     confirmados.append(pt_d["nome"])
 
         # ADM não cadastrado mas confirmado
@@ -3110,6 +3192,7 @@ class BolaoApp:
         cotas_ocup_r, n_total = self._get_cotas_ocupadas(bid)
 
         _,parc_esp,parc = self._calc_parcela_atual(b)
+        vt = float(b.get("valor_total") or 0)
 
         # Totais depósitos
         tot_rec = self.db.fetchone("SELECT SUM(valor) as t FROM pagamentos WHERE bolao_id=?",(bid,))
@@ -3152,7 +3235,8 @@ class BolaoApp:
             else:
                 n_p   = round(pago/parc,1) if parc>0 else 0
                 n_tot = round(ve/parc,0)   if parc>0 else 0
-                st,_  = self._status_part(pago,ve,parc_esp,parc)
+                n_cotas = self._n_cotas_participante(ve, vt)
+                st,_  = self._status_part(pago,ve,parc_esp,parc*n_cotas)
                 status= st.replace("✅ ","").replace("⚠ ","").replace("🟦 ","")
                 if status=="QUITADO": quitados+=1
                 elif status=="EM DIA": em_dia+=1
@@ -3236,6 +3320,7 @@ class BolaoApp:
         b, partic = self._get_bolao_info()
         if not b: return
         _,parc_esp,parc = self._calc_parcela_atual(b)
+        vt = float(b.get("valor_total") or 0)
         adm_paga = b.get("adm_paga",0)
 
         wb = Workbook(); ws = wb.active; ws.title = "Relatório"
@@ -3276,7 +3361,8 @@ class BolaoApp:
                 saldo=0;pago=ve;status="✅ Quitado";bg="D5F5E3"
             else:
                 saldo=max(0,ve-pago)
-                st,_=self._status_part(pago,ve,parc_esp,parc)
+                n_cotas=self._n_cotas_participante(ve, vt)
+                st,_=self._status_part(pago,ve,parc_esp,parc*n_cotas)
                 status=st;bg=("D5F5E3" if "QUITADO" in st else ("D6EAF8" if "DIA" in st else "FDE8D8"))
             te+=ve;tp+=pago;ts+=saldo
             n_p=round(pago/parc,1) if parc>0 else 0
@@ -3315,6 +3401,7 @@ class BolaoApp:
         b, partic = self._get_bolao_info()
         if not b: return
         _,parc_esp,parc = self._calc_parcela_atual(b)
+        vt = float(b.get("valor_total") or 0)
         adm_paga = b.get("adm_paga",0)
 
         # Janela maximizada para aproveitar toda a tela
@@ -3355,8 +3442,9 @@ class BolaoApp:
             if eh_adm:
                 adm_ja_listado = True
 
+            n_cotas = self._n_cotas_participante(ve, vt)
             status, tag, pago_f, saldo_f = self._status_part_adm(
-                {"is_adm": eh_adm}, pago, ve, parc_esp, parc, adm_paga)
+                {"is_adm": eh_adm}, pago, ve, parc_esp, parc*n_cotas, adm_paga)
 
             if   "QUITADO" in status: q  += 1
             elif "EM DIA"  in status: em += 1
@@ -4491,10 +4579,8 @@ class BolaoApp:
             pago = row["t"] or 0
             ve   = pt_d["valor_esperado"] or 0
             # Cotas desta pessoa — precisa multiplicar a parcela abaixo,
-            # senão quem tem 2+ cotas aparece "em dia" cedo demais (bug
-            # que só existia aqui; a extinta "Pendências deste Bolão" já
-            # multiplicava certo).
-            n_cotas = max(1, round(ve/vt)) if vt > 0 and ve > 0 else 1
+            # senão quem tem 2+ cotas aparece "em dia" cedo demais.
+            n_cotas = self._n_cotas_participante(ve, vt)
 
             # Detecta ADM por flag OU por nome
             eh_adm = bool(pt_d.get("is_adm")) or (
@@ -4831,7 +4917,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.5</span>
+        <span>Sistema de Gestão de Bolões v6.6</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -6256,12 +6342,12 @@ class BolaoApp:
             pid = ps["id"]
             cred = self.db.fetchone(
                 "SELECT COALESCE(SUM(valor),0) as t FROM reservas_movimentos "
-                "WHERE pessoa_id=? AND UPPER(tipo) IN "
-                "('CRÉDITO','CREDITO','ENTRADA','DEPOSITO','DEPÓSITO')", (pid,))["t"] or 0
+                "WHERE pessoa_id=? AND UPPER(tipo) IN " + _sql_in_tipos(TIPOS_CREDITO_RESERVA),
+                (pid,))["t"] or 0
             deb  = self.db.fetchone(
                 "SELECT COALESCE(SUM(valor),0) as t FROM reservas_movimentos "
-                "WHERE pessoa_id=? AND UPPER(tipo) IN "
-                "('DÉBITO','DEBITO','SAQUE','USO')", (pid,))["t"] or 0
+                "WHERE pessoa_id=? AND UPPER(tipo) IN " + _sql_in_tipos(TIPOS_DEBITO_RESERVA),
+                (pid,))["t"] or 0
             saldo = float(cred) - float(deb)
             total_cred += float(cred); total_deb += float(deb)
             ult = self.db.fetchone(
@@ -6337,7 +6423,7 @@ class BolaoApp:
             "SELECT * FROM reservas_movimentos WHERE pessoa_id=? ORDER BY id DESC", (pid,))
         cred = deb = 0
         for m in movs:
-            eh_cred = m["tipo"] == "CRÉDITO"
+            eh_cred = _eh_credito_reserva(m["tipo"])
             tag = "credito" if eh_cred else "debito"
             sinal = "⬆ CRÉDITO" if eh_cred else "⬇ DÉBITO"
             if eh_cred: cred += m["valor"]
@@ -6375,10 +6461,12 @@ class BolaoApp:
         if tipo == "DÉBITO":
             cred = self.db.fetchone(
                 "SELECT SUM(valor) as t FROM reservas_movimentos "
-                "WHERE pessoa_id=? AND tipo='CRÉDITO'", (pid,))["t"] or 0
+                "WHERE pessoa_id=? AND UPPER(tipo) IN " + _sql_in_tipos(TIPOS_CREDITO_RESERVA),
+                (pid,))["t"] or 0
             deb  = self.db.fetchone(
                 "SELECT SUM(valor) as t FROM reservas_movimentos "
-                "WHERE pessoa_id=? AND tipo='DÉBITO'", (pid,))["t"] or 0
+                "WHERE pessoa_id=? AND UPPER(tipo) IN " + _sql_in_tipos(TIPOS_DEBITO_RESERVA),
+                (pid,))["t"] or 0
             saldo = cred - deb
             if v > saldo:
                 if not messagebox.askyesno("Saldo Insuficiente",
@@ -6537,11 +6625,11 @@ class BolaoApp:
         for ps in pessoas:
             pid_ = ps["id"]
             cred = self.db.fetchone(
-                "SELECT SUM(valor) as t FROM reservas_movimentos WHERE pessoa_id=? AND tipo='CRÉDITO'",
-                (pid_,))["t"] or 0
+                "SELECT SUM(valor) as t FROM reservas_movimentos WHERE pessoa_id=? AND UPPER(tipo) IN "
+                + _sql_in_tipos(TIPOS_CREDITO_RESERVA), (pid_,))["t"] or 0
             deb = self.db.fetchone(
-                "SELECT SUM(valor) as t FROM reservas_movimentos WHERE pessoa_id=? AND tipo='DÉBITO'",
-                (pid_,))["t"] or 0
+                "SELECT SUM(valor) as t FROM reservas_movimentos WHERE pessoa_id=? AND UPPER(tipo) IN "
+                + _sql_in_tipos(TIPOS_DEBITO_RESERVA), (pid_,))["t"] or 0
             dados_pessoas.append({"pid": pid_, "nome": ps["nome"], "saldo": float(cred) - float(deb)})
 
         vars_checkbox = {d["pid"]: tk.IntVar(value=0) for d in dados_pessoas}
@@ -6720,6 +6808,31 @@ class BolaoApp:
             v = to_float(val_e.get())
             if v <= 0:
                 messagebox.showwarning("Atenção", "Informe um valor válido!"); return
+
+            # Recalcula o saldo da pessoa SEM este lançamento e projeta o
+            # saldo COM os novos tipo/valor — igual ao aviso que já existe
+            # no cadastro normal e no lote, que faltava aqui (dava pra
+            # editar um crédito pra débito, ou aumentar um valor, e zerar
+            # ou negativar o saldo sem nenhum aviso).
+            pid_m = m["pessoa_id"]
+            outros_cred = self.db.fetchone(
+                "SELECT COALESCE(SUM(valor),0) as t FROM reservas_movimentos "
+                "WHERE pessoa_id=? AND UPPER(tipo) IN " + _sql_in_tipos(TIPOS_CREDITO_RESERVA) +
+                " AND id!=?", (pid_m, mid))["t"] or 0
+            outros_deb = self.db.fetchone(
+                "SELECT COALESCE(SUM(valor),0) as t FROM reservas_movimentos "
+                "WHERE pessoa_id=? AND UPPER(tipo) IN " + _sql_in_tipos(TIPOS_DEBITO_RESERVA) +
+                " AND id!=?", (pid_m, mid))["t"] or 0
+            saldo_sem_este = float(outros_cred) - float(outros_deb)
+            saldo_projetado = saldo_sem_este + v if tipo == "CRÉDITO" else saldo_sem_este - v
+            if saldo_projetado < 0:
+                ps_m = self.db.fetchone("SELECT nome FROM reservas_pessoas WHERE id=?", (pid_m,))
+                nome_m = ps_m["nome"] if ps_m else "esta pessoa"
+                if not messagebox.askyesno("Saldo Insuficiente",
+                    f"Com esta edição, o saldo de {nome_m} ficará negativo: "
+                    f"{fmt_brl(saldo_projetado)}\n\nDeseja continuar mesmo assim?"):
+                    return
+
             dt = dt_e.get().strip()
             lot = lot_cb.get() if tipo == "DÉBITO" else ""
             conc = conc_e.get().strip() if tipo == "DÉBITO" else ""
@@ -6940,7 +7053,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.5</span>
+        <span>Sistema de Gestão de Bolões v6.6</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>

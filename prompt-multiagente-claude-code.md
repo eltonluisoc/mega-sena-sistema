@@ -701,6 +701,23 @@ Usuário reportou que o cadastro de participantes do bolão (desktop) estava con
 
 Versão desktop v6.4.2 → **v6.5** (4 pontos: docstring, `self.root.title`, header `tk.Label`, 2× `<span>` do WhatsApp). `dist/SistemaBoloes.exe` reconstruído via `SistemaBoloes.spec`.
 
+## Rodada 44 — Auditoria matemática multiagente: reserva, depósitos pendentes, cotas (v6.6, desktop)
+
+Usuário pediu explicitamente uma revisão com os agentes de "todos os cálculos da reserva, dos depósitos pendentes, revisão matemática do sistema". Antes de delegar, um levantamento manual em `bolao_pro_v3.py` já achou um indício forte (funções de saldo de reserva usando critérios diferentes pra classificar crédito/débito). Isso virou a pista inicial pra 3 agentes de revisão paralelos (só leitura, sem editar código):
+
+1. **Matemática da reserva (desktop)** — confirmou que `_rsv_editar_mov` não revalidava saldo ao editar tipo/valor de um lançamento (diferente do cadastro normal e do lote, que avisam); confirmou a inconsistência de 3 critérios de crédito/débito (comparação exata em alguns lugares, correspondência ampla com variantes antigas em outros, um deles com "SAIDA" que os outros não tinham) — hoje inofensiva (todo lançamento grava só "CRÉDITO"/"DÉBITO"), mas latente.
+2. **Fila de depósitos pendentes (site↔desktop)** — confirmou um risco real de duplicação: o INSERT local em `_importar_movimentos_pendentes_web` é commitado ANTES do DELETE no Firestore; se o DELETE falhar (rede caiu, app fechou no meio), a mensagem de erro diz "continua na fila" mas o lançamento já foi gravado — reimportado de novo na próxima abertura, duplicando o valor.
+3. **Matemática geral (cotas/prêmios)** — rodou a suíte de testes (20/20 passando), confirmou que prêmios/faixas são idênticos entre `script.js` e `admin.js`, e achou o bug mais grave: `_status_part` é chamado em 4 lugares fora do Dashboard (Relatório, relatório-texto, exportação Excel) SEM multiplicar a parcela pelas cotas da pessoa — resultado contraditório entre telas pro mesmo participante com 2+ cotas.
+
+**Corrigido em `bolao_pro_v3.py`** (todos os 4 problemas confirmados, mais o achado extra de mais 2 call sites do mesmo bug de cotas que a auditoria não tinha citado — `_rel_whatsapp` e `_cards_visuais` — achados ao caçar every call site de `_status_part`/`_status_part_adm`):
+
+- Novo helper `_n_cotas_participante(valor_esperado, valor_total_bolao)`, usado agora em TODO lugar que decide status de pagamento: `_dash_load` (já estava certo), `_gerar_rel`, `_rel_whatsapp` (lista de "Confirmados"), `_montar_rel_completo`, `_exportar_excel`, `_cards_visuais`. Testado manualmente: pessoa com 3 cotas que pagou 1 parcela flat agora mostra PENDENTE em toda tela (antes: EM DIA em 4 das 6).
+- `_rsv_editar_mov` ganhou o mesmo aviso de saldo insuficiente que o cadastro normal e o lote já tinham, projetando o saldo da pessoa (sem o lançamento atual) com os novos tipo/valor antes de salvar.
+- Nova coluna `reservas_movimentos.origem_doc_id` (migração seed segura) guarda o ID do documento Firestore que originou um lançamento importado. `_importar_movimentos_pendentes_web` agora checa esse campo antes de inserir — se o doc_id já foi aplicado antes (INSERT local ok, mas DELETE da fila falhou), pula o INSERT e só tenta limpar a fila de novo. Testado com simulação de reimportação: sem a correção duplicava o valor, com a correção soma fica correta.
+- Critério de crédito/débito unificado em duas constantes de módulo, `TIPOS_CREDITO_RESERVA`/`TIPOS_DEBITO_RESERVA`, e um helper `_sql_in_tipos()` pra montar a cláusula SQL — usados agora em `_rsv_load`, `_rsv_sel_pessoa`, `_rsv_registrar`, o popup de lote, `_rsv_editar_mov` e `enviar_reservas_para_site` (essa última ganhou o "SAIDA" que faltava nela vindo de outro lugar). Confirmado via grep que não sobrou nenhuma comparação de tipo hardcoded fora dessas constantes.
+
+Versão desktop v6.5 → **v6.6**. `dist/SistemaBoloes.exe` reconstruído via `SistemaBoloes.spec`. Suíte `test/calculos-script.test.js` (site) roda 20/20 — não afetada, confirmado só por sanidade já que a auditoria não mudou nada em `script.js`/`admin.js` (Área B e C do agente 3 já estavam corretas).
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
