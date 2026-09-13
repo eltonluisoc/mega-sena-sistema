@@ -1,7 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.4.2
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.5
+Correções v6.5 (cadastro de participante: solução profissional):
+ - Botão "➕ Novo Participante" renomeado para "➕ Incluir Participante"
+   (o nome antigo escondia que o botão também importa membro de bolão
+   anterior, não só cadastra do zero).
+ - Popup de inclusão: seção "Importar Membro de Bolão Anterior" passou a
+   vir ANTES de "Cadastrar Novo Participante" (é o caminho mais usado).
+   Janela alargada (720x800) e ganhou rolagem por mouse (faltava). Campo
+   de busca e botões da importação encolhidos pra não cortar mais o
+   texto do botão. Campo Observações reduzido (não precisa de 3 linhas).
+ - "Cadastrar + Pagar" agora cadastra E registra o pagamento (usando o
+   valor da parcela do bolão) num fluxo único — sem a mensagem
+   intermediária de "Participante Cadastrado" seguida de um segundo
+   popup pra confirmar o pagamento. Só uma mensagem final, combinando
+   os dois resultados. O antigo popup separado de pagamento
+   (_cad_pag_abrir) foi removido por ficar sem uso.
 Correções v6.4.2 (editar lançamento de reserva + erro de senha claro):
  - Aba "Reservas Pessoais" ganhou "✏ Editar Selecionado" — corrige um
    lançamento já salvo (tipo/valor/data/loteria/concurso/descrição)
@@ -1057,7 +1072,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.4.2")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.5")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1252,7 +1267,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.4.2",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.5",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -1470,10 +1485,16 @@ class BolaoApp:
         self._imp_* de sempre, então _cadastrar/_cadastrar_e_pagar/
         _cad_adm_toggle/_calcular_valor_cotas/_preencher_valor_cad/
         _imp_buscar/_imp_importar continuam funcionando sem nenhuma
-        mudança neles."""
+        mudança neles.
+
+        Import de bolão anterior vem ANTES do formulário manual — é o
+        caminho mais frequente (a maioria dos participantes já jogou
+        algum bolão antes), então não faz sentido escondê-lo embaixo.
+        Janela mais larga que antes (720 em vez de 640) porque a linha
+        de busca+botões da importação estava cortando fora da tela."""
         win = tk.Toplevel(self.root)
-        win.title("Novo Participante")
-        win.geometry("640x760")
+        win.title("Incluir Participante")
+        win.geometry("720x800")
         win.configure(bg=CORES["bg_frame"])
         win.grab_set(); win.lift(); win.focus_force()
 
@@ -1487,11 +1508,52 @@ class BolaoApp:
         canvas.bind("<Configure>", lambda e: canvas.itemconfig(canvas_window, width=e.width))
         p.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
 
+        def _scroll(e): canvas.yview_scroll(int(-1*(e.delta/120)), "units")
+        canvas.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", _scroll))
+        canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
+
         outer = tk.Frame(p, bg=CORES["bg_frame"])
         outer.pack(fill="both", expand=True, padx=30, pady=20)
 
+        # ── Seção: Importar membro de bolão anterior (primeiro, de
+        # propósito — ver docstring) ──────────────────────────────
+        sec2 = section(outer, "📋 IMPORTAR MEMBRO DE BOLÃO ANTERIOR", pady=12)
+        sec2.pack(fill="x")
+
+        tk.Label(sec2,
+                 text="Selecione um participante já cadastrado em outro bolão para importá-lo automaticamente.",
+                 bg=CORES["bg_section"], fg="#555", font=("Arial",8,"italic")).pack(anchor="w", pady=(0,6))
+
+        imp_row = tk.Frame(sec2, bg=CORES["bg_section"]); imp_row.pack(fill="x", pady=4)
+
+        tk.Label(imp_row, text="Buscar membro:", bg=CORES["bg_section"],
+                 fg=CORES["fg_label"], font=("Arial",9,"bold")).pack(side="left", padx=(0,6))
+
+        self._imp_entry_var = tk.StringVar()
+        self._imp_entry = tk.Entry(imp_row, textvariable=self._imp_entry_var,
+                                   width=26, font=("Arial",9), relief="solid", bd=1)
+        self._imp_entry.pack(side="left", padx=(0,8), fill="x", expand=True)
+        self._imp_entry.bind("<Return>", lambda e: self._imp_buscar())
+
+        btn(imp_row, "🔍 Buscar", CORES["btn_azul"],
+            self._imp_buscar, width=10).pack(side="left", padx=4)
+        btn(imp_row, "⬇ Importar", CORES["btn_verde"],
+            self._imp_importar, width=12).pack(side="left", padx=4)
+
+        # Tabela de resultados da busca — nome diferente do extrato
+        cols_imp = {"Nome":220, "Telefone":140, "PIX":200, "Bolão de origem":200}
+        fr_imp, self._imp_busca_tree = make_tree(sec2, cols_imp, height=5)
+        fr_imp.pack(fill="x", pady=(6,0))
+        # Duplo-clique já importa, sem precisar clicar em "Importar Selecionado" depois
+        self._imp_busca_tree.bind("<Double-1>", lambda e: self._imp_importar())
+
+        self._imp_status_lbl = tk.Label(sec2,
+            text="Após importar, ajuste o valor de cotas/valor esperado no formulário abaixo se necessário.",
+            bg=CORES["bg_section"], fg="#888", font=("Arial",8,"italic"))
+        self._imp_status_lbl.pack(anchor="w", pady=(4,0))
+
         sec = section(outer, "CADASTRAR NOVO PARTICIPANTE", pady=16)
-        sec.pack(fill="x")
+        sec.pack(fill="x", pady=(14,0))
         sec.columnconfigure(1, weight=1)
 
         self._cv = {}
@@ -1551,7 +1613,7 @@ class BolaoApp:
         # Observações
         tk.Label(sec, text="Observações:", bg=CORES["bg_section"], fg=CORES["fg_label"],
                  font=("Arial",9,"bold")).grid(row=5, column=0, sticky="nw", padx=(0,12), pady=8)
-        self._cv["obs"] = tk.Text(sec, height=3, relief="solid", bd=1, font=("Arial",9))
+        self._cv["obs"] = tk.Text(sec, height=2, relief="solid", bd=1, font=("Arial",9))
         self._cv["obs"].grid(row=5, column=1, sticky="ew", pady=8)
 
         # Checkbox ADM
@@ -1589,50 +1651,45 @@ class BolaoApp:
                  fg="#999", font=("Arial",8,"italic")).grid(
             row=8, column=0, columnspan=2, sticky="w", pady=(0,4))
 
-        # ── Painel pagamento rápido (aparece após cadastro) ───────
-        self._cad_pag_pid = None  # ID do participante recém-cadastrado
-
-        # ── Seção: Importar membro de bolão anterior ─────────────
-        sec2 = section(outer, "📋 IMPORTAR MEMBRO DE BOLÃO ANTERIOR", pady=12)
-        sec2.pack(fill="x", pady=(14,0))
-
-        tk.Label(sec2,
-                 text="Selecione um participante já cadastrado em outro bolão para importá-lo automaticamente.",
-                 bg=CORES["bg_section"], fg="#555", font=("Arial",8,"italic")).pack(anchor="w", pady=(0,6))
-
-        imp_row = tk.Frame(sec2, bg=CORES["bg_section"]); imp_row.pack(fill="x", pady=4)
-
-        tk.Label(imp_row, text="Buscar membro:", bg=CORES["bg_section"],
-                 fg=CORES["fg_label"], font=("Arial",9,"bold")).pack(side="left", padx=(0,6))
-
-        self._imp_entry_var = tk.StringVar()
-        self._imp_entry = tk.Entry(imp_row, textvariable=self._imp_entry_var,
-                                   width=40, font=("Arial",9), relief="solid", bd=1)
-        self._imp_entry.pack(side="left", padx=(0,8))
-        self._imp_entry.bind("<Return>", lambda e: self._imp_buscar())
-
-        btn(imp_row, "🔍 Buscar", CORES["btn_azul"],
-            self._imp_buscar, width=12).pack(side="left", padx=4)
-        btn(imp_row, "⬇ Importar Selecionado", CORES["btn_verde"],
-            self._imp_importar, width=22).pack(side="left", padx=4)
-
-        # Tabela de resultados da busca — nome diferente do extrato
-        cols_imp = {"Nome":220, "Telefone":140, "PIX":200, "Bolão de origem":200}
-        fr_imp, self._imp_busca_tree = make_tree(sec2, cols_imp, height=5)
-        fr_imp.pack(fill="x", pady=(6,0))
-        # Duplo-clique já importa, sem precisar clicar em "Importar Selecionado" depois
-        self._imp_busca_tree.bind("<Double-1>", lambda e: self._imp_importar())
-
-        self._imp_status_lbl = tk.Label(sec2,
-            text="Após importar, ajuste o valor de cotas/valor esperado no formulário acima se necessário.",
-            bg=CORES["bg_section"], fg="#888", font=("Arial",8,"italic"))
-        self._imp_status_lbl.pack(anchor="w", pady=(4,0))
-
     def _cadastrar_e_pagar(self):
-        """Cadastra participante e abre janela de pagamento imediatamente."""
-        pid = self._cadastrar(retornar_pid=True)
-        if pid:
-            self._cad_pag_abrir(pid)
+        """Cadastra e já registra o primeiro pagamento (valor da parcela
+        do bolão, hoje, mês corrente) numa tacada só — sem abrir uma
+        segunda janela pedindo pra confirmar o pagamento nem mostrar uma
+        mensagem intermediária de "cadastrado" no meio do caminho.
+        Usuário pediu isso: clicou em "Cadastrar + Pagar", tem que
+        cadastrar E pagar direto, só uma mensagem no final resumindo os
+        dois. Quem quiser um valor de pagamento diferente do padrão da
+        parcela usa o botão "✔ CADASTRAR" (sem pagar) e registra o
+        pagamento depois, com o valor que quiser."""
+        resultado = self._cadastrar(retornar_pid=True, silencioso=True)
+        if not resultado:
+            return
+        pid, nome, bolao_nome = resultado
+
+        b = self.db.fetchone("SELECT valor_parcela FROM boloes WHERE id=?", (self.bid.get(),))
+        parc = float(b["valor_parcela"] or 0) if b else 0
+
+        if parc <= 0:
+            messagebox.showinfo("Participante Cadastrado",
+                f"✅ {nome} cadastrado em {bolao_nome}!\n\n"
+                f"⚠ O bolão não tem valor de parcela definido — "
+                f"pagamento não foi registrado automaticamente.\n"
+                f"Registre manualmente na aba Pagamentos.")
+            return
+
+        hoje = date.today()
+        mes_ref = f"{hoje.month:02d}/{hoje.year}"
+        self.db.execute("""
+            INSERT INTO pagamentos
+            (participante_id,bolao_id,mes_referencia,valor,
+             data_pagamento,depositado,observacoes)
+            VALUES (?,?,?,?,?,0,'Cadastro + pagamento simultâneo')
+        """, (pid, self.bid.get(), mes_ref, parc, hoje.strftime("%d/%m/%Y")))
+        self._refresh_all()
+
+        messagebox.showinfo("Cadastrado e pago",
+            f"✅ {nome} cadastrado em {bolao_nome}!\n"
+            f"💳 Pagamento de {fmt_brl(parc)} já registrado ({mes_ref}).")
 
     def _cad_adm_toggle(self):
         """Ao marcar como ADM: verifica se bolão tem isento configurado e zera valor."""
@@ -1716,7 +1773,7 @@ class BolaoApp:
         except Exception:
             pass  # silencioso — campo ainda pode não existir na inicialização
 
-    def _cadastrar(self, retornar_pid=False):
+    def _cadastrar(self, retornar_pid=False, silencioso=False):
         bid = self.bid.get()
         if not bid: messagebox.showwarning("Atenção","Selecione um bolão!"); return
         nome = self._cv["nome"].get().strip()
@@ -1801,24 +1858,27 @@ class BolaoApp:
 
         pid_novo = self.db.fetchone("SELECT last_insert_rowid() as id")["id"]
 
-        # Resumo na messagebox de confirmação
-        linhas = [
-            "✅  Participante cadastrado com sucesso!",
-            "",
-            f"Nome:           {nome}",
-            f"Bolão:          {bolao_nome}",
-            f"Nº de Cotas:    {n_cotas}",
-            f"Valor Esperado: {fmt_brl(valor_esp)}",
-        ]
-        if is_adm:
-            linhas.append("👑  Cadastrado como Administrador")
-        if parc and parc > 0:
-            try:
-                total_parc = round(valor_esp / parc) if parc > 0 else 0
-                if total_parc > 0:
-                    linhas.append(f"Parcelas:       {total_parc}x de {fmt_brl(parc)}")
-            except: pass
-        messagebox.showinfo("Participante Cadastrado", "\n".join(linhas))
+        # Resumo na messagebox de confirmação — pulado quando silencioso
+        # (chamado por _cadastrar_e_pagar, que mostra UMA mensagem só no
+        # final, já resumindo cadastro + pagamento juntos).
+        if not silencioso:
+            linhas = [
+                "✅  Participante cadastrado com sucesso!",
+                "",
+                f"Nome:           {nome}",
+                f"Bolão:          {bolao_nome}",
+                f"Nº de Cotas:    {n_cotas}",
+                f"Valor Esperado: {fmt_brl(valor_esp)}",
+            ]
+            if is_adm:
+                linhas.append("👑  Cadastrado como Administrador")
+            if parc and parc > 0:
+                try:
+                    total_parc = round(valor_esp / parc) if parc > 0 else 0
+                    if total_parc > 0:
+                        linhas.append(f"Parcelas:       {total_parc}x de {fmt_brl(parc)}")
+                except: pass
+            messagebox.showinfo("Participante Cadastrado", "\n".join(linhas))
 
         for k,w in self._cv.items():
             (w.delete("1.0","end") if isinstance(w,tk.Text) else w.delete(0,"end"))
@@ -1831,103 +1891,7 @@ class BolaoApp:
         self._refresh_all()
         self._preencher_valor_cad()
         if retornar_pid:
-            return pid_novo
-
-    def _cad_pag_abrir(self, pid):
-        """Abre janela de pagamento rápido para o participante recém-cadastrado."""
-        pt = self.db.fetchone("SELECT * FROM participantes WHERE id=?", (pid,))
-        if not pt: return
-        b  = self.db.fetchone("SELECT valor_parcela FROM boloes WHERE id=?", (self.bid.get(),))
-        parc = float(b["valor_parcela"] or 0) if b else 0
-
-        win = tk.Toplevel(self.root)
-        win.title("Registrar Pagamento")
-        win.geometry("520x280")
-        win.configure(bg=CORES["bg_section"])
-        win.grab_set(); win.lift(); win.focus_force()
-        # Centraliza na tela
-        win.update_idletasks()
-        x = self.root.winfo_x() + (self.root.winfo_width()  - 520) // 2
-        y = self.root.winfo_y() + (self.root.winfo_height() - 280) // 2
-        win.geometry(f"520x280+{x}+{y}")
-
-        tk.Label(win, text="💳 REGISTRAR PAGAMENTO",
-                 bg=CORES["bg_section"], fg=CORES["fg_title"],
-                 font=("Arial",12,"bold")).pack(pady=12)
-
-        f = tk.Frame(win, bg=CORES["bg_section"], padx=24); f.pack(fill="x")
-
-        # Nome
-        r0 = tk.Frame(f, bg=CORES["bg_section"]); r0.pack(fill="x", pady=4)
-        tk.Label(r0, text="Participante:", bg=CORES["bg_section"],
-                 fg=CORES["fg_label"], font=("Arial",9,"bold"), width=14, anchor="w").pack(side="left")
-        tk.Label(r0, text=pt["nome"], bg=CORES["bg_section"],
-                 fg=CORES["fg_title"], font=("Arial",10,"bold")).pack(side="left")
-
-        # Valor
-        r1 = tk.Frame(f, bg=CORES["bg_section"]); r1.pack(fill="x", pady=6)
-        tk.Label(r1, text="Valor (R$):", bg=CORES["bg_section"],
-                 fg=CORES["fg_label"], font=("Arial",9,"bold"), width=14, anchor="w").pack(side="left")
-        e_val = entry(r1, width=14)
-        e_val.insert(0, f"{parc:.2f}".replace(".",",") if parc > 0 else "")
-        e_val.pack(side="left"); e_val.focus_set(); e_val.selection_range(0,"end")
-
-        # Data
-        r2 = tk.Frame(f, bg=CORES["bg_section"]); r2.pack(fill="x", pady=6)
-        tk.Label(r2, text="Data:", bg=CORES["bg_section"],
-                 fg=CORES["fg_label"], font=("Arial",9,"bold"), width=14, anchor="w").pack(side="left")
-        e_dt = entry(r2, width=14)
-        e_dt.insert(0, date.today().strftime("%d/%m/%Y"))
-        e_dt.pack(side="left")
-
-        # Mês referência
-        r3 = tk.Frame(f, bg=CORES["bg_section"]); r3.pack(fill="x", pady=6)
-        tk.Label(r3, text="Mês Referência:", bg=CORES["bg_section"],
-                 fg=CORES["fg_label"], font=("Arial",9,"bold"), width=14, anchor="w").pack(side="left")
-        cb_mes = ttk.Combobox(r3, values=MESES, width=8, state="readonly")
-        cb_mes.set(MESES[date.today().month-1]); cb_mes.pack(side="left", padx=4)
-        tk.Label(r3, text="/", bg=CORES["bg_section"], font=("Arial",10,"bold")).pack(side="left")
-        cb_ano = ttk.Combobox(r3, values=[str(y) for y in range(2020,2036)],
-                               width=6, state="readonly")
-        cb_ano.set(str(date.today().year)); cb_ano.pack(side="left", padx=4)
-
-        # Status inline (some no lugar do popup final de confirmação)
-        lbl_status = tk.Label(win, text="", bg=CORES["bg_section"],
-                              fg="#1D9E75", font=("Arial",9,"bold"))
-        lbl_status.pack(pady=(0,2))
-
-        # Botões
-        bf = tk.Frame(win, bg=CORES["bg_section"]); bf.pack(pady=14)
-
-        def registrar():
-            val = to_float(e_val.get())
-            if val <= 0: messagebox.showwarning("Atenção","Informe o valor!"); return
-            dt = e_dt.get().strip()
-            mes = cb_mes.get(); ano = cb_ano.get()
-            mes_ref = f"{MESES.index(mes)+1:02d}/{ano}" if mes in MESES else ""
-            self.db.execute("""
-                INSERT INTO pagamentos
-                (participante_id,bolao_id,mes_referencia,valor,
-                 data_pagamento,depositado,observacoes)
-                VALUES (?,?,?,?,?,0,'Cadastro + pagamento simultâneo')
-            """, (pid, self.bid.get(), mes_ref, val, dt))
-            self._refresh_all()
-            # Aviso inline em vez de popup bloqueante — fecha sozinho logo em seguida
-            lbl_status.configure(text=f"✅ Pagamento de {fmt_brl(val)} registrado para {pt['nome']}!")
-            btn_registrar.configure(state="disabled")
-            btn_pular.configure(state="disabled")
-            win.after(900, win.destroy)
-
-        btn_registrar = btn(bf, "💳 REGISTRAR PAGAMENTO", CORES["btn_verde"], registrar, width=24)
-        btn_registrar.pack(side="left", padx=6)
-        btn_pular = btn(bf, "✖ Pular", CORES["btn_cinza"], win.destroy, width=10)
-        btn_pular.pack(side="left", padx=6)
-
-        # Enter em qualquer campo já registra — os valores já vêm
-        # preenchidos com o padrão (valor da cota, data de hoje), então
-        # aceitar o padrão vira só apertar Enter.
-        e_val.bind("<Return>", lambda e: registrar())
-        e_dt.bind("<Return>", lambda e: registrar())
+            return pid_novo, nome, bolao_nome
 
     def _imp_buscar(self):
         """Busca participantes em TODOS os bolões pelo nome digitado."""
@@ -2501,7 +2465,7 @@ class BolaoApp:
         p = self.tab_cad_lista
 
         top = tk.Frame(p, bg=CORES["bg_frame"]); top.pack(fill="x", padx=20, pady=10)
-        btn(top,"➕ Novo Participante",CORES["btn_verde"],self._abrir_popup_novo_participante,width=18).pack(side="left",padx=4)
+        btn(top,"➕ Incluir Participante",CORES["btn_verde"],self._abrir_popup_novo_participante,width=20).pack(side="left",padx=4)
         btn(top,"🔄 Atualizar",CORES["btn_azul"],self._cad_lista_load,width=14).pack(side="left",padx=4)
         btn(top,"🗑 Remover Selecionado",CORES["btn_vermelho"],self._cad_remover,width=22).pack(side="left",padx=4)
 
@@ -4867,7 +4831,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.4.2</span>
+        <span>Sistema de Gestão de Bolões v6.5</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -6976,7 +6940,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.4.2</span>
+        <span>Sistema de Gestão de Bolões v6.5</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>

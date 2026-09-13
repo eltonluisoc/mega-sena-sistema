@@ -684,6 +684,23 @@ Usuário testou e apontou: a lista continuava "fora de ordem" (9, 8, 8, 9, 8 nú
 
 Versão web (Service Worker) v45 → v46.
 
+## Rodada 43 — Cadastro de participante: solução profissional (v6.5, desktop)
+
+Usuário reportou que o cadastro de participantes do bolão (desktop) estava confuso, com 3 problemas concretos:
+
+1. O botão "➕ Novo Participante" também serve pra importar um membro de bolão anterior — o nome escondia essa função mais usada.
+2. Dentro do popup, a seção de importação (a mais frequente na prática) vinha DEPOIS da seção de cadastro do zero; a janela era estreita o suficiente pra cortar botões, e o campo Observações ocupava espaço desproporcional (3 linhas) pra um campo raramente preenchido.
+3. O botão "Cadastrar + Pagar" cadastrava e só DEPOIS abria uma mensagem de confirmação, seguida de um segundo popup pra registrar o pagamento — dois passos extras onde o usuário só queria um clique e um resultado final.
+
+**Implementado em `bolao_pro_v3.py`**:
+- Botão renomeado: "➕ Novo Participante" → "➕ Incluir Participante" (`_build_cad_lista`).
+- `_abrir_popup_novo_participante`: título "Incluir Participante"; janela alargada de 640x760 pra 720x800; ganhou rolagem por mouse (`canvas.bind("<Enter>"/"<Leave>")`) — faltava nesse popup, ao contrário dos popups irmãos. Seção "Importar Membro de Bolão Anterior" movida pra ANTES de "Cadastrar Novo Participante" (era o bloco duplicado que sobrava depois da linha de botões — removido). Campo de busca da importação encolhido (width 40→26, com `fill="x"`) e botões "🔍 Buscar" (12→10) e "⬇ Importar Selecionado"→"⬇ Importar" (22→12) encolhidos pra não cortar mais o texto. Campo Observações reduzido de `height=3` pra `height=2`.
+- `_cadastrar(self, retornar_pid=False, silencioso=False)`: novo parâmetro `silencioso` suprime o `messagebox.showinfo` intermediário; quando `retornar_pid=True` agora retorna `(pid_novo, nome, bolao_nome)` em vez de só `pid_novo`.
+- `_cadastrar_e_pagar`: reescrito pra chamar `_cadastrar(retornar_pid=True, silencioso=True)`, buscar o `valor_parcela` do bolão, inserir diretamente uma linha em `pagamentos` (mesmo formato que o popup antigo usava, `observacoes='Cadastro + pagamento simultâneo'`) e mostrar UMA ÚNICA mensagem final combinando cadastro + pagamento (ou uma mensagem alternativa se o bolão não tiver parcela definida). Zero diálogos intermediários.
+- Removido o método `_cad_pag_abrir` (~95 linhas) — o popup separado de "Registrar Pagamento" que o antigo `_cadastrar_e_pagar` abria; confirmado via grep que não sobrou nenhuma referência (nem a `_cad_pag_pid`).
+
+Versão desktop v6.4.2 → **v6.5** (4 pontos: docstring, `self.root.title`, header `tk.Label`, 2× `<span>` do WhatsApp). `dist/SistemaBoloes.exe` reconstruído via `SistemaBoloes.spec`.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
