@@ -718,6 +718,28 @@ Usuário pediu explicitamente uma revisão com os agentes de "todos os cálculos
 
 Versão desktop v6.5 → **v6.6**. `dist/SistemaBoloes.exe` reconstruído via `SistemaBoloes.spec`. Suíte `test/calculos-script.test.js` (site) roda 20/20 — não afetada, confirmado só por sanidade já que a auditoria não mudou nada em `script.js`/`admin.js` (Área B e C do agente 3 já estavam corretas).
 
+## Rodada 45 — Evolução multiagente do cadastro de participantes: menos cliques, sem tela cortada (v6.7, desktop)
+
+Usuário pediu explicitamente: "quero evoluir o cadastro de participantes... use os agentes para evoluir e deixar essa tela melhor... mais fácil de lançar, sem erros de tela, sem tantos cliques, sem tela cortada e uma UX aprimorada." Antes de delegar, um levantamento manual já achou um bug concreto: o campo "Valor Total Esperado" nasce fixo em "0,00" e só recalcula no FocusOut/Return do campo Cotas — nunca de forma síncrona quando o popup abre. Isso virou a pista pra 2 agentes em paralelo, só leitura/proposta (sem editar código): um pra auditar toda a fricção do fluxo atual (cliques, tela cortada, mensagens desnecessárias), outro pra propor um redesenho concreto reaproveitando padrões já comprovados no próprio arquivo.
+
+**Achados confirmados pelo agente de auditoria** (além do bug do R$0,00, que ele confirmou ser alcançável só com mouse e que o sistema mostra esse participante como "✅ QUITADO" por `saldo = 0 - 0 <= 0`):
+- Popup mais alto do arquivo inteiro (800px fixo, sem `+x+y` de centralização) — não cabe inteiro num notebook comum (1366x768).
+- Nenhum campo recebe foco automático ao abrir (usuário sempre precisa clicar no Nome primeiro).
+- Nenhum campo (exceto Cotas e a busca de importação) reage à tecla Enter — sempre precisa do mouse.
+- Confirmação de sucesso é `messagebox.showinfo`, que exige clicar OK — indo contra o próprio propósito do popup ficar aberto pra cadastrar vários participantes seguidos (Rodada 43).
+- Busca de "Importar Membro de Bolão Anterior" exige clicar "🔍 Buscar" ou apertar Enter, ao contrário da lista de participantes (`_filtrar_cad_lista`), que já filtra ao vivo a cada tecla.
+
+**Proposta do agente de design** (convergiu com os mesmos 5 pontos, mais o mapeamento de cliques): reaproveitar o padrão `trace_add("write", ...)` já usado em 4 lugares do arquivo pra busca ao vivo; reaproveitar o único precedente de `focus_set()` (`pag_val`) pra focar o campo certo ao abrir; cadeia de `<Return>` por campo em vez de um Enter-submete-tudo global (quebraria a Text de Observações); altura da janela calculada por `winfo_screenheight()` em vez de fixa. Estimativa: fluxo de importar cai de ~5 pra ~4 cliques, fluxo manual de ~5 pra ~3.
+
+**Implementado em `bolao_pro_v3.py`** (`_abrir_popup_novo_participante`, `_cadastrar`, `_cadastrar_e_pagar`, `_imp_buscar`):
+- Janela: altura = `min(800, 85% da tela)`, centralizada com `+x+y` calculado a partir de `winfo_screenwidth/height`.
+- Campo Valor chama `_preencher_valor_cad()` uma vez ao montar o popup (não fica mais em "0,00" até o usuário mexer em Cotas).
+- Busca de importação: `trace_add("write", ...)` no `_imp_entry_var` (like `_filtrar_cad_lista`), botão "🔍 Buscar" removido, `_imp_buscar` reescrito pra nunca abrir messagebox (exige ≥2 letras, mostra "nada encontrado" no label de status em vez de popup).
+- Foco inicial no campo de busca de importação (caminho mais frequente); Enter encadeado Nome→Telefone→PIX→Cotas→Valor.
+- Novo `self._cad_status_lbl` dentro do popup — `_cadastrar` e `_cadastrar_e_pagar` escrevem o resumo do cadastro ali em vez de `messagebox.showinfo`, sem exigir clique OK entre um cadastro e o próximo. Mensagens de erro/validação (nome vazio, limite de cotas, telefone duplicado) continuam como messagebox — são exceções raras que precisam de confirmação explícita, não o caminho feliz repetido a cada pessoa.
+
+Versão desktop v6.6 → **v6.7**. `dist/SistemaBoloes.exe` reconstruído via `SistemaBoloes.spec`.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

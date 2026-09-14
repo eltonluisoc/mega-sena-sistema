@@ -1,7 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.6
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.7
+Correções v6.7 (evolução do cadastro de participantes: menos cliques, sem tela cortada):
+ - Corrigido erro real: o campo "Valor Total Esperado" começava fixo em
+   "0,00" e só era recalculado quando o campo Cotas perdia o foco ou
+   dava Enter. Quem preenchia Nome+Telefone só com o mouse (sem passar
+   pelo campo Cotas) cadastrava valor_esperado=0 sem perceber — e o
+   sistema mostra R$0 esperado como "quitado" em toda tela. Agora o
+   valor já vem calculado (1 cota) assim que o popup abre.
+ - Busca de "Importar Membro de Bolão Anterior" virou ao vivo (filtra a
+   cada tecla, mesmo padrão já usado na lista de participantes) — sem
+   precisar clicar em "Buscar" nem apertar Enter. Botão "🔍 Buscar"
+   removido por virar redundante.
+ - Enter avança pro próximo campo (Nome→Telefone→PIX→Cotas→Valor) em
+   vez de exigir clicar com o mouse em cada um. Foco inicial no campo
+   de busca de importação ao abrir o popup (é o caminho mais usado).
+ - Janela deixou de ter altura fixa em 800px (não cabia inteira em
+   notebooks comuns, cortando o rodapé/botões) — agora calcula a altura
+   a partir da tela e abre centralizada.
+ - Mensagem de confirmação de cadastro deixou de ser messagebox (exigia
+   clicar OK) e virou um aviso dentro do próprio popup — o formulário
+   fica aberto de propósito pra cadastrar vários participantes seguidos
+   (ver Rodada 43), e um OK obrigatório a cada um ia contra isso.
 Correções v6.6 (auditoria matemática: reserva, depósitos pendentes, cotas):
  - "Situação" contraditória entre telas: Relatório, relatório-texto,
    exportação Excel e "Cards Visuais" comparavam quanto a pessoa pagou
@@ -1125,7 +1146,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.6")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.7")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1333,7 +1354,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.6",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.7",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -1557,10 +1578,19 @@ class BolaoApp:
         caminho mais frequente (a maioria dos participantes já jogou
         algum bolão antes), então não faz sentido escondê-lo embaixo.
         Janela mais larga que antes (720 em vez de 640) porque a linha
-        de busca+botões da importação estava cortando fora da tela."""
+        de busca+botões da importação estava cortando fora da tela.
+
+        Altura calculada a partir da tela (não mais fixa em 800px) e
+        janela centralizada — 800px fixo não cabia inteiro num notebook
+        comum (1366x768 com escala), cortando o rodapé/botões; a rolagem
+        por mouse continua existindo como reforço pra telas bem pequenas
+        ou com fonte grande."""
         win = tk.Toplevel(self.root)
         win.title("Incluir Participante")
-        win.geometry("720x800")
+        win_w = 720
+        win_h = min(800, int(win.winfo_screenheight() * 0.85))
+        sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
+        win.geometry(f"{win_w}x{win_h}+{(sw-win_w)//2}+{max(0,(sh-win_h)//2)}")
         win.configure(bg=CORES["bg_frame"])
         win.grab_set(); win.lift(); win.focus_force()
 
@@ -1599,10 +1629,11 @@ class BolaoApp:
         self._imp_entry = tk.Entry(imp_row, textvariable=self._imp_entry_var,
                                    width=26, font=("Arial",9), relief="solid", bd=1)
         self._imp_entry.pack(side="left", padx=(0,8), fill="x", expand=True)
-        self._imp_entry.bind("<Return>", lambda e: self._imp_buscar())
+        # Busca ao vivo, mesmo padrão já usado na lista de participantes
+        # (_filtrar_cad_lista) — sem precisar clicar em "Buscar" nem
+        # apertar Enter a cada tentativa.
+        self._imp_entry_var.trace_add("write", lambda *a: self._imp_buscar())
 
-        btn(imp_row, "🔍 Buscar", CORES["btn_azul"],
-            self._imp_buscar, width=10).pack(side="left", padx=4)
         btn(imp_row, "⬇ Importar", CORES["btn_verde"],
             self._imp_importar, width=12).pack(side="left", padx=4)
 
@@ -1642,6 +1673,12 @@ class BolaoApp:
         self._cv["pix"] = entry(sec, width=45)
         self._cv["pix"].grid(row=2, column=1, sticky="ew", pady=8)
 
+        # Enter avança pro próximo campo em vez de precisar clicar com o
+        # mouse — some com boa parte dos cliques do preenchimento manual.
+        self._cv["nome"].bind("<Return>", lambda e: self._cv["tel"].focus_set())
+        self._cv["tel"].bind("<Return>",  lambda e: self._cv["pix"].focus_set())
+        self._cv["pix"].bind("<Return>",  lambda e: self._cv["cotas"].focus_set())
+
         # Nº de Cotas + cálculo automático
         tk.Label(sec, text="Nº de Cotas:", bg=CORES["bg_section"], fg=CORES["fg_label"],
                  font=("Arial",9,"bold")).grid(row=3, column=0, sticky="w", padx=(0,12), pady=8)
@@ -1661,7 +1698,8 @@ class BolaoApp:
 
         # Ao sair do campo cotas, recalcula automaticamente sem messagebox
         self._cv["cotas"].bind("<FocusOut>", lambda e: self._preencher_valor_cad())
-        self._cv["cotas"].bind("<Return>",   lambda e: self._preencher_valor_cad())
+        self._cv["cotas"].bind("<Return>",
+            lambda e: (self._preencher_valor_cad(), self._cv["valor"].focus_set()))
 
         # Valor Total Esperado
         tk.Label(sec, text="Valor Total Esperado (R$):", bg=CORES["bg_section"], fg=CORES["fg_label"],
@@ -1713,9 +1751,28 @@ class BolaoApp:
         # terminar, já que virou popup em vez de aba fixa.
         btn(bf, "Fechar", CORES["btn_cinza"], win.destroy, width=10).pack(side="left", padx=8)
 
+        # Resultado do cadastro aparece aqui, sem messagebox — cadastrar
+        # vários participantes seguidos não pode exigir clicar OK a cada
+        # um (o popup fica aberto de propósito pra isso, ver comentário
+        # acima do botão Fechar).
+        self._cad_status_lbl = tk.Label(sec, text="", bg=CORES["bg_section"],
+            font=("Arial",9,"bold"), wraplength=560, justify="left")
+        self._cad_status_lbl.grid(row=8, column=0, columnspan=2, sticky="w", pady=(2,4))
+
         tk.Label(sec, text="* campo obrigatório", bg=CORES["bg_section"],
                  fg="#999", font=("Arial",8,"italic")).grid(
-            row=8, column=0, columnspan=2, sticky="w", pady=(0,4))
+            row=9, column=0, columnspan=2, sticky="w", pady=(0,4))
+
+        # Valor esperado já vem calculado pra 1 cota (bolão ativo) assim
+        # que o popup abre — antes ficava fixo em "0,00" até o campo
+        # Cotas perder o foco, e quem preenchia só Nome+Telefone com o
+        # mouse (sem passar pelo campo Cotas) cadastrava valor_esperado=0
+        # sem perceber, o que a tela de status mostra como "quitado".
+        self._preencher_valor_cad()
+        # Foco inicial na busca de importação — é o caminho mais usado
+        # (ver docstring), então a primeira tecla digitada já filtra a
+        # lista em vez de exigir um clique pra começar.
+        self._imp_entry.focus_set()
 
     def _cadastrar_e_pagar(self):
         """Cadastra e já registra o primeiro pagamento (valor da parcela
@@ -1735,12 +1792,16 @@ class BolaoApp:
         b = self.db.fetchone("SELECT valor_parcela FROM boloes WHERE id=?", (self.bid.get(),))
         parc = float(b["valor_parcela"] or 0) if b else 0
 
+        # Resultado no label do popup, não em messagebox — cadastrar
+        # vários participantes seguidos não pode exigir um clique OK a
+        # cada um (mesmo motivo do label em _cadastrar).
         if parc <= 0:
-            messagebox.showinfo("Participante Cadastrado",
-                f"✅ {nome} cadastrado em {bolao_nome}!\n\n"
-                f"⚠ O bolão não tem valor de parcela definido — "
-                f"pagamento não foi registrado automaticamente.\n"
-                f"Registre manualmente na aba Pagamentos.")
+            try:
+                self._cad_status_lbl.configure(
+                    text=f"✅ {nome} cadastrado em {bolao_nome}! ⚠ Bolão sem parcela "
+                         f"definida — registre o pagamento manualmente na aba Pagamentos.",
+                    fg="#e67e22")
+            except Exception: pass
             return
 
         hoje = date.today()
@@ -1753,9 +1814,12 @@ class BolaoApp:
         """, (pid, self.bid.get(), mes_ref, parc, hoje.strftime("%d/%m/%Y")))
         self._refresh_all()
 
-        messagebox.showinfo("Cadastrado e pago",
-            f"✅ {nome} cadastrado em {bolao_nome}!\n"
-            f"💳 Pagamento de {fmt_brl(parc)} já registrado ({mes_ref}).")
+        try:
+            self._cad_status_lbl.configure(
+                text=f"✅ {nome} cadastrado e pago em {bolao_nome} — "
+                     f"{fmt_brl(parc)} ({mes_ref}).",
+                fg="#1D9E75")
+        except Exception: pass
 
     def _cad_adm_toggle(self):
         """Ao marcar como ADM: verifica se bolão tem isento configurado e zera valor."""
@@ -1924,27 +1988,24 @@ class BolaoApp:
 
         pid_novo = self.db.fetchone("SELECT last_insert_rowid() as id")["id"]
 
-        # Resumo na messagebox de confirmação — pulado quando silencioso
-        # (chamado por _cadastrar_e_pagar, que mostra UMA mensagem só no
-        # final, já resumindo cadastro + pagamento juntos).
+        # Resumo no label do popup — pulado quando silencioso (chamado
+        # por _cadastrar_e_pagar, que mostra UM resumo só no final, já
+        # juntando cadastro + pagamento). Era messagebox antes: cadastrar
+        # vários participantes seguidos (o popup fica aberto de propósito
+        # pra isso) não pode exigir clicar OK a cada um.
         if not silencioso:
-            linhas = [
-                "✅  Participante cadastrado com sucesso!",
-                "",
-                f"Nome:           {nome}",
-                f"Bolão:          {bolao_nome}",
-                f"Nº de Cotas:    {n_cotas}",
-                f"Valor Esperado: {fmt_brl(valor_esp)}",
-            ]
+            resumo = f"✅ {nome} cadastrado em {bolao_nome} — {n_cotas} cota(s), {fmt_brl(valor_esp)}"
             if is_adm:
-                linhas.append("👑  Cadastrado como Administrador")
+                resumo += "  👑 Administrador"
             if parc and parc > 0:
                 try:
                     total_parc = round(valor_esp / parc) if parc > 0 else 0
                     if total_parc > 0:
-                        linhas.append(f"Parcelas:       {total_parc}x de {fmt_brl(parc)}")
+                        resumo += f"  ({total_parc}x de {fmt_brl(parc)})"
                 except: pass
-            messagebox.showinfo("Participante Cadastrado", "\n".join(linhas))
+            try:
+                self._cad_status_lbl.configure(text=resumo, fg="#1D9E75")
+            except Exception: pass
 
         for k,w in self._cv.items():
             (w.delete("1.0","end") if isinstance(w,tk.Text) else w.delete(0,"end"))
@@ -1960,16 +2021,18 @@ class BolaoApp:
             return pid_novo, nome, bolao_nome
 
     def _imp_buscar(self):
-        """Busca participantes em TODOS os bolões pelo nome digitado."""
+        """Busca participantes em TODOS os bolões pelo nome digitado — ao
+        vivo, a cada tecla (trace no _imp_entry_var), mesmo padrão já
+        usado na lista de participantes (_filtrar_cad_lista). Por isso
+        nada aqui pode ser messagebox — apareceria a cada tecla digitada."""
         bid_atual = self.bid.get()
         termo = self._imp_entry_var.get().strip().lower()
-        if not termo:
-            messagebox.showwarning("Atenção","Digite parte do nome para buscar!"); return
-
-        self._imp_status_lbl.configure(
-            text="Após importar, ajuste o valor de cotas/valor esperado no formulário acima se necessário.",
-            fg="#888")
         self._imp_busca_tree.delete(*self._imp_busca_tree.get_children())
+
+        if len(termo) < 2:
+            self._imp_status_lbl.configure(
+                text="Digite ao menos 2 letras do nome para buscar.", fg="#888")
+            return
 
         rows = self.db.fetchall("""
             SELECT DISTINCT p.nome, p.telefone, p.chave_pix, b.nome as bolao_nome, p.id
@@ -1982,8 +2045,13 @@ class BolaoApp:
         """, (f"%{termo}%", bid_atual or 0))
 
         if not rows:
-            messagebox.showinfo("Busca","Nenhum participante encontrado com esse nome.")
+            self._imp_status_lbl.configure(
+                text="Nenhum participante encontrado com esse nome.", fg="#888")
             return
+
+        self._imp_status_lbl.configure(
+            text="Após importar, ajuste o valor de cotas/valor esperado no formulário abaixo se necessário.",
+            fg="#888")
 
         vistos = set()
         for r in rows:
@@ -4917,7 +4985,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.6</span>
+        <span>Sistema de Gestão de Bolões v6.7</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -7053,7 +7121,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.6</span>
+        <span>Sistema de Gestão de Bolões v6.7</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
