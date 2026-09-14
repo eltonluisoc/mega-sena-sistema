@@ -1178,6 +1178,64 @@ async function setLoteria(loteria) {
     showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
 }
 
+// ========== APLICAR SELEÇÃO VINDA DA URL (link "Ver Cartões" da
+// consulta "Meus Bolões") ==========
+// Ex.: index.html?loteria=mega&concurso=2830&bolao=Mega%20da%20Virada
+// Roda depois que carregarDados() já deixou tudo com os padrões
+// (loteria mega, concurso mais recente, algum bolão) — aqui só
+// sobrescreve pro que veio na URL, reaproveitando os mesmos selects e
+// funções de carregamento que o usuário usaria clicando manualmente.
+async function aplicarSelecaoDaUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const loteriaParam = params.get('loteria');
+    const concursoParam = params.get('concurso');
+    const bolaoParam = params.get('bolao');
+    if (!loteriaParam && !concursoParam && !bolaoParam) return;
+
+    if (loteriaParam && ['mega', 'lotofacil', 'quina'].includes(loteriaParam)) {
+        await setLoteria(loteriaParam);
+    }
+
+    const concursoSelect = document.getElementById('concursoSelect');
+    if (concursoParam && concursoSelect) {
+        const existe = Array.from(concursoSelect.options).some(o => o.value === concursoParam);
+        if (existe) {
+            concursoSelect.value = concursoParam;
+            await atualizarSelectBoloesAsync();
+        } else {
+            console.warn(`⚠️ Concurso ${concursoParam} (da URL) não encontrado nas opções disponíveis.`);
+        }
+    }
+
+    const bolaoSelect = document.getElementById('bolaoSelect');
+    if (bolaoParam && bolaoSelect) {
+        const existe = Array.from(bolaoSelect.options).some(o => o.value === bolaoParam);
+        if (existe) {
+            bolaoSelect.value = bolaoParam;
+        } else {
+            console.warn(`⚠️ Bolão "${bolaoParam}" (da URL) não encontrado — mantendo seleção padrão.`);
+            showToast('Não achamos esse bolão automaticamente — selecione abaixo.', 'warning');
+        }
+    }
+
+    const concursoAtual = concursoSelect ? concursoSelect.value : null;
+    if (concursoAtual) {
+        const resultadoConferido = await verificarResultadoConferido(loteriaAtual, concursoAtual);
+        if (resultadoConferido) {
+            await exibirResultadoSalvo(loteriaAtual, concursoAtual, resultadoConferido);
+        } else {
+            await mostrarCartoes();
+        }
+    }
+
+    // Veio de outra página — leva o olhar direto pro card de
+    // cartões/conferência em vez de deixar no topo da hero.
+    const cardConferencia = document.getElementById('cardHeaderConferencia');
+    if (cardConferencia) {
+        cardConferencia.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
 async function buscarResultadoInterno(concurso, loteria) {
     let numeros = null, data = null;
     try {
@@ -1966,7 +2024,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await carregarConfiguracoes();
     await carregarDados();
-    
+
+    // Se veio de "Meus Bolões" (botão "Ver Cartões"), sobrescreve os
+    // padrões acima pra loteria/concurso/bolão certos.
+    await aplicarSelecaoDaUrl();
+
     document.getElementById('btnMegaSena').addEventListener('click', () => setLoteria('mega'));
     document.getElementById('btnLotofacil').addEventListener('click', () => setLoteria('lotofacil'));
     document.getElementById('btnQuina').addEventListener('click', () => setLoteria('quina'));

@@ -180,6 +180,33 @@
         }
         .loteria-btn.active .loteria-nome { color: var(--text); }
 
+        /* ===== "Meus Bolões" — ação mais comum do site (ver meus
+           cartões/pagamentos), antes ficava escondida no último botão da
+           última seção da página. Vira um cartão de destaque logo abaixo
+           do seletor de loteria, antes de qualquer outro conteúdo. ===== */
+        .meus-boloes-cta-wrap {
+            max-width: 420px;
+            margin: 0 auto 26px;
+            padding: 0 20px;
+        }
+        .meus-boloes-cta {
+            width: 100%;
+            background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+            border-radius: var(--radius-lg);
+            padding: 14px 18px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 4px 14px rgba(139, 92, 246, 0.28);
+            cursor: pointer;
+        }
+        .meus-boloes-cta:hover { background: linear-gradient(135deg, #7c3aed, #6d28d9); }
+        .mb-icon { font-size: 20px; flex-shrink: 0; }
+        .mb-text { flex: 1; text-align: left; display: flex; flex-direction: column; gap: 1px; }
+        .mb-title { font-size: 14px; font-weight: 700; color: white; letter-spacing: -0.01em; }
+        .mb-sub { font-size: 11px; font-weight: 400; color: rgba(255,255,255,0.85); }
+        .mb-chevron { font-size: 18px; color: rgba(255,255,255,0.7); font-weight: 300; }
+
         /* ===== Cards — superfície branca sobre o cinza-claro, cabeçalho
            neutro com um "dot" de cor no lugar da barra cheia ===== */
         .container { padding-top: 2px; }
@@ -292,6 +319,18 @@
         </button>
     </div>
 
+    <!-- Meus Bolões — em destaque, logo no topo (ver docstring do CSS) -->
+    <div class="meus-boloes-cta-wrap">
+        <button id="btnMeusBoloes" class="meus-boloes-cta">
+            <span class="mb-icon">🔍</span>
+            <span class="mb-text">
+                <span class="mb-title">Meus Bolões</span>
+                <span class="mb-sub">Veja seus cartões e pagamentos</span>
+            </span>
+            <span class="mb-chevron">›</span>
+        </button>
+    </div>
+
     <div class="container">
         <!-- Card: Bolão Aberto (destaque) -->
         <div id="cardBolaoAberto" style="display: none; margin-bottom: 20px;">
@@ -349,7 +388,6 @@
     <button id="btnCompartilhar" style="background: #25D366; width: auto; padding: 10px 20px;">📤 COMPARTILHAR SITE</button>
     <button id="btnWhatsappGrupo" style="background: #075E54; width: auto; padding: 10px 20px;">👥 GRUPO OFICIAL</button>
     <button id="btnSugestao" style="background: #f59e0b; width: auto; padding: 10px 20px;">💬 ENVIAR SUGESTÃO</button>
-    <button id="btnMeusBoloes" style="background: #8b5cf6; width: auto; padding: 10px 20px;">🔍 MEUS BOLÕES</button>
 </div>
                 <div style="font-size: 11px; color: #666; margin-top: 10px;">
                     ✨ Compartilhe o site com seus amigos | ✨ Sua opinião é importante para melhorarmos

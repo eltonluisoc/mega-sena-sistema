@@ -196,6 +196,18 @@ async function consultarBoloes() {
                     };
                     const loteriaNome = loteriaNomes[bolao.loteria] || bolao.loteria.toUpperCase();
                     
+                    // Link pro index.html já com loteria/concurso/bolão
+                    // pré-selecionados, pra abrir direto nos cartões desse
+                    // bolão em vez de exigir escolher tudo de novo na mão.
+                    // O casamento entre as duas telas é pelo NOME do bolão
+                    // (não existe um ID em comum entre as coleções
+                    // "participantes" e "cartoes" hoje) — se algum dia o
+                    // nome divergir entre as duas, index.html cai de volta
+                    // pra seleção manual, sem quebrar nada.
+                    const urlCartoes = 'index.html?loteria=' + encodeURIComponent(bolao.loteria) +
+                        '&concurso=' + encodeURIComponent(bolao.concurso) +
+                        '&bolao=' + encodeURIComponent(bolao.titulo);
+
                     sectionHtml += `
                         <div class="bolao-card">
                             <div class="bolao-nome">🎯 ${escapeHtml(bolao.titulo)}</div>
@@ -210,6 +222,9 @@ async function consultarBoloes() {
                             <div>
                                 <span class="bolao-status ${situacaoClass}">${situacao}</span>
                                 <span class="bolao-status ${statusClass}">${statusLabel}</span>
+                            </div>
+                            <div>
+                                <a href="${urlCartoes}" class="btn-ver-cartoes">🎫 Ver Cartões</a>
                             </div>
                         </div>
                     `;

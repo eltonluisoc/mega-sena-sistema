@@ -740,6 +740,20 @@ Usuário pediu explicitamente: "quero evoluir o cadastro de participantes... use
 
 Versão desktop v6.6 → **v6.7**. `dist/SistemaBoloes.exe` reconstruído via `SistemaBoloes.spec`.
 
+## Rodada 46 — "Meus Bolões" em destaque no topo + link direto pros cartões (v47, site)
+
+Usuário reportou que no site público o botão "🔍 MEUS BOLÕES" estava "muito abaixo na tela" — na prática, era o ÚLTIMO botão do ÚLTIMO card da página ("Compartilhar e Opine"), depois do card de conferência, área de cartões, resultados e bolões especiais. Pediu pra trazer pra cima, e que ao mostrar os bolões (na consulta por telefone) desse pra ver os cartões também. Investiguei antes de mexer e apresentei o plano (conforme pedido: "primeiro mostre o que fará"), confirmado pelo usuário.
+
+**Parte 1 — `index.html`**: botão "Meus Bolões" saiu de dentro do card "Compartilhar e Opine" e virou um cartão de destaque roxo (gradiente, ícone + subtítulo + chevron) logo abaixo do seletor de loteria (Mega/Lotofácil/Quina) — primeira coisa visível na tela, antes de qualquer card. Mesmo `id="btnMeusBoloes"` e mesmo destino (`meus-boloes.html`), só mudou de posição — o listener em `script.js` não precisou mudar.
+
+**Parte 2 — link "Ver Cartões" na consulta**: a consulta por telefone (`meus-boloes.html` → `consulta.js`) lê a coleção `participantes` e só mostrava status (pago/pendente, aberto/encerrado) — os números dos cartões ficam numa coleção diferente (`cartoes`), usada pelo `index.html` via os seletores de Concurso/Bolão. Em vez de duplicar a lógica de exibição de cartões dentro de `consulta.js`, cada bolão listado ganhou um botão "🎫 Ver Cartões" que linka de volta pro `index.html` com `?loteria=X&concurso=Y&bolao=Z` na URL (o casamento entre as duas telas é pelo NOME do bolão — não existe ID em comum entre as coleções `participantes` e `cartoes` hoje).
+
+**`script.js`**: nova função `aplicarSelecaoDaUrl()`, chamada uma vez no `DOMContentLoaded` logo depois de `carregarDados()` — lê os parâmetros da URL, chama `setLoteria()` se a loteria pedida for diferente da padrão, sobrescreve `concursoSelect`/`bolaoSelect` pros valores pedidos (reaproveitando `atualizarSelectBoloesAsync()`, sem duplicar nada), chama `mostrarCartoes()`/`exibirResultadoSalvo()` conforme o concurso já ter sido conferido ou não, e rola a tela até o card de conferência. Se o nome do bolão não bater com nenhuma opção (nome digitado diferente entre cadastro e publicação dos cartões, por exemplo), cai de volta pra seleção manual normal com um toast de aviso — não quebra nada.
+
+`sw.js`: `CACHE_NAME` → v47.
+
+Versão web (Service Worker) v46 → v47.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
