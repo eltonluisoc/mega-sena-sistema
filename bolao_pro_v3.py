@@ -1,7 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.7
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.8
+Correções v6.8 (verificação de reservas do site não trava mais nem exige reabrir o app):
+ - "429 Too Many Requests" ao abrir o app: a busca por reservas
+   pendentes do site rodava na thread da UI, com só 3 tentativas rápidas
+   (1s/2s) antes de desistir — pouco tempo pra uma rajada de rate-limit
+   do Firestore passar. Achado real: usuário relatou 5 aberturas
+   seguidas do app batendo nesse erro. Agora a busca roda em background
+   (thread separada), com até 5 tentativas e espera crescente (2s, 5s,
+   10s, 20s — ~37s de fôlego total) sem travar a janela.
+ - Se ainda assim falhar, apareceu um link "🔄 Tentar novamente" na
+   barra de status — antes o único jeito de tentar de novo era fechar e
+   reabrir o sistema inteiro.
+ - Gravações no SQLite (não pode rodar fora da thread principal)
+   continuam acontecendo na thread principal — só a espera pela resposta
+   do Firestore foi pra background.
 Correções v6.7 (evolução do cadastro de participantes: menos cliques, sem tela cortada):
  - Corrigido erro real: o campo "Valor Total Esperado" começava fixo em
    "0,00" e só era recalculado quando o campo Cotas perdia o foco ou
@@ -1146,7 +1160,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.7")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.8")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1177,6 +1191,16 @@ class BolaoApp:
         except Exception:
             pass
 
+    def _set_status_retry_visivel(self, visivel):
+        """Mostra/esconde o link "Tentar novamente" da barra de status."""
+        try:
+            if visivel:
+                self._status_retry_btn.pack(side="right", padx=(0,10))
+            else:
+                self._status_retry_btn.pack_forget()
+        except Exception:
+            pass
+
     def _login_inicial(self):
         """Autentica no Firebase assim que a janela principal abre."""
         self._status("🔄 Conectando ao Firebase...")
@@ -1189,42 +1213,77 @@ class BolaoApp:
                 "\n\nVocê pode continuar usando o sistema normalmente; a "
                 "sincronização com o site vai pedir a senha novamente mais tarde.")
             return
-        self._status("🔄 Verificando reservas lançadas no site...")
         self._importar_movimentos_pendentes_web()
 
     def _importar_movimentos_pendentes_web(self):
         """Importa depósitos/saques de reserva registrados no admin do site
         (fila reservas_movimentos_pendentes) pro SQLite local, e some com o
         item da fila depois de importar com sucesso. Antes disso só existia
-        sincronização desktop→site; isso fecha o caminho contrário."""
-        import urllib.request, urllib.error, json, re as _re, time as _time
+        sincronização desktop→site; isso fecha o caminho contrário.
+
+        A busca (GET com retry) roda numa thread separada — antes rodava
+        na thread da UI, então só dava pra tentar 3 vezes com espera
+        curta (1s/2s) sem travar a janela. Achado real: usuário relatou
+        5 aberturas seguidas do app batendo "429 Too Many Requests" — 3
+        segundos de retry não davam tempo da rajada de rate-limit do
+        Firestore passar. Em background dá pra esperar bem mais (até
+        ~37s no total) sem deixar o app parecendo travado. O que mexe no
+        SQLite (_concluir_import_pendentes) continua rodando na thread
+        principal — sqlite3 não permite usar a mesma conexão fora da
+        thread onde foi criada."""
+        import threading
+        if getattr(self, "_rsv_import_em_andamento", False):
+            return
+        self._rsv_import_em_andamento = True
+        self._status("🔄 Verificando reservas lançadas no site...")
+        self._set_status_retry_visivel(False)
+
+        def _run():
+            import urllib.request, urllib.error, json, time as _time
+            url = ("https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
+                   "/databases/(default)/documents/reservas_movimentos_pendentes")
+            dados = None
+            erro_final = None
+            esperas = [2, 5, 10, 20]  # backoff crescente, ~37s de fôlego total
+            for tentativa in range(len(esperas) + 1):
+                try:
+                    req = urllib.request.Request(url, method="GET", headers=_firebase_headers())
+                    with urllib.request.urlopen(req, timeout=15) as r:
+                        dados = json.loads(r.read().decode("utf-8"))
+                    break
+                except urllib.error.HTTPError as ex:
+                    erro_final = ex
+                    if ex.code == 429 and tentativa < len(esperas):
+                        espera = esperas[tentativa]
+                        n, total = tentativa + 1, len(esperas)
+                        self.root.after(0, lambda e=espera, n=n, t=total: self._status(
+                            f"🔄 Reservas do site ocupado, tentando de novo em {e}s ({n}/{t})..."))
+                        _time.sleep(espera)
+                        continue
+                    break
+                except Exception as ex:
+                    erro_final = ex
+                    break
+            self.root.after(0, lambda: self._concluir_import_pendentes(dados, erro_final))
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _concluir_import_pendentes(self, dados, erro_final):
+        """Roda na thread principal (agendada via root.after de dentro de
+        _importar_movimentos_pendentes_web) — recebe o resultado da busca
+        feita em background e faz o resto: gravações no SQLite (não pode
+        rodar fora da thread principal) e as exclusões da fila no
+        Firestore, uma por item importado."""
+        import urllib.request, re as _re
+        self._rsv_import_em_andamento = False
 
         url = ("https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
                "/databases/(default)/documents/reservas_movimentos_pendentes")
-        # "429 Too Many Requests" aqui é limite de quota do projeto no
-        # Firestore (é uma única requisição no startup, sem loop nem
-        # retry — não é o app pedindo demais), então costuma ser
-        # passageiro. Tenta de novo com espera curta antes de desistir,
-        # em vez de já mostrar erro na primeira falha.
-        dados = None
-        for tentativa in range(3):
-            try:
-                req = urllib.request.Request(url, method="GET", headers=_firebase_headers())
-                with urllib.request.urlopen(req, timeout=15) as r:
-                    dados = json.loads(r.read().decode("utf-8"))
-                break
-            except urllib.error.HTTPError as ex:
-                if ex.code == 429 and tentativa < 2:
-                    # Espera curta — isso roda na thread da UI (startup),
-                    # espera longa demais travaria a janela.
-                    self._status(f"🔄 Reservas do site ocupado, tentando de novo ({tentativa+1}/2)...")
-                    _time.sleep(1 * (tentativa + 1))
-                    continue
-                self._status("❌ Erro ao verificar reservas do site: " + str(ex)[:90], cor="#ff6b6b")
-                return
-            except Exception as ex:
-                self._status("❌ Erro ao verificar reservas do site: " + str(ex)[:90], cor="#ff6b6b")
-                return
+
+        if dados is None:
+            self._status("❌ Erro ao verificar reservas do site: " + str(erro_final)[:90], cor="#ff6b6b")
+            self._set_status_retry_visivel(True)
+            return
 
         docs = dados.get("documents", [])
         if not docs:
@@ -1354,7 +1413,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.7",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.8",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -1378,7 +1437,15 @@ class BolaoApp:
         barra.pack_propagate(False)
         self._status_lbl = tk.Label(barra, text="", bg="#0d1b2a", fg="#90caf9",
                                      font=("Arial",8), anchor="w")
-        self._status_lbl.pack(fill="both", expand=True, padx=10)
+        self._status_lbl.pack(side="left", fill="both", expand=True, padx=10)
+        # Só aparece quando a verificação de reservas do site falha —
+        # antes disso acontecer, o único jeito de tentar de novo era
+        # fechar e reabrir o app inteiro (achado real: usuário relatou
+        # 5 tentativas assim seguidas).
+        self._status_retry_btn = tk.Label(barra, text="🔄 Tentar novamente",
+            bg="#0d1b2a", fg="#5dade2", font=("Arial",8,"underline"), cursor="hand2")
+        self._status_retry_btn.bind("<Button-1>",
+            lambda e: self._importar_movimentos_pendentes_web())
 
     # ── TABS ────────────────────────────────────────────────────
     def _build_tabs(self):
@@ -4985,7 +5052,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.7</span>
+        <span>Sistema de Gestão de Bolões v6.8</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -7121,7 +7188,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.7</span>
+        <span>Sistema de Gestão de Bolões v6.8</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>

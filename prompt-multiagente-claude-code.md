@@ -770,6 +770,18 @@ Usuário reportou: o design do index é "o mais bonito do sistema", mas ao acess
 
 Versão web (Service Worker) v47 → v48.
 
+## Rodada 48 — Verificação de reservas do site não trava mais nem exige reabrir o app (v6.8, desktop)
+
+Usuário reportou (com print de tela) 5 aberturas seguidas do app batendo "HTTP Error 429: Too Many Requests" ao verificar reservas lançadas no site, pedindo pra melhorar essa parte pra evitar problemas com a atualização da reserva. Esse mesmo erro já tinha sido investigado a fundo nas Rodadas 34-36 e confirmado como um limite real de quota/rate-limit do Firestore (plano gratuito Spark) — não um bug de código —, mas a experiência de reabrir o app 5 vezes seguidas pra bater na mesma parede mostrou que dava pra melhorar bastante o lado de cá, mesmo sem controle sobre o limite do Firebase.
+
+**Causa raiz do "trava"**: `_importar_movimentos_pendentes_web` rodava inteira na thread da UI (bloqueando a janela), com só 3 tentativas rápidas (1s/2s de espera) antes de desistir — pouco fôlego pra uma rajada de rate-limit passar, e travar mais tempo não dava por rodar na UI.
+
+**Corrigido em `bolao_pro_v3.py`**: a busca (GET com retry) foi pra uma thread separada — sqlite3 não permite reusar a mesma conexão fora da thread onde foi criada, então só a ESPERA pela resposta do Firestore foi pra background; as gravações no SQLite continuam na thread principal, feitas por um novo método `_concluir_import_pendentes` chamado de volta via `root.after(0, ...)` quando a busca termina (padrão idêntico ao já usado em `_pub_sincronizar_reservas`). Backoff aumentado de 3 tentativas (1s/2s) pra 5 tentativas (2s/5s/10s/20s, ~37s de fôlego total) — agora sem travar a janela, dá pra esperar bem mais. Se mesmo assim falhar, um link "🔄 Tentar novamente" apareceu na barra de status (`_build_status_bar`) — antes o único jeito de tentar de novo era fechar e reabrir o app inteiro, exatamente o que o usuário vinha fazendo 5 vezes. Guard `_rsv_import_em_andamento` evita rodar duas verificações ao mesmo tempo se o link for clicado enquanto uma já está em andamento.
+
+Versão desktop v6.7 → **v6.8**. `dist/SistemaBoloes.exe` reconstruído via `SistemaBoloes.spec`.
+
+**Nota pro usuário**: se o 429 continuar aparecendo mesmo com mais tentativas, é o limite de quota do Firestore mesmo (não tem mais o que ajustar só no código) — vale checar o uso/cota no Firebase Console e considerar o plano Blaze, como já apontado nas Rodadas 34-36.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
