@@ -1,0 +1,247 @@
+/* ================================================================
+   VISUAL PREMIUM COMPARTILHADO — "vitrine" pública do site (index,
+   meus-boloes, consulta, participantes). Extraído do <style> embutido
+   que já existia só em index.html, pra essas páginas pararem de usar
+   o gradiente azul/verde antigo e ficarem com a mesma qualidade visual
+   do index (Rodada 47: usuário reportou "quando acesso bolões e outros
+   links e menu o design é diferente").
+
+   Não inclui admin.html de propósito — o admin já tem sua própria
+   evolução Apple-style (Rodada 40), pensada pra uma área de trabalho
+   logada, não pra vitrine pública; ver comentário em index.html.
+
+   Cada página que usa este arquivo pode sobrepor ou completar com um
+   <style> próprio só pro que for específico dela (ex.: hero, seletor
+   de loteria — ficam inline em index.html, não aqui).
+   ================================================================ */
+
+:root {
+    --bg: #f5f5f7;
+    --surface: #ffffff;
+    --text: #1d1d1f;
+    --text-secondary: #6e6e73;
+    --accent: #0071e3;
+    --accent-hover: #0058b3;
+    --hairline: rgba(0, 0, 0, 0.08);
+    --radius-lg: 20px;
+    --radius-md: 14px;
+    --radius-pill: 980px;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+}
+
+/* ===== Nav — enxuta, vidro fosco, hairline fina no lugar de sombra
+   pesada. Toda página da vitrine ganha a mesma barra, com um link
+   pra home embutido no logo. ===== */
+.top-bar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: rgba(255, 255, 255, 0.82);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 1px solid var(--hairline);
+    padding: 14px 20px;
+}
+.logo {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.01em;
+    text-decoration: none;
+    display: inline-block;
+}
+.version {
+    color: var(--text-secondary);
+    font-weight: 400;
+}
+.top-bar .subtitle { display: none; }
+
+/* ===== Cards — superfície branca sobre o cinza-claro, cabeçalho
+   neutro com um "dot" de cor no lugar da barra cheia. Dimensão do
+   .container (max-width/margin) fica de fora de propósito — index.html
+   usa o .container largo de style.css (grids de cartões), enquanto
+   meus-boloes/consulta/participantes usam uma coluna estreita
+   centralizada; cada página define isso no próprio <style>. ===== */
+.card {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    animation: fadeUp 0.5s ease both;
+    transition: box-shadow 0.2s ease;
+    overflow: hidden;
+    margin-bottom: 16px;
+}
+.card:hover { box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06); }
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.card-header {
+    background: transparent !important;
+    color: var(--text) !important;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--hairline);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    text-align: left;
+}
+.card-header .subtitle {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-secondary);
+    opacity: 1;
+}
+.card-body { padding: 20px; }
+
+.bg-blue::before, .bg-green::before, .bg-orange::before, .bg-purple::before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 9px;
+    flex-shrink: 0;
+}
+.bg-blue::before   { background: var(--accent); }
+.bg-green::before  { background: #34c759; }
+.bg-orange::before { background: #ff9500; }
+.bg-purple::before { background: #af52de; }
+
+/* ===== Botões — pill sólido, sem sombra pesada, feedback só no
+   toque (scale sutil), sem elevação exagerada ===== */
+button, .btn-voltar, .btn-consultar, .btn-participar {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: var(--radius-pill);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    box-shadow: none;
+    transition: background 0.2s ease, transform 0.15s ease;
+    cursor: pointer;
+}
+button:hover, .btn-voltar:hover, .btn-consultar:hover, .btn-participar:hover { background: var(--accent-hover); }
+button:active, .btn-voltar:active, .btn-consultar:active, .btn-participar:active { transform: scale(0.98); }
+button:disabled, .btn-consultar:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+/* Botão secundário ("voltar", "nova consulta") — cinza neutro, não
+   compete visualmente com a ação primária da tela. */
+.btn-voltar {
+    background: #e8e8ed;
+    color: var(--text);
+    display: block;
+    text-align: center;
+    text-decoration: none;
+    padding: 12px;
+    font-size: 14px;
+    margin-top: 10px;
+}
+.btn-voltar:hover { background: #dcdce2; }
+
+.btn-consultar { width: 100%; padding: 16px; font-size: 16px; }
+.btn-participar { padding: 8px 18px; font-size: 13px; width: auto; margin-top: 10px; }
+
+input, select, .form-control, .input-telefone {
+    border-radius: var(--radius-md);
+    border: 1px solid var(--hairline);
+    background: #fbfbfd;
+    color: var(--text);
+    font-family: inherit;
+}
+.input-telefone {
+    width: 100%;
+    padding: 14px 16px;
+    font-size: 18px;
+    font-family: 'SF Mono', 'Menlo', monospace;
+    text-align: center;
+    letter-spacing: 2px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.input-telefone:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.12);
+}
+.input-telefone::placeholder { font-size: 14px; letter-spacing: 0; color: #b0b0b5; }
+
+label { color: var(--text); font-weight: 600; font-size: 14px; display: block; margin-bottom: 6px; }
+
+.empty-state, .loading { color: var(--text-secondary); text-align: center; padding: 40px 20px; }
+.empty-state .icon { font-size: 44px; margin-bottom: 12px; opacity: 0.7; }
+.loading { padding: 40px; }
+.loading .spinner { display: inline-block; animation: spin 1s linear infinite; font-size: 28px; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+.footer {
+    background: transparent;
+    color: var(--text-secondary);
+    border-top: 1px solid var(--hairline);
+    margin-top: 32px;
+    text-align: center;
+    padding: 20px;
+    font-size: 11px;
+}
+
+/* Dica/aviso informativo — fundo neutro discreto, sem cor saturada */
+.dica, .aviso {
+    background: #f5f5f7;
+    color: var(--text-secondary);
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    margin-bottom: 16px;
+}
+.dica strong { color: var(--text); }
+.dica .exemplo {
+    background: #e8e8ed;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-size: 13px;
+}
+
+/* Pills de status — mesmos tons de sistema usados no admin (Rodada 40),
+   trazendo consistência entre a vitrine e a área de trabalho. */
+.status-badge, .bolao-status, .status-aberto, .status-andamento,
+.status-encerrado, .status-pago, .status-pendente {
+    display: inline-block;
+    padding: 3px 12px;
+    border-radius: var(--radius-pill);
+    font-size: 11px;
+    font-weight: 600;
+}
+.status-aberto     { background: #d1f7db; color: #1a7431; }
+.status-andamento  { background: #ffe8cc; color: #9a5b00; }
+.status-encerrado  { background: #ffd9d6; color: #c41e1a; }
+.status-pago       { background: #d1f7db; color: #1a7431; }
+.status-pendente   { background: #ffe8cc; color: #9a5b00; }
+
+.bolao-card {
+    background: #fbfbfd;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    transition: box-shadow 0.2s ease;
+}
+.bolao-card:hover { box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+.bolao-nome, .bolao-titulo { font-weight: 700; font-size: 15px; color: var(--text); }
+.bolao-info { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+.bolao-info span { margin-right: 12px; }
+
+/* Respeita quem prefere menos movimento */
+@media (prefers-reduced-motion: reduce) {
+    .card { animation: none !important; }
+    * { transition: none !important; }
+}

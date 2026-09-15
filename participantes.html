@@ -4,184 +4,56 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>Participantes - Bolões Aleatórios</title>
-    <meta name="theme-color" content="#3b82f6">
+    <meta name="theme-color" content="#f5f5f7">
     <link rel="stylesheet" href="style.css">
+    <!-- Mesmo visual premium do index (Rodada 47) — ver style-vitrine.css -->
+    <link rel="stylesheet" href="style-vitrine.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background: linear-gradient(135deg, #3b82f6 0%, #10b981 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-        }
-
-        .card {
-            background: white;
-            border-radius: 20px;
-            overflow: hidden;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-            margin-bottom: 16px;
-        }
-
-        .card-header {
-            padding: 20px 24px;
-            font-weight: bold;
-            font-size: 18px;
-            color: white;
-            background: #3b82f6;
-            text-align: center;
-        }
-
-        .card-header .subtitle {
-            font-size: 12px;
-            font-weight: normal;
-            opacity: 0.8;
-            margin-top: 4px;
-        }
-
-        .card-body {
-            padding: 20px 24px;
-        }
+        /* Só o que é específico desta página — o resto vem de
+           style-vitrine.css (tokens, top-bar, card, botões, pills de
+           status, empty-state/loading). */
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
 
         .participante-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
             padding: 12px 0;
-            border-bottom: 1px solid #e2e8f0;
+            border-bottom: 1px solid var(--hairline);
         }
-
-        .participante-item:last-child {
-            border-bottom: none;
-        }
-
-        .participante-nome {
-            font-size: 15px;
-            font-weight: 500;
-            color: #1e293b;
-        }
-
+        .participante-item:last-child { border-bottom: none; }
+        .participante-nome { font-size: 15px; font-weight: 500; color: var(--text); }
         .participante-cotas {
-            background: #dbeafe;
-            color: #1e40af;
+            background: var(--bg);
+            color: var(--accent);
             padding: 4px 12px;
-            border-radius: 20px;
+            border-radius: var(--radius-pill);
             font-size: 12px;
             font-weight: 600;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: #94a3b8;
-        }
-
-        .empty-state .icon {
-            font-size: 48px;
-            margin-bottom: 12px;
         }
 
         .total-participantes {
             text-align: center;
             padding: 12px;
-            background: #f1f5f9;
-            border-radius: 12px;
+            background: #f5f5f7;
+            border-radius: var(--radius-md);
             margin-bottom: 16px;
             font-size: 14px;
-            color: #475569;
+            color: var(--text-secondary);
         }
-
-        .total-participantes strong {
-            color: #1e293b;
-            font-size: 18px;
-        }
-
-        .btn-voltar {
-            display: block;
-            width: 100%;
-            padding: 12px;
-            background: #64748b;
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-weight: 600;
-            font-size: 14px;
-            cursor: pointer;
-            text-align: center;
-            text-decoration: none;
-            margin-top: 12px;
-        }
-
-        .btn-voltar:hover {
-            background: #475569;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #94a3b8;
-        }
-
-        .loading .spinner {
-            display: inline-block;
-            animation: spin 1s linear infinite;
-            font-size: 32px;
-        }
-
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-
-        .status-badge {
-            display: inline-block;
-            padding: 4px 14px;
-            border-radius: 20px;
-            font-size: 11px;
-            font-weight: 600;
-            margin-top: 8px;
-        }
-
-        .status-aberto {
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .status-andamento {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .status-encerrado {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-
-        .footer {
-            text-align: center;
-            padding: 20px;
-            font-size: 11px;
-            color: rgba(255,255,255,0.7);
-        }
+        .total-participantes strong { color: var(--text); font-size: 18px; }
 
         @media (max-width: 480px) {
-            body { padding: 12px; }
             .card-body { padding: 16px; }
             .participante-nome { font-size: 14px; }
         }
     </style>
 </head>
 <body>
+    <div class="top-bar">
+        <a href="index.html" class="logo">🎲 Bolões Aleatórios</a>
+    </div>
+
     <div class="container">
         <div class="card">
             <div class="card-header">

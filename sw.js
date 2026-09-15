@@ -1,5 +1,5 @@
 // Service Worker para Bolões Aleatórios PWA
-const CACHE_NAME = 'boloes-aleatorios-v47';  // ← VERSÃO ATUALIZADA
+const CACHE_NAME = 'boloes-aleatorios-v48';  // ← VERSÃO ATUALIZADA
 const BASE_PATH = '/mega-sena-sistema/';
 
 // Lista de arquivos locais para cache
@@ -7,6 +7,7 @@ const urlsToCache = [
   BASE_PATH + 'index.html',
   BASE_PATH + 'admin.html',
   BASE_PATH + 'style.css',
+  BASE_PATH + 'style-vitrine.css',
   BASE_PATH + 'script.js',
   BASE_PATH + 'admin.js',
   BASE_PATH + 'firebase-config.js',

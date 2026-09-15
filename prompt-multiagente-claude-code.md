@@ -754,6 +754,22 @@ Usuário reportou que no site público o botão "🔍 MEUS BOLÕES" estava "muit
 
 Versão web (Service Worker) v46 → v47.
 
+## Rodada 47 — Design premium do index estendido pra toda a vitrine pública (v48, site)
+
+Usuário reportou: o design do index é "o mais bonito do sistema", mas ao acessar "bolões e outros links e menu" o visual muda pra algo diferente (pior). Investiguei antes de mexer: `meus-boloes.html`, `consulta.html` (link pessoal por token, gerado pelo admin) e `participantes.html` (lista pública de participantes de um bolão, também linkada pelo admin) ainda usavam um design antigo — fundo gradiente azul/verde, cards com sombra pesada, botões arredondados genéricos — de uma era anterior ao redesenho Apple-style que o index já tinha (Rodada 40 pro admin, e o próprio index depois). `admin.html` ficou de fora de propósito: já passou pela sua própria evolução (Rodada 40), pensada pra área de trabalho logada, não pra vitrine pública que um visitante alcança clicando em links do site.
+
+**Novo `style-vitrine.css`**: extraído do `<style>` que já existia só em `index.html` — tokens (`--bg`,`--accent`,`--radius-*` etc.), `.top-bar`/`.logo`, `.card`/`.card-header`/`.card-body`, botões pill, inputs/selects, `.empty-state`/`.loading`, `.footer`, e novas pills de status (`.status-aberto/andamento/encerrado/pago/pendente`) usando os mesmos tons de sistema do admin (Rodada 40) — arquivo único compartilhado pelas 4 páginas da vitrine, pra parar de duplicar/divergir esse visual em cada uma.
+
+**`index.html`**: passou a linkar `style-vitrine.css` e teve seu `<style>` próprio enxugado — sobrou só o que é mesmo exclusivo dele (hero, seletor de loteria, card de "Meus Bolões", stagger de animação dos cards).
+
+**`meus-boloes.html`/`consulta.html`/`participantes.html`**: ganharam `<link rel="stylesheet" href="style-vitrine.css">`, uma `.top-bar` igual à do index (logo linkando pra home), fundo trocado do gradiente pro `--bg` neutro, e os estilos locais reduzidos só ao que é específico de cada uma. Nenhum id/classe usado pelos scripts (`consulta.js` e os `<script>` inline de `consulta.html`/`participantes.html`) foi renomeado — conferido com grep cruzando `getElementById` de cada script contra os ids que sobraram no HTML.
+
+**Achado incidental corrigido**: o selo ABERTO/EM ANDAMENTO/ENCERRADO de cada bolão em `consulta.js` (usado por `meus-boloes.html`) recebia a classe crua (`"aberto"`/`"andamento"`/`"encerrado"`), mas o CSS antigo só definia os nomes prefixados (`.status-aberto` etc.) — o selo nunca teve cor nenhuma, sempre caiu no estilo padrão do navegador. `consulta.html` (outro arquivo, lógica própria) não tinha esse bug — já passava o nome prefixado certo. Corrigido no CSS de `meus-boloes.html` com um seletor que cobre os dois casos.
+
+`sw.js`: `CACHE_NAME` → v48, `style-vitrine.css` adicionado à lista de pré-cache.
+
+Versão web (Service Worker) v47 → v48.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

@@ -4,131 +4,58 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>Bolões Aleatórios - Meus Bolões</title>
+    <meta name="theme-color" content="#f5f5f7">
     <link rel="stylesheet" href="style.css">
+    <!-- Mesmo visual premium do index (Rodada 47) — ver style-vitrine.css -->
+    <link rel="stylesheet" href="style-vitrine.css">
     <style>
-        body { 
-            background: linear-gradient(135deg, #3b82f6 0%, #10b981 100%); 
-            min-height: 100vh; 
-            padding: 20px; 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        /* Só o que é específico desta página — o resto vem de
+           style-vitrine.css (tokens, top-bar, card, botões, pills de
+           status). */
+        .consulta-container { max-width: 700px; margin: 0 auto; padding: 20px; }
+        .resultado-card { padding: 4px; }
+
+        .bolao-item {
+            background: #fbfbfd;
+            border: 1px solid var(--hairline);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            margin-bottom: 12px;
         }
-        .consulta-container { 
-            max-width: 800px; 
-            margin: 0 auto; 
-        }
-        .resultado-card { 
-            background: white; 
-            border-radius: 20px; 
-            padding: 20px; 
-            margin-bottom: 20px; 
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
-        }
-        .bolao-item { 
-            background: #f8fafc; 
-            border-radius: 16px; 
-            padding: 16px; 
-            margin-bottom: 12px; 
-            border: 1px solid #e2e8f0; 
-        }
-        .bolao-titulo { 
-            font-weight: bold; 
-            font-size: 16px; 
-            color: #1e293b; 
+        .bolao-titulo {
+            font-weight: 700;
+            font-size: 16px;
+            color: var(--text);
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
             gap: 8px;
         }
-        .bolao-status { 
-            font-size: 11px; 
-            font-weight: bold; 
-            padding: 3px 10px; 
-            border-radius: 30px; 
-            display: inline-block; 
-        }
-        .status-aberto { background: #10b981; color: white; }
-        .status-andamento { background: #f59e0b; color: white; }
-        .btn-participar { 
-            background: #10b981; 
-            color: white; 
-            border: none; 
-            padding: 8px 16px; 
-            border-radius: 30px; 
-            cursor: pointer; 
-            font-weight: bold; 
-            width: auto; 
-            margin-top: 10px; 
-        }
-        .aviso { 
-            background: #dbeafe; 
-            padding: 12px; 
-            border-radius: 12px; 
-            font-size: 12px; 
-            color: #1e40af; 
-            margin-top: 16px; 
-            text-align: center; 
-        }
-        .loading { text-align: center; padding: 40px; color: #3b82f6; }
-        .header { text-align: center; margin-bottom: 20px; }
-        .header h1 { color: white; font-size: 24px; margin: 0; }
-        .sub { color: rgba(255,255,255,0.8); font-size: 14px; margin-top: 5px; }
-        .btn-voltar {
-            background: rgba(255,255,255,0.2);
-            border: none;
-            color: white;
-            padding: 8px 16px;
-            border-radius: 30px;
-            cursor: pointer;
-            margin-top: 10px;
-            font-size: 13px;
-        }
+
         .token-info {
-            background: #f1f5f9;
-            padding: 10px;
-            border-radius: 10px;
-            margin-bottom: 15px;
+            background: #f5f5f7;
+            padding: 12px;
+            border-radius: var(--radius-md);
+            margin-bottom: 16px;
             text-align: center;
         }
-        .participante-nome {
-            font-size: 18px;
-            font-weight: bold;
-            color: #1e293b;
-        }
-        .participante-telefone {
-            font-size: 13px;
-            color: #64748b;
-        }
-        .cotas-info {
-            font-size: 12px;
-            color: #64748b;
-            margin-top: 5px;
-        }
-        .status-pago {
-            background: #10b981;
-            color: white;
-            padding: 4px 10px;
-            border-radius: 30px;
-            font-size: 11px;
-            display: inline-block;
-        }
-        .status-pendente {
-            background: #f59e0b;
-            color: white;
-            padding: 4px 10px;
-            border-radius: 30px;
-            font-size: 11px;
-            display: inline-block;
-        }
+        .participante-nome { font-size: 18px; font-weight: 700; color: var(--text); }
+        .participante-telefone { font-size: 13px; color: var(--text-secondary); }
+        .cotas-info { font-size: 12px; color: var(--text-secondary); margin-top: 5px; }
     </style>
 </head>
 <body>
+    <div class="top-bar">
+        <a href="index.html" class="logo">🎲 Bolões Aleatórios</a>
+    </div>
+
     <div class="consulta-container">
-        <div class="header">
-            <h1>🎲 MEUS BOLÕES</h1>
-            <div class="sub">Acompanhe sua participação</div>
+        <div class="card" style="text-align:center; padding: 24px 20px; margin-bottom: 20px;">
+            <h1 style="margin:0; font-size: 22px; font-weight: 800; letter-spacing: -0.02em;">🎲 MEUS BOLÕES</h1>
+            <div style="color: var(--text-secondary); font-size: 14px; margin-top: 6px;">Acompanhe sua participação</div>
         </div>
-        <div id="conteudo" class="resultado-card">
+        <div id="conteudo" class="card resultado-card">
             <div class="loading">🔍 Carregando suas informações...</div>
         </div>
     </div>

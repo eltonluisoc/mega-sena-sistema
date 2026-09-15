@@ -17,6 +17,11 @@
 
     <!-- CSS Externo -->
     <link rel="stylesheet" href="style.css">
+    <!-- Visual premium compartilhado da vitrine pública (index,
+         meus-boloes, consulta, participantes) — ver comentário no topo
+         do arquivo. Não inclui admin.html, que tem sua própria evolução
+         de design (Rodada 40), pensada pra área de trabalho logada. -->
+    <link rel="stylesheet" href="style-vitrine.css">
 
     <!-- Tipografia — a pilha do sistema (Segoe UI/Roboto) fica "feia" fora
          de Mac/iPhone. Inter é a substituta gratuita mais usada pra SF Pro
@@ -30,11 +35,14 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 
     <!-- ================================================================
-         VISUAL PREMIUM — só da página inicial (index). Embutido aqui, não
-         em style.css, de propósito: style.css é compartilhado com
-         admin.html/consulta.html/participantes.html, e essa direção
-         (minimalista, estilo Apple) é pensada só pra "vitrine" pública,
-         não pras telas de trabalho (admin). 3ª versão: a 1ª usava fundo
+         VISUAL PREMIUM ESPECÍFICO DO INDEX (hero, seletor de loteria,
+         card de "Meus Bolões") — o resto (tokens, top-bar, cards,
+         botões) agora mora em style-vitrine.css, compartilhado com as
+         outras páginas da vitrine (Rodada 47). style.css continua sendo
+         a base funcional de TODAS as páginas, inclusive admin.html — só
+         essa direção minimalista estilo Apple é exclusiva da vitrine
+         pública, não das telas de trabalho (admin tem a sua própria,
+         Rodada 40). 3ª versão: a 1ª usava fundo
          animado colorido girando + esferas flutuando ("muito ruim"); a 2ª
          cortou tudo isso mas ficou só tipografia de sistema (feia fora de
          Mac) e nenhuma imagem. Agora: fonte Inter (substituta de SF Pro) +
@@ -45,51 +53,6 @@
          sites premium usam quando não têm fotografia própria pra mostrar.
          ================================================================ -->
     <style>
-        :root {
-            --bg: #f5f5f7;
-            --surface: #ffffff;
-            --text: #1d1d1f;
-            --text-secondary: #6e6e73;
-            --accent: #0071e3;
-            --accent-hover: #0058b3;
-            --hairline: rgba(0, 0, 0, 0.08);
-            --radius-lg: 20px;
-            --radius-md: 14px;
-            --radius-pill: 980px;
-        }
-
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-        }
-
-        /* ===== Nav — enxuta, vidro fosco, hairline fina no lugar de
-           sombra pesada ===== */
-        .top-bar {
-            position: sticky;
-            top: 0;
-            z-index: 10;
-            background: rgba(255, 255, 255, 0.82);
-            backdrop-filter: saturate(180%) blur(20px);
-            -webkit-backdrop-filter: saturate(180%) blur(20px);
-            border-bottom: 1px solid var(--hairline);
-            padding: 14px 20px;
-        }
-        .logo {
-            font-size: 16px;
-            font-weight: 700;
-            color: var(--text);
-            letter-spacing: -0.01em;
-        }
-        .version {
-            color: var(--text-secondary);
-            font-weight: 400;
-        }
-        /* A tagline saiu da nav e virou o hero abaixo — nav fica só com
-           a marca, do jeito que uma barra de navegação enxuta deve ser. */
-        .top-bar .subtitle { display: none; }
-
         /* ===== Hero — título de destaque + glow suave no lugar de uma
            fotografia (que eu não tenho como buscar/gerar aqui). O glow é
            só gradiente radial desfocado, estático, atrás do texto —
@@ -207,86 +170,21 @@
         .mb-sub { font-size: 11px; font-weight: 400; color: rgba(255,255,255,0.85); }
         .mb-chevron { font-size: 18px; color: rgba(255,255,255,0.7); font-weight: 300; }
 
-        /* ===== Cards — superfície branca sobre o cinza-claro, cabeçalho
-           neutro com um "dot" de cor no lugar da barra cheia ===== */
+        /* ===== Cards — padding-top e o escalonamento da animação de
+           entrada são específicos do index (lista longa de cards); o
+           visual do .card em si (fundo, borda, radius, sombra) mora em
+           style-vitrine.css agora. ===== */
         .container { padding-top: 2px; }
-        .card {
-            background: var(--surface);
-            border: 1px solid var(--hairline);
-            border-radius: var(--radius-lg);
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-            animation: fadeUp 0.5s ease both;
-            transition: box-shadow 0.2s ease;
-        }
-        .card:hover { box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06); }
         .container .card:nth-of-type(1) { animation-delay: .04s; }
         .container .card:nth-of-type(2) { animation-delay: .09s; }
         .container .card:nth-of-type(3) { animation-delay: .14s; }
         .container .card:nth-of-type(4) { animation-delay: .19s; }
-        @keyframes fadeUp {
-            from { opacity: 0; transform: translateY(12px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
-
-        .card-header {
-            background: transparent !important;
-            color: var(--text) !important;
-            font-size: 15px;
-            font-weight: 600;
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--hairline);
-            display: flex;
-            align-items: center;
-        }
-        .bg-blue::before, .bg-green::before, .bg-orange::before, .bg-purple::before {
-            content: '';
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            margin-right: 9px;
-            flex-shrink: 0;
-        }
-        .bg-blue::before   { background: var(--accent); }
-        .bg-green::before  { background: #34c759; }
-        .bg-orange::before { background: #ff9500; }
-        .bg-purple::before { background: #af52de; }
-
-        /* ===== Botões — pill sólido, sem sombra pesada, feedback só no
-           toque (scale sutil), sem elevação exagerada ===== */
-        button {
-            background: var(--accent);
-            border-radius: var(--radius-pill);
-            font-weight: 600;
-            letter-spacing: -0.01em;
-            box-shadow: none;
-            transition: background 0.2s ease, transform 0.15s ease;
-        }
-        button:hover { background: var(--accent-hover); }
-        button:active { transform: scale(0.98); }
-
-        select, .form-control {
-            border-radius: var(--radius-md);
-            border: 1px solid var(--hairline);
-            background: #fbfbfd;
-        }
-
-        label { color: var(--text); }
-
-        .empty-state, .loading { color: var(--text-secondary); }
-
-        .footer {
-            background: transparent;
-            color: var(--text-secondary);
-            border-top: 1px solid var(--hairline);
-            margin-top: 40px;
-        }
 
         /* Respeita quem prefere menos movimento — motion vira decoração
-           opcional, nada de essencial depende dela. */
+           opcional, nada de essencial depende dela (.card já coberto em
+           style-vitrine.css). */
         @media (prefers-reduced-motion: reduce) {
-            .hero, .card { animation: none !important; }
-            * { transition: none !important; }
+            .hero { animation: none !important; }
         }
     </style>
 </head>
