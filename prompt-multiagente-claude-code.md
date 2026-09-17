@@ -782,6 +782,29 @@ Versão desktop v6.7 → **v6.8**. `dist/SistemaBoloes.exe` reconstruído via `S
 
 **Nota pro usuário**: se o 429 continuar aparecendo mesmo com mais tentativas, é o limite de quota do Firestore mesmo (não tem mais o que ajustar só no código) — vale checar o uso/cota no Firebase Console e considerar o plano Blaze, como já apontado nas Rodadas 34-36.
 
+## Rodada 49 — Premiações reformulada (desktop, v6.9) + remoção do menu Tokens (site admin, v49)
+
+Usuário pediu duas coisas independentes na mesma mensagem: reformular a tela de Premiações do desktop (com print do menu do admin web só pra marcar em amarelo o item "Tokens" a ser descartado) e remover a consulta por token do site admin, já que "Meus Bolões" (busca por telefone, Rodada 46) cobre a mesma necessidade.
+
+**Desktop (`bolao_pro_v3.py`, aba "🏆 Premiações", v6.9)** — pontos pedidos e implementados:
+- **Bug real corrigido**: histórico ordenado por `data_sorteio DESC`, mas esse campo é texto "DD/MM/AAAA" — ordenar a string direto não dá ordem cronológica de verdade (dia vem primeiro no texto; "05/01/2026" ficava lexicograficamente ANTES de "20/12/2025", apesar de mais recente). `_load_prem` agora reconverte pra "AAAAMMDD" antes de comparar.
+- **Edição adicionada**: nova `_editar_prem` (popup, mesmo padrão do `_rsv_editar_mov` das Reservas) — antes só dava pra excluir e recadastrar do zero. Duplo-clique na lista também abre pra editar.
+- **Concurso virou `entry_numerico()`** — mesmo achado das Reservas (Rodada 34-36): campo livre deixava salvar lixo no número do concurso.
+- **Calculadora de Rateio removida** da tela (fora do escopo pedido).
+- Resumo por loteria perdeu a coluna "Último Concurso" (redundante — a "Última Data" já basta).
+- Nova coluna "Bolão" no histórico + label "📌 Registrando para o bolão ativo: X" no formulário — antes não dava pra saber, só olhando a tela, pra qual bolão cada premiação foi (mesmo sendo obrigatório ter um bolão ativo selecionado pra registrar).
+- Botões padronizados (dourado/laranja/vermelho pra registrar/editar/excluir, larguras consistentes) — antes cada um tinha um tamanho.
+
+Testado à parte com SQLite em memória: datas de meses/anos diferentes intercaladas ("20/12/2025", "05/01/2026", "15/06/2025", "01/01/2026") ordenam corretamente do mais recente pro mais antigo com a nova query.
+
+Versão desktop v6.8 → **v6.9**. `dist/SistemaBoloes.exe` reconstruído.
+
+**Site admin (`admin.html`/`admin.js`)** — menu "🔑 Tokens" removido por completo: botão do menu lateral, seção `#section-tokens` (formulário de gerar token + lista), e todo o JS relacionado (`gerarTokenUnico`, `salvarToken`, `carregarTokens`, `formatarTelefone` — confirmado só usado ali —, o wiring do botão `btnGerarToken`, e a chamada de `carregarTokens()` no carregamento inicial das abas). `gerarLinkParticipantes`/`participantes.html` é uma feature DIFERENTE (lista pública de participantes por bolão) e não foi tocada. `consulta.html` (a página que valida o token) não foi excluída — links já compartilhados continuam funcionando, só não dá mais pra gerar novos pelo admin. Troca do menu lateral é auto-contida (`document.querySelectorAll('.sidebar-item')` no fim do admin.js é genérico, sem lista fixa de seções pra atualizar).
+
+`sw.js`: `CACHE_NAME` → v49.
+
+Versão web (Service Worker) v48 → v49.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

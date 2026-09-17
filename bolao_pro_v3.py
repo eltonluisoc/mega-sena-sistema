@@ -1,7 +1,30 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.8
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.9
+Correções v6.9 (tela de Premiações: reformulada, edição, ordem cronológica correta):
+ - Bug real corrigido: registros ordenados por "data_sorteio DESC" mas
+   esse campo é texto "DD/MM/AAAA" — ordenar a string direto não dá
+   ordem cronológica real (dia vem primeiro no texto; "05/01/2026"
+   ficava lexicograficamente ANTES de "20/12/2025", mesmo sendo mais
+   recente). Reconvertido pra "AAAAMMDD" antes de ordenar.
+ - Agora dá pra EDITAR uma premiação já registrada ("✏ Editar
+   Selecionada" ou duplo-clique) — antes só dava pra excluir e
+   recadastrar do zero.
+ - Campo Concurso virou entry_numerico() — só aceita dígitos, mesmo
+   padrão já usado nas Reservas depois de um achado real de campo livre
+   salvando lixo.
+ - Removida a "🧮 Calculadora de Rateio" da tela (fora do escopo dela).
+ - Resumo por loteria perdeu a coluna "Último Concurso" — desnecessária,
+   a "Última Data" já mostra o que interessa.
+ - Nova coluna "Bolão" no histórico — antes não dava pra saber, só
+   olhando a lista, pra qual bolão cada premiação foi registrada (mesmo
+   sendo obrigatório escolher um bolão ativo pra registrar). Label
+   "📌 Registrando para o bolão ativo: X" no formulário, pelo mesmo
+   motivo.
+ - Botões padronizados (mesma largura/família de cores já usada em
+   Reservas: dourado pra registrar, laranja pra editar, vermelho pra
+   excluir) — antes cada botão tinha um tamanho diferente.
 Correções v6.8 (verificação de reservas do site não trava mais nem exige reabrir o app):
  - "429 Too Many Requests" ao abrir o app: a busca por reservas
    pendentes do site rodava na thread da UI, com só 3 tentativas rápidas
@@ -1160,7 +1183,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.8")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.9")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1413,7 +1436,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.8",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.9",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -5052,7 +5075,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.8</span>
+        <span>Sistema de Gestão de Bolões v6.9</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -5525,28 +5548,40 @@ class BolaoApp:
 
         sec=section(p,"REGISTRAR NOVA PREMIAÇÃO"); sec.pack(fill="x",padx=20,pady=10)
 
+        # Mostra pra qual bolão a premiação vai ser registrada — o
+        # formulário usa sempre o bolão ativo (topo da janela), mas isso
+        # não aparecia em lugar nenhum aqui, então dava pra registrar no
+        # bolão errado sem perceber.
+        self._prem_bolao_lbl = tk.Label(sec, text="", bg=CORES["bg_section"],
+            fg=CORES["btn_dourado"], font=("Arial",9,"bold"))
+        self._prem_bolao_lbl.pack(anchor="w", pady=(0,6))
+
         r1=tk.Frame(sec,bg=CORES["bg_section"]); r1.pack(fill="x",pady=4)
         # Loteria
         tk.Label(r1,text="Loteria:",bg=CORES["bg_section"],font=("Arial",9,"bold"),
                  fg=CORES["fg_label"]).pack(side="left",padx=4)
         self.prem_lot=ttk.Combobox(r1,values=LOTERIAS,width=14,state="readonly",font=("Arial",9))
         self.prem_lot.set("Mega-Sena"); self.prem_lot.pack(side="left",padx=4)
-        # Concurso / Data / Valor
-        for lbl,attr,w_ in [("Nº Concurso:","prem_conc",10),("Data Sorteio:","prem_dt",12),
-                              ("Valor Ganho (R$):","prem_val",14)]:
-            tk.Label(r1,text=lbl,bg=CORES["bg_section"],font=("Arial",9,"bold"),
-                     fg=CORES["fg_label"]).pack(side="left",padx=4)
-            w=entry(r1,width=w_)
-            if attr=="prem_dt": w.insert(0,date.today().strftime("%d/%m/%Y"))
-            w.pack(side="left",padx=4); setattr(self,attr,w)
+        # Nº Concurso — só dígitos (mesmo achado das Reservas: campo livre
+        # deixava salvar lixo tipo "3057-942,25" sem barrar nada).
+        tk.Label(r1,text="Nº Concurso:",bg=CORES["bg_section"],font=("Arial",9,"bold"),
+                 fg=CORES["fg_label"]).pack(side="left",padx=4)
+        self.prem_conc = entry_numerico(r1, width=10); self.prem_conc.pack(side="left",padx=4)
+        tk.Label(r1,text="Data Sorteio:",bg=CORES["bg_section"],font=("Arial",9,"bold"),
+                 fg=CORES["fg_label"]).pack(side="left",padx=4)
+        self.prem_dt = entry(r1, width=12)
+        self.prem_dt.insert(0,date.today().strftime("%d/%m/%Y")); self.prem_dt.pack(side="left",padx=4)
+        tk.Label(r1,text="Valor Ganho (R$):",bg=CORES["bg_section"],font=("Arial",9,"bold"),
+                 fg=CORES["fg_label"]).pack(side="left",padx=4)
+        self.prem_val = entry(r1, width=14); self.prem_val.pack(side="left",padx=4)
 
         r2=tk.Frame(sec,bg=CORES["bg_section"]); r2.pack(fill="x",pady=4)
         tk.Label(r2,text="Descrição:",bg=CORES["bg_section"],font=("Arial",9,"bold"),
                  fg=CORES["fg_label"]).pack(side="left",padx=4)
-        self.prem_desc=entry(r2,width=55); self.prem_desc.pack(side="left",padx=4)
+        self.prem_desc=entry(r2,width=55); self.prem_desc.pack(side="left",padx=4,fill="x",expand=True)
 
         bf=tk.Frame(sec,bg=CORES["bg_section"]); bf.pack(fill="x",pady=8)
-        btn(bf,"🏆 REGISTRAR PREMIAÇÃO",CORES["btn_dourado"],self._reg_prem,width=26).pack(side="right",padx=4)
+        btn(bf,"🏆 Registrar Premiação",CORES["btn_dourado"],self._reg_prem,width=22).pack(side="left",padx=4)
 
         sh=section(p,"RESUMO POR LOTERIA"); sh.pack(fill="x",padx=20,pady=(0,6))
 
@@ -5555,52 +5590,34 @@ class BolaoApp:
                                      font=("Arial",11,"bold"),fg="#1a2a3a")
         self._prem_tot_lbl.pack(anchor="w",pady=(4,2))
 
-        # Tabela resumo por loteria
-        cols_r={"Loteria":160,"Qtd Prêmios":100,"Total Ganho":150,"Último Concurso":130,"Última Data":120}
+        # Tabela resumo por loteria — sem "Último Concurso": o número do
+        # concurso não ajuda em nada aqui, a data já diz se é recente.
+        cols_r={"Loteria":160,"Qtd Prêmios":100,"Total Ganho":150,"Última Data":130}
         fr_r,self.prem_tree_sum=make_tree(sh,cols_r,height=5)
         fr_r.pack(fill="x")
         self.prem_tree_sum.tag_configure("lot_row",background="#fef9e7")
 
-        sh2=section(p,"HISTÓRICO DETALHADO DE PREMIAÇÕES — cada prêmio registrado")
+        sh2=section(p,"HISTÓRICO DETALHADO DE PREMIAÇÕES — mais recentes primeiro")
         sh2.pack(fill="both",expand=True,padx=20,pady=(4,4))
-        cols={"ID":45,"Loteria":110,"Concurso":90,"Data Sorteio":110,
-              "Valor Prêmio":130,"Descrição":240,"Data Registro":140}
+        cols={"ID":45,"Bolão":160,"Loteria":110,"Concurso":90,"Data Sorteio":100,
+              "Valor Prêmio":120,"Descrição":220,"Data Registro":140}
         fr,self.prem_tree=make_tree(sh2,cols,height=10)
         fr.pack(fill="both",expand=True)
         self.prem_tree.tag_configure("prem_mega",background="#fde8d8")
         self.prem_tree.tag_configure("prem_loto",background="#d5f5e3")
         self.prem_tree.tag_configure("prem_quin",background="#d6eaf8")
         self.prem_tree.tag_configure("prem_outx",background="#fef9e7")
+        # Duplo-clique já abre pra editar — mesmo padrão usado nas
+        # listas de participantes/reservas deste sistema.
+        self.prem_tree.bind("<Double-1>", lambda e: self._editar_prem())
 
-        bf2=tk.Frame(p,bg=CORES["bg_frame"]); bf2.pack(fill="x",padx=20,pady=(0,4))
-        btn(bf2,"🗑 Excluir Premiação",CORES["btn_vermelho"],self._del_prem,width=22).pack(side="left",padx=4)
+        tk.Label(p,text="💡 Duplo clique numa premiação pra editar os dados.",
+                 bg=CORES["bg_frame"],fg=CORES["fg_label"],font=("Arial",8,"italic")).pack(
+                 anchor="w",padx=20,pady=(0,4))
 
-        # ── Calculadora de Rateio ────────────────────────────────
-        sc=section(p,"🧮 CALCULADORA DE RATEIO"); sc.pack(fill="x",padx=20,pady=(0,12))
-        sc.columnconfigure(1,weight=1)
-
-        tk.Label(sc,text="Valor do Prêmio (R$):",bg=CORES["bg_section"],
-                 fg=CORES["fg_label"],font=("Arial",9,"bold")).grid(row=0,column=0,sticky="w",padx=(0,10),pady=6)
-        self._rat_val = entry(sc,width=18); self._rat_val.grid(row=0,column=1,sticky="w",pady=6)
-
-        tk.Label(sc,text="Total de Cotas:",bg=CORES["bg_section"],
-                 fg=CORES["fg_label"],font=("Arial",9,"bold")).grid(row=1,column=0,sticky="w",padx=(0,10),pady=6)
-        rat_cotas_fr = tk.Frame(sc,bg=CORES["bg_section"]); rat_cotas_fr.grid(row=1,column=1,sticky="w",pady=6)
-        self._rat_cotas = entry(rat_cotas_fr,width=10); self._rat_cotas.pack(side="left")
-        btn(rat_cotas_fr,"↺ Auto",CORES["btn_azul"],self._rat_auto_cotas,width=10).pack(side="left",padx=6)
-        tk.Label(rat_cotas_fr,text="(busca cotas reais do bolão)",bg=CORES["bg_section"],
-                 fg="#888",font=("Arial",8,"italic")).pack(side="left")
-
-        bf_r=tk.Frame(sc,bg=CORES["bg_section"]); bf_r.grid(row=2,column=0,columnspan=2,sticky="w",pady=8)
-        btn(bf_r,"🧮 CALCULAR RATEIO",CORES["btn_verde"],self._calcular_rateio,width=22).pack(side="left")
-
-        self._rat_resultado=tk.Label(sc,text="",bg=CORES["bg_section"],
-                                      fg=CORES["fg_title"],font=("Arial",11,"bold"))
-        self._rat_resultado.grid(row=3,column=0,columnspan=2,sticky="w",pady=4)
-
-        self._rat_detalhe=tk.Label(sc,text="",bg=CORES["bg_section"],
-                                    fg=CORES["fg_label"],font=("Arial",9),justify="left")
-        self._rat_detalhe.grid(row=4,column=0,columnspan=2,sticky="w",pady=(0,6))
+        bf2=tk.Frame(p,bg=CORES["bg_frame"]); bf2.pack(fill="x",padx=20,pady=(0,14))
+        btn(bf2,"✏ Editar Selecionada",CORES["btn_laranja"],self._editar_prem,width=22).pack(side="left",padx=4)
+        btn(bf2,"🗑 Excluir Selecionada",CORES["btn_vermelho"],self._del_prem,width=22).pack(side="left",padx=4)
 
     def _reg_prem(self):
         bid=self.bid.get()
@@ -5623,12 +5640,30 @@ class BolaoApp:
         self.prem_tree.delete(*self.prem_tree.get_children())
         self.prem_tree_sum.delete(*self.prem_tree_sum.get_children())
 
-        # Carrega TODAS as premiações (todos os bolões) — aba é geral
-        rows = self.db.fetchall("""
+        # Nome do bolão ativo, pra deixar claro pra qual bolão o
+        # formulário acima vai registrar (ver comentário em _build_prem
+        # — o forms não tinha isso visível em lugar nenhum antes).
+        bid = self.bid.get()
+        b_ativo = self.db.fetchone("SELECT nome FROM boloes WHERE id=?", (bid,)) if bid else None
+        self._prem_bolao_lbl.configure(
+            text=(f"📌 Registrando para o bolão ativo: {b_ativo['nome']}" if b_ativo
+                  else "⚠ Nenhum bolão ativo selecionado — escolha um no topo da janela"))
+
+        # Carrega TODAS as premiações (todos os bolões) — aba é geral.
+        # Ordenação corrigida: data_sorteio é texto "DD/MM/AAAA" — ordenar
+        # essa string direto (mesmo com DESC) não dá ordem cronológica
+        # real, porque o DIA vem primeiro no texto (ex.: "05/01/2026"
+        # ficava lexicograficamente ANTES de "20/12/2025", mesmo sendo
+        # uma data bem mais recente). Reconverte pra "AAAAMMDD" antes de
+        # comparar. Achado real: usuário reportou que os registros não
+        # apareciam na ordem em que ocorreram.
+        data_chave = ("substr(p.data_sorteio,7,4) || substr(p.data_sorteio,4,2) "
+                      "|| substr(p.data_sorteio,1,2)")
+        rows = self.db.fetchall(f"""
             SELECT p.*, b.nome as bolao_nome
             FROM premiacoes p
             LEFT JOIN boloes b ON p.bolao_id = b.id
-            ORDER BY p.data_sorteio DESC, p.id DESC
+            ORDER BY {data_chave} DESC, p.id DESC
         """)
 
         # ── Totais gerais ──────────────────────────────────────
@@ -5640,22 +5675,21 @@ class BolaoApp:
                  f"Loterias diferentes: {len(set((r['loteria'] or 'Mega-Sena') for r in rows))}"
         )
 
-        # ── Resumo por loteria ─────────────────────────────────
+        # ── Resumo por loteria — sem "Último Concurso" (o número não
+        # ajuda em nada; a data já diz se é recente) ─────────────
         from collections import defaultdict
-        por_lot = defaultdict(lambda: {"total":0.0,"qtd":0,"ultimo_conc":"","ultima_data":""})
-        for r in rows:  # já em ordem decrescente de data
+        por_lot = defaultdict(lambda: {"total":0.0,"qtd":0,"ultima_data":""})
+        for r in rows:  # já em ordem cronológica decrescente real
             lot = r["loteria"] or "Mega-Sena"
             por_lot[lot]["total"] += r["valor_premio"]
             por_lot[lot]["qtd"]   += 1
-            if not por_lot[lot]["ultimo_conc"]:  # pega o mais recente (primeiro do loop desc)
-                por_lot[lot]["ultimo_conc"]  = r["concurso"] or "-"
-                por_lot[lot]["ultima_data"]  = r["data_sorteio"] or "-"
+            if not por_lot[lot]["ultima_data"]:  # pega o mais recente (primeiro do loop desc)
+                por_lot[lot]["ultima_data"] = r["data_sorteio"] or "-"
 
         for lot in sorted(por_lot.keys()):
             d=por_lot[lot]
             self.prem_tree_sum.insert("","end",tags=("lot_row",),values=(
-                lot, d["qtd"], fmt_brl(d["total"]),
-                d["ultimo_conc"], d["ultima_data"]))
+                lot, d["qtd"], fmt_brl(d["total"]), d["ultima_data"]))
 
         # ── Histórico detalhado — SEM iid para evitar conflitos ──
         tag_map = {
@@ -5668,6 +5702,7 @@ class BolaoApp:
             # Não usa iid — deixa o Treeview gerar automaticamente
             self.prem_tree.insert("","end",tags=(tag,),values=(
                 r["id"],
+                r["bolao_nome"]  or "-",
                 lot,
                 r["concurso"]    or "-",
                 r["data_sorteio"]or "-",
@@ -5681,62 +5716,81 @@ class BolaoApp:
         item_vals = self.prem_tree.item(sel[0],"values")
         if not item_vals: return
         prem_id = int(item_vals[0])
-        loteria  = item_vals[1]
-        valor    = item_vals[4]
+        loteria  = item_vals[2]
+        valor    = item_vals[5]
         if messagebox.askyesno("Confirmar",
             f"Excluir premiação ID {prem_id}?\nLoteria: {loteria}  |  Valor: {valor}"):
             self.db.execute("DELETE FROM premiacoes WHERE id=?",(prem_id,))
             self._load_prem()
 
-    def _rat_auto_cotas(self):
-        """Preenche automaticamente o campo de cotas com o total real do bolão."""
-        bid = self.bid.get()
-        if not bid: messagebox.showwarning("Atenção","Selecione um bolão!"); return
-        cotas_ocup, max_cotas = self._get_cotas_ocupadas(bid)
-        self._rat_cotas.delete(0,"end")
-        self._rat_cotas.insert(0, str(cotas_ocup))
-        messagebox.showinfo("Cotas carregadas",
-            f"Total de cotas ocupadas: {cotas_ocup} de {max_cotas}\n"
-            f"Use este valor para o rateio proporcional.")
+    def _editar_prem(self):
+        """Corrige uma premiação já registrada (ex.: valor ou concurso
+        digitado errado) sem precisar excluir e recadastrar — pedido
+        explícito do usuário ("tenho que poder editar se lancei
+        errado"), que antes não existia nesta tela (só dava pra excluir)."""
+        sel = self.prem_tree.selection()
+        if not sel:
+            messagebox.showwarning("Atenção","Selecione uma premiação na lista detalhada!"); return
+        prem_id = int(self.prem_tree.item(sel[0],"values")[0])
+        r = self.db.fetchone("SELECT * FROM premiacoes WHERE id=?", (prem_id,))
+        if not r:
+            messagebox.showerror("Erro","Premiação não encontrada."); return
 
-    def _calcular_rateio(self):
-        """Calcula quanto cada cota recebe e lista participantes com seus valores."""
-        bid = self.bid.get()
-        if not bid: messagebox.showwarning("Atenção","Selecione um bolão!"); return
-        try:
-            premio = to_float(self._rat_val.get())
-            n_cotas = int(self._rat_cotas.get().strip() or 0)
-        except:
-            messagebox.showwarning("Atenção","Preencha valor e número de cotas!"); return
-        if premio <= 0: messagebox.showwarning("Atenção","Informe o valor do prêmio!"); return
-        if n_cotas <= 0: messagebox.showwarning("Atenção","Informe o número de cotas!"); return
+        win = tk.Toplevel(self.root)
+        win.title(f"Editar Premiação #{prem_id}")
+        win.geometry("440x340")
+        win.configure(bg=CORES["bg_section"])
+        win.grab_set(); win.lift(); win.focus_force()
 
-        por_cota = premio / n_cotas
-        b = self.db.fetchone("SELECT valor_total FROM boloes WHERE id=?", (bid,))
-        vt = float(b["valor_total"] or 0) if b else 0
+        tk.Label(win, text=f"EDITAR PREMIAÇÃO #{prem_id}", bg=CORES["bg_section"],
+                 fg=CORES["fg_title"], font=("Arial",11,"bold")).pack(pady=12)
 
-        # Resultado principal
-        self._rat_resultado.configure(
-            text=f"Valor por cota: {fmt_brl(por_cota)}   |   "
-                 f"Total: {fmt_brl(premio)}   |   {n_cotas} cotas")
+        form = tk.Frame(win, bg=CORES["bg_section"], padx=24); form.pack(fill="x")
 
-        # Detalhe por participante
-        partic = self.db.fetchall(
-            "SELECT nome, valor_esperado FROM participantes "
-            "WHERE bolao_id=? AND ativo=1 ORDER BY nome", (bid,))
-        linhas = []
-        for pt in partic:
-            ve = float(pt["valor_esperado"] or 0)
-            n = round(ve/vt) if vt>0 and ve>0 else 1
-            n = max(1,n)
-            val_part = por_cota * n
-            linhas.append(f"{pt['nome']}: {n} cota(s) → {fmt_brl(val_part)}")
-        # Trunca se muitos participantes
-        if len(linhas) > 15:
-            self._rat_detalhe.configure(
-                text="\n".join(linhas[:15]) + f"\n... e mais {len(linhas)-15} participantes")
-        else:
-            self._rat_detalhe.configure(text="\n".join(linhas))
+        tk.Label(form, text="Loteria:", bg=CORES["bg_section"], fg=CORES["fg_label"],
+                 font=("Arial",9,"bold")).grid(row=0, column=0, sticky="w", pady=6)
+        lot_cb = ttk.Combobox(form, values=LOTERIAS, width=16, state="readonly", font=("Arial",9))
+        lot_cb.set(r["loteria"] or "Mega-Sena")
+        lot_cb.grid(row=0, column=1, sticky="w", pady=6)
+
+        tk.Label(form, text="Nº Concurso:", bg=CORES["bg_section"], fg=CORES["fg_label"],
+                 font=("Arial",9,"bold")).grid(row=1, column=0, sticky="w", pady=6)
+        conc_e = entry_numerico(form, width=16)
+        conc_e.insert(0, re.sub(r"\D", "", r["concurso"] or ""))
+        conc_e.grid(row=1, column=1, sticky="w", pady=6)
+
+        tk.Label(form, text="Data Sorteio:", bg=CORES["bg_section"], fg=CORES["fg_label"],
+                 font=("Arial",9,"bold")).grid(row=2, column=0, sticky="w", pady=6)
+        dt_e = entry(form, width=16)
+        dt_e.insert(0, r["data_sorteio"] or "")
+        dt_e.grid(row=2, column=1, sticky="w", pady=6)
+
+        tk.Label(form, text="Valor (R$):", bg=CORES["bg_section"], fg=CORES["fg_label"],
+                 font=("Arial",9,"bold")).grid(row=3, column=0, sticky="w", pady=6)
+        val_e = entry(form, width=16)
+        val_e.insert(0, fmt_brl(r["valor_premio"]).replace("R$","").strip())
+        val_e.grid(row=3, column=1, sticky="w", pady=6)
+
+        tk.Label(form, text="Descrição:", bg=CORES["bg_section"], fg=CORES["fg_label"],
+                 font=("Arial",9,"bold")).grid(row=4, column=0, sticky="nw", pady=6)
+        desc_e = entry(form, width=30)
+        desc_e.insert(0, r["descricao"] or "")
+        desc_e.grid(row=4, column=1, sticky="w", pady=6)
+
+        def _salvar():
+            v = to_float(val_e.get())
+            if v <= 0:
+                messagebox.showwarning("Atenção","Informe um valor válido!"); return
+            self.db.execute(
+                "UPDATE premiacoes SET loteria=?, concurso=?, data_sorteio=?, "
+                "valor_premio=?, descricao=? WHERE id=?",
+                (lot_cb.get(), conc_e.get().strip(), dt_e.get().strip(),
+                 v, desc_e.get().strip(), prem_id))
+            win.destroy()
+            self._load_prem()
+            messagebox.showinfo("Salvo","Premiação atualizada!")
+
+        btn(win, "💾 Salvar", CORES["btn_verde"], _salvar, width=16).pack(pady=14)
 
     # ════════════════════════════════════════════════════════════
     #  ABA 8 — RESERVA / CAIXA  (por loteria, independente)
@@ -7188,7 +7242,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.8</span>
+        <span>Sistema de Gestão de Bolões v6.9</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
