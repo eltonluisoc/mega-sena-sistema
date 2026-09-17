@@ -1,7 +1,33 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.10
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.11
+Correções v6.11 (unificar participantes duplicados + reorganização Dashboard/Gestão):
+ - Bug real corrigido: telefone era salvo sem normalizar — a mesma
+   pessoa com telefone digitado em formatos diferentes ("(61) 99999-9999"
+   vs "61999999999") em bolões diferentes virava um registro NOVO em
+   "pessoas" a cada formatação diferente (o UNIQUE em pessoas.telefone
+   não pega — são strings diferentes), fragmentando a mesma pessoa em
+   vários registros. É a causa raiz de "participante aparece 2-3 vezes"
+   ao buscar/importar de outro bolão. Telefone agora é normalizado (só
+   dígitos) em todo lugar que grava/compara: _cadastrar, editar
+   participante (que também passou a propagar nome/telefone/pix pro
+   registro em "pessoas" ligado, evitando os dois ficarem dessincronizados),
+   e a chave de deduplicação da busca "Importar Membro de Bolão Anterior".
+ - Nova ferramenta "🧹 Unificar Duplicados" (aba Participantes) — agrupa
+   pessoas pelo telefone normalizado, mostra os grupos encontrados e
+   junta com um clique (reaponta os participantes pro registro mais
+   antigo do grupo, apaga os duplicados). Não mexe em pagamento nem
+   histórico — só no cadastro. Testado à parte com SQLite em memória.
+ - "Reativar Encerrado" passou a aparecer também na Visão Geral (topo do
+   Dashboard) — antes só existia dentro do detalhe de "Bolão
+   Selecionado", só que um bolão encerrado não aparece nos seletores
+   normais pra chegar até lá, deixando o botão praticamente inalcançável.
+ - "Histórico de Lançamentos" (taxa_adm — ganhos/saques do organizador)
+   saiu do Dashboard e virou aba própria "📋 Lançamentos" dentro de
+   Gestão, junto de Premiações e Caixa por Loteria (mesmo tipo de tela).
+   Dashboard ganhou um KPI "GANHO NESTE ANO" no lugar, pra ver o resumo
+   sem precisar abrir a lista completa.
 Correções v6.10 (Caixa por Loteria: edição de movimento + Premiações: editar o bolão):
  - Aba "💼 Caixa por Loteria" (dentro de Gestão, ao lado de Premiações —
    nome parecido, achado real de confusão) só tinha exclusão — lançou um
@@ -1196,7 +1222,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.10")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.11")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1449,7 +1475,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.10",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.11",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -1576,9 +1602,11 @@ class BolaoApp:
         nb_gestao.pack(fill="both", expand=True, padx=4, pady=4)
         self.tab_res      = tk.Frame(nb_gestao, bg=CORES["bg_frame"])
         self.tab_prem     = tk.Frame(nb_gestao, bg=CORES["bg_frame"])
+        self.tab_lanc     = tk.Frame(nb_gestao, bg=CORES["bg_frame"])
         self.tab_caixa_pr = self.tab_grp_gestao  # alias para compat
         nb_gestao.add(self.tab_res,  text="💼 Caixa por Loteria")
         nb_gestao.add(self.tab_prem, text="🏆 Premiacoes")
+        nb_gestao.add(self.tab_lanc, text="📋 Lançamentos")
 
         # ── Sistema: Backup + Site ────────────────────────────────────
         nb_sys = ttk.Notebook(self.tab_grp_sys, style="Inner.TNotebook")
@@ -1601,6 +1629,7 @@ class BolaoApp:
         self._build_historico()
         self._build_prem()
         self._build_res()
+        self._build_lanc()
         self._build_reservas()
         self._build_pessoas()
         self._build_publicar()
@@ -2013,6 +2042,15 @@ class BolaoApp:
         if not nome: messagebox.showwarning("Atenção","Informe o nome!"); return
         tel  = self._cv["tel"].get().strip()
         if not tel: messagebox.showwarning("Atenção","Informe o telefone!"); return
+        # Só dígitos — achado real: telefone digitado com formatações
+        # diferentes ("(61) 99999-9999" vs "61999999999") pra mesma
+        # pessoa criava uma linha NOVA em "pessoas" a cada formatação
+        # diferente (o UNIQUE em pessoas.telefone não pega, porque são
+        # strings diferentes), fragmentando a mesma pessoa em vários
+        # registros — é a causa raiz de "participante aparece 2-3 vezes"
+        # ao buscar/importar de outro bolão.
+        tel = re.sub(r"\D", "", tel)
+        if not tel: messagebox.showwarning("Atenção","Telefone inválido!"); return
 
         n_cotas_str = self._cv["cotas"].get().strip() or "1"
         try:
@@ -2158,7 +2196,12 @@ class BolaoApp:
 
         vistos = set()
         for r in rows:
-            chave = (r["nome"].strip().lower(), (r["telefone"] or "").strip())
+            # Telefone normalizado (só dígitos) na chave de dedup — sem
+            # isso, a mesma pessoa com telefone salvo em formatos
+            # diferentes em bolões diferentes aparecia mais de uma vez
+            # nesta busca (achado real do usuário).
+            tel_norm = re.sub(r"\D", "", r["telefone"] or "")
+            chave = (r["nome"].strip().lower(), tel_norm)
             if chave not in vistos:
                 vistos.add(chave)
                 self._imp_busca_tree.insert("","end", iid=str(r["id"]), values=(
@@ -2686,13 +2729,38 @@ class BolaoApp:
         pid = int(m.group(1))
         nome = self._cad_edit_vars["nome"].get().strip()
         if not nome: messagebox.showwarning("Atenção","Nome é obrigatório!"); return
+        # Só dígitos — mesmo achado de _cadastrar: telefone salvo com
+        # formatações diferentes pra mesma pessoa fragmenta ela em vários
+        # registros de "pessoas" ao longo do tempo.
+        tel = re.sub(r"\D", "", self._cad_edit_vars["telefone"].get() or "")
+        pix = self._cad_edit_vars["chave_pix"].get().strip()
         self.db.execute(
             "UPDATE participantes SET nome=?,telefone=?,chave_pix=?,valor_esperado=?,observacoes=? WHERE id=?",
-            (nome, self._cad_edit_vars["telefone"].get(),
-             self._cad_edit_vars["chave_pix"].get(),
+            (nome, tel, pix,
              to_float(self._cad_edit_vars["valor_esperado"].get()),
              self._cad_edit_vars["observacoes"].get(), pid))
-        messagebox.showinfo("Salvo","Participante atualizado!")
+        # Propaga pro registro em "pessoas" ligado a este participante —
+        # sem isso, editar aqui só corrigia a cópia deste bolão, e a
+        # busca/importação de outro bolão continuava mostrando os dados
+        # antigos (ou até uma pessoa "diferente", se o telefone tivesse
+        # sido só reformatado, não corrigido de fato).
+        pt = self.db.fetchone("SELECT pessoa_id FROM participantes WHERE id=?", (pid,))
+        aviso_extra = ""
+        if pt and pt["pessoa_id"]:
+            try:
+                self.db.execute(
+                    "UPDATE pessoas SET nome=?, telefone=?, chave_pix=? WHERE id=?",
+                    (nome, tel, pix, pt["pessoa_id"]))
+            except sqlite3.IntegrityError:
+                # Esse telefone (já sem formatação) já pertence a outro
+                # registro em "pessoas" — provavelmente a mesma pessoa
+                # duplicada. Não trava a edição do participante por isso;
+                # só avisa que a limpeza real precisa da ferramenta de
+                # unificar duplicados.
+                aviso_extra = ("\n\n⚠ Esse telefone já pertence a outra pessoa "
+                    "cadastrada — use '🧹 Unificar Duplicados' na lista de "
+                    "participantes pra juntar os dois registros.")
+        messagebox.showinfo("Salvo","Participante atualizado!" + aviso_extra)
         self._refresh_all()
 
     # ════════════════════════════════════════════════════════════
@@ -2705,6 +2773,7 @@ class BolaoApp:
         btn(top,"➕ Incluir Participante",CORES["btn_verde"],self._abrir_popup_novo_participante,width=20).pack(side="left",padx=4)
         btn(top,"🔄 Atualizar",CORES["btn_azul"],self._cad_lista_load,width=14).pack(side="left",padx=4)
         btn(top,"🗑 Remover Selecionado",CORES["btn_vermelho"],self._cad_remover,width=22).pack(side="left",padx=4)
+        btn(top,"🧹 Unificar Duplicados",CORES["btn_roxo"],self._unificar_duplicados,width=20).pack(side="left",padx=4)
 
         top2 = tk.Frame(p, bg=CORES["bg_frame"]); top2.pack(fill="x", padx=20, pady=(0,6))
         tk.Label(top2, text="🔎 Buscar:", bg=CORES["bg_frame"], fg=CORES["fg_label"],
@@ -2791,6 +2860,89 @@ class BolaoApp:
             self.db.execute("UPDATE participantes SET ativo=0 WHERE id=?", (pid,))
             messagebox.showinfo("Removido","Participante removido.")
             self._refresh_all()
+
+    def _unificar_duplicados(self):
+        """Detecta e junta registros de 'pessoas' que são a MESMA pessoa
+        real, mas viraram linhas separadas porque o telefone foi salvo
+        com formatações diferentes em cadastros diferentes (achado real
+        do usuário: "participante aparece 2-3 vezes" ao buscar/importar
+        de outro bolão). Agrupa por telefone só-dígitos — critério seguro
+        o bastante pra unificar sem confirmação por grupo, já que não
+        mexe em nenhum pagamento (só reaponta participantes.pessoa_id pro
+        registro escolhido como principal e apaga os outros)."""
+        pessoas = self.db.fetchall("SELECT * FROM pessoas ORDER BY id")
+        grupos = {}
+        for ps in pessoas:
+            tel_norm = re.sub(r"\D", "", ps["telefone"] or "")
+            if not tel_norm:
+                continue  # sem telefone não dá pra agrupar com segurança
+            grupos.setdefault(tel_norm, []).append(dict(ps))
+
+        duplicados = {tel: grp for tel, grp in grupos.items() if len(grp) > 1}
+        if not duplicados:
+            messagebox.showinfo("Tudo certo",
+                "Nenhum participante duplicado encontrado — todos os "
+                "telefones já são únicos.")
+            return
+
+        win = tk.Toplevel(self.root)
+        win.title("Unificar Participantes Duplicados")
+        win.geometry("620x460")
+        win.configure(bg=CORES["bg_section"])
+        win.grab_set(); win.lift(); win.focus_force()
+
+        tk.Label(win, text="🧹 PARTICIPANTES DUPLICADOS ENCONTRADOS",
+                 bg=CORES["bg_section"], fg=CORES["fg_title"],
+                 font=("Arial",12,"bold")).pack(pady=(14,4))
+        tk.Label(win,
+                 text=f"{len(duplicados)} grupo(s) com o mesmo telefone em mais de um registro.\n"
+                      "O mais antigo de cada grupo vira o principal — os outros são apagados\n"
+                      "e todo participante ligado a eles passa a apontar pro principal.",
+                 bg=CORES["bg_section"], fg="#666", font=("Arial",9), justify="left").pack(pady=(0,8))
+
+        fr = tk.Frame(win, bg=CORES["bg_section"], padx=16); fr.pack(fill="both", expand=True)
+        fr_t, tv = make_tree(fr, {"Telefone":110,"Registros":420}, height=12)
+        fr_t.pack(fill="both", expand=True)
+        for tel, grp in duplicados.items():
+            nomes = "; ".join(f"{g['nome']} (ID {g['id']})" for g in grp)
+            tv.insert("","end", values=(tel, nomes))
+
+        def _confirmar_unificacao():
+            if not messagebox.askyesno("Confirmar unificação",
+                f"Unificar {len(duplicados)} grupo(s) de participantes duplicados?\n\n"
+                "Isso não apaga nenhum pagamento nem histórico — só junta os "
+                "cadastros que são a mesma pessoa."):
+                return
+            grupos_unificados = 0
+            registros_removidos = 0
+            for tel, grp in duplicados.items():
+                grp_ordenado = sorted(grp, key=lambda g: g["id"])
+                principal = grp_ordenado[0]
+                outros = grp_ordenado[1:]
+                for dup in outros:
+                    # Reaponta todo participante ligado ao duplicado pro
+                    # principal, e já normaliza a cópia denormalizada de
+                    # telefone/nome/pix nessas linhas também.
+                    self.db.execute(
+                        "UPDATE participantes SET pessoa_id=?, telefone=? "
+                        "WHERE pessoa_id=?",
+                        (principal["id"], tel, dup["id"]))
+                    self.db.execute("DELETE FROM pessoas WHERE id=?", (dup["id"],))
+                    registros_removidos += 1
+                # Garante que o principal também fica com o telefone
+                # normalizado (só dígitos), fechando a causa raiz.
+                self.db.execute("UPDATE pessoas SET telefone=? WHERE id=?",
+                                 (tel, principal["id"]))
+                grupos_unificados += 1
+            win.destroy()
+            messagebox.showinfo("Unificado",
+                f"✅ {grupos_unificados} grupo(s) unificado(s) — "
+                f"{registros_removidos} registro(s) duplicado(s) removido(s).")
+            self._refresh_all()
+
+        bf = tk.Frame(win, bg=CORES["bg_section"]); bf.pack(pady=12)
+        btn(bf, "🧹 Unificar Todos", CORES["btn_roxo"], _confirmar_unificacao, width=20).pack(side="left", padx=4)
+        btn(bf, "Fechar", CORES["btn_cinza"], win.destroy, width=10).pack(side="left", padx=4)
 
     # ════════════════════════════════════════════════════════════
     #  ABA 2 — REGISTRAR PAGAMENTOS
@@ -4172,8 +4324,14 @@ class BolaoApp:
                  bg="#1a2a3a", fg="#556677", font=("Arial",9))
         self._dash_hora_lbl.pack(side="right", padx=4)
         btn(hdr, "🔄", CORES["btn_azul"], self._recarregar_visao_geral, width=4).pack(side="right", padx=4)
+        # Reativar bolão precisa estar aqui, na Visão Geral — antes só
+        # existia dentro do detalhe de "Bolão Selecionado", mas um bolão
+        # encerrado não aparece nos seletores normais pra chegar até lá,
+        # então o botão ficava praticamente inalcançável.
+        btn(hdr, "Reativar Encerrado", CORES["btn_cinza"],
+            self._adm_reativar_bolao, width=16).pack(side="right", padx=4)
 
-        # ── KPIs gerais — 7 cards, paleta própria (não repete nenhuma cor
+        # ── KPIs gerais — 8 cards, paleta própria (não repete nenhuma cor
         # dos KPIs do bolão selecionado, lá embaixo) ─────────────────────
         kpi_bar = tk.Frame(p, bg="#1a2a3a")
         kpi_bar.pack(fill="x", padx=20, pady=(0,8))
@@ -4184,6 +4342,7 @@ class BolaoApp:
             ("geral_pend_dep", "PENDENTE DEPÓSITO",      "#9333ea", "R$ 0,00"),
             ("geral_atrasados","PARTICIPANTES ATRASADOS","#ca8a04", "0"),
             ("adm_total",      "TOTAL GANHO (ADM)",      "#4f46e5", "R$ 0,00"),
+            ("adm_ano",        "GANHO NESTE ANO",        "#f39c12", "R$ 0,00"),
             ("adm_sacado",     "TOTAL SACADO",           "#db2777", "R$ 0,00"),
             ("adm_saldo",      "SALDO DISPONÍVEL",       "#0891b2", "R$ 0,00"),
         ]
@@ -4232,43 +4391,21 @@ class BolaoApp:
                                       fg="#ffcc88", font=("Arial",8,"bold"))
         self._adm_atr_lbl.pack(anchor="e", pady=(2,0))
 
-        # ── Últimos Pagamentos (geral) | Histórico de Lançamentos ─
+        # ── Últimos Pagamentos (geral) — "Histórico de Lançamentos"
+        # (taxa_adm) mudou pra aba própria dentro de Gestão (_build_lanc)
+        # — não fazia sentido repetir a mesma lista editável em dois
+        # lugares; o Dashboard mostra só o resumo do ano (KPI acima),
+        # quem quiser mexer nos lançamentos vai em Gestão.
         mid2 = tk.Frame(p, bg="#1a2a3a")
         mid2.pack(fill="both", expand=True, padx=20, pady=(0,14))
-        mid2.columnconfigure(0, weight=2); mid2.columnconfigure(1, weight=3)
-        mid2.rowconfigure(0, weight=1)
 
         sec_ult_geral = tk.LabelFrame(mid2, text="  ÚLTIMOS PAGAMENTOS (GERAL)  ",
             bg="#243447", fg="white", font=("Arial",9,"bold"), bd=1, padx=6, pady=4)
-        sec_ult_geral.grid(row=0, column=0, sticky="nsew", padx=(0,4))
+        sec_ult_geral.pack(fill="both", expand=True)
         cols_ug = {"Participante":150,"Bolão":140,"Data":86,"Valor":86}
         fr_ug, self.geral_tree_ult = make_tree(sec_ult_geral, cols_ug, height=8)
         fr_ug.pack(fill="both", expand=True)
         self.geral_tree_ult.tag_configure("linha", background="#f8f8f8")
-
-        sec_hist = tk.LabelFrame(mid2, text="  HISTÓRICO DE LANÇAMENTOS  ",
-            bg="#243447", fg="white", font=("Arial",9,"bold"), bd=1, padx=6, pady=4)
-        sec_hist.grid(row=0, column=1, sticky="nsew")
-
-        # Ganhos por Loteria / Registrar Lançamento — moradas aqui porque
-        # são ações e consultas sobre o MESMO assunto deste card (os
-        # lançamentos de ganho/saque do organizador), não da tela toda —
-        # antes ficavam soltas acima, longe do que se referem.
-        top_hist = tk.Frame(sec_hist, bg="#243447"); top_hist.pack(fill="x", pady=(0,4))
-        btn(top_hist, "📊 Ganhos por Loteria", CORES["btn_roxo"],
-            self._abrir_ganhos_por_loteria, width=17).pack(side="left", padx=(0,4))
-        btn(top_hist, "➕ Novo Lançamento", CORES["btn_verde"],
-            self._abrir_registrar_lancamento, width=15).pack(side="left")
-
-        cols_h = {"ID":40,"Bolao":120,"Loteria":80,"Concurso":65,
-                  "Valor":90,"Tipo":70,"Descricao":140,"Data":90}
-        fr_h, self.adm_tree_hist = make_tree(sec_hist, cols_h, height=8)
-        fr_h.pack(fill="both", expand=True)
-        self.adm_tree_hist.tag_configure("ganho", background="#d5f5e3")
-        self.adm_tree_hist.tag_configure("saque", background="#fde8d8")
-        bh = tk.Frame(sec_hist, bg="#243447"); bh.pack(fill="x", pady=2)
-        btn(bh, "Editar",  CORES["btn_azul"],    self._adm_editar,  width=10).pack(side="left", padx=3)
-        btn(bh, "Excluir", CORES["btn_vermelho"], self._adm_excluir, width=10).pack(side="left", padx=3)
 
         # Região de rolagem — precisa ser calculada depois que TODO o
         # conteúdo já foi montado
@@ -5088,7 +5225,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.10</span>
+        <span>Sistema de Gestão de Bolões v6.11</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -5907,6 +6044,47 @@ class BolaoApp:
         btn(bf2,"🗑 Excluir Movimento",CORES["btn_vermelho"],self._del_mov_res,width=22).pack(side="left",padx=4)
         btn(bf2,"🔄 Atualizar",CORES["btn_azul"],self._load_res,width=16).pack(side="left",padx=4)
 
+    # ════════════════════════════════════════════════════════════
+    #  ABA — LANÇAMENTOS (taxa_adm — ganhos/saques do organizador)
+    # ════════════════════════════════════════════════════════════
+    def _build_lanc(self):
+        """Antes vivia embutida no Dashboard ("HISTÓRICO DE LANÇAMENTOS",
+        dentro de "Últimos Pagamentos | Histórico de Lançamentos") — pedido
+        explícito do usuário pra mover pra Gestão (junto de Premiações e
+        Caixa por Loteria, que são o mesmo tipo de tela) e deixar só um
+        resumo do ano no Dashboard. self.adm_tree_hist e os métodos
+        _adm_editar/_adm_excluir/_abrir_ganhos_por_loteria/
+        _abrir_registrar_lancamento continuam os mesmos — só o lugar onde
+        a lista é desenhada mudou."""
+        p = self.tab_lanc
+        tk.Label(p,text="📋 LANÇAMENTOS (GANHOS/SAQUES DO ORGANIZADOR)",bg=CORES["bg_frame"],
+                 fg=CORES["fg_title"],font=("Arial",12,"bold")).pack(pady=(14,4))
+        tk.Label(p,text="Ganhos recebidos e saques feitos pelo organizador — controle independente da reserva do bolão.",
+                 bg=CORES["bg_frame"],fg="#555",font=("Arial",9)).pack()
+
+        top_hist = tk.Frame(p, bg=CORES["bg_frame"]); top_hist.pack(fill="x", padx=20, pady=10)
+        btn(top_hist, "📊 Ganhos por Loteria", CORES["btn_roxo"],
+            self._abrir_ganhos_por_loteria, width=20).pack(side="left", padx=4)
+        btn(top_hist, "➕ Novo Lançamento", CORES["btn_verde"],
+            self._abrir_registrar_lancamento, width=18).pack(side="left", padx=4)
+
+        sec_hist = section(p, "HISTÓRICO COMPLETO"); sec_hist.pack(fill="both", expand=True, padx=20, pady=(0,4))
+        cols_h = {"ID":45,"Bolao":150,"Loteria":100,"Concurso":80,
+                  "Valor":110,"Tipo":80,"Descricao":220,"Data":110}
+        fr_h, self.adm_tree_hist = make_tree(sec_hist, cols_h, height=14)
+        fr_h.pack(fill="both", expand=True)
+        self.adm_tree_hist.tag_configure("ganho", background="#d5f5e3")
+        self.adm_tree_hist.tag_configure("saque", background="#fde8d8")
+        self.adm_tree_hist.bind("<Double-1>", lambda e: self._adm_editar())
+
+        tk.Label(p,text="💡 Duplo clique num lançamento pra editar os dados.",
+                 bg=CORES["bg_frame"],fg=CORES["fg_label"],font=("Arial",8,"italic")).pack(
+                 anchor="w",padx=20,pady=(0,4))
+
+        bh = tk.Frame(p, bg=CORES["bg_frame"]); bh.pack(fill="x", padx=20, pady=(0,14))
+        btn(bh, "✏ Editar",  CORES["btn_laranja"], self._adm_editar,  width=16).pack(side="left", padx=4)
+        btn(bh, "🗑 Excluir", CORES["btn_vermelho"], self._adm_excluir, width=16).pack(side="left", padx=4)
+
     def _reg_mov_res(self):
         bid=self.bid.get()
         if not bid: messagebox.showwarning("Atenção","Selecione um bolão!"); return
@@ -6153,7 +6331,19 @@ class BolaoApp:
         total_sacado = sum(r["valor_sacado"] for r in todos)
         saldo_geral  = total_ganho - total_sacado
 
+        # Ganho só deste ano — pedido do usuário: um resumo rápido no
+        # Dashboard, sem precisar abrir a lista completa (que agora mora
+        # em Gestão > Lançamentos) só pra saber "quanto ganhei esse ano".
+        # data_registro é texto "DD/MM/AAAA" — o ano são os 4 últimos
+        # caracteres, mesma convenção usada no resto do texto livre desse
+        # campo em todo o sistema.
+        ano_atual = str(datetime.now().year)
+        total_ganho_ano = sum(
+            r["valor_ganho"] for r in todos
+            if r["tipo"] == "GANHO" and (r["data_registro"] or "").strip()[-4:] == ano_atual)
+
         self._adm_kpis["adm_total"].configure(text=fmt_brl(total_ganho))
+        self._adm_kpis["adm_ano"].configure(text=fmt_brl(total_ganho_ano))
         self._adm_kpis["adm_sacado"].configure(text=fmt_brl(total_sacado))
         self._adm_kpis["adm_saldo"].configure(text=fmt_brl(saldo_geral))
 
@@ -7355,7 +7545,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.10</span>
+        <span>Sistema de Gestão de Bolões v6.11</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>

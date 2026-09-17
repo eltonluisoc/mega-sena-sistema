@@ -815,6 +815,20 @@ Usuário reportou: "na guia gestão, aba premiações... se faço lançamento de
 
 Versão desktop v6.9 → **v6.10**. `dist/SistemaBoloes.exe` reconstruído via `SistemaBoloes.spec`.
 
+## Rodada 51 — Participantes duplicados, Reativar na Visão Geral, Lançamentos pra Gestão (v6.11, desktop)
+
+Usuário trouxe 5 pedidos numa mensagem só: (1) participantes duplicados na busca/seleção, (2) botão "Reativar Bolão" preso dentro do detalhe de um bolão selecionado em vez de aparecer na Visão Geral, (3) "Histórico de Lançamentos" duplicado entre Dashboard e Gestão, (4) um botão simples de "premiação total do ano" no lugar da lista completa no Dashboard, e (5) avaliar se vale investir na aba "Importar Extrato" ou excluir.
+
+**1 — Participantes duplicados**: causa raiz encontrada — telefone nunca era normalizado antes de gravar/comparar. A mesma pessoa cadastrada com "(61) 99999-9999" numa vez e "61999999999" noutra virava DUAS linhas em `pessoas` (o `UNIQUE` em `pessoas.telefone` não pega, são strings diferentes), e cada bolão em que a pessoa aparecia mostrava um registro fragmentado diferente na busca "Importar Membro de Bolão Anterior". Corrigido: `_cadastrar` e `_cad_edit_salvar` normalizam telefone (só dígitos) antes de gravar/comparar; `_cad_edit_salvar` passou a propagar nome/telefone/pix pro registro em `pessoas` ligado (antes só atualizava a cópia do participante, deixando `pessoas` desatualizada); a chave de dedup de `_imp_buscar` também passou a comparar telefone normalizado. Nova ferramenta "🧹 Unificar Duplicados" (aba Participantes) agrupa `pessoas` por telefone normalizado, mostra os grupos e junta com um clique (reaponta `participantes.pessoa_id` pro mais antigo do grupo, apaga os duplicados — não mexe em pagamento/histórico). Testado à parte com SQLite em memória.
+
+**2 — Reativar Bolão na Visão Geral**: `_adm_reativar_bolao` já era auto-contido (lista todos os encerrados, não depende do bolão selecionado) — só estava no lugar errado (header de "Bolão Selecionado", `_build_bolao_sel`). Adicionado também no header da Visão Geral (`_build_dashboard`), que é onde faz sentido reativar algo que nem aparece nos seletores normais.
+
+**3 e 4 — Histórico de Lançamentos + KPI do ano**: "Histórico de Lançamentos" (taxa_adm — ganhos/saques do ORGANIZADOR, diferente de `premiacoes`) só existia dentro do Dashboard, nunca em Gestão — o usuário queria o oposto do que existia (só em Gestão). Virou aba própria "📋 Lançamentos" em `nb_gestao`, ao lado de Premiações e Caixa por Loteria (`_build_lanc`, reaproveitando os mesmos `self.adm_tree_hist`/`_adm_editar`/`_adm_excluir`/`_abrir_ganhos_por_loteria`/`_abrir_registrar_lancamento` — só o lugar onde a lista é desenhada mudou). Dashboard ganhou um KPI "GANHO NESTE ANO" (filtra `taxa_adm` pelo ano corrente) no lugar da lista completa.
+
+**5 — Importar Extrato**: investigado antes de decidir. `pip show pdfplumber` confirmou que essa biblioteca NUNCA esteve instalada no ambiente que gera o `.exe` — ou seja, todo executável já publicado tem essa aba 100% quebrada desde sempre, sempre caindo em "Biblioteca ausente" (cujo próprio conselho, "pip install pdfplumber", não serve pra quem só tem o .exe). A lógica de parsing (`_imp_analisar`) também usa extração de texto plana (`pdfplumber.extract_text()`) assumindo layout linha-a-linha — o mesmo tipo de abordagem que já falhou antes NESTE projeto (o import de cartões em PDF precisou virar position-aware depois que texto plano embaralhava dados em colunas). Recomendação dada ao usuário, aguardando decisão: (A) investir — empacotar pdfplumber + testar com um extrato real do Nubank pra calibrar o parsing (mesmo processo usado pra corrigir o import de cartões), ou (B) excluir a aba inteira (~500 linhas, 12 métodos) já que o registro manual de pagamento já cobre a necessidade. Nenhuma mudança de código feita nessa aba ainda.
+
+Versão desktop v6.10 → **v6.11**. `dist/SistemaBoloes.exe` reconstruído via `SistemaBoloes.spec`.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
