@@ -849,6 +849,21 @@ Usuário mandou print apontando dois problemas: o card do Dashboard "GANHO NESTE
 
 Versão desktop v6.12 → **v6.13**. `dist/SistemaBoloes.exe` reconstruído via `SistemaBoloes.spec`.
 
+## Rodada 54 — Ícone próprio do app + reformulação da tela de Pagamentos (v6.14, desktop)
+
+Usuário mandou dois pedidos: um print da tela "Pagamentos" chamando a UX de "péssima", e no meio do trabalho, mais uma mensagem pedindo um ícone próprio pro app ("essa pena é péssima" — o ícone padrão de pena do Tk que aparece sem `iconbitmap` configurado).
+
+**Ícone**: em vez de desenhar do zero, reaproveitei o `icon.png` que já existe no projeto (usado pelo PWA/site — arte "BOLÕES ALEATÓRIOS" com cartela de loteria e estrelas, já profissional) — dá branding consistente entre desktop e web de graça. Convertido pra `app_icon.ico` multi-resolução (16 a 256px) com Pillow. Aplicado em dois lugares (são mecanismos diferentes): `SistemaBoloes.spec` (`icon=['app_icon.ico']` no `EXE()`, mais `datas=[('app_icon.ico','.')]` pra empacotar o arquivo) controla o ícone do próprio .exe no Explorer; `self.root.iconbitmap(...)` no `__init__` controla o ícone da janela em execução (título, barra de tarefas, Alt-Tab) — sem isso o Tk mostra a pena padrão mesmo com o .exe tendo outro ícone. Novo helper `_resource_path()` resolve o caminho do .ico tanto rodando o `.py` direto quanto no `.exe` onefile (`sys._MEIPASS`, pasta temporária onde o PyInstaller onefile extrai os arquivos de `datas` — sem isso o ícone não seria achado no .exe empacotado, só rodando o script).
+
+**Tela de Pagamentos (Financeiro)**: reportada como "péssima" — grandes áreas vazias, campo de participante era uma lista suspensa simples (lenta pra achar alguém), campo Valor sempre nascia em branco. Corrigido:
+- Combobox de participante virou editável + filtro ao vivo por tecla (`_pag_cb_filtrar`) — mesmo padrão já usado em Participantes/Histórico deste sistema, em vez de inventar um widget novo.
+- Mensagem de estado vazio ("🔍 Digite ou selecione um participante...") antes de escolher alguém, em vez de área em branco.
+- Campo Valor sugere a parcela × cotas do participante (usando `_n_cotas_participante`, o mesmo helper da auditoria matemática da Rodada 44) — capado pelo saldo restante, pra não sugerir mais do que falta no pagamento final. Antes vinha sempre vazio.
+- Formulário compactado numa linha (Mês/Ano/Valor/Data), com Enter avançando de campo em campo até registrar.
+- "🔄 Atualizar lista" virou ícone compacto — menos peso visual pra uma ação que já roda sozinha ao trocar de aba.
+
+Versão desktop v6.13 → **v6.14**. `dist/SistemaBoloes.exe` reconstruído via `SistemaBoloes.spec` (log confirma "Copying icon to EXE").
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

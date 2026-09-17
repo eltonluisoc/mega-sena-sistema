@@ -1,7 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.13
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.14
+Correções v6.14 (ícone próprio do app + tela de Pagamentos reformulada):
+ - Ícone próprio (mesma arte do PWA/site, "BOLÕES ALEATÓRIOS") — antes
+   o Windows usava o ícone padrão do Tk (uma pena), reportado como
+   ruim. app_icon.ico gerado a partir do icon.png já existente do site,
+   empacotado junto do .exe (SistemaBoloes.spec) e aplicado na janela
+   via root.iconbitmap() — com _resource_path() pra achar o arquivo
+   tanto rodando o .py direto quanto no .exe onefile (sys._MEIPASS).
+ - Tela "💳 Pagamentos" (Financeiro) reformulada — reportada como "UX
+   péssima": campo de participante virou busca ao vivo (Combobox
+   editável + filtro por tecla, mesmo padrão já usado em
+   Participantes/Histórico) em vez de lista suspensa simples; mensagem
+   de estado vazio orienta o que fazer antes de escolher alguém; campo
+   Valor agora sugere a parcela × cotas do participante (sem passar do
+   saldo restante) em vez de nascer sempre em branco; formulário
+   compactado numa linha com Enter avançando de campo em campo até
+   registrar; botão "Atualizar lista" virou ícone compacto.
 Correções v6.13 (Gestão virou tela única + card de premiação corrigido):
  - Bug real corrigido: o card "GANHO NESTE ANO" do Dashboard mostrava o
    ganho do ORGANIZADOR (taxa_adm, aba Lançamentos), mas o pedido
@@ -454,13 +470,21 @@ Correções v3.1:
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import sqlite3
-import os, shutil
+import os, shutil, sys
 from datetime import datetime, date
 import re
 
 # ─────────────────────────────────────────────
 DB_FILE    = "boloes.db"
 BACKUP_DIR = "backups"
+
+def _resource_path(nome_arquivo):
+    """Acha um arquivo empacotado junto do app (ex.: ícone), funcionando
+    tanto rodando como script .py quanto como .exe do PyInstaller —
+    onefile extrai os arquivos de 'datas' pra uma pasta temporária
+    (sys._MEIPASS) em vez de deixar ao lado do .exe."""
+    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, nome_arquivo)
 
 CORES = {
     "header_bg":    "#1a2a3a",
@@ -1257,10 +1281,18 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.13")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.14")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
+        # Ícone próprio (mesma arte do PWA/site) — sem isso o Windows usa
+        # o ícone padrão do Tk (a penas), que o usuário reportou como
+        # ruim. Não pode travar o app se o arquivo não existir por algum
+        # motivo (ex.: alguém rodando o .py direto sem o .ico ao lado).
+        try:
+            self.root.iconbitmap(_resource_path("app_icon.ico"))
+        except Exception:
+            pass
 
         self.db  = Database()
         self.bkp = BackupManager()
@@ -1510,7 +1542,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.13",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.14",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -2588,22 +2620,34 @@ class BolaoApp:
     def _build_pag(self):
         p = self.tab_pag
 
-        # ── Seleção do participante — Combobox simples ───────────
+        # ── Seleção do participante — busca ao vivo em vez de combobox
+        # readonly simples (achado real de UX: com vários participantes,
+        # abrir a lista suspensa e procurar era lento; digitar já filtra,
+        # mesmo padrão já usado em Participantes/Histórico). ─────────
         sec1 = section(p, "SELECIONAR PARTICIPANTE")
         sec1.pack(fill="x", padx=20, pady=(16,6))
 
-        row_cb = tk.Frame(sec1, bg=CORES["bg_section"]); row_cb.pack(fill="x", pady=6)
+        row_cb = tk.Frame(sec1, bg=CORES["bg_section"]); row_cb.pack(fill="x", pady=4)
         tk.Label(row_cb, text="Participante:", bg=CORES["bg_section"],
                  font=("Arial",9,"bold"), fg=CORES["fg_label"]).pack(side="left", padx=(0,8))
 
-        self.pag_cb = ttk.Combobox(row_cb, width=50, state="readonly", font=("Arial",10))
-        self.pag_cb.pack(side="left", padx=(0,8))
+        self.pag_cb = ttk.Combobox(row_cb, width=40, font=("Arial",10))
+        self.pag_cb.pack(side="left", padx=(0,8), fill="x", expand=True)
         self.pag_cb.bind("<<ComboboxSelected>>", self._pag_cb_sel)
+        self.pag_cb.bind("<KeyRelease>", self._pag_cb_filtrar)
 
-        btn(row_cb, "🔄 Atualizar lista", CORES["btn_azul"],
-            self._refresh_all, width=18).pack(side="left", padx=4)
-        btn(row_cb, "🧾 Emitir Recibo", CORES["btn_verde"],
-            self._emitir_recibo, width=16).pack(side="left", padx=4)
+        btn(row_cb, "🔄", CORES["btn_azul"],
+            self._refresh_all, width=3).pack(side="left", padx=2)
+        btn(row_cb, "🧾 Recibo", CORES["btn_verde"],
+            self._emitir_recibo, width=11).pack(side="left", padx=2)
+
+        # Estado vazio — orienta o que fazer em vez de deixar a tela em
+        # branco antes de escolher alguém (some assim que seleciona,
+        # ver _pag_info).
+        self._pag_empty_lbl = tk.Label(sec1,
+            text="🔍 Digite ou selecione um participante acima pra ver os dados e registrar um pagamento.",
+            bg=CORES["bg_section"], fg="#888", font=("Arial",9,"italic"))
+        self._pag_empty_lbl.pack(anchor="w", pady=(6,2))
 
         # ── Informações do participante — cards visuais ──────────
         self._sec_pag_info = tk.Frame(p, bg=CORES["bg_frame"])
@@ -2615,40 +2659,45 @@ class BolaoApp:
                                       wraplength=760, justify="left")
         self._pag_obs_lbl.pack(fill="x", pady=(4,0))
 
-        # ── Formulário de pagamento ──────────────────────────────
+        # ── Formulário de pagamento — tudo numa linha, Enter avança
+        # de campo em campo até registrar (mesmo padrão já usado no
+        # cadastro de participante e nos popups de edição). ─────────
         sec3 = section(p, "REGISTRAR PAGAMENTO")
         sec3.pack(fill="x", padx=20, pady=6)
 
         r1 = tk.Frame(sec3, bg=CORES["bg_section"]); r1.pack(fill="x", pady=4)
         tk.Label(r1, text="Mês Ref.:", bg=CORES["bg_section"],
                  font=("Arial",9,"bold"), fg=CORES["fg_label"]).pack(side="left")
-        self.pag_mes = ttk.Combobox(r1, values=MESES, width=8, state="readonly")
-        self.pag_mes.set(MESES[date.today().month-1]); self.pag_mes.pack(side="left", padx=4)
+        self.pag_mes = ttk.Combobox(r1, values=MESES, width=6, state="readonly")
+        self.pag_mes.set(MESES[date.today().month-1]); self.pag_mes.pack(side="left", padx=(4,2))
         tk.Label(r1, text="/", bg=CORES["bg_section"],
                  font=("Arial",10,"bold")).pack(side="left")
         self.pag_ano = ttk.Combobox(r1, values=[str(y) for y in range(2020,2036)],
-                                    width=7, state="readonly")
-        self.pag_ano.set(str(date.today().year)); self.pag_ano.pack(side="left", padx=4)
+                                    width=6, state="readonly")
+        self.pag_ano.set(str(date.today().year)); self.pag_ano.pack(side="left", padx=(2,16))
+
+        tk.Label(r1, text="Valor (R$):", bg=CORES["bg_section"],
+                 font=("Arial",9,"bold"), fg=CORES["fg_label"]).pack(side="left")
+        self.pag_val = entry(r1, width=12); self.pag_val.pack(side="left", padx=(4,16))
+        self.pag_val.bind("<FocusIn>", lambda e: self.pag_val.selection_range(0,"end"))
+        self.pag_val.bind("<Return>", lambda e: self.pag_dt.focus_set())
+
+        tk.Label(r1, text="Data:", bg=CORES["bg_section"],
+                 font=("Arial",9,"bold"), fg=CORES["fg_label"]).pack(side="left")
+        self.pag_dt = entry(r1, width=12)
+        self.pag_dt.insert(0, date.today().strftime("%d/%m/%Y"))
+        self.pag_dt.pack(side="left", padx=4)
+        self.pag_dt.bind("<Return>", lambda e: self.pag_obs.focus_set())
 
         r2 = tk.Frame(sec3, bg=CORES["bg_section"]); r2.pack(fill="x", pady=4)
-        tk.Label(r2, text="Valor (R$):", bg=CORES["bg_section"],
+        tk.Label(r2, text="Obs.:", bg=CORES["bg_section"],
                  font=("Arial",9,"bold"), fg=CORES["fg_label"]).pack(side="left")
-        self.pag_val = entry(r2, width=14); self.pag_val.pack(side="left", padx=8)
-        self.pag_val.bind("<FocusIn>", lambda e: self.pag_val.selection_range(0,"end"))
-        tk.Label(r2, text="Data:", bg=CORES["bg_section"],
-                 font=("Arial",9,"bold"), fg=CORES["fg_label"]).pack(side="left")
-        self.pag_dt = entry(r2, width=14)
-        self.pag_dt.insert(0, date.today().strftime("%d/%m/%Y"))
-        self.pag_dt.pack(side="left", padx=8)
-
-        r3 = tk.Frame(sec3, bg=CORES["bg_section"]); r3.pack(fill="x", pady=4)
-        tk.Label(r3, text="Obs.:", bg=CORES["bg_section"],
-                 font=("Arial",9,"bold"), fg=CORES["fg_label"]).pack(side="left")
-        self.pag_obs = entry(r3, width=50); self.pag_obs.pack(side="left", padx=8)
+        self.pag_obs = entry(r2, width=50); self.pag_obs.pack(side="left", padx=8, fill="x", expand=True)
+        self.pag_obs.bind("<Return>", lambda e: self._registrar_pag())
 
         bf = tk.Frame(sec3, bg=CORES["bg_section"]); bf.pack(fill="x", pady=8)
-        btn(bf, "💳  REGISTRAR PAGAMENTO", CORES["btn_azul"],
-            self._registrar_pag, width=26).pack(side="left")
+        btn(bf, "💳 Registrar Pagamento", CORES["btn_azul"],
+            self._registrar_pag, width=22).pack(side="left")
 
         # ── Histórico de pagamentos deste participante — antes era a
         # aba separada "Visualizar / Recibo", que só existia por causa de
@@ -2664,6 +2713,23 @@ class BolaoApp:
     def _pag_cb_sel(self, e=None):
         self._pag_info()
 
+    def _pag_cb_filtrar(self, e=None):
+        """Filtra a lista suspensa a cada tecla — a combobox virou
+        editável (não mais readonly) só pra permitir digitar e filtrar;
+        selecionar continua sendo sempre pela lista (_pag_cb_sel cuida
+        de validar que o texto bate com um "(ID: N)" real)."""
+        if e and e.keysym in ("Up","Down","Return","Escape","Tab","Shift_L","Shift_R"):
+            return
+        todos = getattr(self, "_pag_cb_todos", [])
+        termo = self.pag_cb.get().strip().lower()
+        if not termo:
+            self.pag_cb["values"] = todos
+            return
+        filtrados = [v for v in todos if termo in v.lower()]
+        self.pag_cb["values"] = filtrados
+        try: self.pag_cb.event_generate("<Down>")
+        except Exception: pass
+
     def _pag_info(self, e=None):
         sel = self.pag_cb.get()
         # Limpa cards anteriores
@@ -2673,13 +2739,17 @@ class BolaoApp:
             self._pag_obs_lbl.configure(text="")
             try: self.pag_hist_tree.delete(*self.pag_hist_tree.get_children())
             except Exception: pass
+            self._pag_empty_lbl.pack(anchor="w", pady=(6,2))
             return
         m = re.search(r"\(ID: (\d+)\)", sel)
-        if not m: return
+        if not m:
+            self._pag_empty_lbl.pack(anchor="w", pady=(6,2))
+            return
         pid = int(m.group(1))
         bid = self.bid.get()
         pt  = self.db.fetchone("SELECT * FROM participantes WHERE id=?",(pid,))
         if not pt: return
+        self._pag_empty_lbl.pack_forget()
         pgs   = self.db.fetchall(
             "SELECT * FROM pagamentos WHERE participante_id=? AND bolao_id=? ORDER BY id",(pid,bid))
         pago  = sum(x["valor"] for x in pgs)
@@ -2734,7 +2804,20 @@ class BolaoApp:
                 pgx["id"], pgx["mes_referencia"], pgx["data_pagamento"],
                 fmt_brl(pgx["valor"]), dep, pgx["observacoes"] or "-"))
 
+        # Sugere o valor da parcela (× cotas) em vez de deixar em branco
+        # — achado real de UX: o campo sempre nascia vazio, obrigando
+        # digitar/lembrar o valor toda vez, mesmo sendo quase sempre o
+        # mesmo (a parcela normal do bolão). Não sugere além do saldo
+        # restante (pagamento final, menor que a parcela cheia) nem se
+        # já estiver quitado.
         self.pag_val.delete(0,"end")
+        b_val = self.db.fetchone("SELECT valor_parcela, valor_total FROM boloes WHERE id=?", (bid,))
+        parc  = float(b_val["valor_parcela"] or 0) if b_val else 0
+        vt    = float(b_val["valor_total"] or 0) if b_val else 0
+        n_cotas_pt = self._n_cotas_participante(ve, vt)
+        sugestao = parc * n_cotas_pt
+        if not quitado and sugestao > 0:
+            self.pag_val.insert(0, f"{min(sugestao, saldo):.2f}".replace(".", ","))
         self.pag_val.focus_set()
 
     def _confirmar_pagamento_isento(self, pid, bid):
@@ -4912,7 +4995,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.13</span>
+        <span>Sistema de Gestão de Bolões v6.14</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -7221,7 +7304,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.13</span>
+        <span>Sistema de Gestão de Bolões v6.14</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -8163,6 +8246,7 @@ class BolaoApp:
         items_todos = [f"{dict(p)['nome']} (ID: {dict(p)['id']})" for p in todos]
 
         self.pag_cb["values"]  = items_todos
+        self._pag_cb_todos     = items_todos  # cópia completa p/ o filtro ao vivo
         try: self.cad_edit_cb["values"] = items_todos
         except: pass
         try:
@@ -8208,7 +8292,9 @@ class BolaoApp:
         items_todos = [f"{dict(p)['nome']} (ID: {dict(p)['id']})" for p in todos]
         # Só atualiza a LISTA de opções dos combos — não mexe na seleção
         # atual do usuário (.set() fica intocado de propósito).
-        try: self.pag_cb["values"] = items_todos
+        try:
+            self.pag_cb["values"] = items_todos
+            self._pag_cb_todos    = items_todos  # cópia completa p/ o filtro ao vivo
         except Exception: pass
         try: self.cad_edit_cb["values"] = items_todos
         except Exception: pass
