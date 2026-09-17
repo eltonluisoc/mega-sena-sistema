@@ -864,6 +864,16 @@ Usuário mandou dois pedidos: um print da tela "Pagamentos" chamando a UX de "p�
 
 Versão desktop v6.13 → **v6.14**. `dist/SistemaBoloes.exe` reconstruído via `SistemaBoloes.spec` (log confirma "Copying icon to EXE").
 
+## Rodada 55 — Ícone minimalista desenhado do zero (v6.15, desktop)
+
+Usuário não gostou do ícone da Rodada 54 (reaproveitava a arte colorida do site/PWA — cartela de loteria, estrelas, gradiente vermelho/dourado, "muita coisa" pra um ícone de app desktop). Pediu um minimalista, já versionado.
+
+Desenhado programaticamente com Pillow (sem gerador de imagem — desenho geométrico direto): quadrado arredondado em navy sólido (#1a2a3a, a mesma cor do cabeçalho do próprio app desktop — não a paleta do site) com um dado branco centralizado, levemente rotacionado, pips em dourado (#f39c12, a cor já usada pra "premiação" em todo o resto do sistema). Zero gradiente, uma forma só, cores da própria paleta do app — critério de "minimalista" e também de manter a identidade visual consistente com o que já existe no desktop, em vez de importar a do site de novo. Renderizado em 1024px e testado reduzido pra 32px/16px (tamanho de barra de tarefas) antes de finalizar, pra garantir que os pips continuam legíveis pequenos.
+
+Substituiu o `app_icon.ico` existente (mesmo nome de arquivo — `SistemaBoloes.spec` e `_resource_path()` não precisaram mudar, só o conteúdo do ícone).
+
+Versão desktop v6.14 → **v6.15**. `dist/SistemaBoloes.exe` reconstruído via `SistemaBoloes.spec`.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

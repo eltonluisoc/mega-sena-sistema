@@ -1,7 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.14
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.15
+Correções v6.15 (ícone minimalista):
+ - Ícone da Rodada 54 (arte colorida do site reaproveitada) reportado
+   como não ficou bom. Substituído por um ícone minimalista próprio,
+   desenhado do zero com Pillow: quadrado arredondado navy (mesma cor
+   do cabeçalho do app, #1a2a3a) com um dado branco levemente
+   inclinado, pips em dourado (#f39c12, a mesma cor usada pra
+   "premiação" no resto do sistema) — cores 100% da própria paleta do
+   app, não do site. Testado em miniatura (32px/16px) pra garantir que
+   continua legível no tamanho da barra de tarefas. Mesmo arquivo
+   app_icon.ico (nome não mudou — spec e _resource_path já apontavam
+   pra ele, só o conteúdo foi substituído).
 Correções v6.14 (ícone próprio do app + tela de Pagamentos reformulada):
  - Ícone próprio (mesma arte do PWA/site, "BOLÕES ALEATÓRIOS") — antes
    o Windows usava o ícone padrão do Tk (uma pena), reportado como
@@ -1281,7 +1292,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.14")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.15")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1542,7 +1553,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.14",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.15",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -4995,7 +5006,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.14</span>
+        <span>Sistema de Gestão de Bolões v6.15</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -7304,7 +7315,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.14</span>
+        <span>Sistema de Gestão de Bolões v6.15</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
