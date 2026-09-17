@@ -805,6 +805,16 @@ Versão desktop v6.8 → **v6.9**. `dist/SistemaBoloes.exe` reconstruído.
 
 Versão web (Service Worker) v48 → v49.
 
+## Rodada 50 — Caixa por Loteria ganha edição + Premiações agora deixa trocar o bolão (v6.10, desktop)
+
+Usuário reportou: "na guia gestão, aba premiações... se faço lançamento de movimento e erro não tenho como editar ou excluir... resolva isso. na guia caixa por loteria. precisa resolver isso." Investigando: "lançamento de movimento" bate exatamente com a aba "💼 Caixa por Loteria" (ENTRADA/SAÍDA), não com Premiações — as duas ficam lado a lado dentro de Gestão, o que explica a troca de nome. Premiações já tinha edição (Rodada 49); Caixa por Loteria só tinha exclusão, nunca teve edição.
+
+**Corrigido em `bolao_pro_v3.py`**:
+- Nova `_editar_mov_res` (popup, mesmo padrão de `_rsv_editar_mov`/`_editar_prem`) — corrige loteria, tipo, valor, data e descrição de um movimento da Caixa por Loteria já registrado. Botão "✏ Editar Movimento" + duplo-clique na lista.
+- Enquanto isso, usuário reportou mid-turn que o popup de editar Premiação (Rodada 49) não deixava trocar o Bolão — ficava fixo no que estava ativo no momento do cadastro original. Novo campo Bolão (combobox com todos os bolões, inclusive encerrados — uma premiação antiga pode pertencer a um bolão já encerrado) no topo do popup, editável junto com o resto.
+
+Versão desktop v6.9 → **v6.10**. `dist/SistemaBoloes.exe` reconstruído via `SistemaBoloes.spec`.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

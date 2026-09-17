@@ -1,7 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.9
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.10
+Correções v6.10 (Caixa por Loteria: edição de movimento + Premiações: editar o bolão):
+ - Aba "💼 Caixa por Loteria" (dentro de Gestão, ao lado de Premiações —
+   nome parecido, achado real de confusão) só tinha exclusão — lançou um
+   movimento errado, só dava pra excluir e recadastrar do zero. Nova
+   _editar_mov_res (popup, mesmo padrão já usado em Reservas Pessoais e
+   Premiações) permite corrigir loteria, tipo, valor, data e descrição
+   de um movimento já registrado. Botão "✏ Editar Movimento" e
+   duplo-clique na lista abrem o popup.
+ - Editar Premiação (v6.9) não deixava trocar o Bolão — ficava fixo no
+   que estava ativo no momento do cadastro, sem jeito de corrigir se o
+   bolão errado tivesse sido selecionado ao registrar. Novo campo Bolão
+   (combobox com todos os bolões, inclusive encerrados) no topo do
+   popup de edição.
 Correções v6.9 (tela de Premiações: reformulada, edição, ordem cronológica correta):
  - Bug real corrigido: registros ordenados por "data_sorteio DESC" mas
    esse campo é texto "DD/MM/AAAA" — ordenar a string direto não dá
@@ -1183,7 +1196,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.9")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.10")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1436,7 +1449,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.9",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.10",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -5075,7 +5088,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.9</span>
+        <span>Sistema de Gestão de Bolões v6.10</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -5724,10 +5737,13 @@ class BolaoApp:
             self._load_prem()
 
     def _editar_prem(self):
-        """Corrige uma premiação já registrada (ex.: valor ou concurso
-        digitado errado) sem precisar excluir e recadastrar — pedido
+        """Corrige uma premiação já registrada (ex.: valor, concurso ou
+        até o bolão errado) sem precisar excluir e recadastrar — pedido
         explícito do usuário ("tenho que poder editar se lancei
-        errado"), que antes não existia nesta tela (só dava pra excluir)."""
+        errado"), que antes não existia nesta tela (só dava pra excluir).
+        Bolão também é editável — achado real: ficava fixo no que estava
+        ativo no momento do cadastro, sem jeito de corrigir se o bolão
+        ativo errado tivesse sido selecionado ao registrar."""
         sel = self.prem_tree.selection()
         if not sel:
             messagebox.showwarning("Atenção","Selecione uma premiação na lista detalhada!"); return
@@ -5736,9 +5752,14 @@ class BolaoApp:
         if not r:
             messagebox.showerror("Erro","Premiação não encontrada."); return
 
+        # Todos os bolões (inclusive encerrados) — uma premiação antiga
+        # pode muito bem pertencer a um bolão que já foi encerrado desde.
+        boloes = self.db.fetchall("SELECT id, nome FROM boloes ORDER BY nome")
+        itens_bolao = [f"{b['nome']} (ID: {b['id']})" for b in boloes]
+
         win = tk.Toplevel(self.root)
         win.title(f"Editar Premiação #{prem_id}")
-        win.geometry("440x340")
+        win.geometry("460x400")
         win.configure(bg=CORES["bg_section"])
         win.grab_set(); win.lift(); win.focus_force()
 
@@ -5747,44 +5768,57 @@ class BolaoApp:
 
         form = tk.Frame(win, bg=CORES["bg_section"], padx=24); form.pack(fill="x")
 
-        tk.Label(form, text="Loteria:", bg=CORES["bg_section"], fg=CORES["fg_label"],
+        tk.Label(form, text="Bolão:", bg=CORES["bg_section"], fg=CORES["fg_label"],
                  font=("Arial",9,"bold")).grid(row=0, column=0, sticky="w", pady=6)
+        bolao_cb = ttk.Combobox(form, values=itens_bolao, width=34, state="readonly", font=("Arial",9))
+        for b, item in zip(boloes, itens_bolao):
+            if b["id"] == r["bolao_id"]:
+                bolao_cb.set(item); break
+        bolao_cb.grid(row=0, column=1, sticky="w", pady=6)
+
+        tk.Label(form, text="Loteria:", bg=CORES["bg_section"], fg=CORES["fg_label"],
+                 font=("Arial",9,"bold")).grid(row=1, column=0, sticky="w", pady=6)
         lot_cb = ttk.Combobox(form, values=LOTERIAS, width=16, state="readonly", font=("Arial",9))
         lot_cb.set(r["loteria"] or "Mega-Sena")
-        lot_cb.grid(row=0, column=1, sticky="w", pady=6)
+        lot_cb.grid(row=1, column=1, sticky="w", pady=6)
 
         tk.Label(form, text="Nº Concurso:", bg=CORES["bg_section"], fg=CORES["fg_label"],
-                 font=("Arial",9,"bold")).grid(row=1, column=0, sticky="w", pady=6)
+                 font=("Arial",9,"bold")).grid(row=2, column=0, sticky="w", pady=6)
         conc_e = entry_numerico(form, width=16)
         conc_e.insert(0, re.sub(r"\D", "", r["concurso"] or ""))
-        conc_e.grid(row=1, column=1, sticky="w", pady=6)
+        conc_e.grid(row=2, column=1, sticky="w", pady=6)
 
         tk.Label(form, text="Data Sorteio:", bg=CORES["bg_section"], fg=CORES["fg_label"],
-                 font=("Arial",9,"bold")).grid(row=2, column=0, sticky="w", pady=6)
+                 font=("Arial",9,"bold")).grid(row=3, column=0, sticky="w", pady=6)
         dt_e = entry(form, width=16)
         dt_e.insert(0, r["data_sorteio"] or "")
-        dt_e.grid(row=2, column=1, sticky="w", pady=6)
+        dt_e.grid(row=3, column=1, sticky="w", pady=6)
 
         tk.Label(form, text="Valor (R$):", bg=CORES["bg_section"], fg=CORES["fg_label"],
-                 font=("Arial",9,"bold")).grid(row=3, column=0, sticky="w", pady=6)
+                 font=("Arial",9,"bold")).grid(row=4, column=0, sticky="w", pady=6)
         val_e = entry(form, width=16)
         val_e.insert(0, fmt_brl(r["valor_premio"]).replace("R$","").strip())
-        val_e.grid(row=3, column=1, sticky="w", pady=6)
+        val_e.grid(row=4, column=1, sticky="w", pady=6)
 
         tk.Label(form, text="Descrição:", bg=CORES["bg_section"], fg=CORES["fg_label"],
-                 font=("Arial",9,"bold")).grid(row=4, column=0, sticky="nw", pady=6)
+                 font=("Arial",9,"bold")).grid(row=5, column=0, sticky="nw", pady=6)
         desc_e = entry(form, width=30)
         desc_e.insert(0, r["descricao"] or "")
-        desc_e.grid(row=4, column=1, sticky="w", pady=6)
+        desc_e.grid(row=5, column=1, sticky="w", pady=6)
 
         def _salvar():
             v = to_float(val_e.get())
             if v <= 0:
                 messagebox.showwarning("Atenção","Informe um valor válido!"); return
+            sel_bolao = bolao_cb.get()
+            m = re.search(r"\(ID: (\d+)\)", sel_bolao)
+            if not m:
+                messagebox.showwarning("Atenção","Selecione o bolão!"); return
+            bolao_id = int(m.group(1))
             self.db.execute(
-                "UPDATE premiacoes SET loteria=?, concurso=?, data_sorteio=?, "
+                "UPDATE premiacoes SET bolao_id=?, loteria=?, concurso=?, data_sorteio=?, "
                 "valor_premio=?, descricao=? WHERE id=?",
-                (lot_cb.get(), conc_e.get().strip(), dt_e.get().strip(),
+                (bolao_id, lot_cb.get(), conc_e.get().strip(), dt_e.get().strip(),
                  v, desc_e.get().strip(), prem_id))
             win.destroy()
             self._load_prem()
@@ -5860,8 +5894,16 @@ class BolaoApp:
         fr2,self.res_tree_hist=make_tree(sh,cols_h,height=8); fr2.pack(fill="both",expand=True)
         self.res_tree_hist.tag_configure("entrada",background="#d5f5e3")
         self.res_tree_hist.tag_configure("saida",  background="#fde8d8")
+        # Duplo-clique já abre pra editar — mesmo padrão usado nas outras
+        # listas de lançamento deste sistema (Reservas, Premiações).
+        self.res_tree_hist.bind("<Double-1>", lambda e: self._editar_mov_res())
+
+        tk.Label(p,text="💡 Duplo clique num movimento pra editar os dados.",
+                 bg=CORES["bg_frame"],fg=CORES["fg_label"],font=("Arial",8,"italic")).pack(
+                 anchor="w",padx=20,pady=(0,4))
 
         bf2=tk.Frame(p,bg=CORES["bg_frame"]); bf2.pack(fill="x",padx=20,pady=(0,10))
+        btn(bf2,"✏ Editar Movimento",CORES["btn_laranja"],self._editar_mov_res,width=22).pack(side="left",padx=4)
         btn(bf2,"🗑 Excluir Movimento",CORES["btn_vermelho"],self._del_mov_res,width=22).pack(side="left",padx=4)
         btn(bf2,"🔄 Atualizar",CORES["btn_azul"],self._load_res,width=16).pack(side="left",padx=4)
 
@@ -5951,6 +5993,77 @@ class BolaoApp:
         if messagebox.askyesno("Confirmar","Excluir este movimento da reserva?"):
             self.db.execute("DELETE FROM reserva_caixa WHERE id=?",(int(sel[0]),))
             self._load_res()
+
+    def _editar_mov_res(self):
+        """Corrige um movimento de reserva por loteria já registrado (ex.:
+        valor, tipo ou loteria digitados errado) sem precisar excluir e
+        recadastrar do zero — antes só dava pra excluir. Mesmo padrão já
+        usado em Reservas Pessoais (_rsv_editar_mov) e Premiações
+        (_editar_prem)."""
+        sel = self.res_tree_hist.selection()
+        if not sel:
+            messagebox.showwarning("Atenção","Selecione um movimento na lista!"); return
+        mid = int(sel[0])
+        r = self.db.fetchone("SELECT * FROM reserva_caixa WHERE id=?", (mid,))
+        if not r:
+            messagebox.showerror("Erro","Movimento não encontrado."); return
+
+        win = tk.Toplevel(self.root)
+        win.title(f"Editar Movimento #{mid}")
+        win.geometry("440x360")
+        win.configure(bg=CORES["bg_section"])
+        win.grab_set(); win.lift(); win.focus_force()
+
+        tk.Label(win, text=f"EDITAR MOVIMENTO #{mid}", bg=CORES["bg_section"],
+                 fg=CORES["fg_title"], font=("Arial",11,"bold")).pack(pady=12)
+
+        form = tk.Frame(win, bg=CORES["bg_section"], padx=24); form.pack(fill="x")
+
+        tk.Label(form, text="Loteria:", bg=CORES["bg_section"], fg=CORES["fg_label"],
+                 font=("Arial",9,"bold")).grid(row=0, column=0, sticky="w", pady=6)
+        lot_cb = ttk.Combobox(form, values=LOTERIAS, width=16, state="readonly", font=("Arial",9))
+        lot_cb.set(r["loteria"] or "Mega-Sena")
+        lot_cb.grid(row=0, column=1, sticky="w", pady=6)
+
+        tk.Label(form, text="Tipo:", bg=CORES["bg_section"], fg=CORES["fg_label"],
+                 font=("Arial",9,"bold")).grid(row=1, column=0, sticky="w", pady=6)
+        tipo_cb = ttk.Combobox(form, values=["ENTRADA (incremento)","SAÍDA (uso da reserva)"],
+                                width=24, state="readonly", font=("Arial",9))
+        tipo_cb.set("ENTRADA (incremento)" if r["tipo"] == "ENTRADA" else "SAÍDA (uso da reserva)")
+        tipo_cb.grid(row=1, column=1, sticky="w", pady=6)
+
+        tk.Label(form, text="Valor (R$):", bg=CORES["bg_section"], fg=CORES["fg_label"],
+                 font=("Arial",9,"bold")).grid(row=2, column=0, sticky="w", pady=6)
+        val_e = entry(form, width=16)
+        val_e.insert(0, fmt_brl(r["valor"]).replace("R$","").strip())
+        val_e.grid(row=2, column=1, sticky="w", pady=6)
+
+        tk.Label(form, text="Data:", bg=CORES["bg_section"], fg=CORES["fg_label"],
+                 font=("Arial",9,"bold")).grid(row=3, column=0, sticky="w", pady=6)
+        dt_e = entry(form, width=16)
+        dt_e.insert(0, r["data_movimento"] or "")
+        dt_e.grid(row=3, column=1, sticky="w", pady=6)
+
+        tk.Label(form, text="Descrição:", bg=CORES["bg_section"], fg=CORES["fg_label"],
+                 font=("Arial",9,"bold")).grid(row=4, column=0, sticky="nw", pady=6)
+        desc_e = entry(form, width=30)
+        desc_e.insert(0, r["descricao"] or "")
+        desc_e.grid(row=4, column=1, sticky="w", pady=6)
+
+        def _salvar():
+            v = to_float(val_e.get())
+            if v <= 0:
+                messagebox.showwarning("Atenção","Informe um valor válido!"); return
+            tipo = "ENTRADA" if "ENTRADA" in tipo_cb.get() else "SAÍDA"
+            self.db.execute(
+                "UPDATE reserva_caixa SET loteria=?, tipo=?, valor=?, descricao=?, data_movimento=? "
+                "WHERE id=?",
+                (lot_cb.get(), tipo, v, desc_e.get().strip(), dt_e.get().strip(), mid))
+            win.destroy()
+            self._load_res()
+            messagebox.showinfo("Salvo","Movimento atualizado!")
+
+        btn(win, "💾 Salvar", CORES["btn_verde"], _salvar, width=16).pack(pady=14)
 
     # ════════════════════════════════════════════════════════════
     #  ABA — ADMINISTRAÇÃO (taxa de organização)
@@ -7242,7 +7355,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.9</span>
+        <span>Sistema de Gestão de Bolões v6.10</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
