@@ -808,12 +808,37 @@ async function confirmarImportacaoPdf() {
     if (aGravar.length === 0) { showToast('⚠️ Nenhum jogo válido para cadastrar.', 'warning'); return; }
 
     showLoading(`Cadastrando ${aGravar.length} cartão(ões)...`);
+
+    // Busca os cartões já existentes desse loteria+concurso+bolão UMA VEZ
+    // só, em vez de existeCartaoDuplicado() (que faz uma consulta ao
+    // Firestore) dentro do loop pra cada cartão do lote — como a coleção
+    // consultada cresce a cada cartão gravado, isso virava uma leitura
+    // O(n²): ~400 cartões num concurso grande chegavam a somar dezenas de
+    // milhares de leituras sozinho, o bastante pra estourar a cota diária
+    // gratuita do Firestore num único lote (achado real, ver Rodada 58).
+    // Checagem de duplicado agora é só contra um Set local.
+    const chavesExistentes = new Set();
+    try {
+        const snapshotExistentes = await db.collection('cartoes')
+            .where('tipo', '==', cfg.loteria)
+            .where('concurso', '==', cfg.concurso)
+            .where('bolao', '==', cfg.bolao)
+            .get();
+        snapshotExistentes.forEach(doc => {
+            const d = doc.data();
+            if (d.numeros) chavesExistentes.add(d.numeros.slice().sort((a, b) => a - b).join(','));
+        });
+    } catch (e) {
+        console.error('Erro ao checar cartões existentes:', e);
+    }
+
     let ok = 0, dup = 0, erro = 0;
     for (const jogo of aGravar) {
         const numeros = [...jogo].sort((a, b) => a - b);
+        const chave = numeros.join(',');
         try {
-            if (await existeCartaoDuplicado(cfg.loteria, cfg.concurso, cfg.bolao, numeros)) { dup++; continue; }
-            await db.collection('cartoes').add({
+            if (chavesExistentes.has(chave)) { dup++; continue; }
+            const novoCartao = {
                 concurso: cfg.concurso,
                 bolao: cfg.bolao,
                 numeros: numeros,
@@ -823,7 +848,10 @@ async function confirmarImportacaoPdf() {
                 dataCadastro: new Date().toISOString(),
                 totalNumeros: numeros.length,
                 origem: 'importacao-pdf'
-            });
+            };
+            const docRef = await db.collection('cartoes').add(novoCartao);
+            cartoes.push({ id: docRef.id, ...novoCartao });
+            chavesExistentes.add(chave);
             ok++;
         } catch (e) {
             console.error('Erro ao gravar cartão importado:', e);
@@ -837,7 +865,7 @@ async function confirmarImportacaoPdf() {
     const inp = document.getElementById('pdfImportInput');
     if (inp) inp.value = '';
     renderImportacaoPdf();
-    if (typeof carregarDadosAdmin === 'function') carregarDadosAdmin();
+    atualizarUIComCartoesLocais();
 }
 
 // ============================================
@@ -1089,7 +1117,7 @@ async function adicionarCartaoSelecaoAtual() {
     }
 
     try {
-        await db.collection('cartoes').add({
+        const novoCartao = {
             concurso: concurso,
             bolao: bolao,
             numeros: numeros,
@@ -1098,9 +1126,11 @@ async function adicionarCartaoSelecaoAtual() {
             admin: true,
             dataCadastro: new Date().toISOString(),
             totalNumeros: numeros.length
-        });
+        };
+        const docRef = await db.collection('cartoes').add(novoCartao);
+        cartoes.push({ id: docRef.id, ...novoCartao });
         showToast(`✅ Cartão #${todosCartoesSelecao.length + 1} adicionado à ${label}!`, 'success');
-        
+
         todosCartoesSelecao.push({
             concurso: concurso,
             bolao: bolao,
@@ -1108,14 +1138,14 @@ async function adicionarCartaoSelecaoAtual() {
             tipo: loteriaAdmin,
             tipoParticipacao: tipoParticipacao
         });
-        
+
         numerosSelecionados = [];
         atualizarGradeSelecaoVisual();
         atualizarContadorSelecao();
         atualizarPreviaSelecao();
         atualizarTotalCartoesSelecao();
-        
-        carregarDadosAdmin();
+
+        atualizarUIComCartoesLocais();
     } catch (error) {
         console.error('Erro:', error);
         showToast('❌ Erro ao adicionar', 'error');
@@ -1190,6 +1220,20 @@ async function carregarDadosAdmin() {
         console.error('Erro:', error);
         showToast('❌ Erro ao carregar: ' + error.message, 'error');
     }
+}
+
+// Atualiza a tela com o array `cartoes` que já está em memória, sem
+// reler a coleção inteira do Firestore de novo. Achado real (cota
+// estourada num dia de cadastro em massa): salvar UM cartão e chamar
+// carregarDadosAdmin() em seguida relia a coleção INTEIRA (centenas de
+// documentos) — quem cadastra cartão a cartão (colar texto, clicar
+// Adicionar repetidas vezes) multiplicava isso por cada clique. Usar
+// isto no lugar de carregarDadosAdmin() sempre que já sabemos
+// localmente o que mudou (acabamos de criar/editar o documento).
+function atualizarUIComCartoesLocais() {
+    exibirCartoesAdmin();
+    carregarConcursosAdmin();
+    atualizarDashboardAdmin();
 }
 
 // ============================================
@@ -2212,7 +2256,7 @@ async function editarCartao(id) {
             numeros.sort((a, b) => a - b);
             
             try {
-                await db.collection('cartoes').doc(id).update({
+                const camposAtualizados = {
                     tipo: novaLoteria,
                     concurso: novoConcurso,
                     bolao: novoBolao,
@@ -2221,12 +2265,15 @@ async function editarCartao(id) {
                     tipoParticipacao: novoTipo,
                     admin: true,
                     dataAtualizacao: new Date().toISOString()
-                });
-                
+                };
+                await db.collection('cartoes').doc(id).update(camposAtualizados);
+                const idxLocal = cartoes.findIndex(c => c.id === id);
+                if (idxLocal !== -1) cartoes[idxLocal] = { ...cartoes[idxLocal], ...camposAtualizados };
+
                 showToast('✅ Cartão atualizado com sucesso!', 'success');
                 modal.remove();
-                carregarDadosAdmin();
-                
+                atualizarUIComCartoesLocais();
+
             } catch (error) {
                 console.error('Erro ao atualizar:', error);
                 showToast('❌ Erro ao atualizar cartão: ' + error.message, 'error');
@@ -2917,7 +2964,7 @@ async function adicionarCartaoIndividual() {
     }
 
     try {
-        await db.collection('cartoes').add({
+        const novoCartao = {
             concurso: concurso,
             bolao: bolao,
             numeros: numeros,
@@ -2926,10 +2973,12 @@ async function adicionarCartaoIndividual() {
             admin: true,
             dataCadastro: new Date().toISOString(),
             totalNumeros: numeros.length
-        });
+        };
+        const docRef = await db.collection('cartoes').add(novoCartao);
+        cartoes.push({ id: docRef.id, ...novoCartao });
         showToast(`✅ Cartão adicionado à ${label}!`, 'success');
         document.getElementById('numerosIndividual').value = '';
-        carregarDadosAdmin();
+        atualizarUIComCartoesLocais();
     } catch (error) {
         console.error('Erro:', error);
         showToast('❌ Erro ao adicionar', 'error');
@@ -2990,7 +3039,7 @@ async function adicionarCartaoIndividualSelecao() {
     }
 
     try {
-        await db.collection('cartoes').add({
+        const novoCartao = {
             concurso: concurso,
             bolao: bolao,
             numeros: numeros,
@@ -2999,13 +3048,15 @@ async function adicionarCartaoIndividualSelecao() {
             admin: true,
             dataCadastro: new Date().toISOString(),
             totalNumeros: numeros.length
-        });
+        };
+        const docRef = await db.collection('cartoes').add(novoCartao);
+        cartoes.push({ id: docRef.id, ...novoCartao });
         showToast(`✅ Cartão adicionado à ${label}!`, 'success');
         numerosSelecionados = [];
         atualizarGradeSelecaoVisual();
         atualizarContadorSelecao();
         atualizarPreviaSelecao();
-        carregarDadosAdmin();
+        atualizarUIComCartoesLocais();
     } catch (error) {
         console.error('Erro:', error);
         showToast('❌ Erro ao adicionar', 'error');

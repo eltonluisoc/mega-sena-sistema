@@ -906,6 +906,22 @@ Versão desktop v6.16 → **v6.17**. `python test/test_bolao_pro_v3.py`: 27/27 (
 
 **Pendência levada da Rodada 56**: `firebase deploy --only firestore:rules,storage` (regras do Storage pro backup na nuvem + comentário atualizado do firestore.rules) segue sem rodar — usuário confirmou "SIM" mas o comando foi bloqueado pelo classificador de modo automático (ação de deploy em produção). Precisa ser rodado manualmente pelo usuário ou com uma permissão explícita liberada.
 
+## Rodada 58 — Corrige leitura O(n²) no cadastro de cartões que estourou a cota diária do Firestore (v50, web)
+
+Usuário mostrou o painel de uso do Firebase: 57 mil leituras num único dia, passando da cota gratuita de 50 mil/dia do Spark, com aviso de risco de indisponibilidade. Só 398 gravações no mesmo período — proporção de ~140 leituras por gravação era a pista de que o problema não era tráfego de visitante, e sim o próprio fluxo de cadastro. Usuário confirmou: cadastrou muitos cartões hoje via importação de PDF, por causa de um concurso grande, e pediu solução técnica (não quer pagar).
+
+Investigado `admin.html`/`admin.js` a fundo (não uma correção às cegas):
+
+**Causa raiz #1 (a maior, achado em `confirmarImportacaoPdf`)**: pra cada cartão de um lote importado, o código chamava `existeCartaoDuplicado()` — uma consulta ao Firestore filtrada por loteria+concurso+bolão. Como a coleção filtrada CRESCE a cada cartão gravado dentro do mesmo lote, isso é uma leitura O(n²): o cartão 1 lê contra 0 existentes, o cartão 2 contra 1, ..., o cartão 400 contra 399 — soma ~80 mil leituras só nessa função, pra um lote de 400 cartões de um concurso grande. Corrigido: busca os cartões já existentes desse loteria+concurso+bolão UMA VEZ só antes do loop, guarda as chaves (números ordenados) num Set local, e checa duplicata localmente daí em diante — vira O(n) (1 leitura no total, não importa quantos cartões o lote tenha).
+
+**Causa raiz #2 (menor, mas mesma família de bug)**: `adicionarCartaoIndividual()`, `adicionarCartaoIndividualSelecao()`, `adicionarCartaoSelecaoAtual()` e `editarCartao()` chamavam `carregarDadosAdmin()` depois de CADA cartão salvo/editado — isso relê a coleção `cartoes` INTEIRA (todos os concursos/bolões acumulados, não só o do lote atual) a cada clique em "Adicionar", multiplicando o custo pra quem cadastra cartão a cartão (colar texto, clicar Adicionar repetidamente). Corrigido com um novo helper `atualizarUIComCartoesLocais()` que só re-renderiza a partir do array `cartoes` já carregado em memória — nada de rede. Cada uma dessas 4 funções agora atualiza o array local (`cartoes.push(...)` no add, substitui o item no edit) em vez de reconsultar o Firestore.
+
+Sem mudança nenhuma de comportamento visível pro usuário — só menos leituras. `node --check admin.js` ok, suíte JS completa (47 testes, `test/*.test.js`) passando sem alteração.
+
+`sw.js` `CACHE_NAME` v49→v50.
+
+**Nota à parte**: no mesmo fluxo dessa rodada, o usuário tentou ativar o backup na nuvem (Rodada 56/57) e descobriu que o Firebase Storage agora exige o plano pago Blaze pra ser habilitado (mudança da política do Google, não é algo que o projeto controla). Decidiu não fazer upgrade por enquanto — backup na nuvem fica pendente, documentado como decisão consciente, não como bug.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
