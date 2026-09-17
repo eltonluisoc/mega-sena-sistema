@@ -829,6 +829,16 @@ Usuário trouxe 5 pedidos numa mensagem só: (1) participantes duplicados na bus
 
 Versão desktop v6.10 → **v6.11**. `dist/SistemaBoloes.exe` reconstruído via `SistemaBoloes.spec`.
 
+## Rodada 52 — Remove a aba "Importar Extrato" (v6.12, desktop)
+
+Usuário decidiu excluir, depois da avaliação da Rodada 51 (confirmado: `pdfplumber` nunca esteve empacotado em nenhum .exe publicado, a aba sempre esteve 100% quebrada desde o primeiro build) — "no futuro se necessário tentaremos uma solução pra isso".
+
+**Cuidado tomado**: o prefixo `_imp_` é usado por DUAS funcionalidades diferentes no arquivo — a de "Importar Extrato" (a ser removida) e a busca "Importar Membro de Bolão Anterior" dentro do cadastro de participante (`_imp_buscar`/`_imp_importar`, usada toda hora, NADA a ver com PDF). Mapeei com grep todos os identificadores exclusivos do extrato (`_imp_escolher_pdf`, `_imp_analisar`, `_imp_carregar_tabela`, `_imp_toggle_sel`, `_imp_sel_para_edicao`, `_imp_aplicar_vinculo`, `_imp_add_manual`, `_imp_importar_pagamentos`, `_imp_gerar_whatsapp`, `_flb_conferencia`, `_imp_limpar`, `_build_importar`, `tab_import`, mais os StringVars/widgets específicos) antes de remover qualquer coisa, confirmando que não colidiam com `_imp_buscar`/`_imp_importar`/`_imp_entry_var`/`_imp_busca_tree`/`_imp_status_lbl` (nomes diferentes, sem sobreposição).
+
+Removidos: os 12 métodos do extrato, a declaração de `self.tab_import`, o `nb_fin.add(...)` da aba, e a chamada `self._build_importar()` no bootstrap. Confirmado com grep no arquivo inteiro que não sobrou nenhuma referência ativa (só o comentário explicativo que ficou no lugar do bloco).
+
+Versão desktop v6.11 → **v6.12**. `dist/SistemaBoloes.exe` reconstruído via `SistemaBoloes.spec`.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

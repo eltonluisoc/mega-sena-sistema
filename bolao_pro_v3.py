@@ -1,7 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.11
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.12
+Correções v6.12 (remove a aba "Importar Extrato"):
+ - Excluída a pedido do usuário, depois de confirmado que nunca
+   funcionou de fato — pdfplumber (a biblioteca que lê o PDF) nunca
+   esteve empacotado em nenhum .exe já publicado, então a tela sempre
+   caía em "Biblioteca ausente" desde o primeiro build. Removidos:
+   _imp_escolher_pdf, _imp_analisar, _imp_carregar_tabela,
+   _imp_toggle_sel, _imp_sel_para_edicao, _imp_aplicar_vinculo,
+   _imp_add_manual, _imp_importar_pagamentos, _imp_gerar_whatsapp,
+   _flb_conferencia, _imp_limpar, _build_importar, e a aba
+   "📥 Importar Extrato" do notebook Financeiro. Cadastro manual de
+   pagamento já cobre a necessidade; se precisar de novo no futuro, a
+   ideia é reconstruir com extração position-aware (mesma técnica já
+   usada no import de cartões em PDF), não texto plano.
+   ⚠ Não confundir com _imp_buscar/_imp_importar (busca de "Importar
+   Membro de Bolão Anterior", dentro do cadastro de participante) —
+   função completamente diferente, mesmo prefixo por coincidência,
+   preservada intacta.
 Correções v6.11 (unificar participantes duplicados + reorganização Dashboard/Gestão):
  - Bug real corrigido: telefone era salvo sem normalizar — a mesma
    pessoa com telefone digitado em formatos diferentes ("(61) 99999-9999"
@@ -1222,7 +1239,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.11")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.12")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1475,7 +1492,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.11",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.12",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -1589,13 +1606,11 @@ class BolaoApp:
         self.tab_rel    = tk.Frame(nb_fin, bg=CORES["bg_frame"])
         self.tab_rsv    = tk.Frame(nb_fin, bg=CORES["bg_frame"])
         self.tab_hist   = tk.Frame(nb_fin, bg=CORES["bg_frame"])
-        self.tab_import = tk.Frame(nb_fin, bg=CORES["bg_frame"])
         nb_fin.add(self.tab_pag,    text="💳 Pagamentos")
         nb_fin.add(self.tab_dep,    text="🏦 Depositos")
         nb_fin.add(self.tab_rel,    text="📊 Relatorio")
         nb_fin.add(self.tab_rsv,    text="💰 Reservas Pessoais")
         nb_fin.add(self.tab_hist,   text="📋 Historico")
-        nb_fin.add(self.tab_import, text="📥 Importar Extrato")
 
         # ── Gestao: Caixa/Premios + Pendencias por Bolao ─────────────
         nb_gestao = ttk.Notebook(self.tab_grp_gestao, style="Inner.TNotebook")
@@ -1623,7 +1638,6 @@ class BolaoApp:
         self.tab_dash.tkraise()
         self._build_cad_lista()
         self._build_pag()
-        self._build_importar()
         self._build_rel()
         self._build_dep()
         self._build_historico()
@@ -2245,414 +2259,21 @@ class BolaoApp:
             fg="#1D9E75")
 
     # ════════════════════════════════════════════════════════════
-    #  IMPORTAR EXTRATO — métodos funcionais
+    #  [IMPORTAR EXTRATO — REMOVIDA]
+    #  Aba "📥 Importar Extrato" (extrato Nubank em PDF → matching
+    #  automático com participantes) excluída a pedido do usuário —
+    #  nunca funcionou de fato: o pdfplumber (biblioteca usada pra ler o
+    #  PDF) nunca esteve empacotado em nenhum .exe já publicado, então a
+    #  tela sempre caía em "Biblioteca ausente" desde o primeiro build.
+    #  Cadastro manual de pagamento já cobre a necessidade; se precisar
+    #  de novo no futuro, dá pra reconstruir do zero com uma extração
+    #  position-aware (mesma técnica que já corrigiu o import de cartões
+    #  em PDF), em vez da extração de texto plano que esse código usava.
+    #  Métodos removidos: _imp_escolher_pdf, _imp_analisar,
+    #  _imp_carregar_tabela, _imp_toggle_sel, _imp_sel_para_edicao,
+    #  _imp_aplicar_vinculo, _imp_add_manual, _imp_importar_pagamentos,
+    #  _imp_gerar_whatsapp, _flb_conferencia, _imp_limpar, _build_importar.
     # ════════════════════════════════════════════════════════════
-    def _imp_escolher_pdf(self):
-        path = filedialog.askopenfilename(
-            title="Selecionar extrato Nubank",
-            filetypes=[("PDF","*.pdf"),("Todos","*.*")])
-        if path:
-            self._imp_pdf_path.set(path)
-            self._imp_status.configure(text="PDF carregado. Clique em ANALISAR.")
-
-    def _imp_analisar(self):
-        path = self._imp_pdf_path.get()
-        if not path:
-            messagebox.showwarning("Atenção","Selecione um arquivo PDF!"); return
-        data_ini_str = self._imp_data_ini.get().strip()
-        try:
-            data_ini = datetime.strptime(data_ini_str, "%d/%m/%Y")
-        except:
-            messagebox.showwarning("Atenção","Data inválida! Use DD/MM/AAAA"); return
-
-        try:
-            import pdfplumber
-        except ImportError:
-            messagebox.showerror("Biblioteca ausente",
-                "Instale o pdfplumber:\n\npython -m pip install pdfplumber\n\n"
-                "Depois reinicie o sistema."); return
-
-        self._imp_status.configure(text="Lendo PDF..."); self.root.update_idletasks()
-
-        try:
-            texto = ""
-            with pdfplumber.open(path) as pdf:
-                for pg in pdf.pages:
-                    texto += (pg.extract_text() or "") + "\n"
-        except Exception as ex:
-            messagebox.showerror("Erro lendo PDF", str(ex)); return
-
-        self._imp_status.configure(text="Analisando..."); self.root.update_idletasks()
-
-        import re as _re
-        MESES = {"JAN":1,"FEV":2,"MAR":3,"ABR":4,"MAI":5,"JUN":6,
-                 "JUL":7,"AGO":8,"SET":9,"OUT":10,"NOV":11,"DEZ":12}
-        CREDITOS = [
-            "Transferência Recebida","Transferência recebida pelo Pix",
-            "Transferencia Recebida","Transferencia recebida pelo Pix",
-            "PIX recebido","Pix recebido","Pagamento recebido","Crédito em conta",
-        ]
-
-        data_atual = None
-        transacoes = []
-        for linha in texto.split("\n"):
-            linha = linha.strip()
-            if not linha: continue
-            md = _re.match(
-                r"^(\d{1,2})\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\s+(\d{4})",
-                linha, _re.IGNORECASE)
-            if md:
-                try:
-                    data_atual = datetime(int(md.group(3)),
-                                         MESES[md.group(2).upper()],
-                                         int(md.group(1)))
-                except: pass
-                continue
-            if not data_atual or data_atual < data_ini: continue
-            tipo = None
-            for t in CREDITOS:
-                if t.lower() in linha.lower():
-                    tipo = t; break
-            if not tipo: continue
-            mv = _re.search(r"(\d{1,3}(?:\.\d{3})*,\d{2})", linha)
-            if not mv: continue
-            valor = to_float(mv.group(1))
-            if valor <= 0: continue
-            rem = linha
-            rem = _re.sub(_re.escape(tipo), "", rem, flags=_re.IGNORECASE)
-            rem = _re.sub(r"\d{1,3}(?:\.\d{3})*,\d{2}", "", rem)
-            rem = _re.sub(r"-\s*[\•\*\d][\•\*\d]+.*$", "", rem)
-            rem = _re.sub(r"(agência|agencia|conta|banco|S\.A\.|IP\s*\()",
-                          "", rem, flags=_re.IGNORECASE)
-            rem = _re.sub(r"\s{2,}", " ", rem).strip(" -•·+")
-            if len(rem) < 2: rem = "Não identificado"
-            transacoes.append({"data": data_atual.strftime("%d/%m/%Y"),
-                                "valor": valor, "remetente": rem, "manual": False})
-
-        # Deduplica
-        vistos = set(); unicas = []
-        for tx in transacoes:
-            ch = (tx["data"], tx["valor"], tx["remetente"][:25])
-            if ch not in vistos: vistos.add(ch); unicas.append(tx)
-
-        if not unicas:
-            messagebox.showinfo("Resultado",
-                "Nenhuma transação de crédito encontrada.\n\n"
-                "Verifique:\n• Data inicial correta?\n"
-                "• PDF é o extrato Nubank?\n"
-                "• Período inclui a data informada?")
-            self._imp_status.configure(text="Nenhuma transação encontrada."); return
-
-        self._imp_carregar_tabela(unicas)
-        self._imp_status.configure(
-            text=f"✅ {len(unicas)} crédito(s) encontrado(s) a partir de {data_ini_str}")
-
-    def _imp_carregar_tabela(self, transacoes):
-        """Popula a tabela com matching por valor da parcela."""
-        import unicodedata
-        self._imp_tree.delete(*self._imp_tree.get_children())
-        self._imp_linhas  = []
-        self._imp_sel_ids = set()
-
-        boloes   = self.db.fetchall("SELECT id, nome, valor_parcela FROM boloes WHERE encerrado=0 ORDER BY nome")
-        nomes_bol = ["Outros"] + [f"{b['nome']} (ID: {b['id']})" for b in boloes]
-        try: self._imp_cb_bolao["values"] = nomes_bol; self._imp_cb_bolao.set("Outros")
-        except: pass
-        try: self._imp_man_bolao["values"] = nomes_bol
-        except: pass
-
-        todos_part = self.db.fetchall("""
-            SELECT p.id, p.nome, p.bolao_id, b.nome as bolao_nome, b.valor_parcela
-            FROM participantes p JOIN boloes b ON p.bolao_id=b.id
-            WHERE p.ativo=1 ORDER BY p.nome, b.nome
-        """)
-        nomes_part = sorted([f"{p['nome']} — {p['bolao_nome']} (ID: {p['id']})"
-                             for p in todos_part])
-        try: self._imp_cb_part["values"] = nomes_part
-        except: pass
-
-        # Agrupa por bolão para lookup rápido
-        parts_por_bolao = {}
-        for pt in todos_part:
-            parts_por_bolao.setdefault(pt["bolao_id"], []).append(pt)
-
-        def norm(s):
-            return ''.join(c for c in unicodedata.normalize('NFD',s.lower())
-                           if unicodedata.category(c)!='Mn')
-
-        def score(rem, nome):
-            pr = set(norm(rem).split()); pn = set(norm(nome).split())
-            if not pr: return 0
-            return len(pr & pn) / max(len(pr), len(pn))
-
-        vinculos = getattr(self, "_imp_vinculos", {})
-        linhas_prep = []
-
-        for tx in transacoes:
-            valor = tx["valor"]
-            boloes_match = [b for b in boloes
-                            if float(b["valor_parcela"] or 0) > 0 and
-                            abs(valor / float(b["valor_parcela"]) -
-                                round(valor / float(b["valor_parcela"]))) < 0.02 and
-                            round(valor / float(b["valor_parcela"])) >= 1]
-
-            if len(boloes_match) == 1:
-                bm = boloes_match[0]
-                bolao_sug = f"{bm['nome']} (ID: {bm['id']})"
-                melhor = max(parts_por_bolao.get(bm["id"],[]),
-                             key=lambda p: score(tx["remetente"], p["nome"]),
-                             default=None)
-                if melhor and score(tx["remetente"], melhor["nome"]) >= 0.4:
-                    part_sug = f"{melhor['nome']} — {bm['nome']} (ID: {melhor['id']})"
-                    tag = "match_ok" if score(tx["remetente"],melhor["nome"])>=0.6 else "match_par"
-                else:
-                    part_sug = ""; tag = "match_par"
-            elif len(boloes_match) > 1:
-                bolao_sug = ""; part_sug = ""; tag = "match_par"
-            else:
-                bolao_sug = "Outros"; part_sug = ""; tag = "match_no"
-
-            chave = f"{tx['data']}|{tx['valor']}|{tx['remetente'][:20]}"
-            if chave in vinculos:
-                v = vinculos[chave]
-                part_sug = v.get("part", part_sug)
-                bolao_sug = v.get("bolao", bolao_sug)
-                tag = "match_ok"
-            if tx.get("manual"): tag = "manual"
-
-            linhas_prep.append({**tx, "part_sug":part_sug,
-                                 "bolao_sug":bolao_sug, "tag":tag, "chave":chave})
-
-        # Ordena: data → bolão → remetente
-        def sk(l):
-            try: dt = datetime.strptime(l["data"],"%d/%m/%Y")
-            except: dt = datetime(2000,1,1)
-            return (dt, l["bolao_sug"] or "zzz", l["remetente"].lower())
-        linhas_prep.sort(key=sk)
-
-        for i, ln in enumerate(linhas_prep):
-            iid = str(i)
-            self._imp_tree.insert("","end", iid=iid, tags=(ln["tag"],), values=(
-                "☐", ln["data"], fmt_brl(ln["valor"]), ln["remetente"],
-                ln["part_sug"], ln["bolao_sug"],
-                "Manual" if ln.get("manual") else "Extrato"))
-            self._imp_linhas.append({**ln, "iid": iid})
-
-    def _imp_toggle_sel(self, e=None):
-        row = self._imp_tree.identify_row(e.y)
-        col = self._imp_tree.identify_column(e.x)
-        if not row: return
-        if col == "#1":
-            if row in self._imp_sel_ids:
-                self._imp_sel_ids.discard(row)
-                vals = list(self._imp_tree.item(row,"values")); vals[0]="☐"
-                self._imp_tree.item(row, values=vals)
-            else:
-                self._imp_sel_ids.add(row)
-                vals = list(self._imp_tree.item(row,"values")); vals[0]="✅"
-                self._imp_tree.item(row, values=vals)
-
-    def _imp_sel_para_edicao(self, e=None):
-        sel = self._imp_tree.selection()
-        if not sel: return
-        vals = self._imp_tree.item(sel[0],"values")
-        try: self._imp_cb_part.set(vals[4] if len(vals)>4 else "")
-        except: pass
-        try: self._imp_cb_bolao.set(vals[5] if len(vals)>5 else "")
-        except: pass
-
-    def _imp_aplicar_vinculo(self):
-        sel = self._imp_tree.selection()
-        if not sel: messagebox.showwarning("Atenção","Selecione uma linha!"); return
-        iid  = sel[0]
-        part = self._imp_cb_part.get().strip()
-        bol  = self._imp_cb_bolao.get().strip()
-        vals = list(self._imp_tree.item(iid,"values"))
-        vals[4] = part; vals[5] = bol
-        self._imp_tree.item(iid, values=vals, tags=("match_ok",))
-        idx = int(iid)
-        if idx < len(self._imp_linhas):
-            self._imp_linhas[idx]["part_sug"]  = part
-            self._imp_linhas[idx]["bolao_sug"] = bol
-            chave = self._imp_linhas[idx].get("chave","")
-            if chave:
-                if not hasattr(self,"_imp_vinculos"): self._imp_vinculos = {}
-                self._imp_vinculos[chave] = {"part": part, "bolao": bol}
-
-    def _imp_add_manual(self):
-        nome = self._imp_man_nome.get().strip()
-        val  = to_float(self._imp_man_val.get())
-        dt   = self._imp_man_dt.get().strip()
-        bol  = self._imp_man_bolao.get() if hasattr(self,"_imp_man_bolao") else "Outros"
-        if not nome or val <= 0:
-            messagebox.showwarning("Atenção","Informe nome e valor!"); return
-        nova = {"data":dt,"valor":val,"remetente":nome,"manual":True,"bolao_sug":bol,"part_sug":""}
-        todas = [dict(ln) for ln in self._imp_linhas] + [nova]
-        self._imp_carregar_tabela(todas)
-        self._imp_man_nome.delete(0,"end"); self._imp_man_val.delete(0,"end")
-
-    def _imp_importar_pagamentos(self):
-        import re as _re
-        if not self._imp_sel_ids:
-            messagebox.showwarning("Atenção","Marque as transações com ✅ que deseja registrar!"); return
-        por_bolao = {}
-        erros = []
-        for iid in sorted(self._imp_sel_ids, key=int):
-            vals      = self._imp_tree.item(iid,"values")
-            bolao_str = vals[5] if len(vals)>5 else ""
-            part_str  = vals[4] if len(vals)>4 else ""
-            if bolao_str in ("Outros","","—") or not bolao_str: continue
-            if not part_str: erros.append(f"Linha {int(iid)+1}: sem participante"); continue
-            m_bid = _re.search(r"\(ID: (\d+)\)", bolao_str)
-            m_pid = _re.search(r"\(ID: (\d+)\)", part_str)
-            if not m_bid or not m_pid:
-                erros.append(f"Linha {int(iid)+1}: vínculo inválido"); continue
-            por_bolao.setdefault(bolao_str,[]).append({
-                "iid":iid,"bid":int(m_bid.group(1)),"pid":int(m_pid.group(1)),
-                "data":vals[1],"valor":to_float(vals[2]),
-                "part_nome":_re.sub(r"\(ID:\s*\d+\)","",part_str).split("—")[0].strip(),
-            })
-        if not por_bolao:
-            messagebox.showinfo("Nada a registrar",
-                "Nenhuma transação vinculada a bolão gerenciado.\n"
-                "Transações 'Outros' só aparecem na mensagem WhatsApp.")
-            return
-        total_imp = total_dup = 0
-        for bolao_str, linhas in por_bolao.items():
-            nome_bol = bolao_str.split(" (ID:")[0]
-            resumo = "\n".join(f"  • {l['part_nome']} — {fmt_brl(l['valor'])} em {l['data']}"
-                               for l in linhas)
-            if not messagebox.askyesno("Confirmar",
-                f"Registrar no bolão:\n{nome_bol}\n\n{resumo}\n\n"
-                f"Total: {len(linhas)} pagamento(s)"): continue
-            for l in linhas:
-                existe = self.db.fetchone(
-                    "SELECT id FROM pagamentos WHERE participante_id=? AND bolao_id=? "
-                    "AND data_pagamento=? AND valor=?",
-                    (l["pid"],l["bid"],l["data"],l["valor"]))
-                if existe: total_dup+=1; continue
-                mes_ref = ""
-                try: mes_ref = datetime.strptime(l["data"],"%d/%m/%Y").strftime("%m/%Y")
-                except: pass
-                self.db.execute(
-                    "INSERT INTO pagamentos (participante_id,bolao_id,mes_referencia,valor,"
-                    "data_pagamento,depositado,data_deposito,observacoes) VALUES (?,?,?,?,?,1,?,"
-                    "'Importado do extrato Nubank')",
-                    (l["pid"],l["bid"],mes_ref,l["valor"],l["data"],l["data"]))
-                total_imp+=1
-        msg = f"✅ {total_imp} pagamento(s) registrado(s)."
-        if total_dup: msg += f"\n⚠ {total_dup} duplicata(s) ignorada(s)."
-        if erros: msg += "\n❌ " + "\n".join(erros[:5])
-        if total_imp > 0: messagebox.showinfo("Concluído",msg); self._refresh_all()
-
-    def _imp_gerar_whatsapp(self):
-        import re as _re
-        ids_usar = self._imp_sel_ids if self._imp_sel_ids else \
-                   {str(i) for i in range(len(self._imp_linhas))}
-        if not ids_usar:
-            messagebox.showwarning("Atenção","Não há transações!"); return
-        confirmados_raw = []
-        for iid in sorted(ids_usar, key=int):
-            vals = self._imp_tree.item(iid,"values")
-            if not vals: continue
-            try: dc = datetime.strptime(vals[1],"%d/%m/%Y").strftime("%d/%m")
-            except: dc = vals[1]
-            nome = _re.sub(r"\(ID:\s*\d+\)","",vals[4]).split("—")[0].strip() if vals[4] else vals[3]
-            confirmados_raw.append({"nome":nome,"valor":vals[2],"data":dc,"bolao":vals[5] if len(vals)>5 else ""})
-        if not confirmados_raw:
-            messagebox.showwarning("Atenção","Nenhum participante para a mensagem!"); return
-        boloes_pres = sorted(set(r["bolao"] for r in confirmados_raw
-                                 if r["bolao"] not in ("","Outros","—")))
-        win = tk.Toplevel(self.root); win.title("Gerar Mensagem WhatsApp")
-        win.geometry("500x280"); win.configure(bg=CORES["bg_section"]); win.grab_set(); win.lift()
-        tk.Label(win,text="📲 CONFIGURAR MENSAGEM",bg=CORES["bg_section"],
-                 fg=CORES["fg_title"],font=("Arial",11,"bold")).pack(pady=10)
-        form = tk.Frame(win,bg=CORES["bg_section"],padx=24); form.pack(fill="x")
-        tk.Label(form,text="Para qual bolão:",bg=CORES["bg_section"],
-                 fg=CORES["fg_label"],font=("Arial",9,"bold")).grid(row=0,column=0,sticky="w",pady=6)
-        cb_bol = ttk.Combobox(form,width=38,state="readonly",font=("Arial",9),
-                               values=["Outros (avulso)"]+boloes_pres)
-        cb_bol.set("Outros (avulso)"); cb_bol.grid(row=0,column=1,sticky="w",padx=8,pady=6)
-        tk.Label(form,text="Loteria:",bg=CORES["bg_section"],
-                 fg=CORES["fg_label"],font=("Arial",9,"bold")).grid(row=1,column=0,sticky="w",pady=6)
-        cb_lot = ttk.Combobox(form,width=16,state="readonly",font=("Arial",9),values=LOTERIAS)
-        cb_lot.set("Mega-Sena"); cb_lot.grid(row=1,column=1,sticky="w",padx=8,pady=6)
-        tk.Label(form,text="Concurso:",bg=CORES["bg_section"],
-                 fg=CORES["fg_label"],font=("Arial",9,"bold")).grid(row=2,column=0,sticky="w",pady=6)
-        e_conc = entry(form,width=14); e_conc.grid(row=2,column=1,sticky="w",padx=8,pady=6)
-        tk.Label(form,text="Gestor:",bg=CORES["bg_section"],
-                 fg=CORES["fg_label"],font=("Arial",9,"bold")).grid(row=3,column=0,sticky="w",pady=6)
-        e_gest = entry(form,width=20)
-        adm = self.db.fetchone("SELECT adm_nome FROM boloes WHERE status='ATIVO' LIMIT 1")
-        e_gest.insert(0, adm["adm_nome"] if adm and adm["adm_nome"] else "Elton Luis")
-        e_gest.grid(row=3,column=1,sticky="w",padx=8,pady=6)
-        def gerar():
-            bolao_sel = cb_bol.get(); concurso = e_conc.get().strip()
-            gestor = e_gest.get().strip() or "Elton Luis"; loteria = cb_lot.get()
-            if bolao_sel == "Outros (avulso)":
-                lista = confirmados_raw
-                cab = f"*{loteria.upper()}"
-                cab += f" — CONCURSO {concurso}*" if concurso else "*"
-            else:
-                lista = [r for r in confirmados_raw if r["bolao"]==bolao_sel]
-                nb = bolao_sel.split(" (ID:")[0]
-                cab = f"*{nb.upper()}*" + (f"\n*Concurso: {concurso}*" if concurso else "")
-            if not lista:
-                messagebox.showwarning("Atenção","Nenhum participante para este filtro!"); return
-            msg = "\n".join([f"🎰 {cab}","📋 Pagamentos confirmados:",""] +
-                            [f"✅ {r['nome']} — {r['valor']} ({r['data']})" for r in lista] +
-                            ["",f"👥 Participantes confirmados: {len(lista)}","",
-                             "📌 *Importante*","",
-                             "Sozinho: 1 jogo.","Com o grupo: centenas ou milhares de jogos.","",
-                             "Prêmio nunca é certo. Mas chance maior é matemática.","",
-                             "Seguimos buscando o prêmio. 🍀","",f"_Gestão: {gestor}_"])
-            w2 = tk.Toplevel(win); w2.title("Mensagem WhatsApp")
-            w2.geometry("520x580"); w2.configure(bg=CORES["bg_section"]); w2.lift()
-            tk.Label(w2,text="Copie e cole no WhatsApp:",bg=CORES["bg_section"],
-                     fg=CORES["fg_label"],font=("Arial",9,"bold")).pack(pady=8)
-            txt = tk.Text(w2,font=("Arial",10),wrap="word",padx=10,pady=8)
-            txt.pack(fill="both",expand=True,padx=16,pady=(0,8))
-            txt.insert("1.0",msg)
-            def cp(): w2.clipboard_clear(); w2.clipboard_append(msg); messagebox.showinfo("Copiado!","Mensagem copiada!")
-            bf2 = tk.Frame(w2,bg=CORES["bg_section"]); bf2.pack(pady=8)
-            btn(bf2,"📋 COPIAR",CORES["btn_verde"],cp,width=16).pack(side="left",padx=4)
-            btn(bf2,"✖ Fechar",CORES["btn_cinza"],w2.destroy,width=10).pack(side="left",padx=4)
-            win.destroy()
-        bf = tk.Frame(win,bg=CORES["bg_section"]); bf.pack(pady=10)
-        btn(bf,"📲 GERAR",CORES["btn_verde"],gerar,width=14).pack(side="left",padx=4)
-        btn(bf,"✖ Cancelar",CORES["btn_cinza"],win.destroy,width=12).pack(side="left",padx=4)
-
-    def _flb_conferencia(self):
-        ids_usar = self._imp_sel_ids if self._imp_sel_ids else \
-                   {str(i) for i in range(len(self._imp_linhas))}
-        confirmados = []
-        for iid in sorted(ids_usar, key=int):
-            vals = self._imp_tree.item(iid,"values")
-            if not vals: continue
-            import re as _re
-            try: dt = datetime.strptime(vals[1],"%d/%m/%Y").strftime("%d/%m")
-            except: dt = vals[1]
-            nome = _re.sub(r"\(ID:\s*\d+\)","",vals[4]).split("—")[0].strip() if vals[4] else vals[3]
-            confirmados.append(f"✅ {nome} — {vals[2]} ({dt})")
-        if not confirmados: messagebox.showinfo("Vazio","Nenhum participante."); return
-        win = tk.Toplevel(self.root); win.title("Conferência de Participantes")
-        win.geometry("480x500"); win.configure(bg=CORES["bg_section"]); win.grab_set(); win.lift()
-        tk.Label(win,text=f"PARTICIPANTES — {len(confirmados)}",
-                 bg=CORES["bg_section"],fg=CORES["fg_title"],font=("Arial",11,"bold")).pack(pady=10)
-        txt = tk.Text(win,font=("Arial",10),wrap="word",padx=10,pady=8)
-        txt.pack(fill="both",expand=True,padx=16)
-        txt.insert("1.0","\n".join(confirmados)); txt.configure(state="disabled")
-        def cp(): win.clipboard_clear(); win.clipboard_append("\n".join(confirmados)); messagebox.showinfo("Copiado","Lista copiada!")
-        bf = tk.Frame(win,bg=CORES["bg_section"]); bf.pack(pady=8)
-        btn(bf,"📋 Copiar",CORES["btn_verde"],cp,width=14).pack(side="left",padx=4)
-        btn(bf,"✖ Fechar",CORES["btn_cinza"],win.destroy,width=10).pack(side="left",padx=4)
-
-    def _imp_limpar(self):
-        self._imp_tree.delete(*self._imp_tree.get_children())
-        self._imp_linhas  = []
-        self._imp_sel_ids = set()
-        self._imp_pdf_path.set("")
-        self._imp_status.configure(text="")
     def _abrir_popup_editar_participante(self, participante_id=None):
         """Popup de edição de participante — antes era a aba própria
         "✏ Editar Participante". Se participante_id for informado (ex.:
@@ -5225,7 +4846,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.11</span>
+        <span>Sistema de Gestão de Bolões v6.12</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -5253,111 +4874,6 @@ class BolaoApp:
     # ════════════════════════════════════════════════════════════
     #  ABA IMPORTAR EXTRATO NUBANK
     # ════════════════════════════════════════════════════════════
-
-    def _build_importar(self):
-        p = self.tab_import
-
-        # ── Passo 1: carregar PDF ────────────────────────────────
-        sec1 = section(p, "📄 PASSO 1 — CARREGAR EXTRATO NUBANK (PDF)")
-        sec1.pack(fill="x", padx=20, pady=(10,4))
-
-        r1 = tk.Frame(sec1, bg=CORES["bg_section"]); r1.pack(fill="x", pady=3)
-        tk.Label(r1, text="Arquivo PDF:", bg=CORES["bg_section"],
-                 fg=CORES["fg_label"], font=("Arial",9,"bold")).pack(side="left")
-        self._imp_pdf_path = tk.StringVar()
-        tk.Entry(r1, textvariable=self._imp_pdf_path, width=50,
-                 state="readonly", font=("Arial",9),
-                 relief="solid", bd=1).pack(side="left", padx=6)
-        btn(r1, "📂 Selecionar PDF", CORES["btn_azul"],
-            self._imp_escolher_pdf, width=16).pack(side="left", padx=4)
-
-        r2 = tk.Frame(sec1, bg=CORES["bg_section"]); r2.pack(fill="x", pady=3)
-        tk.Label(r2, text="A partir de:", bg=CORES["bg_section"],
-                 fg=CORES["fg_label"], font=("Arial",9,"bold")).pack(side="left")
-        self._imp_data_ini = entry(r2, width=12)
-        self._imp_data_ini.insert(0, date.today().replace(day=1).strftime("%d/%m/%Y"))
-        self._imp_data_ini.pack(side="left", padx=6)
-        btn(r2, "🔍 ANALISAR", CORES["btn_verde"],
-            self._imp_analisar, width=14).pack(side="left", padx=8)
-        self._imp_status = tk.Label(r2, text="", bg=CORES["bg_section"],
-                                     fg="#888", font=("Arial",8,"italic"))
-        self._imp_status.pack(side="left", padx=8)
-
-        # ── Passo 2: tabela de transações ───────────────────────
-        sec2 = section(p, "📋 PASSO 2 — VINCULE E SELECIONE AS TRANSAÇÕES")
-        sec2.pack(fill="both", expand=True, padx=20, pady=(4,4))
-
-        leg = tk.Frame(sec2, bg=CORES["bg_section"]); leg.pack(fill="x", pady=(0,4))
-        for cor, txt in [("#d5f5e3","🟢 Bolão identificado pelo valor"),
-                         ("#fffde7","🟡 Valor ambíguo — revisar"),
-                         ("#ffffff","⚪ Não identificado — preencher"),
-                         ("#e8f4fd","🔵 Manual")]:
-            f = tk.Frame(leg, bg=cor, padx=6, pady=2, relief="solid", bd=1)
-            f.pack(side="left", padx=3)
-            tk.Label(f, text=txt, bg=cor, font=("Arial",8)).pack()
-
-        cols_imp = {"✓":30,"Data":90,"Valor":90,"Remetente":190,
-                    "Participante":170,"Bolão":160,"Tipo":70}
-        fr_imp, self._imp_tree = make_tree(sec2, cols_imp, height=10)
-        fr_imp.pack(fill="both", expand=True)
-        self._imp_tree.tag_configure("match_ok",  background="#d5f5e3")
-        self._imp_tree.tag_configure("match_par", background="#fffde7")
-        self._imp_tree.tag_configure("match_no",  background="#ffffff")
-        self._imp_tree.tag_configure("manual",    background="#e8f4fd")
-        self._imp_tree.bind("<ButtonRelease-1>", self._imp_toggle_sel)
-        self._imp_tree.bind("<<TreeviewSelect>>", self._imp_sel_para_edicao)
-
-        # Edição inline
-        ed = tk.Frame(sec2, bg=CORES["bg_section"]); ed.pack(fill="x", pady=(4,0))
-        tk.Label(ed, text="✏ Editar linha:", bg=CORES["bg_section"],
-                 fg=CORES["fg_label"], font=("Arial",9,"bold")).pack(side="left")
-        tk.Label(ed, text="Participante:", bg=CORES["bg_section"],
-                 fg=CORES["fg_label"], font=("Arial",8)).pack(side="left", padx=(8,2))
-        self._imp_cb_part = ttk.Combobox(ed, width=28, font=("Arial",9))
-        self._imp_cb_part.pack(side="left", padx=4)
-        tk.Label(ed, text="Bolão:", bg=CORES["bg_section"],
-                 fg=CORES["fg_label"], font=("Arial",8)).pack(side="left", padx=(6,2))
-        self._imp_cb_bolao = ttk.Combobox(ed, width=24, font=("Arial",9))
-        self._imp_cb_bolao.pack(side="left", padx=4)
-        btn(ed, "✔ Salvar", CORES["btn_azul"],
-            self._imp_aplicar_vinculo, width=9).pack(side="left", padx=6)
-
-        # ── Passo 3: manual + ações ──────────────────────────────
-        sec3 = section(p, "➕ PASSO 3 — MANUAL + AÇÕES")
-        sec3.pack(fill="x", padx=20, pady=(0,6))
-
-        tk.Label(sec3, text="Pagamentos manuais entram apenas na mensagem WhatsApp.",
-                 bg=CORES["bg_section"], fg="#888", font=("Arial",8,"italic")).pack(anchor="w")
-
-        r3 = tk.Frame(sec3, bg=CORES["bg_section"]); r3.pack(fill="x", pady=4)
-        for lbl, attr, w in [("Nome:","_imp_man_nome",20),("Valor:","_imp_man_val",10),
-                              ("Data:","_imp_man_dt",12)]:
-            tk.Label(r3, text=lbl, bg=CORES["bg_section"], fg=CORES["fg_label"],
-                     font=("Arial",9,"bold")).pack(side="left")
-            e = entry(r3, width=w); e.pack(side="left", padx=6)
-            setattr(self, attr, e)
-        self._imp_man_dt.insert(0, date.today().strftime("%d/%m/%Y"))
-        tk.Label(r3, text="Bolão:", bg=CORES["bg_section"], fg=CORES["fg_label"],
-                 font=("Arial",9,"bold")).pack(side="left")
-        self._imp_man_bolao = ttk.Combobox(r3, width=22, font=("Arial",9))
-        self._imp_man_bolao.pack(side="left", padx=6)
-        btn(r3, "➕ Adicionar", CORES["btn_laranja"],
-            self._imp_add_manual, width=12).pack(side="left", padx=8)
-
-        r4 = tk.Frame(sec3, bg=CORES["bg_section"]); r4.pack(fill="x", pady=6)
-        btn(r4, "✅ REGISTRAR NOS BOLÕES", CORES["btn_verde"],
-            self._imp_importar_pagamentos, width=24).pack(side="left", padx=4)
-        btn(r4, "📲 GERAR MENSAGEM", CORES["btn_roxo"],
-            self._imp_gerar_whatsapp, width=20).pack(side="left", padx=4)
-        btn(r4, "📋 CONFERÊNCIA", CORES["btn_azul"],
-            self._flb_conferencia, width=16).pack(side="left", padx=4)
-        btn(r4, "🗑 Limpar", CORES["btn_cinza"],
-            self._imp_limpar, width=10).pack(side="left", padx=4)
-
-        self._imp_linhas   = []
-        self._imp_sel_ids  = set()
-        self._imp_vinculos = {}
-
 
     # ════════════════════════════════════════════════════════════
     #  [_build_vis / _vis_limpar / _vis_sel — REMOVIDAS]
@@ -7545,7 +7061,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.11</span>
+        <span>Sistema de Gestão de Bolões v6.12</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
