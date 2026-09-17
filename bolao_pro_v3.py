@@ -1,7 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.12
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.13
+Correções v6.13 (Gestão virou tela única + card de premiação corrigido):
+ - Bug real corrigido: o card "GANHO NESTE ANO" do Dashboard mostrava o
+   ganho do ORGANIZADOR (taxa_adm, aba Lançamentos), mas o pedido
+   original (Rodada 51) era a premiação que o BOLÃO ganhou jogando
+   (tabela premiacoes, mesma fonte da aba Premiações) — conflitei os
+   dois conceitos. Renomeado pra "🏆 PREMIAÇÃO ANO", agora somando
+   premiacoes.valor_premio do ano corrente. Card ficou clicável — abre
+   o detalhe por loteria (_mostrar_premiacao_ano_detalhe), já que o
+   card só tem espaço pro total.
+ - "Caixa por Loteria", "Premiações" e "Lançamentos" (3 sub-abas de um
+   notebook interno em Gestão) viraram uma tela só
+   (_build_gestao_unificada) — pedido explícito do usuário. Resumo
+   geral (3 cards: Premiação do ano, Saldo Caixa por todas as loterias,
+   Saldo do Organizador) fica sempre visível no topo, e um seletor
+   segmentado (3 botões) troca qual seção aparece embaixo via
+   tkraise() — mesma técnica "notebook sem abas" já usada em Início >
+   Visão Geral/Bolão Selecionado. _build_prem/_build_res/_build_lanc
+   não mudaram nada por dentro, só o contêiner ao redor.
 Correções v6.12 (remove a aba "Importar Extrato"):
  - Excluída a pedido do usuário, depois de confirmado que nunca
    funcionou de fato — pdfplumber (a biblioteca que lê o PDF) nunca
@@ -1239,7 +1257,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.12")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.13")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1492,7 +1510,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.12",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.13",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -1612,16 +1630,12 @@ class BolaoApp:
         nb_fin.add(self.tab_rsv,    text="💰 Reservas Pessoais")
         nb_fin.add(self.tab_hist,   text="📋 Historico")
 
-        # ── Gestao: Caixa/Premios + Pendencias por Bolao ─────────────
-        nb_gestao = ttk.Notebook(self.tab_grp_gestao, style="Inner.TNotebook")
-        nb_gestao.pack(fill="both", expand=True, padx=4, pady=4)
-        self.tab_res      = tk.Frame(nb_gestao, bg=CORES["bg_frame"])
-        self.tab_prem     = tk.Frame(nb_gestao, bg=CORES["bg_frame"])
-        self.tab_lanc     = tk.Frame(nb_gestao, bg=CORES["bg_frame"])
-        self.tab_caixa_pr = self.tab_grp_gestao  # alias para compat
-        nb_gestao.add(self.tab_res,  text="💼 Caixa por Loteria")
-        nb_gestao.add(self.tab_prem, text="🏆 Premiacoes")
-        nb_gestao.add(self.tab_lanc, text="📋 Lançamentos")
+        # ── Gestao: Caixa/Premios/Lançamentos — antes 3 sub-abas de um
+        # notebook interno, virou 1 tela só com resumo sempre visível e
+        # um seletor pra trocar de seção (ver _build_gestao_unificada) —
+        # pedido explícito do usuário ("essas três abas poderiam ser
+        # uma só... a tela precisa ser de boa usabilidade").
+        self._build_gestao_unificada()
 
         # ── Sistema: Backup + Site ────────────────────────────────────
         nb_sys = ttk.Notebook(self.tab_grp_sys, style="Inner.TNotebook")
@@ -1644,6 +1658,7 @@ class BolaoApp:
         self._build_prem()
         self._build_res()
         self._build_lanc()
+        self._mostrar_gestao_secao("prem")  # seção padrão ao abrir + botão em destaque
         self._build_reservas()
         self._build_pessoas()
         self._build_publicar()
@@ -1660,10 +1675,12 @@ class BolaoApp:
         # (virou PanedWindow) — sua atualização é feita explicitamente em
         # _ir_para_visao_geral()/_selecionar_bolao_via_cartao(), disparada
         # pelo clique na lista da esquerda, não por um evento de troca de
-        # aba que não existe mais ali.
+        # aba que não existe mais ali. nb_gestao também saiu da lista —
+        # virou seletor próprio (_build_gestao_unificada), atualizado
+        # direto em _mostrar_gestao_secao().
         def _on_qualquer_troca_de_aba(event):
             self.root.after(50, self._refresh_dados_visiveis)
-        for _nb in (self.nb, nb_part, nb_fin, nb_gestao, nb_sys):
+        for _nb in (self.nb, nb_part, nb_fin, nb_sys):
             _nb.bind("<<NotebookTabChanged>>", _on_qualquer_troca_de_aba)
 
     # ════════════════════════════════════════════════════════════
@@ -3963,7 +3980,7 @@ class BolaoApp:
             ("geral_pend_dep", "PENDENTE DEPÓSITO",      "#9333ea", "R$ 0,00"),
             ("geral_atrasados","PARTICIPANTES ATRASADOS","#ca8a04", "0"),
             ("adm_total",      "TOTAL GANHO (ADM)",      "#4f46e5", "R$ 0,00"),
-            ("adm_ano",        "GANHO NESTE ANO",        "#f39c12", "R$ 0,00"),
+            ("prem_ano",       "🏆 PREMIAÇÃO ANO",        "#f39c12", "R$ 0,00"),
             ("adm_sacado",     "TOTAL SACADO",           "#db2777", "R$ 0,00"),
             ("adm_saldo",      "SALDO DISPONÍVEL",       "#0891b2", "R$ 0,00"),
         ]
@@ -3976,6 +3993,16 @@ class BolaoApp:
                                font=("Arial",13,"bold"))
             val_lbl.pack(anchor="w")
             self._adm_kpis[attr] = val_lbl
+            # "Premiação Ano" é clicável — mostra o total ganho na
+            # LOTERIA (tabela premiacoes, o que o bolão realmente ganhou
+            # jogando), não o ganho do organizador (taxa_adm, outra
+            # coisa) — achado real: o card mostrava a fonte errada.
+            # Clicar abre o detalhe por loteria, já que o card só tem
+            # espaço pro total.
+            if attr == "prem_ano":
+                for w in (card, val_lbl):
+                    w.configure(cursor="hand2")
+                    w.bind("<Button-1>", lambda e: self._mostrar_premiacao_ano_detalhe())
 
         # ── Depósitos Pendentes | Participantes Atrasados ────────
         mid1 = tk.Frame(p, bg="#1a2a3a")
@@ -4392,6 +4419,45 @@ class BolaoApp:
         if not por_lot:
             tk.Label(win, text="Nenhum ganho registrado ainda.", bg=CORES["bg_section"],
                      fg="#888", font=("Arial",9,"italic")).pack(pady=8)
+
+        btn(win, "Fechar", CORES["btn_cinza"], win.destroy, width=12).pack(pady=12)
+
+    def _mostrar_premiacao_ano_detalhe(self):
+        """Detalhe por loteria do card "🏆 PREMIAÇÃO ANO" do Dashboard —
+        o card só tem espaço pro total, isso mostra a quebra por loteria
+        (tabela premiacoes, o que o bolão ganhou jogando, filtrado pro
+        ano corrente)."""
+        ano_atual = str(datetime.now().year)
+        rows = self.db.fetchall("SELECT * FROM premiacoes")
+        rows_ano = [r for r in rows if (r["data_sorteio"] or "").strip()[-4:] == ano_atual]
+
+        win = tk.Toplevel(self.root)
+        win.title(f"Premiação {ano_atual} por Loteria")
+        win.geometry("420x360")
+        win.configure(bg=CORES["bg_section"])
+        win.grab_set(); win.lift(); win.focus_force()
+
+        tk.Label(win, text=f"🏆 PREMIAÇÃO {ano_atual} POR LOTERIA", bg=CORES["bg_section"],
+                 fg=CORES["fg_title"], font=("Arial",12,"bold")).pack(pady=(14,8))
+
+        fr = tk.Frame(win, bg=CORES["bg_section"], padx=16); fr.pack(fill="both", expand=True)
+        cols = {"Loteria":140,"Prêmios":90,"Total Ganho":120}
+        fr_t, tree = make_tree(fr, cols, height=10)
+        fr_t.pack(fill="both", expand=True)
+        tree.tag_configure("pos", background="#d5f5e3")
+
+        from collections import defaultdict
+        por_lot = defaultdict(lambda: {"g": 0.0, "n": 0})
+        for r in rows_ano:
+            lot = r["loteria"] or "Mega-Sena"
+            por_lot[lot]["g"] += r["valor_premio"]
+            por_lot[lot]["n"] += 1
+        for lot in sorted(por_lot.keys()):
+            d = por_lot[lot]
+            tree.insert("","end", tags=("pos",), values=(lot, d["n"], fmt_brl(d["g"])))
+        if not por_lot:
+            tk.Label(win, text=f"Nenhuma premiação registrada em {ano_atual} ainda.",
+                     bg=CORES["bg_section"], fg="#888", font=("Arial",9,"italic")).pack(pady=8)
 
         btn(win, "Fechar", CORES["btn_cinza"], win.destroy, width=12).pack(pady=12)
 
@@ -4846,7 +4912,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.12</span>
+        <span>Sistema de Gestão de Bolões v6.13</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -5201,6 +5267,93 @@ class BolaoApp:
             dep="✅ Sim" if r["depositado"] else "❌ Não"
             tree.insert("","end",values=(r["id"],r["nome"],r["mes_referencia"],
                 r["data_pagamento"],fmt_brl(r["valor"]),dep,r["data_deposito"] or "-"))
+
+    # ════════════════════════════════════════════════════════════
+    #  GESTÃO — CONTAINER UNIFICADO (Premiações + Caixa por Loteria +
+    #  Lançamentos numa tela só, trocadas por seletor em vez de
+    #  sub-abas — pedido explícito do usuário)
+    # ════════════════════════════════════════════════════════════
+    def _build_gestao_unificada(self):
+        """Antes eram 3 sub-abas de um ttk.Notebook interno (Caixa por
+        Loteria / Premiações / Lançamentos) — sobreposição de conceitos
+        parecidos (movimentações de dinheiro ligadas ao bolão) espalhada
+        em telas separadas, cada uma exigindo um clique de navegação só
+        pra ver um resumo. Virou uma tela só: resumo geral sempre
+        visível no topo (não importa qual seção está aberta) + um
+        seletor segmentado (3 botões) trocando qual seção aparece
+        embaixo, via tkraise() — mesma técnica "notebook sem abas" já
+        usada em Início > Visão Geral / Bolão Selecionado
+        (_build_inicio_lista/_mostrar_inicio_modo). self.tab_res/
+        self.tab_prem/self.tab_lanc continuam existindo exatamente como
+        antes — _build_res/_build_prem/_build_lanc não precisaram mudar
+        nada, só o contêiner ao redor deles mudou."""
+        p = self.tab_grp_gestao
+
+        hdr = tk.Frame(p, bg=CORES["bg_frame"], pady=10)
+        hdr.pack(fill="x", padx=16)
+        tk.Label(hdr, text="💼 GESTÃO FINANCEIRA DO BOLÃO", bg=CORES["bg_frame"],
+                 fg=CORES["fg_title"], font=("Arial",13,"bold")).pack(side="left")
+
+        # ── Resumo geral — soma as 3 seções, sempre visível não importa
+        # qual esteja aberta embaixo (achado real: card de "premiação do
+        # ano" do Dashboard mostrava a fonte errada — aqui não tem essa
+        # ambiguidade, cada card já diz exatamente do que é). ─────────
+        kpi_row = tk.Frame(p, bg=CORES["bg_frame"]); kpi_row.pack(fill="x", padx=16, pady=(0,10))
+        self._gestao_kpis = {}
+        kpi_defs = [
+            ("gp_premiacao_ano", "🏆 PREMIAÇÃO ESTE ANO (bolão)",      "#f39c12"),
+            ("gp_caixa_saldo",   "💼 SALDO CAIXA (TODAS LOTERIAS)",    "#16a085"),
+            ("gp_organizador",   "📋 SALDO DO ORGANIZADOR",            "#4f46e5"),
+        ]
+        for attr, titulo, cor in kpi_defs:
+            card = tk.Frame(kpi_row, bg=cor, padx=12, pady=8)
+            card.pack(side="left", fill="both", expand=True, padx=4)
+            tk.Label(card, text=titulo, bg=cor, fg="#f0f0f0",
+                     font=("Arial",8,"bold")).pack(anchor="w")
+            val_lbl = tk.Label(card, text="R$ 0,00", bg=cor, fg="white", font=("Arial",16,"bold"))
+            val_lbl.pack(anchor="w")
+            self._gestao_kpis[attr] = val_lbl
+
+        # ── Seletor segmentado — troca a seção visível embaixo ───────
+        sel_row = tk.Frame(p, bg=CORES["bg_frame"]); sel_row.pack(fill="x", padx=16, pady=(0,6))
+        self._gestao_sel_btns = {}
+        secoes = [("prem", "🏆 Premiações"), ("res", "💼 Caixa por Loteria"),
+                  ("lanc", "📋 Lançamentos do Organizador")]
+        for chave, label in secoes:
+            b = tk.Button(sel_row, text=label, font=("Arial",9,"bold"),
+                          relief="flat", bd=0, padx=16, pady=8, cursor="hand2",
+                          activebackground="#e67e22", activeforeground="white",
+                          command=lambda c=chave: self._mostrar_gestao_secao(c))
+            b.pack(side="left", padx=(0,4))
+            self._gestao_sel_btns[chave] = b
+
+        # ── As 3 seções, empilhadas na mesma área (tkraise) ──────────
+        gestao_container = tk.Frame(p, bg=CORES["bg_frame"])
+        gestao_container.pack(fill="both", expand=True, padx=4, pady=(0,4))
+        self.tab_res      = tk.Frame(gestao_container, bg=CORES["bg_frame"])
+        self.tab_prem     = tk.Frame(gestao_container, bg=CORES["bg_frame"])
+        self.tab_lanc     = tk.Frame(gestao_container, bg=CORES["bg_frame"])
+        self.tab_caixa_pr = self.tab_grp_gestao  # alias para compat
+        for f in (self.tab_res, self.tab_prem, self.tab_lanc):
+            f.place(relx=0, rely=0, relwidth=1, relheight=1)
+
+        self._gestao_secao_atual = "prem"
+
+    def _mostrar_gestao_secao(self, secao):
+        """Troca qual seção de Gestão aparece — chamada pelos botões do
+        seletor segmentado. Recarrega os dados da seção escolhida (não
+        vivem mais num ttk.Notebook com evento de troca de aba pra
+        disparar isso sozinho)."""
+        self._gestao_secao_atual = secao
+        frame = {"prem": self.tab_prem, "res": self.tab_res, "lanc": self.tab_lanc}[secao]
+        frame.tkraise()
+        for chave, b in self._gestao_sel_btns.items():
+            ativo = chave == secao
+            b.configure(bg=("#e67e22" if ativo else "#c8d8e8"),
+                        fg=("white" if ativo else "#333333"))
+        if secao == "prem": self._load_prem()
+        elif secao == "res": self._load_res()
+        elif secao == "lanc": self._adm_load()
 
     # ════════════════════════════════════════════════════════════
     #  ABA 7 — PREMIAÇÕES  (independente da reserva)
@@ -5664,6 +5817,8 @@ class BolaoApp:
             self._res_saldo_destaque.master.configure(bg=cor)
         except Exception:
             pass
+        try: self._gestao_kpis["gp_caixa_saldo"].configure(text=fmt_brl(total_geral))
+        except Exception: pass
 
         # Histórico completo — TODOS os bolões com nome do bolão
         hist = self.db.fetchall("""
@@ -5847,21 +6002,26 @@ class BolaoApp:
         total_sacado = sum(r["valor_sacado"] for r in todos)
         saldo_geral  = total_ganho - total_sacado
 
-        # Ganho só deste ano — pedido do usuário: um resumo rápido no
-        # Dashboard, sem precisar abrir a lista completa (que agora mora
-        # em Gestão > Lançamentos) só pra saber "quanto ganhei esse ano".
-        # data_registro é texto "DD/MM/AAAA" — o ano são os 4 últimos
-        # caracteres, mesma convenção usada no resto do texto livre desse
-        # campo em todo o sistema.
-        ano_atual = str(datetime.now().year)
-        total_ganho_ano = sum(
-            r["valor_ganho"] for r in todos
-            if r["tipo"] == "GANHO" and (r["data_registro"] or "").strip()[-4:] == ano_atual)
-
         self._adm_kpis["adm_total"].configure(text=fmt_brl(total_ganho))
-        self._adm_kpis["adm_ano"].configure(text=fmt_brl(total_ganho_ano))
         self._adm_kpis["adm_sacado"].configure(text=fmt_brl(total_sacado))
         self._adm_kpis["adm_saldo"].configure(text=fmt_brl(saldo_geral))
+        try: self._gestao_kpis["gp_organizador"].configure(text=fmt_brl(saldo_geral))
+        except Exception: pass
+
+        # Premiação do ano — achado real do usuário: esse card mostrava
+        # o ganho do ORGANIZADOR (taxa_adm, aba Lançamentos — outra
+        # coisa), quando o pedido era o que o bolão ganhou jogando na
+        # loteria (tabela premiacoes, mesma fonte da aba Premiações).
+        # data_sorteio é texto "DD/MM/AAAA" — o ano são os 4 últimos
+        # caracteres, mesma convenção usada em _load_prem.
+        ano_atual = str(datetime.now().year)
+        premios_ano = self.db.fetchall("SELECT * FROM premiacoes")
+        total_premiacao_ano = sum(
+            r["valor_premio"] for r in premios_ano
+            if (r["data_sorteio"] or "").strip()[-4:] == ano_atual)
+        self._adm_kpis["prem_ano"].configure(text=fmt_brl(total_premiacao_ano))
+        try: self._gestao_kpis["gp_premiacao_ano"].configure(text=fmt_brl(total_premiacao_ano))
+        except Exception: pass
 
         # ── KPIs gerais (todos os bolões) ─────────────────────────
         n_boloes_ativos = self.db.fetchone(
@@ -7061,7 +7221,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.12</span>
+        <span>Sistema de Gestão de Bolões v6.13</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>

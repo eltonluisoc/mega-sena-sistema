@@ -839,6 +839,16 @@ Removidos: os 12 métodos do extrato, a declaração de `self.tab_import`, o `nb
 
 Versão desktop v6.11 → **v6.12**. `dist/SistemaBoloes.exe` reconstruído via `SistemaBoloes.spec`.
 
+## Rodada 53 — Card "Premiação Ano" corrigido + Gestão virou tela única (v6.13, desktop)
+
+Usuário mandou print apontando dois problemas: o card do Dashboard "GANHO NESTE ANO" (R$ 7.339,54) estava mostrando um número muito maior do que o "Total de prêmios ganhos" da aba Premiações (R$ 1.813,43) — porque eram fontes DIFERENTES. "esse botão deve ser PREMIAÇÃO ANO e mostrar esse ganho de loteria" deixou claro: o card deveria refletir a tabela `premiacoes` (o que o BOLÃO ganha jogando), não `taxa_adm` (o que o ORGANIZADOR ganha de taxa — conceito completamente diferente, que eu tinha confundido na Rodada 51 ao implementar esse card pela primeira vez).
+
+**Corrigido**: card renomeado "🏆 PREMIAÇÃO ANO", fonte trocada pra `SUM(premiacoes.valor_premio)` do ano corrente. Card ficou clicável — abre um popup com a quebra por loteria (`_mostrar_premiacao_ano_detalhe`), já que o espaço do card só cabe o total.
+
+**Segundo pedido, na mesma mensagem**: "essas três abas poderiam ser uma só e reorganizar as informações usando UX... a tela precisa ser de boa usabilidade" — referindo-se às 3 sub-abas de Gestão (Caixa por Loteria / Premiações / Lançamentos), cada uma exigindo navegação separada pra ver um resumo relacionado. Viraram uma tela só (`_build_gestao_unificada`): resumo geral (3 cards — Premiação do ano, Saldo Caixa por todas as loterias, Saldo do Organizador) sempre visível no topo, e um seletor segmentado (3 botões, ativo em laranja) trocando qual seção aparece embaixo via `tkraise()` — a mesma técnica "notebook sem abas" já usada em Início > Visão Geral/Bolão Selecionado (`_mostrar_inicio_modo`), reaproveitada aqui como `_mostrar_gestao_secao`. `_build_prem`/`_build_res`/`_build_lanc` não precisaram mudar nada por dentro — só o contêiner ao redor (de `ttk.Notebook` pra `tk.Frame` com `.place()` empilhado) e a chamada de recarregamento (antes disparada pelo evento `<<NotebookTabChanged>>`, agora direto em `_mostrar_gestao_secao`).
+
+Versão desktop v6.12 → **v6.13**. `dist/SistemaBoloes.exe` reconstruído via `SistemaBoloes.spec`.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
