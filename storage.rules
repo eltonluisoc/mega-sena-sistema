@@ -1,0 +1,18 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == 'eltonluisoc@gmail.com';
+    }
+
+    // Backups do SQLite do desktop (Rodada 56 — "backup fora da
+    // máquina": antes só existia local, em backups/, sem cópia se o
+    // computador quebrar/for perdido). Só o admin lê e escreve — é o
+    // banco de dados inteiro do sistema, com dados financeiros e
+    // pessoais de todos os participantes.
+    match /backups/{arquivo} {
+      allow read, write, delete: if isAdmin();
+    }
+  }
+}

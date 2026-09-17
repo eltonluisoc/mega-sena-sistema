@@ -1,7 +1,40 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.15
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.16
+Correções v6.16 (3 das "5 sugestões pra levantar o nível": backup na nuvem, testes, log de auditoria):
+ - Backup fora da máquina: enviar_backup_para_nuvem()/listar_backups_
+   nuvem()/_limpar_backups_nuvem() sobem o .db pro Firebase Storage
+   (mesmo login/projeto já usado em todo o resto do sistema). Roda
+   sozinho ao fechar o app (nova "Etapa 3/3" na janela de sincronização,
+   não bloqueia o fechamento se falhar) e sob demanda na aba
+   Backup/Restore ("☁ Enviar Backup Agora" + lista dos já enviados).
+   Retenção de 10 mais recentes, igual ao backup local. Novo
+   storage.rules (backups/ só pro admin) — aguardando deploy.
+ - Testes automatizados: test/test_bolao_pro_v3.py (unittest, sem
+   dependência nova — mesma filosofia do node:test já usado no lado
+   web), 27 testes cobrindo to_float/fmt_brl, _n_cotas_participante,
+   _status_part (fixa o contrato do bug da Rodada 44), critério de
+   crédito/débito da reserva, ordenação cronológica de data-texto, e a
+   lógica de unificação de duplicados/importação idempotente —
+   formaliza simulações que antes eram só ad-hoc e descartadas a cada
+   rodada.
+ - Log de auditoria: nova tabela log_auditoria + self._log(), chamado
+   nas 8 ações destrutivas do sistema (remover participante, excluir
+   premiação/movimento de caixa/movimento de reserva/lançamento,
+   excluir pagamento, unificar duplicados, excluir BOLÃO inteiro — a
+   mais destrutiva de todas). Nova aba "📜 Log de Alterações" (Sistema)
+   pra consultar, com busca.
+ - Segurança do Firestore (sugestão 3, investigada a fundo): concluído
+   que uma mitigação via regras não é segura de fazer sem testar ao
+   vivo contra o modelo de dados atual (participantes é 1 doc POR
+   BOLÃO com array de pessoas dentro — Firestore não filtra array por
+   campo no servidor, o cliente precisa baixar tudo). firestore.rules
+   ganhou uma análise bem mais completa (comentário, sem mudar
+   comportamento) com o plano concreto da correção real (Cloud
+   Function callable, filtra por telefone no servidor).
+ - Importar Extrato (sugestão 5): pausado — depende de um PDF real do
+   usuário pra calibrar, combinado antes de começar.
 Correções v6.15 (ícone minimalista):
  - Ícone da Rodada 54 (arte colorida do site reaproveitada) reportado
    como não ficou bom. Substituído por um ícone minimalista próprio,
@@ -737,6 +770,12 @@ class Database:
             tipo TEXT DEFAULT 'GANHO',
             FOREIGN KEY(bolao_id) REFERENCES boloes(id)
         );
+        CREATE TABLE IF NOT EXISTS log_auditoria (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            data_hora TEXT,
+            acao TEXT,
+            detalhes TEXT
+        );
         """)
         # migrações seguras
         migs = [
@@ -991,6 +1030,65 @@ def _firebase_headers():
         "Accept": "application/json",
         "Authorization": "Bearer " + _firebase_login(),
     }
+
+# ─────────────────────────────────────────────
+#  FIREBASE STORAGE — Backup fora da máquina
+#  Antes o backup (BackupManager) só existia localmente em backups/ —
+#  se o computador quebrar/for perdido/roubado, anos de histórico
+#  financeiro somem. Reaproveita o mesmo login do Firestore (mesmo
+#  token, mesma conta admin) pra subir uma cópia do .db pro Storage.
+# ─────────────────────────────────────────────
+FIREBASE_STORAGE_BUCKET = "mega-sena-sistema.firebasestorage.app"
+
+def enviar_backup_para_nuvem(caminho_arquivo):
+    """Sobe um arquivo de backup (.db) pro Firebase Storage, na pasta
+    backups/. Levanta exceção em caso de erro — quem chama decide como
+    mostrar isso (status bar silenciosa no fechamento automático,
+    messagebox no botão manual)."""
+    import urllib.request, urllib.parse as _up
+    nome = os.path.basename(caminho_arquivo)
+    objeto = "backups/" + nome
+    url = (f"https://firebasestorage.googleapis.com/v0/b/{FIREBASE_STORAGE_BUCKET}"
+           f"/o?uploadType=media&name={_up.quote(objeto, safe='')}")
+    with open(caminho_arquivo, "rb") as f:
+        dados = f.read()
+    req = urllib.request.Request(url, data=dados, method="POST", headers={
+        "Content-Type": "application/octet-stream",
+        "Authorization": "Bearer " + _firebase_login(),
+    })
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        return resp.status == 200
+
+def listar_backups_nuvem():
+    """Lista os backups já enviados ao Storage, mais recentes primeiro."""
+    import urllib.request, json, urllib.parse as _up
+    url = (f"https://firebasestorage.googleapis.com/v0/b/{FIREBASE_STORAGE_BUCKET}"
+           f"/o?prefix={_up.quote('backups/', safe='')}")
+    req = urllib.request.Request(url, method="GET",
+          headers={"Authorization": "Bearer " + _firebase_login()})
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        dados = json.loads(resp.read().decode("utf-8"))
+    itens = dados.get("items", [])
+    itens.sort(key=lambda i: i.get("timeCreated", ""), reverse=True)
+    return itens
+
+def _limpar_backups_nuvem(manter=10):
+    """Apaga os backups mais antigos na nuvem além dos `manter` mais
+    recentes — mesmo critério de retenção já usado localmente
+    (BackupManager._limpar_autos), pra não crescer o Storage pra sempre."""
+    import urllib.request, urllib.parse as _up
+    itens = listar_backups_nuvem()
+    for item in itens[manter:]:
+        nome = item.get("name")
+        if not nome: continue
+        url = (f"https://firebasestorage.googleapis.com/v0/b/{FIREBASE_STORAGE_BUCKET}"
+               f"/o/{_up.quote(nome, safe='')}")
+        try:
+            req = urllib.request.Request(url, method="DELETE",
+                  headers={"Authorization": "Bearer " + _firebase_login()})
+            urllib.request.urlopen(req, timeout=20)
+        except Exception:
+            pass  # não trava a limpeza inteira por causa de um item
 
 def _make_part_id(nome, telefone):
     import unicodedata, re as _re
@@ -1292,7 +1390,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.15")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.16")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1338,6 +1436,21 @@ class BolaoApp:
                 self._status_retry_btn.pack(side="right", padx=(0,10))
             else:
                 self._status_retry_btn.pack_forget()
+        except Exception:
+            pass
+
+    def _log(self, acao, detalhes):
+        """Registra uma ação destrutiva/irreversível no log de auditoria
+        (excluir, unificar) — antes não existia nenhum rastro depois da
+        caixinha de confirmação, sem jeito de saber depois "quando/o que
+        mudou" pra resolver uma dúvida com participante ou desfazer um
+        engano. Nunca deve travar a ação principal por causa de uma
+        falha em gravar o log — por isso o try/except aqui dentro, não
+        em cada chamador."""
+        try:
+            self.db.execute(
+                "INSERT INTO log_auditoria (data_hora, acao, detalhes) VALUES (?,?,?)",
+                (datetime.now().strftime("%d/%m/%Y %H:%M:%S"), acao, detalhes))
         except Exception:
             pass
 
@@ -1553,7 +1666,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.15",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.16",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -1685,8 +1798,10 @@ class BolaoApp:
         nb_sys.pack(fill="both", expand=True, padx=4, pady=4)
         self.tab_bkp = tk.Frame(nb_sys, bg=CORES["bg_frame"])
         self.tab_pub = tk.Frame(nb_sys, bg=CORES["bg_frame"])
+        self.tab_log = tk.Frame(nb_sys, bg=CORES["bg_frame"])
         nb_sys.add(self.tab_bkp, text="💾 Backup / Restore")
         nb_sys.add(self.tab_pub, text="🌐 Site / Publicar")
+        nb_sys.add(self.tab_log, text="📜 Log de Alterações")
 
         # ── Constrói o conteúdo de todas as abas ────────────────
         self._build_inicio_lista()
@@ -1706,6 +1821,7 @@ class BolaoApp:
         self._build_pessoas()
         self._build_publicar()
         self._build_bkp()
+        self._build_log()
 
         # Auto-atualiza SEMPRE que qualquer aba/sub-aba é aberta — pedido
         # explícito do usuário: nenhuma tela pode ficar desatualizada
@@ -2539,6 +2655,8 @@ class BolaoApp:
         if messagebox.askyesno("Confirmar",
             f"Remover '{pt['nome']}' do bolão?\n\nEsta ação não pode ser desfeita."):
             self.db.execute("UPDATE participantes SET ativo=0 WHERE id=?", (pid,))
+            self._log("Remover participante",
+                f"{pt['nome']} (tel: {pt['telefone'] or '-'}, ID {pid})")
             messagebox.showinfo("Removido","Participante removido.")
             self._refresh_all()
 
@@ -2609,6 +2727,9 @@ class BolaoApp:
                         "WHERE pessoa_id=?",
                         (principal["id"], tel, dup["id"]))
                     self.db.execute("DELETE FROM pessoas WHERE id=?", (dup["id"],))
+                    self._log("Unificar participante duplicado",
+                        f"{dup['nome']} (ID {dup['id']}) juntado em "
+                        f"{principal['nome']} (ID {principal['id']}), tel {tel}")
                     registros_removidos += 1
                 # Garante que o principal também fica com o telefone
                 # normalizado (só dígitos), fechando a causa raiz.
@@ -3872,7 +3993,11 @@ class BolaoApp:
                 "'Depositado: Não'.")
             return
         if messagebox.askyesno("Confirmar", "Excluir este pagamento?"):
+            pt_pg = self.db.fetchone("SELECT nome FROM participantes WHERE id=?", (pg["participante_id"],))
             self.db.execute("DELETE FROM pagamentos WHERE id=?", (pid_pag,))
+            self._log("Excluir pagamento",
+                f"{pt_pg['nome'] if pt_pg else '?'} — {fmt_brl(pg['valor'])} "
+                f"({pg['mes_referencia'] or '-'}, {pg['data_pagamento'] or '-'})")
             messagebox.showinfo("Excluído", "Pagamento excluído.")
             self._hist_load()
 
@@ -5006,7 +5131,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.15</span>
+        <span>Sistema de Gestão de Bolões v6.16</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -5634,6 +5759,7 @@ class BolaoApp:
         if messagebox.askyesno("Confirmar",
             f"Excluir premiação ID {prem_id}?\nLoteria: {loteria}  |  Valor: {valor}"):
             self.db.execute("DELETE FROM premiacoes WHERE id=?",(prem_id,))
+            self._log("Excluir premiação", f"ID {prem_id} — {loteria} — {valor}")
             self._load_prem()
 
     def _editar_prem(self):
@@ -5933,8 +6059,13 @@ class BolaoApp:
     def _del_mov_res(self):
         sel=self.res_tree_hist.selection()
         if not sel: messagebox.showwarning("Atenção","Selecione um movimento!"); return
+        mid = int(sel[0])
         if messagebox.askyesno("Confirmar","Excluir este movimento da reserva?"):
-            self.db.execute("DELETE FROM reserva_caixa WHERE id=?",(int(sel[0]),))
+            r = self.db.fetchone("SELECT * FROM reserva_caixa WHERE id=?", (mid,))
+            self.db.execute("DELETE FROM reserva_caixa WHERE id=?",(mid,))
+            if r:
+                self._log("Excluir movimento Caixa por Loteria",
+                    f"ID {mid} — {r['loteria']} — {r['tipo']} — {fmt_brl(r['valor'])}")
             self._load_res()
 
     def _editar_mov_res(self):
@@ -6391,6 +6522,7 @@ class BolaoApp:
         if messagebox.askyesno("Confirmar",
             f"Excluir lançamento ID {rid}?\nTipo: {tipo}  |  Valor: {val}"):
             self.db.execute("DELETE FROM taxa_adm WHERE id=?", (rid,))
+            self._log("Excluir lançamento (organizador)", f"ID {rid} — {tipo} — {val}")
             self._adm_load()
 
     # ════════════════════════════════════════════════════════════
@@ -6981,7 +7113,10 @@ class BolaoApp:
         m   = self.db.fetchone("SELECT * FROM reservas_movimentos WHERE id=?", (mid,))
         if messagebox.askyesno("Confirmar",
             f"Excluir lançamento {m['tipo']} de {fmt_brl(m['valor'])} em {m['data_mov']}?"):
+            ps_m = self.db.fetchone("SELECT nome FROM reservas_pessoas WHERE id=?", (m["pessoa_id"],))
             self.db.execute("DELETE FROM reservas_movimentos WHERE id=?", (mid,))
+            self._log("Excluir movimento de reserva pessoal",
+                f"{ps_m['nome'] if ps_m else '?'} — {m['tipo']} — {fmt_brl(m['valor'])} ({m['data_mov']})")
             self._rsv_load()
             # Reatualiza histórico da pessoa
             sel_p = self._rsv_cb_pessoa.get()
@@ -7315,7 +7450,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.15</span>
+        <span>Sistema de Gestão de Bolões v6.16</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -7925,6 +8060,23 @@ class BolaoApp:
         btn(bf,"♻ Restaurar Backup",CORES["btn_laranja"],self._bkp_restaurar,width=22).pack(side="left",padx=4)
         btn(bf,"🗑 Excluir Backup",CORES["btn_vermelho"],self._bkp_excluir,width=20).pack(side="left",padx=4)
 
+        # ── Backup fora da máquina — antes só existia local; se o
+        # computador quebrar/for perdido, o histórico financeiro some
+        # junto. Sobe pro Firebase Storage (mesmo projeto/login já usado
+        # em todo o resto do sistema). Também roda sozinho ao fechar o
+        # app (ver _on_close, "Etapa 3/3"); aqui é o jeito manual, sob
+        # demanda, sem precisar fechar o sistema pra isso. ───────────
+        sn = section(p,"☁ BACKUP NA NUVEM"); sn.pack(fill="both",expand=True,padx=20,pady=8)
+        rown = tk.Frame(sn,bg=CORES["bg_section"]); rown.pack(fill="x",pady=(0,6))
+        btn(rown,"☁ Enviar Backup Agora",CORES["btn_teal"],self._bkp_nuvem_enviar,width=20).pack(side="left",padx=(0,6))
+        btn(rown,"🔄 Atualizar Lista",CORES["btn_azul"],self._bkp_nuvem_listar,width=16).pack(side="left",padx=6)
+        self._bkp_nuvem_status = tk.Label(rown, text="", bg=CORES["bg_section"],
+            fg="#888", font=("Arial",8,"italic"))
+        self._bkp_nuvem_status.pack(side="left", padx=8)
+        cols_n = {"Nome":260,"Enviado em":180,"Tamanho":110}
+        frn, self.bkp_nuvem_tree = make_tree(sn, cols_n, height=6)
+        frn.pack(fill="both", expand=True)
+
         si=section(p,"INFO DO SISTEMA"); si.pack(fill="x",padx=20,pady=(0,16))
         self._bkp_info=tk.Label(si,text="",bg=CORES["bg_section"],fg=CORES["fg_label"],
                                  font=("Arial",9),justify="left")
@@ -7977,6 +8129,92 @@ class BolaoApp:
         if not sel: messagebox.showwarning("Atenção","Selecione um backup!"); return
         if messagebox.askyesno("Confirmar","Excluir este backup?"):
             os.remove(sel[0]); self._bkp_listar()
+
+    def _bkp_nuvem_enviar(self):
+        """Faz um backup local novo (garante que a cópia enviada está
+        atualizada) e sobe pro Firebase Storage, em background pra não
+        travar a janela."""
+        import threading
+        self._bkp_nuvem_status.configure(text="⏳ Enviando...", fg="#aad4f5")
+        def _run():
+            try:
+                dest = self.bkp.fazer_backup(auto=False)
+                enviar_backup_para_nuvem(dest)
+                _limpar_backups_nuvem()
+                def _ok():
+                    self._bkp_nuvem_status.configure(text="✅ Backup enviado!", fg="#1D9E75")
+                    self._bkp_listar()
+                    self._bkp_nuvem_listar()
+                self.root.after(0, _ok)
+            except Exception as ex:
+                msg = str(ex)[:90]
+                self.root.after(0, lambda: self._bkp_nuvem_status.configure(
+                    text="❌ Erro: "+msg, fg="#ff6b6b"))
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _bkp_nuvem_listar(self):
+        """Lista os backups já enviados ao Firebase Storage."""
+        import threading
+        self._bkp_nuvem_status.configure(text="⏳ Consultando...", fg="#aad4f5")
+        def _run():
+            try:
+                itens = listar_backups_nuvem()
+                def _ok():
+                    self.bkp_nuvem_tree.delete(*self.bkp_nuvem_tree.get_children())
+                    for it in itens:
+                        nome = (it.get("name") or "").replace("backups/", "", 1)
+                        criado = (it.get("timeCreated") or "")[:19].replace("T", " ")
+                        tam_kb = int(it.get("size") or 0) / 1024
+                        self.bkp_nuvem_tree.insert("", "end", values=(
+                            nome, criado, f"{tam_kb:.1f} KB"))
+                    self._bkp_nuvem_status.configure(
+                        text=f"{len(itens)} backup(s) na nuvem", fg="#888")
+                self.root.after(0, _ok)
+            except Exception as ex:
+                msg = str(ex)[:90]
+                self.root.after(0, lambda: self._bkp_nuvem_status.configure(
+                    text="❌ Erro ao listar: "+msg, fg="#ff6b6b"))
+        threading.Thread(target=_run, daemon=True).start()
+
+    # ════════════════════════════════════════════════════════════
+    #  LOG DE ALTERAÇÕES — auditoria das ações destrutivas
+    #  (excluir participante/premiação/movimento/bolão, unificar
+    #  duplicados — ver self._log()). Antes não existia nenhum rastro
+    #  depois da caixinha de confirmação.
+    # ════════════════════════════════════════════════════════════
+    def _build_log(self):
+        p = self.tab_log
+        tk.Label(p,text="📜 LOG DE ALTERAÇÕES",bg=CORES["bg_frame"],
+                 fg=CORES["fg_title"],font=("Arial",12,"bold")).pack(pady=(14,4))
+        tk.Label(p,text="Registro de exclusões e unificações — ações que não têm como desfazer sozinhas.",
+                 bg=CORES["bg_frame"],fg="#555",font=("Arial",9)).pack()
+
+        top = tk.Frame(p, bg=CORES["bg_frame"]); top.pack(fill="x", padx=20, pady=10)
+        btn(top, "🔄 Atualizar", CORES["btn_azul"], self._log_load, width=14).pack(side="left", padx=4)
+
+        tk.Label(top, text="  Buscar:", bg=CORES["bg_frame"], fg=CORES["fg_label"],
+                 font=("Arial",9,"bold")).pack(side="left", padx=(12,4))
+        self._log_busca_var = tk.StringVar()
+        e_busca = entry(top, width=30, textvariable=self._log_busca_var)
+        e_busca.pack(side="left", padx=4)
+        self._log_busca_var.trace_add("write", lambda *a: self._log_load())
+
+        sec = section(p, "HISTÓRICO — MAIS RECENTES PRIMEIRO")
+        sec.pack(fill="both", expand=True, padx=20, pady=(0,14))
+        cols = {"Data/Hora":150,"Ação":260,"Detalhes":420}
+        fr, self.log_tree = make_tree(sec, cols, height=18)
+        fr.pack(fill="both", expand=True)
+        self._log_load()
+
+    def _log_load(self):
+        termo = self._log_busca_var.get().strip().lower() if hasattr(self,"_log_busca_var") else ""
+        self.log_tree.delete(*self.log_tree.get_children())
+        rows = self.db.fetchall("SELECT * FROM log_auditoria ORDER BY id DESC LIMIT 500")
+        for r in rows:
+            if termo and termo not in (r["acao"] or "").lower() and termo not in (r["detalhes"] or "").lower():
+                continue
+            self.log_tree.insert("", "end", values=(
+                r["data_hora"] or "-", r["acao"] or "-", r["detalhes"] or "-"))
 
     # ════════════════════════════════════════════════════════════
     #  GERENCIAR BOLÕES  ← CORRIGIDO
@@ -8035,12 +8273,16 @@ class BolaoApp:
             bid=int(sel[0])
             b=self.db.fetchone("SELECT nome FROM boloes WHERE id=?",(bid,))
             if messagebox.askyesno("Confirmar",f"Excluir '{b['nome']}'? TUDO será apagado!"):
+                n_pag = self.db.fetchone("SELECT COUNT(*) as n FROM pagamentos WHERE bolao_id=?",(bid,))["n"]
+                n_part = self.db.fetchone("SELECT COUNT(*) as n FROM participantes WHERE bolao_id=?",(bid,))["n"]
                 for tbl in ["pagamentos","participantes","premiacoes","reserva_caixa",
                             "saques_emergenciais","taxa_adm","boloes"]:
                     if tbl=="boloes":
                         self.db.execute("DELETE FROM boloes WHERE id=?",(bid,))
                     else:
                         self.db.execute(f"DELETE FROM {tbl} WHERE bolao_id=?",(bid,))
+                self._log("Excluir BOLÃO (ação irreversível maior)",
+                    f"{b['nome']} (ID {bid}) — {n_part} participante(s), {n_pag} pagamento(s) apagados junto")
                 carregar(); self._load_boloes_combo()
 
         def config_adm():
@@ -8282,6 +8524,8 @@ class BolaoApp:
         except: pass
         try: self._pessoas_load()
         except: pass
+        try: self._log_load()
+        except Exception: pass
 
     def _refresh_dados_visiveis(self):
         """Recarrega os DADOS mostrados nas telas (listas, tabelas,
@@ -8323,6 +8567,8 @@ class BolaoApp:
         except Exception: pass
         try: self._pessoas_load()
         except Exception: pass
+        try: self._log_load()
+        except Exception: pass
 
     def _on_close(self):
         """Fecha com tela de sincronizacao redesenhada."""
@@ -8330,7 +8576,8 @@ class BolaoApp:
         import unicodedata as _uc
         import urllib.request, urllib.error
 
-        try: self.bkp.fazer_backup(auto=True)
+        _ultimo_backup_path = None
+        try: _ultimo_backup_path = self.bkp.fazer_backup(auto=True)
         except Exception as ex: print("Backup erro:", ex)
 
         # ═══════════════════════════════════════════════════════════
@@ -8480,7 +8727,7 @@ class BolaoApp:
                 win.after(0, lambda: log("  RESERVAS PESSOAIS", "head"))
                 win.after(0, lambda: log("  "+"-"*50, "dim"))
                 win.after(0, lambda: sp(2))
-                win.after(0, lambda: footer_lbl.configure(text="Etapa 1/2 — Reservas pessoais"))
+                win.after(0, lambda: footer_lbl.configure(text="Etapa 1/3 — Reservas pessoais"))
 
                 pessoas = db2.fetchall(
                     "SELECT * FROM reservas_pessoas WHERE ativo=1 ORDER BY nome")
@@ -8568,7 +8815,7 @@ class BolaoApp:
                 win.after(0, lambda: log("  BOLOES NO SITE", "head"))
                 win.after(0, lambda: log("  "+"-"*50, "dim"))
                 win.after(0, lambda: sp(42))
-                win.after(0, lambda: footer_lbl.configure(text="Etapa 2/2 — Publicando boloes"))
+                win.after(0, lambda: footer_lbl.configure(text="Etapa 2/3 — Publicando boloes"))
 
                 boloes = db2.fetchall(
                     "SELECT * FROM boloes WHERE encerrado=0 ORDER BY id")
@@ -8712,6 +8959,29 @@ class BolaoApp:
                         _time.sleep(2)
 
                 _conn.close()
+
+                # ═══ BACKUP NA NUVEM ════════════════════════════════
+                # Antes o backup só existia localmente (backups/) — se o
+                # computador quebrar/for perdido, some tudo. Sobe a cópia
+                # que acabou de ser feita pro Firebase Storage. Falha
+                # aqui NÃO bloqueia o fechamento (diferente de reservas/
+                # bolões acima) — é uma rede de segurança extra, não o
+                # sync principal; sem internet nessa hora, o backup local
+                # continua existindo normalmente.
+                win.after(0, lambda: log("", "dim"))
+                win.after(0, lambda: log("  BACKUP NA NUVEM", "head"))
+                win.after(0, lambda: log("  "+"-"*50, "dim"))
+                win.after(0, lambda: footer_lbl.configure(text="Etapa 3/3 — Backup na nuvem"))
+                if _ultimo_backup_path:
+                    try:
+                        enviar_backup_para_nuvem(_ultimo_backup_path)
+                        _limpar_backups_nuvem()
+                        win.after(0, lambda: log("  OK enviado — "+os.path.basename(_ultimo_backup_path), "ok"))
+                    except Exception as ex_bkp:
+                        win.after(0, lambda e=str(ex_bkp)[:90]: log(
+                            "  Não deu pra enviar agora (fica só o backup local): "+e, "warn"))
+                else:
+                    win.after(0, lambda: log("  Backup local falhou antes — nada pra enviar.", "warn"))
                 win.after(0, lambda: sp(100))
                 win.after(0, lambda: log("", "dim"))
                 houve_erro = bool(err_r or err_b)

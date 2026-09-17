@@ -60,11 +60,38 @@ service cloud.firestore {
     }
 
     // participantes ainda precisa de leitura pública total (nome,
-    // telefone, situação de pagamento) porque consulta.html/meus-boloes.html
-    // buscam a coleção inteira e filtram no navegador — isso é uma
-    // exposição de dado pessoal conhecida e documentada, não resolvida
-    // ainda (precisa de uma Cloud Function mediando a leitura; ver
-    // relatório dos agentes Arquiteto/Requisitos).
+    // telefone, valorPago, situação, cotas) porque consulta.html/
+    // meus-boloes.html buscam a coleção INTEIRA e filtram no navegador
+    // — exposição de dado pessoal conhecida, reavaliada na Rodada 56
+    // (usuário pediu mitigação; investigado a fundo antes de mexer):
+    //
+    //  - chave_pix NÃO está nesta coleção (só nome/telefone/valorPago/
+    //    situacao/quantidadeCotas/dataCadastro — confirmado lendo o
+    //    único escritor, enviar_bolao_para_site() no desktop).
+    //  - Uma regra do Firestore não consegue restringir ISSO sem
+    //    quebrar a busca: o dado é um doc POR BOLÃO com um array de
+    //    participantes dentro (não um doc por pessoa), então não dá
+    //    pra fazer uma query "where telefone == X" no servidor — o
+    //    cliente PRECISA baixar o array inteiro pra filtrar. Regras do
+    //    Firestore decidem "pode ler este documento inteiro ou não",
+    //    não "pode ler só os itens do array que batem com X".
+    //  - Tirar valorPago/dataCadastro do documento reduziria a
+    //    exposição, mas quebraria a própria pessoa consultando SEU
+    //    PRÓPRIO valor pago — não dá pra distinguir "sou eu vendo meu
+    //    dado" de "sou outro vendo o de todo mundo" sem autenticação.
+    //
+    //  Mitigação real exige um dos dois:
+    //   (a) Cloud Function callable que recebe telefone como parâmetro
+    //       e devolve só os bolões DAQUELE telefone (servidor filtra,
+    //       cliente nunca baixa a coleção inteira) — não prova que
+    //       quem pergunta é o dono do número (precisaria de OTP por
+    //       SMS pra isso), mas elimina o scraping em massa de todo
+    //       mundo de uma vez, que é o risco real hoje.
+    //   (b) Restruturar "participantes" pra 1 documento por PESSOA
+    //       (não por bolão), indexado por telefone normalizado — aí sim
+    //       uma query where() nativa filtra no servidor.
+    //  Infraestrutura de Cloud Functions já existe e funciona
+    //  (functions/functions/) — (a) é o caminho mais barato dos dois.
     match /participantes/{document} {
       allow read: if true;
       allow write, delete: if isAdmin();
