@@ -332,6 +332,52 @@ class TestCalcularGruposDuplicados(unittest.TestCase):
         self.assertEqual(participantes_apos, {10: 1, 11: 1})
         conn.close()
 
+    def test_unificar_atualiza_telefone_de_participante_antigo_do_principal(self):
+        # Bug real reportado pelo usuário DEPOIS da unificação já ter
+        # rodado: "Carlos Sena" continuava aparecendo 2x em "Importar
+        # Membro de Bolão Anterior". Causa: essa tela lê o telefone
+        # direto da CÓPIA denormalizada em participantes.telefone (uma
+        # por linha, uma por bolão) — a unificação só corrigia a cópia
+        # das linhas REAPONTADAS (dos duplicados), nunca a cópia das
+        # linhas que já existiam apontando pro PRINCIPAL antes da
+        # unificação (bolões mais antigos). Esse teste reproduz
+        # exatamente isso: o principal (id=1) já tem uma participação
+        # ANTIGA (id=10) com telefone vazio, numa unificação onde o
+        # telefone "de verdade" só aparece no duplicado (id=2).
+        conn = sqlite3.connect(":memory:")
+        conn.execute("CREATE TABLE pessoas (id INTEGER PRIMARY KEY, nome TEXT, telefone TEXT)")
+        conn.execute("CREATE TABLE participantes (id INTEGER PRIMARY KEY, pessoa_id INTEGER, telefone TEXT)")
+        conn.execute("INSERT INTO pessoas VALUES (1,'Carlos Sena','')")            # principal, sem tel
+        conn.execute("INSERT INTO pessoas VALUES (2,'Carlos Sena','61992116230')")  # duplicado, com tel
+        conn.execute("INSERT INTO participantes VALUES (10,1,'')")   # bolão antigo do principal — cópia vazia
+        conn.execute("INSERT INTO participantes VALUES (11,2,'61992116230')")  # bolão do duplicado
+
+        pessoas = [dict(zip(("id","nome","telefone"), r))
+                   for r in conn.execute("SELECT * FROM pessoas ORDER BY id")]
+        seguros, _ = m._calcular_grupos_duplicados(pessoas)
+        self.assertEqual(len(seguros), 1)
+        tel_final, membros = seguros[0]
+        self.assertEqual(tel_final, "61992116230")
+        principal, *outros = sorted(membros, key=lambda g: g["id"])
+        self.assertEqual(principal["id"], 1)
+
+        for dup in outros:
+            conn.execute("UPDATE participantes SET pessoa_id=?, telefone=? WHERE pessoa_id=?",
+                         (principal["id"], tel_final, dup["id"]))
+            conn.execute("DELETE FROM pessoas WHERE id=?", (dup["id"],))
+        conn.execute("UPDATE pessoas SET telefone=? WHERE id=?", (tel_final, principal["id"]))
+        # A correção da Rodada 61: atualiza TODAS as linhas de
+        # participantes do principal, não só as reapontadas agora.
+        conn.execute("UPDATE participantes SET telefone=? WHERE pessoa_id=?",
+                     (tel_final, principal["id"]))
+
+        # As DUAS linhas de participação (bolão antigo id=10 e bolão
+        # novo id=11) têm que estar com o MESMO telefone agora — sem a
+        # correção, a linha 10 continuaria com telefone vazio.
+        telefones = dict(conn.execute("SELECT id, telefone FROM participantes"))
+        self.assertEqual(telefones, {10: "61992116230", 11: "61992116230"})
+        conn.close()
+
 
 # ════════════════════════════════════════════════════════════
 #  Idempotência da importação de reservas pendentes do site

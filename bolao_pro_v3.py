@@ -1,7 +1,34 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.19
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.20
+Correções v6.20 (unificação de duplicados: corrige a causa raiz de verdade):
+ - Bug real relatado pelo usuário DEPOIS de já ter unificado com
+   sucesso: "Carlos Sena" continuava aparecendo 2x em "Importar Membro
+   de Bolão Anterior". Causa: essa tela lê nome/telefone direto da
+   CÓPIA denormalizada em participantes.telefone (uma cópia por linha,
+   uma linha por bolão que a pessoa participa) — a unificação da
+   Rodada 59 só corrigia a cópia das linhas REAPONTADAS (dos
+   duplicados), nunca a cópia das linhas que já apontavam pro
+   PRINCIPAL antes da unificação (bolões mais antigos). Uma pessoa com
+   participação em 2+ bolões, unificada com sucesso na tabela pessoas,
+   continuava "duplicada" em qualquer tela que lê telefone direto de
+   participantes.
+ - Duas correções, uma em cada ponta:
+   1. _unificar_duplicados agora também atualiza TODAS as linhas de
+      participantes do principal (não só as reapontadas) com o
+      telefone final — fecha a causa raiz, evita a mesma cópia velha
+      vazar em qualquer tela futura que leia telefone de participantes
+      direto (inclusive a publicação pro site, Rodada 60).
+   2. _imp_buscar ("Importar Membro de Bolão Anterior") passa a
+      deduplicar por pessoa_id (o vínculo real, já corrigido pela
+      unificação) em vez de nome+telefone da própria linha — e mostra
+      nome/telefone de "pessoas" (fonte atual) quando o vínculo existe,
+      não a cópia por linha. Blindado contra a MESMA classe de bug
+      mesmo que uma cópia desatualizada volte a aparecer em algum lugar.
+ - Novo teste de regressão reproduzindo o cenário exato do relatado
+   (principal com participação antiga sem telefone + duplicado com
+   telefone real) — test/test_bolao_pro_v3.py, 34/34 passando.
 Correções v6.19 (mitiga exposição do Firestore SEM plano pago — busca_participante):
  - Correção definitiva (de graça) da exposição pública da coleção
    "participantes" (achada na Rodada 56) — usuário recusou o plano
@@ -1655,7 +1682,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.19")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.20")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1931,7 +1958,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.19",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.20",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -2631,9 +2658,12 @@ class BolaoApp:
             return
 
         rows = self.db.fetchall("""
-            SELECT DISTINCT p.nome, p.telefone, p.chave_pix, b.nome as bolao_nome, p.id
+            SELECT DISTINCT p.id, p.nome, p.telefone, p.chave_pix, p.pessoa_id,
+                   b.nome as bolao_nome,
+                   ps.nome as pessoa_nome, ps.telefone as pessoa_telefone
             FROM participantes p
             JOIN boloes b ON p.bolao_id = b.id
+            LEFT JOIN pessoas ps ON ps.id = p.pessoa_id
             WHERE LOWER(p.nome) LIKE ?
               AND p.ativo = 1
               AND p.bolao_id != ?
@@ -2651,16 +2681,30 @@ class BolaoApp:
 
         vistos = set()
         for r in rows:
-            # Telefone normalizado (só dígitos) na chave de dedup — sem
-            # isso, a mesma pessoa com telefone salvo em formatos
-            # diferentes em bolões diferentes aparecia mais de uma vez
-            # nesta busca (achado real do usuário).
-            tel_norm = re.sub(r"\D", "", r["telefone"] or "")
-            chave = (r["nome"].strip().lower(), tel_norm)
+            # Dedup por pessoa_id (o vínculo REAL, já corrigido pela
+            # unificação de duplicados) em vez de nome+telefone da
+            # própria linha de "participantes". Achado real: telefone
+            # em "participantes" é uma CÓPIA denormalizada por linha —
+            # ao unificar dois cadastros de "pessoas", só a linha
+            # REAPONTADA na unificação tem essa cópia atualizada; uma
+            # linha de participação num bolão MAIS ANTIGO, que já
+            # apontava pro principal antes da unificação, nunca é
+            # tocada e guarda a cópia velha (às vezes sem telefone) pra
+            # sempre — por isso a mesma pessoa continuava aparecendo
+            # duplicada aqui mesmo depois de "unificar" com sucesso.
+            # Mostra o nome/telefone de "pessoas" (fonte atual, já
+            # corrigida) quando existe o vínculo, não a cópia da linha.
+            nome_exibir = r["pessoa_nome"] or r["nome"]
+            tel_exibir  = r["pessoa_telefone"] or r["telefone"]
+            if r["pessoa_id"]:
+                chave = ("pid", r["pessoa_id"])
+            else:
+                tel_norm = re.sub(r"\D", "", tel_exibir or "")
+                chave = ("nometel", nome_exibir.strip().lower(), tel_norm)
             if chave not in vistos:
                 vistos.add(chave)
                 self._imp_busca_tree.insert("","end", iid=str(r["id"]), values=(
-                    r["nome"], r["telefone"] or "-",
+                    nome_exibir, tel_exibir or "-",
                     r["chave_pix"] or "-", r["bolao_nome"]))
 
     def _imp_importar(self):
@@ -3004,6 +3048,17 @@ class BolaoApp:
                     registros_removidos += 1
                 if tel_final:
                     self.db.execute("UPDATE pessoas SET telefone=? WHERE id=?",
+                                     (tel_final, principal["id"]))
+                    # Sem isso, as linhas de "participantes" do PRINCIPAL
+                    # que já existiam ANTES desta unificação (bolões mais
+                    # antigos) ficavam com a cópia de telefone velha pra
+                    # sempre — só as linhas dos duplicados reapontados
+                    # aqui em cima eram corrigidas. Achado real: a mesma
+                    # pessoa continuava aparecendo "duplicada" em telas
+                    # que leem o telefone direto de "participantes" (ex.:
+                    # Importar Membro de Bolão Anterior), mesmo depois de
+                    # uma unificação bem-sucedida.
+                    self.db.execute("UPDATE participantes SET telefone=? WHERE pessoa_id=?",
                                      (tel_final, principal["id"]))
                 grupos_unificados += 1
             win.destroy()
@@ -5401,7 +5456,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.19</span>
+        <span>Sistema de Gestão de Bolões v6.20</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -7720,7 +7775,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.19</span>
+        <span>Sistema de Gestão de Bolões v6.20</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>

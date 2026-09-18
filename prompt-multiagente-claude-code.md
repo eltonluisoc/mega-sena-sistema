@@ -959,6 +959,20 @@ Demais achados dos 3 agentes (arquitetura, produto, dados/confiabilidade) aprese
 
 Versão desktop v6.18 → **v6.19**. `sw.js` v50→v51. `python test/test_bolao_pro_v3.py`: 33/33. `dist/SistemaBoloes.exe` reconstruído. **Pendente**: usuário precisa rodar `firebase deploy --only firestore:rules` manualmente (mesmo bloqueio do classificador de modo automático das rodadas anteriores).
 
+## Rodada 61 — Corrige a causa raiz de verdade do "Carlos Sena duplicado" (v6.20, desktop)
+
+Usuário testou a correção da Rodada 59 (unificação de duplicados) e reportou que o bug persistia — mesmo depois de clicar "🧹 Unificar Duplicados" e confirmar, "Carlos Sena" continuava aparecendo 2x na tela "Importar Membro de Bolão Anterior". Pedido pra aprofundar em vez de assumir que era só falta de rodar a unificação.
+
+**Achado real**: a tela em questão (`_imp_buscar`) nunca leu a tabela `pessoas` — ela consulta `participantes` direto, que guarda uma CÓPIA denormalizada de nome/telefone POR LINHA (uma linha por bolão que a pessoa participa). A unificação da Rodada 59 só corrigia a cópia das linhas REAPONTADAS na hora do merge (as que pertenciam ao duplicado excluído); a cópia nas linhas que JÁ apontavam pro principal ANTES da unificação (participações em bolões mais antigos) nunca era tocada — ficava com o valor velho (às vezes telefone vazio) pra sempre. Resultado: mesmo com `pessoas` corretamente unificada, a pessoa continuava parecendo duplicada em qualquer tela que lê telefone direto de `participantes` — incluindo, potencialmente, a publicação pro site (Rodada 60), que também lê esse campo.
+
+Duas correções, uma em cada ponta (defesa em profundidade — corrige a causa E blinda o sintoma):
+1. `_unificar_duplicados` agora atualiza TODAS as linhas de `participantes` do principal (`WHERE pessoa_id=?`, sem mais filtro nenhum), não só as reapontadas na hora — fecha a causa raiz de vez.
+2. `_imp_buscar` passa a deduplicar por `pessoa_id` (o vínculo real, sempre correto depois de qualquer unificação) em vez de nome+telefone da própria linha, e exibe nome/telefone de `pessoas` (fonte atual) quando o vínculo existe — blindado contra a mesma classe de bug reaparecer por qualquer outro caminho.
+
+Novo teste de regressão reproduzindo o cenário exato relatado (principal com participação antiga sem telefone + duplicado com telefone real, confirma que as duas linhas de `participantes` ficam com o mesmo telefone depois do merge) — `test/test_bolao_pro_v3.py`, 34/34.
+
+Versão desktop v6.19 → **v6.20**. `dist/SistemaBoloes.exe` reconstruído via `SistemaBoloes.spec`.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
