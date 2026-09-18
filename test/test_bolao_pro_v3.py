@@ -378,6 +378,40 @@ class TestCalcularGruposDuplicados(unittest.TestCase):
         self.assertEqual(telefones, {10: "61992116230", 11: "61992116230"})
         conn.close()
 
+    def test_sync_retroativo_corrige_merge_feito_antes_da_rodada_61(self):
+        # Caso real do usuário: "pessoas" JÁ estava corretamente
+        # unificada (Rodada 59, antes da correção da Rodada 61 existir)
+        # — só 1 "Carlos Sena" na tabela, sem mais nada pra
+        # _calcular_grupos_duplicados encontrar. Mas uma participação
+        # antiga (bolão id=10) ficou com a cópia de telefone vazia pra
+        # sempre. O SQL de sincronização geral (chamado sempre que
+        # "Unificar Duplicados" é aberto, mesmo sem duplicata nova) tem
+        # que corrigir isso de qualquer jeito, sem depender de achar uma
+        # duplicata pra reprocessar.
+        conn = sqlite3.connect(":memory:")
+        conn.execute("CREATE TABLE pessoas (id INTEGER PRIMARY KEY, nome TEXT, telefone TEXT)")
+        conn.execute("CREATE TABLE participantes (id INTEGER PRIMARY KEY, pessoa_id INTEGER, telefone TEXT)")
+        conn.execute("INSERT INTO pessoas VALUES (1,'Carlos Sena','61992116230')")  # já unificada, com tel
+        conn.execute("INSERT INTO participantes VALUES (10,1,'')")             # participação antiga, cópia vazia
+        conn.execute("INSERT INTO participantes VALUES (11,1,'61992116230')")  # participação nova, já certa
+
+        pessoas = [dict(zip(("id","nome","telefone"), r))
+                   for r in conn.execute("SELECT * FROM pessoas ORDER BY id")]
+        seguros, conflito = m._calcular_grupos_duplicados(pessoas)
+        self.assertEqual(seguros, [])   # nada pra unificar — só 1 "Carlos Sena"
+        self.assertEqual(conflito, [])
+
+        # O SQL exato usado por _sincronizar_telefones_participantes()
+        conn.execute("""
+            UPDATE participantes
+            SET telefone = (SELECT telefone FROM pessoas WHERE pessoas.id = participantes.pessoa_id)
+            WHERE pessoa_id IN (SELECT id FROM pessoas WHERE telefone IS NOT NULL AND telefone != '')
+        """)
+
+        telefones = dict(conn.execute("SELECT id, telefone FROM participantes"))
+        self.assertEqual(telefones, {10: "61992116230", 11: "61992116230"})
+        conn.close()
+
 
 # ════════════════════════════════════════════════════════════
 #  Idempotência da importação de reservas pendentes do site

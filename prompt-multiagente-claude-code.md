@@ -973,6 +973,16 @@ Novo teste de regressão reproduzindo o cenário exato relatado (principal com p
 
 Versão desktop v6.19 → **v6.20**. `dist/SistemaBoloes.exe` reconstruído via `SistemaBoloes.spec`.
 
+## Rodada 62 — Sincronização retroativa fecha o "Carlos Sena" de vez (v6.21, desktop)
+
+Complemento direto da Rodada 61: a correção de lá só evita a cópia de telefone ficar desatualizada em unificações NOVAS a partir daquele ponto. Quem já tinha unificado "Carlos Sena" ANTES da v6.20 existir continuava com resíduo — `_calcular_grupos_duplicados` não encontra mais nada pra reprocessar porque `pessoas` já só tem 1 registro pra essa pessoa, então o caminho de correção da Rodada 61 nunca seria acionado de novo pra ele.
+
+Nova `_sincronizar_telefones_participantes()` — um `UPDATE` simples e idempotente (`participantes.telefone = (SELECT telefone FROM pessoas WHERE ...)`, só pra quem tem pessoa com telefone real) — chamado SEMPRE que "🧹 Unificar Duplicados" é aberto, independente de achar duplicata nova ou não. Resolve o backlog de qualquer unificação feita antes dessa correção existir, de uma vez, sem precisar que o usuário refaça nada manualmente.
+
+Novo teste reproduzindo o cenário retroativo exato (pessoas já corretamente unificada, participantes com cópia antiga) — `test/test_bolao_pro_v3.py`, 35/35.
+
+Versão desktop v6.20 → **v6.21**. `dist/SistemaBoloes.exe` reconstruído via `SistemaBoloes.spec`.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

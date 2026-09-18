@@ -1,7 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.20
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.21
+Correções v6.21 (sincronização retroativa — corrige unificações feitas ANTES da v6.20):
+ - A correção da v6.20 só evita a cópia de telefone ficar desatualizada
+   em unificações NOVAS — quem já tinha unificado "Carlos Sena" antes
+   (Rodada 59) continuava com resíduo, porque _calcular_grupos_
+   duplicados não encontra mais nada pra reprocessar (pessoas já só
+   tem 1 registro). Nova _sincronizar_telefones_participantes() roda
+   SEMPRE que "🧹 Unificar Duplicados" é aberto (mesmo sem duplicata
+   nova pra achar) e corrige qualquer resíduo de uma vez — idempotente,
+   nunca apaga telefone, só copia quando a pessoa tem um.
+ - Novo teste reproduzindo exatamente o cenário retroativo (pessoas já
+   unificada, participantes ainda com cópia velha) — 35/35 passando.
 Correções v6.20 (unificação de duplicados: corrige a causa raiz de verdade):
  - Bug real relatado pelo usuário DEPOIS de já ter unificado com
    sucesso: "Carlos Sena" continuava aparecendo 2x em "Importar Membro
@@ -1682,7 +1693,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.20")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.21")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1958,7 +1969,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.20",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.21",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -2953,6 +2964,19 @@ class BolaoApp:
             messagebox.showinfo("Removido","Participante removido.")
             self._refresh_all()
 
+    def _sincronizar_telefones_participantes(self):
+        """Sincroniza a cópia denormalizada participantes.telefone (uma
+        por linha, uma por bolão) com pessoas.telefone (a fonte atual) —
+        idempotente, roda sempre que "Unificar Duplicados" é aberto
+        (Rodada 61), pra corrigir de uma vez qualquer resíduo deixado
+        por uma unificação feita ANTES dessa correção existir. Nunca
+        apaga um telefone: só copia quando a pessoa TEM telefone."""
+        self.db.execute("""
+            UPDATE participantes
+            SET telefone = (SELECT telefone FROM pessoas WHERE pessoas.id = participantes.pessoa_id)
+            WHERE pessoa_id IN (SELECT id FROM pessoas WHERE telefone IS NOT NULL AND telefone != '')
+        """)
+
     def _unificar_duplicados(self):
         """Detecta e junta registros de 'pessoas' que são a MESMA pessoa
         real. Achado (Rodada 59): agrupar só por telefone (como era
@@ -2962,7 +2986,17 @@ class BolaoApp:
         mesma pessoa e continuava aparecendo duplicado pra sempre.
         Lógica de agrupamento em _calcular_grupos_duplicados() (módulo-
         level, testada em test/test_bolao_pro_v3.py) — aqui só cuida da
-        tela e da gravação."""
+        tela e da gravação.
+
+        Sempre roda _sincronizar_telefones_participantes() primeiro,
+        independente de achar duplicata NOVA ou não (Rodada 61) — sem
+        isso, uma pessoa já unificada ANTES da correção da Rodada 61
+        (que passou a atualizar TODAS as linhas de participantes do
+        principal, não só as reapontadas na hora) continuava com cópias
+        de telefone desatualizadas escondidas em bolões mais antigos, e
+        nunca mais apareceria aqui pra corrigir (pessoas já não tem mais
+        duplicata nenhuma pra encontrar)."""
+        self._sincronizar_telefones_participantes()
         pessoas = [dict(p) for p in self.db.fetchall("SELECT * FROM pessoas ORDER BY id")]
         if len(pessoas) < 2:
             messagebox.showinfo("Tudo certo", "Menos de 2 participantes cadastrados — nada pra unificar.")
@@ -2972,7 +3006,8 @@ class BolaoApp:
 
         if not grupos_seguros and not grupos_conflito:
             messagebox.showinfo("Tudo certo",
-                "Nenhum participante duplicado encontrado.")
+                "Nenhum participante duplicado encontrado (cópias de telefone "
+                "também foram conferidas e sincronizadas agora).")
             return
 
         win = tk.Toplevel(self.root)
@@ -5456,7 +5491,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.20</span>
+        <span>Sistema de Gestão de Bolões v6.21</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -7775,7 +7810,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.20</span>
+        <span>Sistema de Gestão de Bolões v6.21</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
