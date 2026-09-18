@@ -983,6 +983,10 @@ Novo teste reproduzindo o cenário retroativo exato (pessoas já corretamente un
 
 Versão desktop v6.20 → **v6.21**. `dist/SistemaBoloes.exe` reconstruído via `SistemaBoloes.spec`.
 
+## Rodada 63 — Novo ícone: bola de loteria com "E" estilizado (v6.22, desktop)
+
+Usuário pediu ícone com um E estilizado no meio e algo que remeta à loteria, sem ser dado. Desenhado com Pillow: placa navy do app, bola dourada com disco branco (bola numerada) e "E" itálico feito de barras arredondadas (barra do meio dourada), mais 3 bolinhas nas cores das modalidades da Caixa (verde Mega-Sena, roxo Lotofácil, azul Quina). Iterado 2x olhando o resultado (E inclinado pro lado errado e brilho vazando pra fora da bola na 1ª versão). Testado em 32px. `app_icon.ico` substituído (mesmo nome — spec e `_resource_path` não mudam). v6.21 → **v6.22**, `.exe` reconstruído.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

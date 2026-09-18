@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.21
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.22
+Correções v6.22 (novo ícone):
+ - Ícone trocado: bola de loteria dourada com disco branco (como bola
+   numerada) e um "E" itálico estilizado no meio, mais 3 bolinhas nas
+   cores das modalidades da Caixa (verde Mega-Sena, roxo Lotofácil,
+   azul Quina) sobre a placa navy do app. Sem dado. Mesmo app_icon.ico.
 Correções v6.21 (sincronização retroativa — corrige unificações feitas ANTES da v6.20):
  - A correção da v6.20 só evita a cópia de telefone ficar desatualizada
    em unificações NOVAS — quem já tinha unificado "Carlos Sena" antes
@@ -1693,7 +1698,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.21")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.22")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1969,7 +1974,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.21",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.22",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -5491,7 +5496,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.21</span>
+        <span>Sistema de Gestão de Bolões v6.22</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -7810,7 +7815,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.21</span>
+        <span>Sistema de Gestão de Bolões v6.22</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
