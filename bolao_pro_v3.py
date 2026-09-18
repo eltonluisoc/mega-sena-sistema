@@ -1,7 +1,26 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.17
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.18
+Correções v6.18 (remove Importar Extrato de novo + corrige unificação de duplicados de verdade):
+ - Importar Extrato (da v6.17) removida a pedido do usuário — sem
+   motivo além de não querer o módulo. Reverte pdfplumber do
+   SistemaBoloes.spec (hiddenimports/excludes voltam vazios).
+ - Unificar Duplicados corrigido de verdade: agrupar só por telefone
+   deixava passar o caso mais comum — participante com telefone e o
+   MESMO participante sem telefone nenhum (registro antigo, ou
+   importado antes do telefone virar campo confiável) nunca eram
+   comparados, e continuavam duplicados pra sempre mesmo depois de
+   "unificar". Achado ao vivo pelo usuário: "Carlos Sena" aparecia 2x
+   ao selecionar, um com telefone um sem.
+   Nova função _calcular_grupos_duplicados() (testada, 7 casos em
+   test/test_bolao_pro_v3.py): agrupa por telefone OU por nome
+   normalizado quando pelo menos um dos dois não tem telefone
+   (union-find, cobre cadeia transitiva A-nome-B-telefone-C). Por
+   segurança, só entra na unificação em massa quem tem no máximo 1
+   telefone real distinto no grupo — mesmo nome com 2+ telefones reais
+   diferentes vira um aviso separado na tela (pode ser gente diferente,
+   não mexe sozinho). Popup agora mostra as duas listas.
 Correções v6.17 (Importar Extrato reconstruído — 5ª das "5 sugestões"):
  - Aba "📥 Importar Extrato" de volta, refeita do zero com um PDF real
    do Nubank calibrando cada passo (a causa raiz do fracasso anterior:
@@ -1121,6 +1140,79 @@ def _limpar_backups_nuvem(manter=10):
         except Exception:
             pass  # não trava a limpeza inteira por causa de um item
 
+def _calcular_grupos_duplicados(pessoas):
+    """Lógica pura (sem UI/banco) de agrupamento de participantes
+    duplicados — ver docstring de BolaoApp._unificar_duplicados pro
+    raciocínio completo. `pessoas` é uma lista de dicts com pelo menos
+    "id"/"nome"/"telefone". Devolve (grupos_seguros, grupos_conflito):
+      grupos_seguros  = [(telefone_final, [pessoa, ...]), ...] — no
+                         máximo 1 telefone real distinto por grupo,
+                         seguro pra unificar em massa sem confirmação
+                         individual.
+      grupos_conflito = [[pessoa, ...], ...] — mesmo nome, 2+ telefones
+                         reais diferentes; pode ser gente diferente,
+                         fica de fora da unificação automática."""
+    import unicodedata as _uc
+    if len(pessoas) < 2:
+        return [], []
+
+    def norm_nome(n):
+        s = _uc.normalize("NFD", n or "")
+        s = "".join(c for c in s if _uc.category(c) != "Mn")
+        return re.sub(r"\s+", " ", s).strip().upper()
+
+    tel_de  = {p["id"]: re.sub(r"\D", "", p["telefone"] or "") for p in pessoas}
+    nome_de = {p["id"]: norm_nome(p["nome"]) for p in pessoas}
+
+    pai = {p["id"]: p["id"] for p in pessoas}
+    def raiz(x):
+        while pai[x] != x:
+            pai[x] = pai[pai[x]]; x = pai[x]
+        return x
+    def unir(a, b):
+        ra, rb = raiz(a), raiz(b)
+        if ra != rb: pai[max(ra, rb)] = min(ra, rb)
+
+    por_tel = {}
+    for p in pessoas:
+        if tel_de[p["id"]]: por_tel.setdefault(tel_de[p["id"]], []).append(p["id"])
+    for ids in por_tel.values():
+        for i in range(1, len(ids)): unir(ids[0], ids[i])
+
+    por_nome = {}
+    for p in pessoas:
+        if nome_de[p["id"]]: por_nome.setdefault(nome_de[p["id"]], []).append(p["id"])
+    for ids in por_nome.values():
+        for i in range(len(ids)):
+            for j in range(i+1, len(ids)):
+                a, b = ids[i], ids[j]
+                if not tel_de[a] or not tel_de[b]:
+                    unir(a, b)
+
+    componentes = {}
+    for p in pessoas:
+        componentes.setdefault(raiz(p["id"]), []).append(p)
+
+    grupos_seguros, ids_em_seguro = [], set()
+    for membros in componentes.values():
+        if len(membros) < 2: continue
+        telefones_reais = {tel_de[m["id"]] for m in membros if tel_de[m["id"]]}
+        if len(telefones_reais) <= 1:
+            grupos_seguros.append((next(iter(telefones_reais), ""), membros))
+            ids_em_seguro.update(m["id"] for m in membros)
+
+    grupos_conflito, vistos = [], set()
+    for nome_norm, ids in por_nome.items():
+        if len(ids) < 2: continue
+        if all(i in ids_em_seguro for i in ids) and len({raiz(i) for i in ids}) == 1:
+            continue  # já cobertos num grupo seguro, nada a avisar
+        chave = tuple(sorted(ids))
+        if chave in vistos: continue
+        vistos.add(chave)
+        grupos_conflito.append([p for p in pessoas if p["id"] in ids])
+
+    return grupos_seguros, grupos_conflito
+
 def _make_part_id(nome, telefone):
     import unicodedata, re as _re
     def norm(s):
@@ -1133,132 +1225,16 @@ def _make_part_id(nome, telefone):
     return (id_nome+"_"+tel) if tel else id_nome
 
 # ─────────────────────────────────────────────
-#  IMPORTAR EXTRATO (Rodada 57) — reconstruído do zero depois de ter
-#  sido excluído na Rodada 52 (nunca funcionou: pdfplumber nunca esteve
-#  empacotado em nenhum .exe publicado). Desta vez:
-#   - extração POSITION-AWARE (coordenadas x/y das palavras na página),
-#     não texto corrido — o PDF do Nubank tem um bug de encoding de
-#     fonte que troca toda letra acentuada por "�" no extract_text()
-#     corrido, mas os NOMES dos remetentes Pix (maiúsculas, quase
-#     sempre sem acento) e os valores continuam legíveis; e a posição
-#     x continua confiável mesmo quando o texto vem corrompido, porque
-#     não dependemos de casar a palavra "Transferência" com acento —
-#     só a coluna onde ela começa.
-#   - pdfplumber importado só dentro da função (lazy), e adicionado a
-#     hiddenimports no SistemaBoloes.spec pra garantir que desta vez
-#     ele é mesmo empacotado no .exe (causa raiz do fracasso anterior).
-#   - nunca lança pagamento sozinho: só monta uma lista de sugestões
-#     pra revisão humana antes de qualquer INSERT (mesmo princípio já
-#     usado nos outros fluxos de importação deste sistema).
+#  [IMPORTAR EXTRATO — REMOVIDA DE NOVO NA RODADA 59]
+#  Reconstruída na Rodada 57 (extração position-aware, validada contra
+#  um PDF real do Nubank, funcionava) — usuário decidiu que não quer
+#  esse módulo, sem dar outro motivo além de não querer. Removidas as
+#  funções módulo-level _extrato_normalizar_nome, _extrair_creditos_
+#  pix_extrato, _extrato_match_participante, a aba "📥 Importar
+#  Extrato" (self.tab_ext) e os métodos _build_ext/_ext_*. Também
+#  revertido em SistemaBoloes.spec o hiddenimports/excludes do
+#  pdfplumber (a lib só existia no build por causa dessa aba).
 # ─────────────────────────────────────────────
-_EXT_MESES = {'JAN':'01','FEV':'02','MAR':'03','ABR':'04','MAI':'05','JUN':'06',
-              'JUL':'07','AGO':'08','SET':'09','OUT':'10','NOV':'11','DEZ':'12'}
-
-def _extrato_normalizar_nome(nome):
-    import unicodedata, re as _re
-    s = unicodedata.normalize("NFD", nome or "")
-    s = "".join(c for c in s if unicodedata.category(c) != "Mn")
-    s = _re.sub(r"\s+", " ", s).strip().upper()
-    return s
-
-def _extrair_creditos_pix_extrato(caminho_pdf):
-    """Lê um extrato do Nubank em PDF e devolve a lista de créditos
-    (Pix recebidos) encontrados: [{"data": "DD/MM/AAAA", "nome": str,
-    "valor": float}, ...]. Não toca em nada além do arquivo — quem
-    chama decide o que fazer com o resultado (casar com participantes,
-    mostrar pra revisão, etc.). Levanta RuntimeError com mensagem
-    amigável se pdfplumber não estiver instalado/empacotado."""
-    try:
-        import pdfplumber
-    except ImportError:
-        raise RuntimeError(
-            "Biblioteca de leitura de PDF (pdfplumber) não encontrada nesta "
-            "instalação. Se você compilou o .exe, confira se pdfplumber está "
-            "em hiddenimports no SistemaBoloes.spec e refaça o build.")
-    import re as _re
-
-    RE_VALOR = _re.compile(r'^[\d\.]+,\d{2}$')
-    RE_PIX_ENTRADA = _re.compile(r'^Transfer.ncia (recebida pelo Pix|Recebida)\s+(.*)$', _re.IGNORECASE)
-    RE_DATA_HDR = _re.compile(r'^(\d{2})\s+([A-Z]{3})\s+(\d{4})\s+Total de (entradas|sa.das)', _re.IGNORECASE)
-
-    def linhas_da_pagina(page):
-        words = page.extract_words(use_text_flow=False, keep_blank_chars=False)
-        linhas = {}
-        for w in words:
-            chave = round(w["top"], 0)
-            achou = None
-            for k in linhas:
-                if abs(k - chave) <= 2:
-                    achou = k; break
-            if achou is None:
-                achou = chave; linhas[achou] = []
-            linhas[achou].append(w)
-        return [sorted(linhas[t], key=lambda w: w["x0"]) for t in sorted(linhas.keys())]
-
-    def to_float_br(s):
-        return float(s.replace(".", "").replace(",", "."))
-
-    creditos = []
-    data_atual = None
-    with pdfplumber.open(caminho_pdf) as pdf:
-        for page in pdf.pages:
-            for ws in linhas_da_pagina(page):
-                if not ws:
-                    continue
-                x0 = ws[0]["x0"]
-                # Cabeçalho de dia ("01 SET 2026  Total de entradas ...") —
-                # fica na coluna esquerda da tabela de movimentações.
-                if 55 <= x0 <= 60:
-                    texto = " ".join(w["text"] for w in ws)
-                    m = RE_DATA_HDR.match(texto)
-                    if m:
-                        dia, mes_abv, ano = m.group(1), m.group(2).upper(), m.group(3)
-                        mes = _EXT_MESES.get(mes_abv)
-                        if mes:
-                            data_atual = f"{dia}/{mes}/{ano}"
-                    continue
-                # Linha de movimento (descrição + valor no fim) — coluna
-                # indentada da tabela.
-                if 115 <= x0 <= 125:
-                    ultima = ws[-1]
-                    if not RE_VALOR.match(ultima["text"]):
-                        continue
-                    desc = " ".join(w["text"] for w in ws[:-1])
-                    m = RE_PIX_ENTRADA.match(desc)
-                    if not m:
-                        continue
-                    resto = m.group(2)
-                    nome = resto.split(" - ")[0].strip()
-                    if not nome:
-                        continue
-                    creditos.append({
-                        "data": data_atual,
-                        "nome": nome,
-                        "valor": to_float_br(ultima["text"]),
-                    })
-    return creditos
-
-def _extrato_match_participante(nome_extrato, participantes):
-    """Tenta casar o nome de quem enviou o Pix com um participante
-    cadastrado. Só devolve um resultado quando há EXATAMENTE UM
-    participante cujo nome normalizado bate 100% (ou está contido /
-    contém o nome do extrato, também normalizado) — em caso de
-    ambiguidade (zero ou mais de um candidato), devolve None e deixa
-    pra revisão manual. Nunca adivinha "o mais parecido": dinheiro
-    lançado errado é pior do que dar mais um clique."""
-    alvo = _extrato_normalizar_nome(nome_extrato)
-    if not alvo:
-        return None
-    candidatos = []
-    for p in participantes:
-        nome_p = _extrato_normalizar_nome(p["nome"])
-        if not nome_p:
-            continue
-        if nome_p == alvo or nome_p in alvo or alvo in nome_p:
-            candidatos.append(p)
-    if len(candidatos) == 1:
-        return candidatos[0]
-    return None
 
 # Critério ÚNICO usado em todo lugar do arquivo pra decidir se um
 # reservas_movimentos.tipo conta como crédito ou débito no saldo.
@@ -1549,7 +1525,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.17")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.18")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1825,7 +1801,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.17",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.18",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -1939,13 +1915,11 @@ class BolaoApp:
         self.tab_rel    = tk.Frame(nb_fin, bg=CORES["bg_frame"])
         self.tab_rsv    = tk.Frame(nb_fin, bg=CORES["bg_frame"])
         self.tab_hist   = tk.Frame(nb_fin, bg=CORES["bg_frame"])
-        self.tab_ext    = tk.Frame(nb_fin, bg=CORES["bg_frame"])
         nb_fin.add(self.tab_pag,    text="💳 Pagamentos")
         nb_fin.add(self.tab_dep,    text="🏦 Depositos")
         nb_fin.add(self.tab_rel,    text="📊 Relatorio")
         nb_fin.add(self.tab_rsv,    text="💰 Reservas Pessoais")
         nb_fin.add(self.tab_hist,   text="📋 Historico")
-        nb_fin.add(self.tab_ext,    text="📥 Importar Extrato")
 
         # ── Gestao: Caixa/Premios/Lançamentos — antes 3 sub-abas de um
         # notebook interno, virou 1 tela só com resumo sempre visível e
@@ -1974,7 +1948,6 @@ class BolaoApp:
         self._build_rel()
         self._build_dep()
         self._build_historico()
-        self._build_ext()
         self._build_prem()
         self._build_res()
         self._build_lanc()
@@ -2596,235 +2569,6 @@ class BolaoApp:
             text=f"✅ '{pt['nome']}' importado — confira cotas/valor acima e clique em CADASTRAR.",
             fg="#1D9E75")
 
-    # ════════════════════════════════════════════════════════════
-    #  ABA "📥 IMPORTAR EXTRATO" (Rodada 57 — reconstruída do zero;
-    #  tinha sido excluída na Rodada 52 porque nunca funcionou — o
-    #  pdfplumber nunca esteve empacotado em nenhum .exe publicado.
-    #  Extração/matching ficam em funções módulo-level, logo acima de
-    #  _make_part_id. Prefixo _ext_ nos métodos/atributos daqui pra não
-    #  colidir com _imp_* (já usado por "Importar Membro de Bolão
-    #  Anterior", uma feature totalmente diferente na aba Cadastro).
-    # ════════════════════════════════════════════════════════════
-    def _build_ext(self):
-        p = self.tab_ext
-        self._ext_pdf_path = None
-        self._ext_creditos = []
-        self._ext_linhas = {}
-
-        tk.Label(p, text="📥 IMPORTAR EXTRATO (Nubank, PDF)", bg=CORES["bg_frame"],
-                 fg=CORES["fg_title"], font=("Arial",12,"bold")).pack(pady=(14,2))
-        tk.Label(p, text="Lê os créditos Pix recebidos do extrato, sugere um participante do "
-                         "bolão selecionado pra cada um, e só lança pagamento no que você "
-                         "selecionar/confirmar abaixo.",
-                 bg=CORES["bg_frame"], fg="#555", font=("Arial",9)).pack()
-
-        top = tk.Frame(p, bg=CORES["bg_frame"]); top.pack(fill="x", padx=20, pady=10)
-        btn(top, "📂 Escolher PDF", CORES["btn_azul"], self._ext_escolher_pdf, width=16).pack(side="left", padx=4)
-        self._ext_arquivo_lbl = tk.Label(top, text="Nenhum arquivo selecionado.",
-            bg=CORES["bg_frame"], fg=CORES["fg_label"], font=("Arial",9))
-        self._ext_arquivo_lbl.pack(side="left", padx=10)
-        btn(top, "🔍 Analisar", CORES["btn_verde"], self._ext_analisar, width=14).pack(side="left", padx=4)
-        self._ext_status_lbl = tk.Label(top, text="", bg=CORES["bg_frame"],
-            fg="#888", font=("Arial",9,"italic"))
-        self._ext_status_lbl.pack(side="left", padx=10)
-
-        sec = section(p, "TRANSAÇÕES ENCONTRADAS — selecione as que quer importar")
-        sec.pack(fill="both", expand=True, padx=20, pady=(0,4))
-        cols = {"Data":80, "Nome no Extrato":220, "Valor":90, "Participante":230, "Situação":170}
-        fr, self.ext_tree = make_tree(sec, cols, height=16)
-        fr.pack(fill="both", expand=True)
-        self.ext_tree.tag_configure("pronto",    background="#d5f5e3")
-        self.ext_tree.tag_configure("semmatch",  background="#fde8d8")
-        self.ext_tree.tag_configure("duplicado", background="#e0e0e0")
-        self.ext_tree.bind("<Double-1>", self._ext_vincular_manual)
-
-        tk.Label(p, text="Duplo-clique numa linha pra escolher/trocar o participante manualmente. "
-                         "Linhas cinza já parecem ter sido importadas antes (mesmo participante, valor e data).",
-                 bg=CORES["bg_frame"], fg="#888", font=("Arial",8,"italic")).pack(anchor="w", padx=22)
-
-        bf = tk.Frame(p, bg=CORES["bg_frame"]); bf.pack(fill="x", padx=20, pady=8)
-        btn(bf, "☑ Selecionar Prontos", CORES["btn_roxo"], self._ext_selecionar_prontos, width=20).pack(side="left", padx=4)
-        btn(bf, "✅ Importar Selecionados", CORES["btn_verde"], self._ext_importar_confirmados, width=22).pack(side="left", padx=4)
-
-    def _ext_escolher_pdf(self):
-        path = filedialog.askopenfilename(title="Selecionar extrato em PDF",
-               filetypes=[("PDF","*.pdf"),("Todos os arquivos","*.*")])
-        if not path: return
-        self._ext_pdf_path = path
-        self._ext_arquivo_lbl.configure(text=os.path.basename(path))
-        self.ext_tree.delete(*self.ext_tree.get_children())
-        self._ext_creditos = []
-        self._ext_linhas = {}
-        self._ext_status_lbl.configure(text="")
-
-    def _ext_analisar(self):
-        if not self._ext_pdf_path:
-            messagebox.showwarning("Atenção","Escolha um arquivo PDF primeiro!"); return
-        if not self.bid.get():
-            messagebox.showwarning("Atenção","Selecione um bolão primeiro!"); return
-        import threading
-        self._ext_status_lbl.configure(text="⏳ Analisando PDF...", fg="#aad4f5")
-        self.ext_tree.delete(*self.ext_tree.get_children())
-        caminho = self._ext_pdf_path
-
-        def _run():
-            try:
-                creditos, erro = _extrair_creditos_pix_extrato(caminho), None
-            except Exception as ex:
-                creditos, erro = [], str(ex)
-            self.root.after(0, lambda: self._ext_concluir_analise(creditos, erro))
-        threading.Thread(target=_run, daemon=True).start()
-
-    def _ext_concluir_analise(self, creditos, erro):
-        if erro:
-            self._ext_status_lbl.configure(text="❌ Erro ao ler o PDF", fg="#ff6b6b")
-            messagebox.showerror("Erro ao ler PDF", erro)
-            return
-        if not creditos:
-            self._ext_status_lbl.configure(text="Nenhum crédito Pix encontrado neste PDF.", fg="#888")
-            return
-        self._ext_creditos = creditos
-        bid = self.bid.get()
-        participantes = []
-        for pa in self.db.fetchall(
-                "SELECT id, pessoa_id FROM participantes WHERE bolao_id=? AND ativo=1", (bid,)):
-            pessoa = self.db.fetchone("SELECT nome FROM pessoas WHERE id=?", (pa["pessoa_id"],))
-            if pessoa:
-                participantes.append({"id": pa["id"], "nome": pessoa["nome"]})
-
-        pagamentos_existentes = set()
-        for r in self.db.fetchall(
-                "SELECT participante_id, valor, data_pagamento FROM pagamentos WHERE bolao_id=?", (bid,)):
-            pagamentos_existentes.add((r["participante_id"], round(float(r["valor"]),2), r["data_pagamento"]))
-
-        self.ext_tree.delete(*self.ext_tree.get_children())
-        self._ext_linhas = {}
-        for i, c in enumerate(creditos):
-            iid = f"ext{i}"
-            match = _extrato_match_participante(c["nome"], participantes)
-            pid   = match["id"]   if match else None
-            pnome = match["nome"] if match else "— selecione —"
-            dup = pid is not None and (pid, round(c["valor"],2), c["data"]) in pagamentos_existentes
-            if dup:
-                situacao, tag = "🔁 Já importado", "duplicado"
-            elif pid:
-                situacao, tag = "✅ Pronto", "pronto"
-            else:
-                situacao, tag = "⚠ Sem correspondência", "semmatch"
-            self._ext_linhas[iid] = {"credito": c, "participante_id": pid,
-                                      "participante_nome": pnome, "duplicado": dup}
-            self.ext_tree.insert("", "end", iid=iid, tags=(tag,), values=(
-                c["data"] or "-", c["nome"], fmt_brl(c["valor"]), pnome, situacao))
-
-        n_ok  = sum(1 for v in self._ext_linhas.values() if v["participante_id"] and not v["duplicado"])
-        n_sem = sum(1 for v in self._ext_linhas.values() if not v["participante_id"])
-        n_dup = sum(1 for v in self._ext_linhas.values() if v["duplicado"])
-        self._ext_status_lbl.configure(
-            text=f"{len(creditos)} transação(ões) — {n_ok} prontas, {n_sem} sem participante, {n_dup} já importadas",
-            fg="#1D9E75")
-
-    def _ext_selecionar_prontos(self):
-        prontos = [iid for iid, v in self._ext_linhas.items()
-                   if v["participante_id"] and not v["duplicado"]]
-        if not prontos:
-            messagebox.showinfo("Nada pra selecionar","Nenhuma transação pronta (com participante e não duplicada).")
-            return
-        self.ext_tree.selection_set(prontos)
-
-    def _ext_vincular_manual(self, event=None):
-        sel = self.ext_tree.selection()
-        if not sel: return
-        iid = sel[0]
-        linha = self._ext_linhas.get(iid)
-        if not linha: return
-        bid = self.bid.get()
-        participantes = self.db.fetchall(
-            "SELECT pa.id AS id, p.nome AS nome FROM participantes pa "
-            "JOIN pessoas p ON p.id=pa.pessoa_id "
-            "WHERE pa.bolao_id=? AND pa.ativo=1 ORDER BY p.nome", (bid,))
-        itens = [f"{r['nome']} (ID: {r['id']})" for r in participantes]
-
-        win = tk.Toplevel(self.root)
-        win.title("Vincular participante")
-        win.geometry("440x170")
-        win.configure(bg=CORES["bg_section"])
-        win.transient(self.root); win.grab_set()
-
-        tk.Label(win, text=f"Extrato: {linha['credito']['nome']}  —  {fmt_brl(linha['credito']['valor'])}"
-                            f"  ({linha['credito']['data'] or '-'})",
-                 bg=CORES["bg_section"], fg=CORES["fg_label"], font=("Arial",9,"bold"),
-                 wraplength=400, justify="left").pack(pady=(14,6), padx=16, anchor="w")
-        cb = ttk.Combobox(win, values=itens, width=46, state="readonly")
-        cb.pack(padx=16, pady=4)
-        if linha["participante_id"]:
-            for it in itens:
-                if it.startswith(linha["participante_nome"]+" ("):
-                    cb.set(it); break
-
-        def _salvar():
-            escolha = cb.get()
-            m = re.search(r"\(ID: (\d+)\)", escolha)
-            if not m:
-                messagebox.showwarning("Atenção","Selecione um participante!"); return
-            pid   = int(m.group(1))
-            pnome = escolha.split(" (ID:")[0]
-            pagamentos_existentes = set()
-            for r in self.db.fetchall(
-                    "SELECT participante_id, valor, data_pagamento FROM pagamentos WHERE bolao_id=?", (bid,)):
-                pagamentos_existentes.add((r["participante_id"], round(float(r["valor"]),2), r["data_pagamento"]))
-            dup = (pid, round(linha["credito"]["valor"],2), linha["credito"]["data"]) in pagamentos_existentes
-            linha["participante_id"]   = pid
-            linha["participante_nome"] = pnome
-            linha["duplicado"]         = dup
-            situacao, tag = ("🔁 Já importado","duplicado") if dup else ("✅ Pronto","pronto")
-            self.ext_tree.item(iid, tags=(tag,), values=(
-                linha["credito"]["data"] or "-", linha["credito"]["nome"],
-                fmt_brl(linha["credito"]["valor"]), pnome, situacao))
-            win.destroy()
-
-        bfw = tk.Frame(win, bg=CORES["bg_section"]); bfw.pack(pady=10)
-        btn(bfw, "Salvar", CORES["btn_verde"], _salvar, width=12).pack(side="left", padx=4)
-        btn(bfw, "Cancelar", CORES["btn_cinza"], win.destroy, width=12).pack(side="left", padx=4)
-
-    def _ext_importar_confirmados(self):
-        sel = self.ext_tree.selection()
-        if not sel:
-            messagebox.showwarning("Atenção","Selecione ao menos uma transação pra importar!"); return
-        bid = self.bid.get()
-        importados, pulados = 0, 0
-        for iid in sel:
-            linha = self._ext_linhas.get(iid)
-            if not linha or not linha["participante_id"] or linha["duplicado"]:
-                pulados += 1; continue
-            c = linha["credito"]
-            # Mês de referência vem da DATA DO PIX no extrato, não da
-            # data de hoje — quem importa um extrato antigo tá lançando
-            # pagamentos de meses passados, não do mês corrente.
-            try:
-                dia_s, mes_s, ano_s = (c["data"] or "").split("/")
-                mes_referencia = f"{MESES[int(mes_s)-1]}/{ano_s}"
-            except Exception:
-                mes_referencia = f"{MESES[date.today().month-1]}/{date.today().year}"
-            self.db.execute(
-                "INSERT INTO pagamentos (participante_id,bolao_id,mes_referencia,valor,data_pagamento,observacoes)"
-                " VALUES (?,?,?,?,?,?)",
-                (linha["participante_id"], bid, mes_referencia, c["valor"],
-                 c["data"] or date.today().strftime("%d/%m/%Y"),
-                 f"Importado do extrato Nubank ({c['nome']})"))
-            self.ext_tree.item(iid, tags=("duplicado",), values=(
-                c["data"] or "-", c["nome"], fmt_brl(c["valor"]), linha["participante_nome"], "🔁 Já importado"))
-            linha["duplicado"] = True
-            importados += 1
-        if importados:
-            self._log("Importar pagamentos do extrato",
-                f"{importados} pagamento(s) importados do PDF "
-                f"({os.path.basename(self._ext_pdf_path or '?')})")
-        messagebox.showinfo("Importação concluída",
-            f"✅ {importados} pagamento(s) importado(s)."
-            + (f"\n⚠ {pulados} linha(s) ignorada(s) (sem participante ou já importadas)." if pulados else ""))
-        if importados:
-            self._refresh_all()
-
     def _abrir_popup_editar_participante(self, participante_id=None):
         """Popup de edição de participante — antes era a aba própria
         "✏ Editar Participante". Se participante_id for informado (ex.:
@@ -3037,79 +2781,100 @@ class BolaoApp:
 
     def _unificar_duplicados(self):
         """Detecta e junta registros de 'pessoas' que são a MESMA pessoa
-        real, mas viraram linhas separadas porque o telefone foi salvo
-        com formatações diferentes em cadastros diferentes (achado real
-        do usuário: "participante aparece 2-3 vezes" ao buscar/importar
-        de outro bolão). Agrupa por telefone só-dígitos — critério seguro
-        o bastante pra unificar sem confirmação por grupo, já que não
-        mexe em nenhum pagamento (só reaponta participantes.pessoa_id pro
-        registro escolhido como principal e apaga os outros)."""
-        pessoas = self.db.fetchall("SELECT * FROM pessoas ORDER BY id")
-        grupos = {}
-        for ps in pessoas:
-            tel_norm = re.sub(r"\D", "", ps["telefone"] or "")
-            if not tel_norm:
-                continue  # sem telefone não dá pra agrupar com segurança
-            grupos.setdefault(tel_norm, []).append(dict(ps))
+        real. Achado (Rodada 59): agrupar só por telefone (como era
+        antes) deixava passar o caso mais comum — um dos dois cadastros
+        sem telefone nenhum (ex.: importado antes do telefone virar
+        campo confiável), que nunca comparava com o registro "certo" da
+        mesma pessoa e continuava aparecendo duplicado pra sempre.
+        Lógica de agrupamento em _calcular_grupos_duplicados() (módulo-
+        level, testada em test/test_bolao_pro_v3.py) — aqui só cuida da
+        tela e da gravação."""
+        pessoas = [dict(p) for p in self.db.fetchall("SELECT * FROM pessoas ORDER BY id")]
+        if len(pessoas) < 2:
+            messagebox.showinfo("Tudo certo", "Menos de 2 participantes cadastrados — nada pra unificar.")
+            return
 
-        duplicados = {tel: grp for tel, grp in grupos.items() if len(grp) > 1}
-        if not duplicados:
+        grupos_seguros, grupos_conflito = _calcular_grupos_duplicados(pessoas)
+
+        if not grupos_seguros and not grupos_conflito:
             messagebox.showinfo("Tudo certo",
-                "Nenhum participante duplicado encontrado — todos os "
-                "telefones já são únicos.")
+                "Nenhum participante duplicado encontrado.")
             return
 
         win = tk.Toplevel(self.root)
         win.title("Unificar Participantes Duplicados")
-        win.geometry("620x460")
+        win.geometry("680x560")
         win.configure(bg=CORES["bg_section"])
         win.grab_set(); win.lift(); win.focus_force()
 
         tk.Label(win, text="🧹 PARTICIPANTES DUPLICADOS ENCONTRADOS",
                  bg=CORES["bg_section"], fg=CORES["fg_title"],
                  font=("Arial",12,"bold")).pack(pady=(14,4))
-        tk.Label(win,
-                 text=f"{len(duplicados)} grupo(s) com o mesmo telefone em mais de um registro.\n"
-                      "O mais antigo de cada grupo vira o principal — os outros são apagados\n"
-                      "e todo participante ligado a eles passa a apontar pro principal.",
-                 bg=CORES["bg_section"], fg="#666", font=("Arial",9), justify="left").pack(pady=(0,8))
 
-        fr = tk.Frame(win, bg=CORES["bg_section"], padx=16); fr.pack(fill="both", expand=True)
-        fr_t, tv = make_tree(fr, {"Telefone":110,"Registros":420}, height=12)
-        fr_t.pack(fill="both", expand=True)
-        for tel, grp in duplicados.items():
-            nomes = "; ".join(f"{g['nome']} (ID {g['id']})" for g in grp)
-            tv.insert("","end", values=(tel, nomes))
+        if grupos_seguros:
+            tk.Label(win,
+                     text=f"{len(grupos_seguros)} grupo(s) prontos pra unificar automaticamente\n"
+                          "(mesmo telefone, ou mesmo nome com um dos dois sem telefone).\n"
+                          "O mais antigo de cada grupo vira o principal — os outros são apagados\n"
+                          "e todo participante ligado a eles passa a apontar pro principal.",
+                     bg=CORES["bg_section"], fg="#666", font=("Arial",9), justify="left").pack(pady=(0,6))
+
+            fr = tk.Frame(win, bg=CORES["bg_section"], padx=16); fr.pack(fill="both", expand=True)
+            fr_t, tv = make_tree(fr, {"Telefone":110,"Registros":500}, height=8)
+            fr_t.pack(fill="both", expand=True)
+            for tel, grp in grupos_seguros:
+                nomes = "; ".join(f"{g['nome']} (ID {g['id']})" for g in grp)
+                tv.insert("","end", values=(tel or "(sem telefone)", nomes))
+
+        if grupos_conflito:
+            tk.Label(win,
+                     text=f"⚠ {len(grupos_conflito)} grupo(s) com o MESMO NOME mas telefones reais "
+                          "diferentes — podem ser pessoas diferentes, então NÃO foram unificados "
+                          "sozinhos. Confira e una manualmente na lista de Participantes se for o caso.",
+                     bg=CORES["bg_section"], fg="#b8860b", font=("Arial",9,"bold"),
+                     wraplength=620, justify="left").pack(pady=(10,6))
+
+            frc = tk.Frame(win, bg=CORES["bg_section"], padx=16); frc.pack(fill="both", expand=True)
+            frc_t, tvc = make_tree(frc, {"Nome":150,"Registros":460}, height=6)
+            frc_t.pack(fill="both", expand=True)
+            for grp in grupos_conflito:
+                detalhe = "; ".join(f"ID {g['id']} — tel {g['telefone'] or '(sem)'}" for g in grp)
+                tvc.insert("","end", values=(grp[0]["nome"], detalhe))
 
         def _confirmar_unificacao():
+            if not grupos_seguros:
+                messagebox.showinfo("Nada pra unificar",
+                    "Só há grupos em conflito (telefones diferentes) — revise manualmente.")
+                return
             if not messagebox.askyesno("Confirmar unificação",
-                f"Unificar {len(duplicados)} grupo(s) de participantes duplicados?\n\n"
+                f"Unificar {len(grupos_seguros)} grupo(s) de participantes duplicados?\n\n"
                 "Isso não apaga nenhum pagamento nem histórico — só junta os "
                 "cadastros que são a mesma pessoa."):
                 return
             grupos_unificados = 0
             registros_removidos = 0
-            for tel, grp in duplicados.items():
-                grp_ordenado = sorted(grp, key=lambda g: g["id"])
+            for tel_final, membros in grupos_seguros:
+                grp_ordenado = sorted(membros, key=lambda g: g["id"])
                 principal = grp_ordenado[0]
                 outros = grp_ordenado[1:]
                 for dup in outros:
-                    # Reaponta todo participante ligado ao duplicado pro
-                    # principal, e já normaliza a cópia denormalizada de
-                    # telefone/nome/pix nessas linhas também.
-                    self.db.execute(
-                        "UPDATE participantes SET pessoa_id=?, telefone=? "
-                        "WHERE pessoa_id=?",
-                        (principal["id"], tel, dup["id"]))
+                    if tel_final:
+                        self.db.execute(
+                            "UPDATE participantes SET pessoa_id=?, telefone=? WHERE pessoa_id=?",
+                            (principal["id"], tel_final, dup["id"]))
+                    else:
+                        self.db.execute(
+                            "UPDATE participantes SET pessoa_id=? WHERE pessoa_id=?",
+                            (principal["id"], dup["id"]))
                     self.db.execute("DELETE FROM pessoas WHERE id=?", (dup["id"],))
                     self._log("Unificar participante duplicado",
                         f"{dup['nome']} (ID {dup['id']}) juntado em "
-                        f"{principal['nome']} (ID {principal['id']}), tel {tel}")
+                        f"{principal['nome']} (ID {principal['id']})"
+                        + (f", tel {tel_final}" if tel_final else " (sem telefone em comum)"))
                     registros_removidos += 1
-                # Garante que o principal também fica com o telefone
-                # normalizado (só dígitos), fechando a causa raiz.
-                self.db.execute("UPDATE pessoas SET telefone=? WHERE id=?",
-                                 (tel, principal["id"]))
+                if tel_final:
+                    self.db.execute("UPDATE pessoas SET telefone=? WHERE id=?",
+                                     (tel_final, principal["id"]))
                 grupos_unificados += 1
             win.destroy()
             messagebox.showinfo("Unificado",
@@ -3118,7 +2883,7 @@ class BolaoApp:
             self._refresh_all()
 
         bf = tk.Frame(win, bg=CORES["bg_section"]); bf.pack(pady=12)
-        btn(bf, "🧹 Unificar Todos", CORES["btn_roxo"], _confirmar_unificacao, width=20).pack(side="left", padx=4)
+        btn(bf, "🧹 Unificar Todos os Seguros", CORES["btn_roxo"], _confirmar_unificacao, width=24).pack(side="left", padx=4)
         btn(bf, "Fechar", CORES["btn_cinza"], win.destroy, width=10).pack(side="left", padx=4)
 
     # ════════════════════════════════════════════════════════════
@@ -5506,7 +5271,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.17</span>
+        <span>Sistema de Gestão de Bolões v6.18</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -7825,7 +7590,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.17</span>
+        <span>Sistema de Gestão de Bolões v6.18</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>

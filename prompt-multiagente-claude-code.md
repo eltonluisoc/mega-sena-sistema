@@ -922,6 +922,24 @@ Sem mudança nenhuma de comportamento visível pro usuário — só menos leitur
 
 **Nota à parte**: no mesmo fluxo dessa rodada, o usuário tentou ativar o backup na nuvem (Rodada 56/57) e descobriu que o Firebase Storage agora exige o plano pago Blaze pra ser habilitado (mudança da política do Google, não é algo que o projeto controla). Decidiu não fazer upgrade por enquanto — backup na nuvem fica pendente, documentado como decisão consciente, não como bug.
 
+## Rodada 59 — Remove Importar Extrato de novo + corrige unificação de duplicados de verdade (v6.18, desktop)
+
+Duas coisas na mesma mensagem do usuário: (1) "não quero o modulo importar extrato. exclua ele..." — sem outro motivo dado; (2) print mostrando a busca de "Importar Membro de Bolão Anterior" com "Carlos Sena" aparecendo 2x, um com telefone e outro sem ("-"), com o comentário "diz que está tudo unificado... mas conforme a tela mostra... tem várias situações assim... analise e resolva".
+
+**Remoção do Importar Extrato**: reversão completa e limpa da Rodada 57/58 — funções módulo-level (`_extrair_creditos_pix_extrato`, `_extrato_match_participante`, `_extrato_normalizar_nome`), a aba `self.tab_ext` e todos os métodos `_build_ext`/`_ext_*`, e o `hiddenimports`/`excludes` do pdfplumber no `SistemaBoloes.spec` (volta a ficar vazio, como antes). `.exe` volta de ~36MB pra ~32MB. Confirmado por grep que não sobrou nenhuma referência viva (só comentário explicando a remoção, seguindo o mesmo padrão já usado na Rodada 52 pra essa mesma funcionalidade).
+
+**Unificar Duplicados — bug real, não só relatado**: investigado `_unificar_duplicados` e confirmada a causa exata do print — o agrupamento antigo (`Rodada 51/54`) só juntava `pessoas` que tivessem o MESMO telefone normalizado, e pulava explicitamente quem não tinha telefone nenhum (`if not tel_norm: continue`). Um "Carlos Sena" com telefone e outro "Carlos Sena" sem telefone nunca eram comparados — apareciam duplicados pra sempre, mesmo depois de rodar "Unificar Duplicados" repetidas vezes, porque o critério de agrupamento estruturalmente nunca os colocava no mesmo grupo.
+
+Reescrito com union-find, validado com 6 cenários num protótipo isolado antes de mexer no código real (achado durante a validação: a primeira versão simples não sinalizava o caso "mesmo nome, dois telefones reais diferentes" — corrigido com uma segunda passada específica pra isso). Duas fontes de match combinadas:
+- mesmo telefone normalizado (como antes);
+- mesmo nome normalizado, quando PELO MENOS UM dos dois registros não tem telefone — cobre o caso relatado sem arriscar juntar duas pessoas diferentes que só coincidem de nome.
+
+Por segurança, um grupo só entra na unificação em massa (botão "Unificar Todos os Seguros") se tiver no máximo 1 telefone real distinto entre os membros — mesmo nome com 2+ telefones reais diferentes vira uma lista separada de AVISO na mesma tela ("podem ser pessoas diferentes"), sem mexer sozinho.
+
+Lógica extraída pra `_calcular_grupos_duplicados()` (módulo-level, sem UI/banco) especificamente pra poder testar contra a função de PRODUÇÃO — 7 testes novos em `test/test_bolao_pro_v3.py` (incluindo o caso exato do print do usuário e o caso de conflito que o protótipo pegou), substituindo o teste antigo que só reimplementava uma versão desatualizada da lógica.
+
+Versão desktop v6.17 → **v6.18**. `python test/test_bolao_pro_v3.py`: 33/33. `dist/SistemaBoloes.exe` reconstruído via `SistemaBoloes.spec` (~32MB, confirma que o pdfplumber saiu).
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

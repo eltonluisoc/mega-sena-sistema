@@ -220,48 +220,116 @@ class TestOrdenacaoCronologica(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════
-#  Unificação de participantes duplicados (Rodada 51/54) —
-#  agrupa "pessoas" pelo telefone normalizado (só dígitos) e
-#  reaponta os participantes pro registro mais antigo do grupo.
+#  Unificação de participantes duplicados — _calcular_grupos_
+#  duplicados() (Rodada 51/54, revisto na Rodada 59). Chama a
+#  função de PRODUÇÃO direto (não uma reimplementação local), pra
+#  pegar regressão de verdade se a lógica mudar.
+#
+#  Achado real que motivou a Rodada 59: agrupar só por telefone
+#  deixava passar o caso mais comum — um cadastro sem telefone
+#  nenhum nunca comparava com o registro certo da mesma pessoa
+#  ("Carlos Sena" aparecia 2x na busca, um com telefone e outro
+#  sem, e a unificação antiga nunca juntava os dois).
 # ════════════════════════════════════════════════════════════
-class TestUnificarDuplicados(unittest.TestCase):
-    def test_merge_agrupa_por_telefone_normalizado_e_preserva_participantes(self):
+class TestCalcularGruposDuplicados(unittest.TestCase):
+    def test_mesmo_nome_um_sem_telefone_e_seguro(self):
+        # O bug relatado pelo usuário, ao vivo: "Carlos Sena" com
+        # telefone e "Carlos Sena" sem telefone tinham que unificar.
+        pessoas = [
+            {"id": 1, "nome": "Carlos Sena", "telefone": "61992116230"},
+            {"id": 2, "nome": "Carlos Sena", "telefone": ""},
+        ]
+        seguros, conflito = m._calcular_grupos_duplicados(pessoas)
+        self.assertEqual(len(seguros), 1)
+        self.assertEqual(seguros[0][0], "61992116230")
+        self.assertEqual(sorted(p["id"] for p in seguros[0][1]), [1, 2])
+        self.assertEqual(conflito, [])
+
+    def test_mesmo_telefone_formatacao_diferente_e_seguro(self):
+        pessoas = [
+            {"id": 3, "nome": "Joao Silva", "telefone": "(61) 99999-9999"},
+            {"id": 4, "nome": "Joao Silva", "telefone": "61999999999"},
+        ]
+        seguros, conflito = m._calcular_grupos_duplicados(pessoas)
+        self.assertEqual(len(seguros), 1)
+        self.assertEqual(conflito, [])
+
+    def test_mesmo_nome_telefones_reais_diferentes_vira_conflito_nao_seguro(self):
+        # Podem ser DUAS pessoas diferentes com o mesmo nome — nunca
+        # unifica sozinho, só avisa.
+        pessoas = [
+            {"id": 5, "nome": "Joao Pereira", "telefone": "61911112222"},
+            {"id": 6, "nome": "Joao Pereira", "telefone": "61933334444"},
+        ]
+        seguros, conflito = m._calcular_grupos_duplicados(pessoas)
+        self.assertEqual(seguros, [])
+        self.assertEqual(len(conflito), 1)
+        self.assertEqual(sorted(p["id"] for p in conflito[0]), [5, 6])
+
+    def test_cadeia_transitiva_nome_mais_telefone(self):
+        # A (sem telefone) bate com B pelo nome; B bate com C pelo
+        # telefone — os três têm que virar UM grupo só.
+        pessoas = [
+            {"id": 7, "nome": "Ana Costa", "telefone": ""},
+            {"id": 8, "nome": "Ana Costa", "telefone": "61977778888"},
+            {"id": 9, "nome": "Ana C.", "telefone": "61977778888"},
+        ]
+        seguros, conflito = m._calcular_grupos_duplicados(pessoas)
+        self.assertEqual(len(seguros), 1)
+        self.assertEqual(sorted(p["id"] for p in seguros[0][1]), [7, 8, 9])
+        self.assertEqual(conflito, [])
+
+    def test_pessoas_nao_relacionadas_nao_formam_grupo(self):
+        pessoas = [
+            {"id": 10, "nome": "Pedro Alves", "telefone": "61955556666"},
+            {"id": 11, "nome": "Lucas Nunes", "telefone": "61944445555"},
+        ]
+        seguros, conflito = m._calcular_grupos_duplicados(pessoas)
+        self.assertEqual(seguros, [])
+        self.assertEqual(conflito, [])
+
+    def test_tres_pessoas_mesmo_nome_dois_telefones_reais_fica_de_fora(self):
+        # 1 sem telefone + 2 com telefones reais DIFERENTES entre si —
+        # mesmo o sem-telefone servindo de "ponte" pro nome, não é
+        # seguro auto-unificar (podem ser 2 pessoas reais distintas).
+        pessoas = [
+            {"id": 12, "nome": "Carlos Sena", "telefone": ""},
+            {"id": 13, "nome": "Carlos Sena", "telefone": "61911112222"},
+            {"id": 14, "nome": "Carlos Sena", "telefone": "61933334444"},
+        ]
+        seguros, conflito = m._calcular_grupos_duplicados(pessoas)
+        self.assertEqual(seguros, [])
+        self.assertEqual(len(conflito), 1)
+        self.assertEqual(sorted(p["id"] for p in conflito[0]), [12, 13, 14])
+
+    def test_grupo_seguro_preserva_participantes_ao_unificar(self):
+        # Reproduz o efeito colateral do merge (fora de _calcular_
+        # grupos_duplicados, que só decide OS grupos — a gravação é
+        # feita por _unificar_duplicados) contra um banco em memória,
+        # confirmando que nenhum participante/pagamento se perde.
         conn = sqlite3.connect(":memory:")
         conn.execute("CREATE TABLE pessoas (id INTEGER PRIMARY KEY, nome TEXT, telefone TEXT)")
         conn.execute("CREATE TABLE participantes (id INTEGER PRIMARY KEY, pessoa_id INTEGER, telefone TEXT)")
-        conn.execute("INSERT INTO pessoas VALUES (1,'Joao Silva','61999999999')")
-        conn.execute("INSERT INTO pessoas VALUES (2,'Joao Silva','(61) 99999-9999')")
-        conn.execute("INSERT INTO pessoas VALUES (3,'Maria Souza','61988887777')")
-        conn.execute("INSERT INTO participantes VALUES (10,1,'61999999999')")
-        conn.execute("INSERT INTO participantes VALUES (11,2,'(61) 99999-9999')")
-        conn.execute("INSERT INTO participantes VALUES (12,3,'61988887777')")
+        conn.execute("INSERT INTO pessoas VALUES (1,'Carlos Sena','61992116230')")
+        conn.execute("INSERT INTO pessoas VALUES (2,'Carlos Sena','')")
+        conn.execute("INSERT INTO participantes VALUES (10,1,'61992116230')")
+        conn.execute("INSERT INTO participantes VALUES (11,2,'')")
 
-        import re as _re
-        pessoas = conn.execute("SELECT * FROM pessoas ORDER BY id").fetchall()
-        grupos = {}
-        for pid, nome, tel in pessoas:
-            tel_norm = _re.sub(r"\D", "", tel or "")
-            grupos.setdefault(tel_norm, []).append({"id": pid, "nome": nome})
-        duplicados = {t: g for t, g in grupos.items() if len(g) > 1}
+        pessoas = [dict(zip(("id","nome","telefone"), r))
+                   for r in conn.execute("SELECT * FROM pessoas ORDER BY id")]
+        seguros, _ = m._calcular_grupos_duplicados(pessoas)
+        self.assertEqual(len(seguros), 1)
+        tel_final, membros = seguros[0]
+        principal, *outros = sorted(membros, key=lambda g: g["id"])
+        for dup in outros:
+            conn.execute("UPDATE participantes SET pessoa_id=?, telefone=? WHERE pessoa_id=?",
+                         (principal["id"], tel_final, dup["id"]))
+            conn.execute("DELETE FROM pessoas WHERE id=?", (dup["id"],))
+        conn.execute("UPDATE pessoas SET telefone=? WHERE id=?", (tel_final, principal["id"]))
 
-        self.assertEqual(list(duplicados.keys()), ["61999999999"])
-        for tel, grp in duplicados.items():
-            grp_ordenado = sorted(grp, key=lambda g: g["id"])
-            principal = grp_ordenado[0]
-            for dup in grp_ordenado[1:]:
-                conn.execute("UPDATE participantes SET pessoa_id=?, telefone=? WHERE pessoa_id=?",
-                             (principal["id"], tel, dup["id"]))
-                conn.execute("DELETE FROM pessoas WHERE id=?", (dup["id"],))
-            conn.execute("UPDATE pessoas SET telefone=? WHERE id=?", (tel, principal["id"]))
-
-        pessoas_restantes = conn.execute("SELECT id FROM pessoas ORDER BY id").fetchall()
-        self.assertEqual([r[0] for r in pessoas_restantes], [1, 3])  # id 2 sumiu
-
-        participantes_apos = conn.execute(
-            "SELECT id, pessoa_id FROM participantes ORDER BY id").fetchall()
-        # Os DOIS participantes (10 e 11) continuam existindo — só passam
-        # a apontar pro mesmo pessoa_id (1). Nada de pagamento se perde.
-        self.assertEqual(dict(participantes_apos), {10: 1, 11: 1, 12: 3})
+        self.assertEqual([r[0] for r in conn.execute("SELECT id FROM pessoas")], [1])
+        participantes_apos = dict(conn.execute("SELECT id, pessoa_id FROM participantes"))
+        self.assertEqual(participantes_apos, {10: 1, 11: 1})
         conn.close()
 
 
