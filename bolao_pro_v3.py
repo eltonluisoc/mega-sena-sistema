@@ -1,7 +1,37 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.18
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.19
+Correções v6.19 (mitiga exposição do Firestore SEM plano pago — busca_participante):
+ - Correção definitiva (de graça) da exposição pública da coleção
+   "participantes" (achada na Rodada 56) — usuário recusou o plano
+   Blaze (Storage e Cloud Functions exigem ele), pediu solução
+   diferente e sem custo. Solução: get()/list() são permissões
+   SEPARADAS no Firestore — dá pra permitir buscar 1 documento pelo ID
+   e travar "listar a coleção inteira" ao mesmo tempo. Nova coleção
+   busca_participante/{telefone} — 1 doc por PESSOA, chave = telefone
+   só dígitos, com a lista de bolões que ela participa. get() sempre
+   liberado (a pessoa busca o próprio telefone), list() travado de vez
+   (ninguém baixa todo mundo de uma vez, nem pelo console do navegador).
+ - Novas funções módulo-level: atualizar_busca_participante() (upsert
+   por telefone, remove/substitui a entrada do mesmo bolão antes de
+   adicionar a nova) + _firestore_valor_para_python()/_python_para_
+   valor() (codec REST do Firestore, testado com round-trip).
+ - _montar_lista_part_firestore() extraída de _pub_montar_dados_impl
+   (mesma lógica, sem duplicar) — reaproveitada tanto na publicação
+   normal quanto no novo botão "🔄 Sincronizar Busca por Telefone"
+   (aba Publicar), que roda o upsert pra TODOS os bolões já publicados
+   de uma vez — o backfill pros dados que existiam antes dessa mudança.
+   Roda sozinho a cada publicação normal daqui pra frente.
+ - firestore.rules: participantes vira get() público + list() só admin
+   (admin.js só chama list() autenticado, confirmado); nova coleção
+   busca_participante com get() público + list() travado.
+ - admin.js: config_boloes/ativos ganhou um campo "metadados" (título/
+   loteria/valor por cota de cada bolão público, sem dado pessoal) —
+   permite consulta.html listar "bolões abertos pra participar" sem
+   ler a coleção participantes.
+ - consulta.js/consulta.html: reescritos pra ler busca_participante +
+   config_boloes/ativos em vez de baixar participantes inteira.
 Correções v6.18 (remove Importar Extrato de novo + corrige unificação de duplicados de verdade):
  - Importar Extrato (da v6.17) removida a pedido do usuário — sem
    motivo além de não querer o módulo. Reverte pdfplumber do
@@ -1469,6 +1499,106 @@ def enviar_bolao_para_site(titulo, loteria, valor_cota,
         return {"sucesso": False, "status": 0, "erro": erro, "doc_id": ""}
 
 
+# ─────────────────────────────────────────────
+#  BUSCA_PARTICIPANTE (Rodada 60) — mitigação GRATUITA da exposição
+#  pública da coleção "participantes" (achada na Rodada 56, cuja
+#  correção "de verdade" via Cloud Function exige o plano pago Blaze,
+#  que o usuário recusou). Sem custo, sem servidor próprio: Firestore
+#  Security Rules já separam a permissão de "pegar 1 documento pelo ID"
+#  (get) da de "listar/baixar a coleção inteira" (list) — são regras
+#  DIFERENTES. Criando 1 documento por TELEFONE (não por bolão), dá pra
+#  liberar get() pro público (a pessoa busca só o próprio telefone) e
+#  bloquear list() de vez (ninguém baixa todo mundo de uma vez, nem
+#  pelo console do navegador). Ver firestore.rules.
+# ─────────────────────────────────────────────
+FIREBASE_BUSCA_PARTICIPANTE = (
+    "https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
+    "/databases/(default)/documents/busca_participante"
+)
+
+def _firestore_valor_para_python(v):
+    """Decodifica UM valor do formato REST do Firestore (mapValue/
+    arrayValue/stringValue/...) pra um valor Python simples. Só cobre
+    os tipos que este projeto realmente grava (não é um decoder geral)."""
+    if not isinstance(v, dict):
+        return v
+    if "stringValue" in v: return v["stringValue"]
+    if "doubleValue" in v: return v["doubleValue"]
+    if "integerValue" in v: return int(v["integerValue"])
+    if "booleanValue" in v: return v["booleanValue"]
+    if "arrayValue" in v:
+        return [_firestore_valor_para_python(x) for x in v["arrayValue"].get("values", [])]
+    if "mapValue" in v:
+        return {k: _firestore_valor_para_python(x) for k, x in v["mapValue"].get("fields", {}).items()}
+    return None
+
+def _firestore_python_para_valor(v):
+    """Inverso de _firestore_valor_para_python — Python simples pro
+    formato REST do Firestore."""
+    if isinstance(v, bool): return {"booleanValue": v}
+    if isinstance(v, int): return {"integerValue": str(v)}
+    if isinstance(v, float): return {"doubleValue": v}
+    if isinstance(v, str): return {"stringValue": v}
+    if isinstance(v, list):
+        return {"arrayValue": {"values": [_firestore_python_para_valor(x) for x in v]}}
+    if isinstance(v, dict):
+        return {"mapValue": {"fields": {k: _firestore_python_para_valor(x) for k, x in v.items()}}}
+    return {"nullValue": None}
+
+def atualizar_busca_participante(bolao_doc_id, titulo, loteria, valor_cota, data_limite, participantes):
+    """Atualiza busca_participante/{telefone} pra cada participante da
+    lista — um documento por PESSOA (chave = telefone só dígitos), com
+    a lista de bolões que ela participa. Faz leitura+escrita por
+    participante (poucas dezenas por bolão, ação manual e rara do
+    admin — não é o tipo de leitura em volume que estourou a cota na
+    Rodada 58). Remove/substitui a entrada antiga do MESMO bolão antes
+    de adicionar a nova, pra não duplicar em republicações/edições.
+    Devolve a lista de nomes que falharam (vazia se tudo OK)."""
+    import urllib.request, urllib.error, json
+    erros = []
+    for p in participantes:
+        tel = re.sub(r"\D", "", p.get("telefone") or "")
+        if not tel:
+            continue  # sem telefone não tem como essa pessoa ser encontrada por essa busca
+        doc_url = f"{FIREBASE_BUSCA_PARTICIPANTE}/{tel}"
+        try:
+            atual = {}
+            req = urllib.request.Request(doc_url, method="GET", headers=_firebase_headers())
+            try:
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    atual = json.loads(resp.read().decode("utf-8")).get("fields", {})
+            except urllib.error.HTTPError as e:
+                if e.code != 404:
+                    raise
+
+            boloes_atuais = _firestore_valor_para_python(atual["boloes"]) if "boloes" in atual else []
+            if not isinstance(boloes_atuais, list):
+                boloes_atuais = []
+            boloes_atuais = [b for b in boloes_atuais if isinstance(b, dict) and b.get("bolaoId") != bolao_doc_id]
+            boloes_atuais.append({
+                "bolaoId": bolao_doc_id, "titulo": titulo, "loteria": loteria,
+                "valorPorCota": round(float(valor_cota), 2), "dataLimite": data_limite or "",
+                "situacao": p.get("situacao") or "em_andamento",
+                "quantidadeCotas": int(p.get("quantidadeCotas") or 1),
+                "valorPago": float(p.get("valorPago") or 0),
+            })
+
+            doc = {"fields": {
+                "nome": {"stringValue": p.get("nome") or ""},
+                "boloes": _firestore_python_para_valor(boloes_atuais),
+            }}
+            corpo = json.dumps(doc, ensure_ascii=False).encode("utf-8")
+            url_patch = _firestore_patch_url(doc_url, ["nome", "boloes"])
+            req2 = urllib.request.Request(url_patch, data=corpo, method="PATCH", headers=_firebase_headers())
+            with urllib.request.urlopen(req2, timeout=15) as resp2:
+                if resp2.status != 200:
+                    erros.append(p.get("nome") or tel)
+        except Exception as ex:
+            print(f"[busca_participante] erro em {p.get('nome')}: {ex}")
+            erros.append(p.get("nome") or tel)
+    return erros
+
+
 def remover_bolao_do_site(titulo, doc_id_fixo=None):
     """Remove o documento do bolão do Firebase.
 
@@ -1525,7 +1655,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.18")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.19")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1801,7 +1931,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.18",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.19",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -5271,7 +5401,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.18</span>
+        <span>Sistema de Gestão de Bolões v6.19</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -7590,7 +7720,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.18</span>
+        <span>Sistema de Gestão de Bolões v6.19</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -7878,6 +8008,22 @@ class BolaoApp:
         self._pub_status = tk.Label(sec, text="", bg=CORES["bg_section"],
                                      fg="#1D9E75", font=("Arial",10,"bold"))
         self._pub_status.pack(anchor="w", pady=4)
+
+        # Sincronização em lote de busca_participante (Rodada 60) — roda
+        # uma vez sobre TODOS os bolões já publicados, pra popular a
+        # coleção nova sem precisar republicar cada bolão manualmente.
+        sec_busca = section(outer, "🔍 BUSCA POR TELEFONE DO SITE")
+        sec_busca.pack(fill="x", pady=(10,0))
+        tk.Label(sec_busca,
+                 text="Mantém a coleção que permite ao site buscar UM participante pelo "
+                      "telefone sem baixar a lista inteira de todo mundo (mitigação de "
+                      "segurança da Rodada 60). Já roda sozinha ao publicar um bolão — use "
+                      "o botão abaixo só pra sincronizar de uma vez os bolões já publicados "
+                      "antes dessa mudança, ou se desconfiar que algo ficou desatualizado.",
+                 bg=CORES["bg_section"], fg="#666", font=("Arial",8,"italic"),
+                 wraplength=760, justify="left").pack(anchor="w", pady=(0,6))
+        btn(sec_busca, "🔄 Sincronizar Busca por Telefone (todos os bolões)",
+            CORES["btn_roxo"], self._pub_sincronizar_busca_telefone, width=42).pack(anchor="w")
         sec2 = section(outer, "PRÉ-VISUALIZAÇÃO")
         sec2.pack(fill="both", expand=True, pady=(12,0))
         self._pub_txt = tk.Text(sec2, font=("Courier",9), wrap="word",
@@ -7885,6 +8031,46 @@ class BolaoApp:
         vsb = ttk.Scrollbar(sec2, orient="vertical", command=self._pub_txt.yview)
         self._pub_txt.configure(yscrollcommand=vsb.set)
         vsb.pack(side="right", fill="y"); self._pub_txt.pack(fill="both", expand=True)
+
+    def _montar_lista_part_firestore(self, bid, vt, bd):
+        """Monta a lista de participantes no formato usado pro Firestore
+        (nome/telefone/valorPago/situacao/quantidadeCotas/dataCadastro) —
+        extraído de _pub_montar_dados_impl pra ser reaproveitado também
+        pela sincronização em lote de busca_participante (Rodada 60,
+        _pub_sincronizar_busca_telefone), sem duplicar a lógica."""
+        partic = self.db.fetchall(
+            "SELECT * FROM participantes WHERE bolao_id=? AND ativo=1 ORDER BY nome", (bid,))
+        adm_nome     = bd.get("adm_nome","").strip()
+        adm_paga     = bd.get("adm_paga", 0)
+        adm_nome_low = adm_nome.lower()
+        pag_rows = self.db.fetchall(
+            "SELECT participante_id, SUM(valor) as total_pago, MIN(data_pagamento) as dt_cad "
+            "FROM pagamentos WHERE bolao_id=? GROUP BY participante_id", (bid,))
+        pag_map = {r["participante_id"]: r for r in pag_rows}
+        adm_cadastrado = False; lista_part = []
+        for pt in partic:
+            pt_d = dict(pt); pid = pt_d["id"]
+            pr   = pag_map.get(pid)
+            pago = float(pr["total_pago"] or 0) if pr else 0.0
+            dt_cad = pr["dt_cad"] if pr and pr["dt_cad"] else ""
+            ve   = float(pt_d["valor_esperado"] or 0)
+            eh_adm = bool(pt_d.get("is_adm")) or (adm_nome_low and adm_nome_low in pt_d["nome"].lower())
+            if eh_adm: adm_cadastrado = True
+            if eh_adm and not adm_paga:
+                n_cotas=1; situacao="quitado"; valorPago=0
+            else:
+                n_cotas  = max(1, round(ve/vt)) if vt>0 and ve>0 else 1
+                saldo    = max(0, ve-pago)
+                situacao = "quitado" if saldo<=0 else "em_andamento"
+                valorPago= int(round(pago))
+            tel_digits = re.sub(r"\D", "", str(pt_d.get("telefone") or ""))
+            lista_part.append({"nome":pt_d["nome"],"telefone":tel_digits,
+                "valorPago":valorPago,"situacao":situacao,
+                "quantidadeCotas":n_cotas,"dataCadastro":dt_cad})
+        if adm_nome and not adm_paga and not adm_cadastrado:
+            lista_part.append({"nome":adm_nome,"telefone":"","valorPago":0,
+                "situacao":"quitado","quantidadeCotas":1,"dataCadastro":""})
+        return lista_part
 
     def _pub_montar_dados(self):
         try:
@@ -7915,41 +8101,7 @@ class BolaoApp:
                 "Este bolão não tem valor de cota configurado. Edite o bolão e "
                 "informe o valor antes de publicar.")
             return None
-        partic = self.db.fetchall(
-            "SELECT * FROM participantes WHERE bolao_id=? AND ativo=1 ORDER BY nome", (bid,))
-        adm_nome     = bd.get("adm_nome","").strip()
-        adm_paga     = bd.get("adm_paga", 0)
-        adm_nome_low = adm_nome.lower()
-        # Bulk query pagamentos
-        pag_rows = self.db.fetchall(
-            "SELECT participante_id, SUM(valor) as total_pago, MIN(data_pagamento) as dt_cad "
-            "FROM pagamentos WHERE bolao_id=? GROUP BY participante_id", (bid,))
-        pag_map = {r["participante_id"]: r for r in pag_rows}
-        adm_cadastrado = False; lista_part = []
-        for pt in partic:
-            pt_d = dict(pt); pid = pt_d["id"]
-            pr   = pag_map.get(pid)
-            pago = float(pr["total_pago"] or 0) if pr else 0.0
-            dt_cad = pr["dt_cad"] if pr and pr["dt_cad"] else ""
-            ve   = float(pt_d["valor_esperado"] or 0)
-            eh_adm = bool(pt_d.get("is_adm")) or (adm_nome_low and adm_nome_low in pt_d["nome"].lower())
-            if eh_adm: adm_cadastrado = True
-            if eh_adm and not adm_paga:
-                n_cotas=1; situacao="quitado"; valorPago=0
-            else:
-                n_cotas  = max(1, round(ve/vt)) if vt>0 and ve>0 else 1
-                saldo    = max(0, ve-pago)
-                situacao = "quitado" if saldo<=0 else "em_andamento"
-                valorPago= int(round(pago))
-            import re as _re_tel
-            tel_raw = str(pt_d.get("telefone") or "")
-            tel_digits = _re_tel.sub(r"\D", "", tel_raw)
-            lista_part.append({"nome":pt_d["nome"],"telefone":tel_digits,
-                "valorPago":valorPago,"situacao":situacao,
-                "quantidadeCotas":n_cotas,"dataCadastro":dt_cad})
-        if adm_nome and not adm_paga and not adm_cadastrado:
-            lista_part.append({"nome":adm_nome,"telefone":"","valorPago":0,
-                "situacao":"quitado","quantidadeCotas":1,"dataCadastro":""})
+        lista_part = self._montar_lista_part_firestore(bid, vt, bd)
         # Loteria inferida do nome do bolão
         nome_lower = bd["nome"].lower()
         if "lotofacil" in nome_lower or "lotofácil" in nome_lower:
@@ -8011,6 +8163,14 @@ class BolaoApp:
                     self.db.execute(
                         "UPDATE boloes SET firebase_doc_id=? WHERE id=?",
                         (resultado["doc_id"], dados["_bolao_id"]))
+                # Mantém busca_participante em dia (Rodada 60) — sem isso
+                # o participante desse bolão não aparece na consulta por
+                # telefone do site, que não lê mais "participantes" inteira.
+                if resultado.get("sucesso") and resultado.get("doc_id"):
+                    erros_busca = atualizar_busca_participante(
+                        resultado["doc_id"], dados["titulo"], dados["loteria"],
+                        dados["valorPorCota"], dados["dataLimite"], dados["participantes"])
+                    resultado["erros_busca_participante"] = erros_busca
             except Exception as ex:
                 resultado = {"sucesso":False,"erro":str(ex),"status":0,"doc_id":""}
             if resultado.get("excluido_no_site"):
@@ -8022,8 +8182,14 @@ class BolaoApp:
                 except Exception: pass
             def _ui():
                 if resultado.get("sucesso"):
-                    self._pub_status.configure(
-                        text="✅ Publicado com sucesso!", fg="#1D9E75")
+                    erros_busca = resultado.get("erros_busca_participante") or []
+                    if erros_busca:
+                        self._pub_status.configure(
+                            text=f"⚠️ Publicado, mas {len(erros_busca)} participante(s) "
+                                 "não atualizaram na busca por telefone.", fg="#f39c12")
+                    else:
+                        self._pub_status.configure(
+                            text="✅ Publicado com sucesso!", fg="#1D9E75")
                 elif resultado.get("excluido_no_site"):
                     self._pub_status.configure(
                         text="⚠️ Bolão foi excluído no site — marcado como encerrado aqui.",
@@ -8047,6 +8213,71 @@ class BolaoApp:
                         "Nao foi possivel publicar.\n\n"+erro+dica)
             self.root.after(0, _ui)
         import threading; threading.Thread(target=_executar, daemon=True).start()
+
+    def _pub_sincronizar_busca_telefone(self):
+        """Roda atualizar_busca_participante() pra TODOS os bolões já
+        publicados (que têm firebase_doc_id), usando os dados atuais do
+        banco local — é o backfill de uma vez só pra popular a coleção
+        busca_participante com o que já existia antes da Rodada 60,
+        sem depender de republicar bolão por bolão manualmente."""
+        boloes = self.db.fetchall(
+            "SELECT * FROM boloes WHERE firebase_doc_id IS NOT NULL AND firebase_doc_id != ''")
+        if not boloes:
+            messagebox.showinfo("Nada a sincronizar",
+                "Nenhum bolão publicado ainda (nenhum tem firebase_doc_id salvo).")
+            return
+        if not messagebox.askyesno("Sincronizar Busca por Telefone",
+            f"Isso vai atualizar a busca por telefone do site pra "
+            f"{len(boloes)} bolão(ões) já publicados, usando os dados atuais "
+            "do banco local. Pode demorar um pouco. Continuar?"):
+            return
+        self._pub_status.configure(text=f"⏳ Sincronizando {len(boloes)} bolão(ões)...", fg="#aad4f5")
+        self.root.update_idletasks()
+
+        def _executar():
+            total_erros = []
+            for b in boloes:
+                bd = dict(b)
+                bid = bd["id"]
+                vt = float(bd.get("valor_total", 0) or 0)
+                if vt <= 0:
+                    continue  # mesma trava do _pub_montar_dados_impl
+                lista_part = self._montar_lista_part_firestore(bid, vt, bd)
+                nome_lower = (bd.get("nome") or "").lower()
+                if "lotofacil" in nome_lower or "lotofácil" in nome_lower:
+                    loteria = "lotofacil"
+                elif "quina" in nome_lower:
+                    loteria = "quina"
+                else:
+                    loteria = "mega"
+                data_limite = bd.get("data_concurso") or ""
+                try:
+                    if data_limite and "/" in data_limite:
+                        data_limite = datetime.strptime(data_limite, "%d/%m/%Y").strftime("%Y-%m-%d")
+                except Exception:
+                    pass
+                try:
+                    erros = atualizar_busca_participante(
+                        bd["firebase_doc_id"], bd["nome"], loteria, vt, data_limite, lista_part)
+                    total_erros.extend(erros)
+                except Exception as ex:
+                    total_erros.append(f"{bd.get('nome')}: {ex}")
+
+            def _ui():
+                if total_erros:
+                    self._pub_status.configure(
+                        text=f"⚠️ Sincronizado com {len(total_erros)} erro(s)", fg="#f39c12")
+                    messagebox.showwarning("Sincronizado com pendências",
+                        f"{len(boloes)} bolão(ões) processados, mas houve erro em "
+                        f"{len(total_erros)} participante(s):\n\n" +
+                        "\n".join(str(e) for e in total_erros[:20]))
+                else:
+                    self._pub_status.configure(
+                        text="✅ Busca por telefone sincronizada!", fg="#1D9E75")
+                    messagebox.showinfo("Sincronizado",
+                        f"✅ {len(boloes)} bolão(ões) sincronizados com sucesso!")
+            self.root.after(0, _ui)
+        threading.Thread(target=_executar, daemon=True).start()
 
     def _pub_remover(self):
         dados = self._pub_montar_dados()

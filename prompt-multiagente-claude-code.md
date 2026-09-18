@@ -940,6 +940,25 @@ Lógica extraída pra `_calcular_grupos_duplicados()` (módulo-level, sem UI/ban
 
 Versão desktop v6.17 → **v6.18**. `python test/test_bolao_pro_v3.py`: 33/33. `dist/SistemaBoloes.exe` reconstruído via `SistemaBoloes.spec` (~32MB, confirma que o pdfplumber saiu).
 
+## Rodada 60 — Auditoria com 3 agentes em paralelo + correção GRATUITA da exposição do Firestore (v6.19, desktop+web)
+
+Usuário pediu pra rodar os agentes multiagente (framework do topo deste arquivo) pra achar "novidades" — melhorias que ainda não existem no sistema, pra ele avaliar. Adaptado o framework (que é pra pipeline de build) pra um modo de descoberta: 3 agentes `general-purpose` em paralelo, cada um com uma lente diferente (arquitetura técnica, produto/negócio, dados/confiabilidade), todos instruídos a ler o `prompt-multiagente-claude-code.md` inteiro primeiro pra não repetir nada já mapeado nas 59 rodadas anteriores.
+
+**Achado mais valioso, verificado pessoalmente antes de repassar**: o agente de arquitetura encontrou que `functions/functions/index.js` já tem duas Cloud Functions COMPLETAS (`buscarBoloesPorTelefone`, `buscarBoloesPorToken`) fazendo exatamente a mediação server-side que a Rodada 56 tinha descrito como trabalho futuro — só que nunca foram implantadas (`firebase functions:list` → vazio) e nenhuma página do site chama elas (`consulta.js`/`consulta.html` continuavam com a leitura antiga e insegura). Motivo de não ter sido esse o caminho escolhido: Cloud Functions também exigem o plano Blaze, que o usuário recusou pro Storage — "não vou pagar storage no firebase... a solução precisa ser diferente e sem pagar... demais sugestões nada que eu aprove".
+
+**Solução implementada, 100% gratuita, sem Cloud Function**: get() e list() são permissões SEPARADAS nas regras do Firestore (padrão já usado neste projeto em `participantes_tokens` desde antes) — dá pra permitir buscar UM documento pelo ID (`allow get: if true`) e travar "baixar a coleção inteira" ao mesmo tempo (`allow list: if false`). Nova coleção `busca_participante/{telefone}` (chave = telefone só dígitos), 1 documento por PESSOA com a lista de bolões que ela participa — `consulta.js`/`consulta.html` passam a buscar só o telefone que a própria pessoa digitou, nunca mais a coleção inteira.
+
+Mudanças:
+- **Desktop**: `_montar_lista_part_firestore()` extraída de `_pub_montar_dados_impl` (sem duplicar lógica); nova `atualizar_busca_participante()` (upsert por telefone, remove/substitui a entrada do mesmo bolão antes de adicionar a nova — evita duplicata em republicação) + codec REST do Firestore (`_firestore_valor_para_python`/`_python_para_valor`, testado com round-trip). Roda sozinho a cada publicação normal (`_pub_enviar`). Novo botão "🔄 Sincronizar Busca por Telefone" (aba Publicar) faz o backfill pra TODOS os bolões já publicados antes dessa mudança, de uma vez.
+- **firestore.rules**: `participantes` vira `get()` público + `list()` só admin (confirmado que `admin.js` só chama `list()` já autenticado — `carregarDadosAdmin()` roda dentro de `onAuthStateChanged`); nova `busca_participante` com `get()` público + `list()` travado de vez.
+- **admin.js**: `config_boloes/ativos` ganhou um campo `metadados` (título/loteria/valor por cota de cada bolão público SEM dado pessoal) — permite `consulta.html` listar "bolões abertos pra participar" (quem ainda não é participante) sem tocar na coleção `participantes`.
+- **consulta.js**/**consulta.html**: reescritos pra ler `busca_participante` (participação da pessoa) + `config_boloes/ativos` (status + metadados públicos) em vez de baixar `participantes` inteira. `meus-boloes.html`/`participantes.html` conferidos e não precisaram mudar (já usavam leitura por documento único, nunca foi o problema).
+- Verificado por grep todo call site de `collection('participantes')` no repo antes de travar `list()` — só sobraram leituras autenticadas (admin.js) ou por documento único (get, continua liberado).
+
+Demais achados dos 3 agentes (arquitetura, produto, dados/confiabilidade) apresentados ao usuário mas **não aprovados** — ficam só registrados na conversa, não implementados.
+
+Versão desktop v6.18 → **v6.19**. `sw.js` v50→v51. `python test/test_bolao_pro_v3.py`: 33/33. `dist/SistemaBoloes.exe` reconstruído. **Pendente**: usuário precisa rodar `firebase deploy --only firestore:rules` manualmente (mesmo bloqueio do classificador de modo automático das rodadas anteriores).
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

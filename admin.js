@@ -1488,14 +1488,31 @@ async function salvarConfigBoloes() {
             estrategiaMap[textarea.dataset.id] = valor;
         }
     });
-    
+
+    // Metadados PÚBLICOS (sem dado pessoal nenhum — só título/loteria/
+    // valor da cota) de cada bolão selecionado, pra consulta.html poder
+    // listar "bolões abertos pra participar" lendo só este documento
+    // único (já público) em vez de baixar a coleção "participantes"
+    // inteira (Rodada 60 — mitigação de segurança sem custo).
+    const metadadosMap = {};
+    boloes.forEach(b => {
+        if (idsSelecionados.includes(b.id)) {
+            metadadosMap[b.id] = {
+                titulo: b.titulo || '',
+                loteria: b.loteria || '',
+                valorPorCota: b.valorPorCota || 0,
+            };
+        }
+    });
+
     try {
-        await db.collection('config_boloes').doc('ativos').set({ 
+        await db.collection('config_boloes').doc('ativos').set({
             ids: idsSelecionados,
             status: statusMap,
             dataLimite: dataLimiteMap,
             destaque: destaqueMap,
-            estrategia: estrategiaMap
+            estrategia: estrategiaMap,
+            metadados: metadadosMap
         }, { merge: true });
         showToast('✅ Configurações salvas!', 'success');
     } catch (error) {

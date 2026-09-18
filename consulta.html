@@ -139,57 +139,51 @@
                 console.log('🔍 Buscando bolões para:', nome, 'telefone:', telefoneNormalizado);
                 
                 // ============================================
-                // BUSCAR STATUS DO CONFIG_BOLOES/ATIVOS
+                // config_boloes/ativos — sempre foi UM documento só,
+                // público e sem dado pessoal (status + metadados de
+                // título/loteria/valor de cada bolão selecionado pro
+                // site). Nunca foi o problema de exposição.
                 // ============================================
                 const configDoc = await db.collection('config_boloes').doc('ativos').get();
                 const statusMap = configDoc.exists ? configDoc.data().status || {} : {};
+                const metadadosMap = configDoc.exists ? configDoc.data().metadados || {} : {};
                 console.log('📋 Status Map do config_boloes:', statusMap);
-                
-                // Buscar todos os bolões
-                const boloesSnapshot = await db.collection('participantes').get();
-                const boloes = [];
-                boloesSnapshot.forEach(doc => {
-                    boloes.push({ id: doc.id, ...doc.data() });
-                });
-                
-                console.log(`📋 Total de bolões encontrados: ${boloes.length}`);
-                
-                // Separar bolões
-                const participa = [];
+
+                // Bolões que essa pessoa participa: busca_participante
+                // (Rodada 60) — 1 doc por telefone, get() sempre liberado,
+                // sem baixar a coleção "participantes" inteira (list()
+                // travado nas regras — ver firestore.rules).
+                const buscaDoc = await db.collection('busca_participante').doc(telefoneNormalizado).get();
+                const meusBoloes = buscaDoc.exists ? (buscaDoc.data().boloes || []) : [];
+                console.log(`📋 Bolões encontrados pro telefone: ${meusBoloes.length}`);
+
+                const idsQueParticipa = new Set(meusBoloes.map(b => b.bolaoId));
+
+                const participa = meusBoloes.map(b => ({
+                    id: b.bolaoId,
+                    titulo: b.titulo || 'Bolão sem título',
+                    loteria: b.loteria || '?',
+                    valorPorCota: b.valorPorCota || 0,
+                    meuStatus: b.situacao,
+                    minhasCotas: b.quantidadeCotas || 1,
+                    meuValorPago: b.valorPago,
+                }));
+
+                // Bolões abertos que ela AINDA NÃO participa e bolões
+                // encerrados: vêm dos metadados públicos (sem dado
+                // pessoal), não da coleção de participantes.
                 const naoParticipa = [];
                 const encerrados = [];
-
-                for (const bolao of boloes) {
-                    const participantes = bolao.participantes || [];
-                    
-                    // USAR O STATUS DO STATUS_MAP (do config_boloes)
-                    const statusBolao = statusMap[bolao.id] || 'andamento';
-                    
-                    console.log(`🔍 Bolão: ${bolao.titulo} - Status do config: ${statusBolao}`);
-                    
-                    // NORMALIZAR TELEFONE PARA COMPARAÇÃO
-                    const encontrado = participantes.find(p => {
-                        const telefoneParticipante = p.telefone ? normalizarTelefone(p.telefone) : '';
-                        return telefoneParticipante === telefoneNormalizado;
-                    });
-                    
-                    if (encontrado) {
-                        console.log(`✅ Participa do bolão: ${bolao.titulo} (${statusBolao})`);
-                        participa.push({
-                            ...bolao,
-                            meuStatus: encontrado.situacao,
-                            minhasCotas: encontrado.quantidadeCotas || 1,
-                            meuValorPago: encontrado.valorPago,
-                            meuNome: encontrado.nome
-                        });
-                    } else if (statusBolao === 'aberto') {
-                        console.log(`🔵 Não participa do bolão ABERTO: ${bolao.titulo}`);
+                for (const bolaoId of Object.keys(metadadosMap)) {
+                    if (idsQueParticipa.has(bolaoId)) continue;
+                    const meta = metadadosMap[bolaoId] || {};
+                    const statusBolao = statusMap[bolaoId] || 'andamento';
+                    const bolao = { id: bolaoId, titulo: meta.titulo || 'Bolão sem título',
+                        loteria: meta.loteria || '?', valorPorCota: meta.valorPorCota || 0 };
+                    if (statusBolao === 'aberto') {
                         naoParticipa.push(bolao);
                     } else if (statusBolao === 'encerrado') {
-                        console.log(`🔴 Bolão ENCERRADO: ${bolao.titulo}`);
                         encerrados.push(bolao);
-                    } else {
-                        console.log(`🟡 Bolão EM ANDAMENTO (não participa): ${bolao.titulo}`);
                     }
                 }
 

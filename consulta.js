@@ -89,12 +89,10 @@ async function consultarBoloes() {
     btn.innerHTML = '🔄 Buscando...';
     
     try {
-        // Buscar o status real dos bolões (aberto/andamento/encerrado) uma
-        // única vez, ANTES de varrer os participantes. Antes essa busca
-        // era assíncrona e disparada dentro do loop (uma leitura por
-        // participante encontrado!), e o bolão já era adicionado à lista
-        // com o valor padrão "andamento" antes da resposta chegar — o
-        // status real nunca aparecia.
+        // Status real (aberto/andamento/encerrado) continua vindo de
+        // config_boloes/ativos — sempre foi UM documento só, nunca foi
+        // o problema de exposição (não tem dado pessoal, só configuração
+        // pública dos bolões).
         let statusMap = {};
         try {
             const configDoc = await db.collection('config_boloes').doc('ativos').get();
@@ -105,36 +103,28 @@ async function consultarBoloes() {
             console.warn('Erro ao buscar status dos bolões:', e);
         }
 
-        // Buscar todos os bolões
-        const snapshot = await db.collection('participantes').get();
-        const boloesEncontrados = [];
+        // Busca por TELEFONE ESPECÍFICO em busca_participante (Rodada 60)
+        // em vez de baixar "participantes" inteira e filtrar no navegador
+        // — mitigação de segurança sem custo: get() de um documento é
+        // sempre liberado, list() da coleção inteira está bloqueado nas
+        // regras do Firestore (ver firestore.rules). Um doc por telefone,
+        // já com a lista de bolões daquela pessoa — nada mais pra filtrar
+        // aqui, só ler e mostrar.
+        const doc = await db.collection('busca_participante').doc(telefone).get();
+        const boloesEncontrados = (doc.exists ? (doc.data().boloes || []) : []).map(b => ({
+            id: b.bolaoId,
+            titulo: b.titulo || 'Bolão sem título',
+            loteria: b.loteria || '?',
+            concurso: b.concurso || '?',
+            valorPorCota: b.valorPorCota || 0,
+            status: statusMap[b.bolaoId] || 'andamento',
+            participante: {
+                situacao: b.situacao,
+                quantidadeCotas: b.quantidadeCotas,
+                valorPago: b.valorPago,
+            },
+        }));
 
-        snapshot.forEach(doc => {
-            const bolao = doc.data();
-            const participantes = bolao.participantes || [];
-
-            // Verificar se o telefone existe neste bolão
-            const participante = participantes.find(p => {
-                const telParticipante = normalizarTelefone(p.telefone || '');
-                return telParticipante === telefone;
-            });
-
-            if (participante) {
-                const status = statusMap[doc.id] || bolao.status || 'andamento';
-
-                boloesEncontrados.push({
-                    id: doc.id,
-                    titulo: bolao.titulo || 'Bolão sem título',
-                    loteria: bolao.loteria || '?',
-                    concurso: bolao.concurso || '?',
-                    valorPorCota: bolao.valorPorCota || 0,
-                    status: status,
-                    participante: participante,
-                    totalParticipantes: participantes.length
-                });
-            }
-        });
-        
         // Ordenar: primeiro os em andamento, depois abertos, depois encerrados
         const ordemStatus = { 'aberto': 0, 'andamento': 1, 'encerrado': 2 };
         boloesEncontrados.sort((a, b) => {
