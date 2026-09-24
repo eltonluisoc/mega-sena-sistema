@@ -987,6 +987,16 @@ Versão desktop v6.20 → **v6.21**. `dist/SistemaBoloes.exe` reconstruído via 
 
 Usuário pediu ícone com um E estilizado no meio e algo que remeta à loteria, sem ser dado. Desenhado com Pillow: placa navy do app, bola dourada com disco branco (bola numerada) e "E" itálico feito de barras arredondadas (barra do meio dourada), mais 3 bolinhas nas cores das modalidades da Caixa (verde Mega-Sena, roxo Lotofácil, azul Quina). Iterado 2x olhando o resultado (E inclinado pro lado errado e brilho vazando pra fora da bola na 1ª versão). Testado em 32px. `app_icon.ico` substituído (mesmo nome — spec e `_resource_path` não mudam). v6.21 → **v6.22**, `.exe` reconstruído.
 
+## Rodada 64 — Vagas livres explícitas nos cards de cotas (v6.23, desktop)
+
+Usuário pediu, na aba Financeiro: os cards que mostram quantos participantes já estão no bolão também deveriam mostrar as vagas livres, já que isso representa quanto ainda dá pra vender do bolão.
+
+Investigado onde "quantos já estão" aparece: o card "Cotas Ocupadas" (Início > Bolão Selecionado, `kpi_row`) já mostrava a fração `ocupadas/total` (via `_get_cotas_ocupadas`, que usa `boloes.num_participantes` como capacidade configurada), e o resumo de texto da aba Relatório (dentro do grupo "💰 Financeiro" de verdade) também. Nenhum dos dois mostrava as vagas como número isolado — só dava pra saber subtraindo de cabeça.
+
+Adicionada uma segunda linha no card "Cotas Ocupadas" ("N vaga(s) livre(s)" ou "✅ Lotado", cor muda pra laranja quando restam ≤20% das cotas) e um segmento "Vagas: 🟢 N" no resumo de texto do Relatório. Mesma fonte de dado dos dois lados (`_get_cotas_ocupadas`), sem duplicar lógica.
+
+Versão desktop v6.22 → **v6.23**. `dist/SistemaBoloes.exe` reconstruído.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

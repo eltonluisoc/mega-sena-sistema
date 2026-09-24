@@ -1,7 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.22
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.23
+Correções v6.23 (mostra vagas livres, não só a fração de cotas):
+ - Pedido do usuário: os cards que mostram "quantos já estão no bolão"
+   (fração ocupadas/total) não deixavam claro quantas vagas ainda
+   sobram sem fazer conta de cabeça. Card "Cotas Ocupadas" (Início >
+   Bolão Selecionado) ganhou uma segunda linha com "N vaga(s) livre(s)"
+   (ou "✅ Lotado"), destacada em laranja quando restam 20% ou menos das
+   cotas. Resumo de texto da aba Relatório (Financeiro) ganhou o mesmo
+   dado ("Vagas: 🟢 N" / "✅ Lotado").
 Correções v6.22 (novo ícone):
  - Ícone trocado: bola de loteria dourada com disco branco (como bola
    numerada) e um "E" itálico estilizado no meio, mais 3 bolinhas nas
@@ -1698,7 +1706,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.22")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.23")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1974,7 +1982,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.22",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.23",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -3574,11 +3582,17 @@ class BolaoApp:
         n_pagantes    = n_pessoas - (1 if not adm_paga and adm_no_bolao else 0)
 
         cotas_ocup_r, max_cotas_r = self._get_cotas_ocupadas(bid)
+        vagas_r = max(0, max_cotas_r - cotas_ocup_r)
+        # Vagas explícitas, não só a fração — antes só dava pra saber
+        # quanto ainda pode vender do bolão fazendo a conta de cabeça
+        # (achado real do usuário, pedido explícito).
+        vagas_txt = "✅ Lotado" if (max_cotas_r > 0 and vagas_r == 0) else \
+            (f"🟢 {vagas_r} vaga{'s' if vagas_r != 1 else ''}" if max_cotas_r > 0 else "—")
 
         self._rel_resumo_lbl.configure(text=(
             f"Bolão: {b['nome']}  |  Loteria: {b.get('loteria','Mega-Sena')}  |  "
             f"Total no bolão: {n_pessoas}  |  Pagantes: {n_pagantes}  |  "
-            f"Cotas: {cotas_ocup_r}/{max_cotas_r}  |  "
+            f"Cotas: {cotas_ocup_r}/{max_cotas_r}  |  Vagas: {vagas_txt}  |  "
             f"💰 Esperado: {fmt_brl(te)}  |  "
             f"✅ Arrecadado: {fmt_brl(tp)}  |  "
             f"⚠ Pendente: {fmt_brl(ts)}"
@@ -4713,6 +4727,16 @@ class BolaoApp:
             lbl_v = tk.Label(card, text="—", bg=cor, fg="white",
                              font=("Arial",15,"bold"))
             lbl_v.pack(anchor="w", pady=(2,0))
+            # "Cotas Ocupadas" ganha uma segunda linha com as VAGAS que
+            # sobram — antes só dava pra saber isso fazendo a conta de
+            # cabeça a partir da fração (12/20); pedido explícito do
+            # usuário pra deixar isso visível de cara, já que representa
+            # quanto ainda dá pra vender do bolão.
+            if attr == "dash_participantes":
+                lbl_vagas = tk.Label(card, text="", bg=cor, fg="#eaffea",
+                                      font=("Arial",8,"bold"))
+                lbl_vagas.pack(anchor="w")
+                self._dash_kpi_vagas_lbl = lbl_vagas
             self._dash_kpis[attr] = lbl_v
 
         # ── Barra de progresso ───────────────────────────────────
@@ -5203,6 +5227,21 @@ class BolaoApp:
         cotas_ocup, max_cotas = self._get_cotas_ocupadas(bid)
         self._dash_kpis["dash_participantes"].configure(
             text=f"{cotas_ocup}/{max_cotas}")
+        try:
+            vagas = max(0, max_cotas - cotas_ocup)
+            if max_cotas <= 0:
+                self._dash_kpi_vagas_lbl.configure(text="")
+            elif vagas == 0:
+                self._dash_kpi_vagas_lbl.configure(text="✅ Lotado", fg="#eaffea")
+            else:
+                # Fica mais chamativo quando sobram poucas vagas — sinal
+                # útil pro organizador saber que precisa recrutar gente.
+                cor_vagas = "#ffe4b3" if vagas <= max(1, round(max_cotas*0.2)) else "#eaffea"
+                self._dash_kpi_vagas_lbl.configure(
+                    text=f"{vagas} vaga{'s' if vagas != 1 else ''} livre{'s' if vagas != 1 else ''}",
+                    fg=cor_vagas)
+        except Exception:
+            pass
         self._dash_kpis["dash_quitados"].configure(text=str(quitados))
         self._dash_kpis["dash_pendentes"].configure(text=str(pendentes_n))
         self._dash_kpis["dash_arrecadado"].configure(text=fmt_brl(total_pago))
@@ -5496,7 +5535,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.22</span>
+        <span>Sistema de Gestão de Bolões v6.23</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -7815,7 +7854,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.22</span>
+        <span>Sistema de Gestão de Bolões v6.23</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
