@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.23
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.24
+Correções v6.24 (slots vazios nos Cards Visuais):
+ - A correção da v6.23 foi no lugar errado — o usuário se referia à
+   tela "🖼 Cards Visuais" (grid de 1 card por participante), não ao
+   card "Cotas Ocupadas". Corrigido de verdade: depois dos cards de
+   gente, o grid agora completa com cards "➕ VAGO" cinza pra cada
+   cota ainda não vendida (max_cotas - cotas_ocupadas), no mesmo
+   layout de 10 colunas. Legenda ganhou a cor "Vago".
 Correções v6.23 (mostra vagas livres, não só a fração de cotas):
  - Pedido do usuário: os cards que mostram "quantos já estão no bolão"
    (fração ocupadas/total) não deixavam claro quantas vagas ainda
@@ -1706,7 +1713,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.23")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.24")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1982,7 +1989,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.23",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.24",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -4032,7 +4039,7 @@ class BolaoApp:
 
         # Legenda de cores
         leg = tk.Frame(bar, bg="#243447"); leg.pack(side="right", padx=10)
-        for cor, txt in [("#1e7e44","Quitado"),("#1a5276","Em dia"),("#a93226","Pendente")]:
+        for cor, txt in [("#1e7e44","Quitado"),("#1a5276","Em dia"),("#a93226","Pendente"),("#2c3e50","Vago")]:
             tk.Frame(leg, bg=cor, width=14, height=14).pack(side="left", padx=(6,2))
             tk.Label(leg, text=txt, bg="#243447", fg="white",
                      font=("Arial",8)).pack(side="left", padx=(0,8))
@@ -4100,6 +4107,28 @@ class BolaoApp:
                 st_txt = f"{ic} {fmt_brl(saldo)}"
             tk.Label(card, text=st_txt, bg=bg_c, fg=fg_stat,
                      font=("Arial",8,"bold"), anchor="w").pack(fill="x", padx=4, pady=(1,4))
+
+        # ── Slots vazios — cotas que ainda não foram vendidas ────
+        # Até aqui o grid mostra 1 card por PESSOA cadastrada, mas o
+        # bolão tem uma capacidade total de cotas (max_cotas_c) — sem
+        # os slots vazios não dá pra visualizar de cara quanto ainda
+        # falta vender (pedido explícito do usuário, que via os
+        # cards de gente mas nenhum indicativo de vaga aberta).
+        vagas_c = max(0, max_cotas_c - cotas_ocup_c)
+        idx_base = len(dados_ord)
+        for i in range(vagas_c):
+            idx  = idx_base + i
+            row_ = idx // NCOLS
+            col_ = idx  % NCOLS
+            card = tk.Frame(inner, bg="#2c3e50", width=C_W, height=C_H,
+                            relief="flat", bd=1,
+                            highlightbackground="#4a5f75", highlightthickness=1)
+            card.grid(row=row_, column=col_, padx=PAD_X, pady=PAD_Y, sticky="nsew")
+            card.grid_propagate(False)
+            tk.Label(card, text="➕", bg="#2c3e50", fg="#7d93ad",
+                     font=("Arial",16)).pack(pady=(10,0))
+            tk.Label(card, text="VAGO", bg="#2c3e50", fg="#7d93ad",
+                     font=("Arial",8,"bold")).pack()
 
         # Separadores visuais de linha (linha tracejada entre grupos de 10)
         inner.update_idletasks()
@@ -5535,7 +5564,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.23</span>
+        <span>Sistema de Gestão de Bolões v6.24</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -7854,7 +7883,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.23</span>
+        <span>Sistema de Gestão de Bolões v6.24</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>

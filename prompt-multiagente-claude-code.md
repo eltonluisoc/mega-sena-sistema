@@ -997,6 +997,14 @@ Adicionada uma segunda linha no card "Cotas Ocupadas" ("N vaga(s) livre(s)" ou "
 
 Versão desktop v6.22 → **v6.23**. `dist/SistemaBoloes.exe` reconstruído.
 
+## Rodada 65 — Slots vazios nos Cards Visuais, de verdade (v6.24, desktop)
+
+A Rodada 64 mexeu no lugar errado — usuário mandou print mostrando que a tela real era "🖼 Cards Visuais" (`_cards_visuais`, grid de 1 card colorido por participante, usado pra mostrar o painel de situação do bolão numa janela maximizada), não o card "Cotas Ocupadas" que eu tinha corrigido antes.
+
+Corrigido de fato: depois do loop que desenha 1 card por pessoa (`dados_ord`), o grid agora completa as posições restantes com cards cinza "➕ VAGO", um pra cada cota ainda não vendida (`max_cotas_c - cotas_ocupadas_c`, mesma função `_get_cotas_ocupadas` já usada em todo lugar), no mesmo layout de 10 colunas. Legenda de cores ganhou a entrada "Vago".
+
+Versão desktop v6.23 → **v6.24**. `dist/SistemaBoloes.exe` reconstruído.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
