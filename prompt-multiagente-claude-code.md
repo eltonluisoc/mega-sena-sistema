@@ -1005,6 +1005,16 @@ Corrigido de fato: depois do loop que desenha 1 card por pessoa (`dados_ord`), o
 
 Versão desktop v6.23 → **v6.24**. `dist/SistemaBoloes.exe` reconstruído.
 
+## Rodada 66 — Corrige busca da aba Pagamentos (roubo de foco) e valor do Cadastrar+Pagar (v6.25, desktop)
+
+Usuário reportou dois problemas na tela de Cadastro de Participantes/Pagamentos: (1) "Cadastrar e Pagar" sempre registra o valor de UMA parcela, mas o participante pode ter pago o valor integral, e isso precisa ser informado ANTES de cadastrar pra não precisar revisar depois; (2) o campo de busca de participante na aba Financeiro > Pagamentos só deixa digitar 1 letra — enquanto o mesmo tipo de busca em Participantes funciona bem.
+
+**Bug #2 investigado com teste isolado antes de mexer** (não assumiu a causa): reproduzido um Tk real (`_pag_cb_filtrar`) e confirmado com `root.focus_get()` que, depois de `event_generate("<Down>")` (usado pra forçar a lista suspensa a abrir a cada tecla), o foco do teclado migra pro widget interno "popdown" da combobox — testado tanto com `event_generate("<Down>")` quanto com o Tcl `ttk::combobox::Post` direto, os dois roubam o foco igual (é como o ttk::combobox funciona, não dá pra abrir sem isso). Resultado real: só a 1ª letra chegava no campo de texto; as seguintes iam pro popup, que não aceita texto. Corrigido removendo o "abre sozinho" — a combobox filtra `values` a cada tecla mas não força abertura; o usuário clica na setinha (ou aperta Down deliberadamente) quando quiser ver a lista já filtrada.
+
+**Bug #1**: `_cadastrar_e_pagar` tinha `parc = valor_parcela` fixo no código, sem multiplicar por cotas (mesma classe de bug da auditoria da Rodada 44) nem dar chance de editar antes de cadastrar. Novo campo "Pagamento Já Recebido (R$)" no popup "Incluir Participante", com dois atalhos: "1 Parcela" (agora corretamente × nº de cotas) e "Integral" (usa o Valor Total Esperado inteiro). Recalculado em 3 pontos pra nunca ficar com valor velho: ao abrir o popup, depois de importar membro de outro bolão (o loop de import limpa TODOS os campos, inclusive esse), e depois de cada "CADASTRAR" simples (fluxo de cadastrar vários participantes seguidos, popup fica aberto de propósito).
+
+Versão desktop v6.24 → **v6.25**. `dist/SistemaBoloes.exe` reconstruído.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

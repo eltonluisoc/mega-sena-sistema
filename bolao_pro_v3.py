@@ -1,7 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.24
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.25
+Correções v6.25 (2 bugs reportados: busca em Pagamentos e valor no Cadastrar+Pagar):
+ - Busca de participante na aba Pagamentos só aceitava 1 letra: o
+   código forçava a lista suspensa a abrir a cada tecla digitada
+   (event_generate("<Down>")), e isso ROUBA O FOCO do teclado pra
+   dentro do popup interno da combobox — confirmado ao vivo com um
+   teste isolado (root.focus_get() virava o widget "popdown" depois
+   do Down). As teclas seguintes iam pro popup, que não aceita
+   texto, e pareciam simplesmente não fazer nada. Corrigido só
+   atualizando a lista de opções sem forçar abertura.
+ - "Cadastrar + Pagar" sempre registrava exatamente 1 parcela fixa
+   no código, sem jeito de mudar ANTES de cadastrar — quem já tinha
+   recebido o pagamento integral (ou qualquer outro valor) do
+   participante tinha que cadastrar sem pagar e corrigir depois na
+   aba Pagamentos, com risco real de esquecer. Novo campo
+   "Pagamento Já Recebido (R$)" no popup de Incluir Participante,
+   editável, com atalhos "1 Parcela" (já corrige de brinde um bug
+   relacionado: não multiplicava pelas cotas do participante) e
+   "Integral" (usa o Valor Total Esperado inteiro). Recalculado
+   automaticamente ao abrir o popup, depois de importar membro de
+   outro bolão, e depois de cada "CADASTRAR" (fluxo de cadastrar
+   vários participantes seguidos).
 Correções v6.24 (slots vazios nos Cards Visuais):
  - A correção da v6.23 foi no lugar errado — o usuário se referia à
    tela "🖼 Cards Visuais" (grid de 1 card por participante), não ao
@@ -1713,7 +1734,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.24")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.25")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -1989,7 +2010,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.24",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.25",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -2359,16 +2380,38 @@ class BolaoApp:
                  bg=CORES["bg_section"], fg="#888",
                  font=("Arial",8,"italic")).pack(side="left")
 
+        # Pagamento Já Recebido — usado só pelo botão CADASTRAR + PAGAR.
+        # Achado real do usuário: "Cadastrar + Pagar" sempre registrava
+        # exatamente 1 parcela, fixo no código — quem já tinha recebido
+        # o valor INTEGRAL do participante (ou qualquer outro valor)
+        # tinha que cadastrar sem pagar e corrigir depois na aba
+        # Pagamentos, com risco real de esquecer. Agora o valor fica
+        # visível e editável ANTES de cadastrar, com atalhos pros dois
+        # casos mais comuns.
+        tk.Label(sec, text="Pagamento Já Recebido (R$):", bg=CORES["bg_section"], fg=CORES["fg_label"],
+                 font=("Arial",9,"bold")).grid(row=5, column=0, sticky="w", padx=(0,12), pady=8)
+        pag_frame = tk.Frame(sec, bg=CORES["bg_section"])
+        pag_frame.grid(row=5, column=1, sticky="w", pady=8)
+        self._cv["valor_pago"] = entry(pag_frame, width=16)
+        self._cv["valor_pago"].pack(side="left")
+        btn(pag_frame, "1 Parcela", CORES["btn_azul"],
+            self._cad_preencher_pago_parcela, width=10).pack(side="left", padx=(8,3))
+        btn(pag_frame, "Integral", CORES["btn_verde"],
+            self._cad_preencher_pago_integral, width=10).pack(side="left")
+        tk.Label(pag_frame, text="  (usado só pelo botão CADASTRAR + PAGAR)",
+                 bg=CORES["bg_section"], fg="#888",
+                 font=("Arial",8,"italic")).pack(side="left", padx=(6,0))
+
         # Observações
         tk.Label(sec, text="Observações:", bg=CORES["bg_section"], fg=CORES["fg_label"],
-                 font=("Arial",9,"bold")).grid(row=5, column=0, sticky="nw", padx=(0,12), pady=8)
+                 font=("Arial",9,"bold")).grid(row=6, column=0, sticky="nw", padx=(0,12), pady=8)
         self._cv["obs"] = tk.Text(sec, height=2, relief="solid", bd=1, font=("Arial",9))
-        self._cv["obs"].grid(row=5, column=1, sticky="ew", pady=8)
+        self._cv["obs"].grid(row=6, column=1, sticky="ew", pady=8)
 
         # Checkbox ADM
         self._cv_is_adm = tk.IntVar(value=0)
         adm_frame = tk.Frame(sec, bg=CORES["bg_section"])
-        adm_frame.grid(row=6, column=0, columnspan=2, sticky="w", pady=(4,8))
+        adm_frame.grid(row=7, column=0, columnspan=2, sticky="w", pady=(4,8))
 
         chk = tk.Checkbutton(
             adm_frame, text="👑  Sou o Administrador deste bolão",
@@ -2385,7 +2428,7 @@ class BolaoApp:
         self._cad_adm_lbl.pack(side="left", padx=8)
 
         bf = tk.Frame(sec, bg=CORES["bg_section"])
-        bf.grid(row=7, column=0, columnspan=2, sticky="w", pady=(6,6))
+        bf.grid(row=8, column=0, columnspan=2, sticky="w", pady=(6,6))
         btn(bf, "✔ CADASTRAR", CORES["btn_verde"],
             self._cadastrar, width=18).pack(side="left")
         btn(bf, "💳 CADASTRAR + PAGAR", CORES["btn_azul"],
@@ -2402,11 +2445,11 @@ class BolaoApp:
         # acima do botão Fechar).
         self._cad_status_lbl = tk.Label(sec, text="", bg=CORES["bg_section"],
             font=("Arial",9,"bold"), wraplength=560, justify="left")
-        self._cad_status_lbl.grid(row=8, column=0, columnspan=2, sticky="w", pady=(2,4))
+        self._cad_status_lbl.grid(row=9, column=0, columnspan=2, sticky="w", pady=(2,4))
 
         tk.Label(sec, text="* campo obrigatório", bg=CORES["bg_section"],
                  fg="#999", font=("Arial",8,"italic")).grid(
-            row=9, column=0, columnspan=2, sticky="w", pady=(0,4))
+            row=10, column=0, columnspan=2, sticky="w", pady=(0,4))
 
         # Valor esperado já vem calculado pra 1 cota (bolão ativo) assim
         # que o popup abre — antes ficava fixo em "0,00" até o campo
@@ -2414,37 +2457,76 @@ class BolaoApp:
         # mouse (sem passar pelo campo Cotas) cadastrava valor_esperado=0
         # sem perceber, o que a tela de status mostra como "quitado".
         self._preencher_valor_cad()
+        self._cad_preencher_pago_parcela()
         # Foco inicial na busca de importação — é o caminho mais usado
         # (ver docstring), então a primeira tecla digitada já filtra a
         # lista em vez de exigir um clique pra começar.
         self._imp_entry.focus_set()
 
+    def _cad_preencher_pago_parcela(self):
+        """Preenche 'Pagamento Já Recebido' com 1 parcela do bolão × nº
+        de cotas do participante — o padrão de sempre, agora um valor
+        explícito e editável em vez de fixo dentro de
+        _cadastrar_e_pagar. Multiplica por cotas — achado ao implementar:
+        sem isso, um participante com 2+ cotas ficaria com sugestão de
+        só 1 cota, o mesmo tipo de bug já corrigido em todo canto do
+        sistema na Rodada 44 (auditoria matemática da reserva)."""
+        try:
+            bid = self.bid.get()
+            if not bid: return
+            b = self.db.fetchone("SELECT valor_parcela FROM boloes WHERE id=?", (bid,))
+            parc = float(b["valor_parcela"] or 0) if b else 0
+            try:
+                n_cotas = int(self._cv["cotas"].get().strip() or "1")
+                if n_cotas < 1: n_cotas = 1
+            except Exception:
+                n_cotas = 1
+            valor = parc * n_cotas
+            self._cv["valor_pago"].delete(0, "end")
+            self._cv["valor_pago"].insert(0, f"{valor:.2f}".replace(".", ","))
+        except Exception:
+            pass
+
+    def _cad_preencher_pago_integral(self):
+        """Preenche 'Pagamento Já Recebido' com o Valor Total Esperado
+        inteiro — pra quando o participante já pagou tudo de uma vez.
+        Achado real do usuário: antes só dava pra registrar 1 parcela no
+        cadastro rápido; um pagamento integral exigia corrigir depois na
+        aba Pagamentos, com risco real de esquecer."""
+        try:
+            valor_esp = to_float(self._cv["valor"].get())
+            self._cv["valor_pago"].delete(0, "end")
+            self._cv["valor_pago"].insert(0, f"{valor_esp:.2f}".replace(".", ","))
+        except Exception:
+            pass
+
     def _cadastrar_e_pagar(self):
-        """Cadastra e já registra o primeiro pagamento (valor da parcela
-        do bolão, hoje, mês corrente) numa tacada só — sem abrir uma
-        segunda janela pedindo pra confirmar o pagamento nem mostrar uma
-        mensagem intermediária de "cadastrado" no meio do caminho.
-        Usuário pediu isso: clicou em "Cadastrar + Pagar", tem que
-        cadastrar E pagar direto, só uma mensagem no final resumindo os
-        dois. Quem quiser um valor de pagamento diferente do padrão da
-        parcela usa o botão "✔ CADASTRAR" (sem pagar) e registra o
-        pagamento depois, com o valor que quiser."""
+        """Cadastra e já registra o primeiro pagamento (hoje, mês
+        corrente) numa tacada só — sem abrir uma segunda janela pedindo
+        pra confirmar o pagamento nem mostrar uma mensagem intermediária
+        de "cadastrado" no meio do caminho. O VALOR pago vem do campo
+        "Pagamento Já Recebido" (editável, com atalhos "1 Parcela" e
+        "Integral") — antes vinha fixo em 1 parcela sem jeito de mudar
+        antes de cadastrar, obrigando corrigir depois quando o
+        participante tinha pago o valor integral (achado real do
+        usuário: "preciso informar antes de cadastrar e pagar... é
+        importante pra evitar ter que revisar depois")."""
         resultado = self._cadastrar(retornar_pid=True, silencioso=True)
         if not resultado:
             return
         pid, nome, bolao_nome = resultado
 
-        b = self.db.fetchone("SELECT valor_parcela FROM boloes WHERE id=?", (self.bid.get(),))
-        parc = float(b["valor_parcela"] or 0) if b else 0
+        valor_pago = to_float(self._cv["valor_pago"].get())
 
         # Resultado no label do popup, não em messagebox — cadastrar
         # vários participantes seguidos não pode exigir um clique OK a
         # cada um (mesmo motivo do label em _cadastrar).
-        if parc <= 0:
+        if valor_pago <= 0:
             try:
                 self._cad_status_lbl.configure(
-                    text=f"✅ {nome} cadastrado em {bolao_nome}! ⚠ Bolão sem parcela "
-                         f"definida — registre o pagamento manualmente na aba Pagamentos.",
+                    text=f"✅ {nome} cadastrado em {bolao_nome}! ⚠ Informe um valor em "
+                         f"'Pagamento Já Recebido' pra registrar o pagamento — ou registre "
+                         f"depois na aba Pagamentos.",
                     fg="#e67e22")
             except Exception: pass
             return
@@ -2456,13 +2538,13 @@ class BolaoApp:
             (participante_id,bolao_id,mes_referencia,valor,
              data_pagamento,depositado,observacoes)
             VALUES (?,?,?,?,?,0,'Cadastro + pagamento simultâneo')
-        """, (pid, self.bid.get(), mes_ref, parc, hoje.strftime("%d/%m/%Y")))
+        """, (pid, self.bid.get(), mes_ref, valor_pago, hoje.strftime("%d/%m/%Y")))
         self._refresh_all()
 
         try:
             self._cad_status_lbl.configure(
                 text=f"✅ {nome} cadastrado e pago em {bolao_nome} — "
-                     f"{fmt_brl(parc)} ({mes_ref}).",
+                     f"{fmt_brl(valor_pago)} ({mes_ref}).",
                 fg="#1D9E75")
         except Exception: pass
 
@@ -2671,6 +2753,7 @@ class BolaoApp:
         except: pass
         self._refresh_all()
         self._preencher_valor_cad()
+        self._cad_preencher_pago_parcela()
         if retornar_pid:
             return pid_novo, nome, bolao_nome
 
@@ -2765,13 +2848,17 @@ class BolaoApp:
         # Calcula o valor esperado (1 cota x valor do bolão ativo) em vez
         # de deixar "0,00" fixo — mesma lógica usada ao digitar cotas.
         self._preencher_valor_cad()
+        # O loop acima limpa TODOS os campos de self._cv, inclusive
+        # "valor_pago" — sem recalcular aqui, cadastrar+pagar logo após
+        # importar registraria R$ 0,00 (achado ao implementar o campo).
+        self._cad_preencher_pago_parcela()
 
         # Limpa a tabela de busca — apenas a da aba Cadastrar
         self._imp_busca_tree.delete(*self._imp_busca_tree.get_children())
         self._imp_entry_var.set("")
 
         self._imp_status_lbl.configure(
-            text=f"✅ '{pt['nome']}' importado — confira cotas/valor acima e clique em CADASTRAR.",
+            text=f"✅ '{pt['nome']}' importado — confira cotas/valor/pagamento acima e clique em CADASTRAR.",
             fg="#1D9E75")
 
     def _abrir_popup_editar_participante(self, participante_id=None):
@@ -3229,7 +3316,20 @@ class BolaoApp:
         """Filtra a lista suspensa a cada tecla — a combobox virou
         editável (não mais readonly) só pra permitir digitar e filtrar;
         selecionar continua sendo sempre pela lista (_pag_cb_sel cuida
-        de validar que o texto bate com um "(ID: N)" real)."""
+        de validar que o texto bate com um "(ID: N)" real).
+
+        Achado real (bug reportado pelo usuário): abrir a lista suspensa
+        sozinho a cada tecla — como fazia antes, via
+        event_generate("<Down>") ou ttk::combobox::Post — move o FOCO
+        do teclado pra dentro do popup interno da combobox (confirmado
+        testando ao vivo: root.focus_get() vira o widget "popdown"
+        depois do Down). Resultado: só a PRIMEIRA letra digitada chegava
+        no campo de texto — as teclas seguintes iam pro popup, que não
+        aceita texto, e pareciam simplesmente não fazer nada. Corrigido
+        só atualizando a lista de opções (values) sem forçar abertura —
+        o usuário continua digitando livremente, e clica na setinha (ou
+        aperta Down deliberadamente, uma vez, quando quiser) pra ver o
+        resultado já filtrado."""
         if e and e.keysym in ("Up","Down","Return","Escape","Tab","Shift_L","Shift_R"):
             return
         todos = getattr(self, "_pag_cb_todos", [])
@@ -3239,8 +3339,6 @@ class BolaoApp:
             return
         filtrados = [v for v in todos if termo in v.lower()]
         self.pag_cb["values"] = filtrados
-        try: self.pag_cb.event_generate("<Down>")
-        except Exception: pass
 
     def _pag_info(self, e=None):
         sel = self.pag_cb.get()
@@ -5564,7 +5662,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.24</span>
+        <span>Sistema de Gestão de Bolões v6.25</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -7883,7 +7981,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.24</span>
+        <span>Sistema de Gestão de Bolões v6.25</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
