@@ -1,7 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.26
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.27
+Correções v6.27 (Pagamento Já Recebido ficava desatualizado ao mudar cotas):
+ - Bug real reportado pelo usuário: cadastrou participante marcando
+   "Integral", mas o valor registrado saiu menor que o esperado — e
+   "Depósitos Pendentes"/"Últimos Pagamentos" só refletiam certo esse
+   dado errado (não eram bugs à parte). Causa: mudar o campo Cotas
+   DEPOIS de clicar "1 Parcela"/"Integral" recalculava o Valor
+   Esperado mas não o Pagamento Já Recebido, que ficava travado no
+   valor das cotas antigas.
+ - Corrigido com rastreamento de modo (_cad_pago_modo: "parcela" /
+   "integral" / None): mudar Cotas (FocusOut, Enter, ou botão
+   "🔢 Calcular") agora recalcula o Pagamento Já Recebido também, MAS
+   só se ainda estiver seguindo um modo automático — editar o campo
+   manualmente (digitar direto) sai dos modos automáticos e protege
+   o valor contra ser sobrescrito.
+ - Validado com 3 cenários num teste isolado rodando o app de
+   verdade: Integral acompanhando mudança de cotas (100→200 ao
+   dobrar), 1 Parcela recalculando certo (50→75 ao mudar pra 3
+   cotas), e edição manual protegida contra sobrescrita.
 Correções v6.26 (busca de Pagamentos igual a Importar Membro, de vez):
  - A v6.25 tinha corrigido o roubo de foco mas deixado "clique na
    setinha" como jeito de ver a lista — usuário pediu explicitamente
@@ -1752,7 +1770,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.26")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.27")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -2028,7 +2046,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.26",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.27",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -2381,9 +2399,11 @@ class BolaoApp:
             self._calcular_valor_cotas, width=12).pack(side="left", padx=8)
 
         # Ao sair do campo cotas, recalcula automaticamente sem messagebox
-        self._cv["cotas"].bind("<FocusOut>", lambda e: self._preencher_valor_cad())
+        # (e também o Pagamento Já Recebido, se ainda estiver seguindo
+        # um modo automático — ver _cad_cotas_recalcular).
+        self._cv["cotas"].bind("<FocusOut>", lambda e: self._cad_cotas_recalcular())
         self._cv["cotas"].bind("<Return>",
-            lambda e: (self._preencher_valor_cad(), self._cv["valor"].focus_set()))
+            lambda e: (self._cad_cotas_recalcular(), self._cv["valor"].focus_set()))
 
         # Valor Total Esperado
         tk.Label(sec, text="Valor Total Esperado (R$):", bg=CORES["bg_section"], fg=CORES["fg_label"],
@@ -2412,6 +2432,9 @@ class BolaoApp:
         pag_frame.grid(row=5, column=1, sticky="w", pady=8)
         self._cv["valor_pago"] = entry(pag_frame, width=16)
         self._cv["valor_pago"].pack(side="left")
+        # Digitar direto aqui sai dos modos automáticos — ver
+        # _cad_pago_editado_manual/_cad_cotas_recalcular.
+        self._cv["valor_pago"].bind("<KeyRelease>", self._cad_pago_editado_manual)
         btn(pag_frame, "1 Parcela", CORES["btn_azul"],
             self._cad_preencher_pago_parcela, width=10).pack(side="left", padx=(8,3))
         btn(pag_frame, "Integral", CORES["btn_verde"],
@@ -2488,7 +2511,12 @@ class BolaoApp:
         _cadastrar_e_pagar. Multiplica por cotas — achado ao implementar:
         sem isso, um participante com 2+ cotas ficaria com sugestão de
         só 1 cota, o mesmo tipo de bug já corrigido em todo canto do
-        sistema na Rodada 44 (auditoria matemática da reserva)."""
+        sistema na Rodada 44 (auditoria matemática da reserva).
+
+        Marca _cad_pago_modo="parcela" — ver _cad_cotas_recalcular pra
+        entender por que isso importa (bug real da Rodada 68: mudar as
+        cotas DEPOIS de preencher o pagamento deixava esse campo com um
+        valor desatualizado)."""
         try:
             bid = self.bid.get()
             if not bid: return
@@ -2502,6 +2530,7 @@ class BolaoApp:
             valor = parc * n_cotas
             self._cv["valor_pago"].delete(0, "end")
             self._cv["valor_pago"].insert(0, f"{valor:.2f}".replace(".", ","))
+            self._cad_pago_modo = "parcela"
         except Exception:
             pass
 
@@ -2510,13 +2539,40 @@ class BolaoApp:
         inteiro — pra quando o participante já pagou tudo de uma vez.
         Achado real do usuário: antes só dava pra registrar 1 parcela no
         cadastro rápido; um pagamento integral exigia corrigir depois na
-        aba Pagamentos, com risco real de esquecer."""
+        aba Pagamentos, com risco real de esquecer.
+
+        Marca _cad_pago_modo="integral" — ver _cad_cotas_recalcular."""
         try:
             valor_esp = to_float(self._cv["valor"].get())
             self._cv["valor_pago"].delete(0, "end")
             self._cv["valor_pago"].insert(0, f"{valor_esp:.2f}".replace(".", ","))
+            self._cad_pago_modo = "integral"
         except Exception:
             pass
+
+    def _cad_pago_editado_manual(self, e=None):
+        """O usuário digitou direto no campo 'Pagamento Já Recebido' —
+        sai dos modos automáticos "1 Parcela"/"Integral" pra não
+        sobrescrever o que ele escreveu na próxima vez que mudar as
+        cotas (ver _cad_cotas_recalcular)."""
+        self._cad_pago_modo = None
+
+    def _cad_cotas_recalcular(self):
+        """Chamado quando o campo Cotas muda (perde o foco ou Enter) ou
+        quando "🔢 Calcular" é clicado. Recalcula o Valor Esperado como
+        sempre, e — bug real reportado pelo usuário (Rodada 68): cadastrou
+        um participante marcando "Integral", mas o valor registrado saiu
+        errado porque ele tinha ajustado as cotas DEPOIS de clicar em
+        Integral/1 Parcela, e esse campo não acompanhava — recalcula
+        TAMBÉM o Pagamento Já Recebido, mas só se ele ainda estiver
+        seguindo um dos modos automáticos (não foi editado manualmente,
+        ver _cad_pago_editado_manual)."""
+        self._preencher_valor_cad()
+        modo = getattr(self, "_cad_pago_modo", None)
+        if modo == "parcela":
+            self._cad_preencher_pago_parcela()
+        elif modo == "integral":
+            self._cad_preencher_pago_integral()
 
     def _cadastrar_e_pagar(self):
         """Cadastra e já registra o primeiro pagamento (hoje, mês
@@ -2627,6 +2683,14 @@ class BolaoApp:
         valor_calc = n_cotas * val_total_part
         self._cv["valor"].delete(0,"end")
         self._cv["valor"].insert(0, f"{valor_calc:.2f}".replace(".",","))
+        # Mantém "Pagamento Já Recebido" em dia com o novo Valor Esperado
+        # se ainda estiver num modo automático — mesmo motivo de
+        # _cad_cotas_recalcular.
+        modo = getattr(self, "_cad_pago_modo", None)
+        if modo == "parcela":
+            self._cad_preencher_pago_parcela()
+        elif modo == "integral":
+            self._cad_preencher_pago_integral()
 
     def _preencher_valor_cad(self):
         """Preenche o valor esperado com base no bolão ativo e nº de cotas."""
@@ -5684,7 +5748,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.26</span>
+        <span>Sistema de Gestão de Bolões v6.27</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -8003,7 +8067,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.26</span>
+        <span>Sistema de Gestão de Bolões v6.27</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>

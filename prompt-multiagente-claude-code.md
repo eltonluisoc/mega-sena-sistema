@@ -1025,6 +1025,18 @@ Validado rodando o app de verdade (não só `py_compile`) numa pasta isolada com
 
 Versão desktop v6.25 → **v6.26**. `dist/SistemaBoloes.exe` reconstruído.
 
+## Rodada 68 — "Pagamento Já Recebido" ficava desatualizado ao mudar cotas depois de clicar Integral (v6.27, desktop)
+
+Usuário reportou: cadastrou um participante marcando pagamento "Integral", usou "Cadastrar + Pagar", mas "Depósitos Pendentes" e "Últimos Pagamentos" mostravam só R$25,00 — valor errado.
+
+Investigado sem assumir a causa: o campo "Pagamento Já Recebido" (Rodada 67) só recalcula quando os botões "1 Parcela"/"Integral" são clicados — mas o campo Cotas, ao mudar (FocusOut/Enter/botão "🔢 Calcular"), só recalculava o Valor Esperado, nunca o Pagamento Já Recebido. Se o usuário clicou Integral e DEPOIS ajustou as cotas (ordem bem plausível: primeiro confirma que é pagamento integral, depois percebe que são mais cotas do que o padrão), o campo de pagamento ficava travado no valor das cotas antigas — e foi exatamente esse valor menor que entrou no banco. "Depósitos Pendentes"/"Últimos Pagamentos" não tinham bug próprio, só mostravam certo o dado errado que foi de fato gravado.
+
+Corrigido com rastreamento de modo (`_cad_pago_modo`: `"parcela"` / `"integral"` / `None`): mudar Cotas agora recalcula os DOIS campos, mas só o Pagamento Já Recebido se ainda estiver num modo automático — editar esse campo manualmente (`_cad_pago_editado_manual`, ligado ao `<KeyRelease>`) marca modo `None` e protege o valor contra sobrescrita.
+
+Validado com 3 cenários num teste isolado, rodando o app de verdade (banco em memória, sem tocar em `boloes.db` real): Integral acompanhando cotas 1→2 (100,00→200,00), 1 Parcela acompanhando cotas 2→3 (50,00→75,00), e edição manual (999,99) sobrevivendo a uma mudança de cotas depois.
+
+Versão desktop v6.26 → **v6.27**. `dist/SistemaBoloes.exe` reconstruído. **Usuário precisa corrigir manualmente** o pagamento já registrado errado (R$25,00) pro participante afetado — a correção evita o bug daqui pra frente, não conserta dado já gravado.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
