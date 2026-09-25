@@ -1015,6 +1015,16 @@ Usuário reportou dois problemas na tela de Cadastro de Participantes/Pagamentos
 
 Versão desktop v6.24 → **v6.25**. `dist/SistemaBoloes.exe` reconstruído.
 
+## Rodada 67 — Busca de Pagamentos igual à de "Importar Membro", de vez (v6.26, desktop)
+
+A Rodada 66 corrigiu o roubo de foco da combobox, mas deixou "clique na setinha pra ver a lista" como comportamento — usuário pediu explicitamente o MESMO padrão de "Importar Membro de Bolão Anterior": lista sempre visível embaixo do campo, filtrando a cada tecla digitada (2, mais, quantos caracteres), sem clicar em nada.
+
+Trocada a combobox editável por Entry + Treeview (mesmo padrão de `_imp_buscar`) — Treeview não disputa foco de teclado com o Entry, então elimina de vez a classe de bug da Rodada 66 (não só mitiga). `_pag_info`, `_registrar_pag`, `_emitir_recibo` passaram a usar `self._pag_pid_atual` (setado por `_pag_selecionar`, via clique na lista) em vez de parsear o texto de uma combobox. `_refresh_dados_visiveis` (troca de aba) preserva a seleção atual ao atualizar a lista em segundo plano; `_refresh_all` (depois de salvar algo) limpa de propósito, como já era antes.
+
+Validado rodando o app de verdade (não só `py_compile`) numa pasta isolada com dados de teste reais: instancia sem crash, digitar "carlos" mostra 2 resultados, "carlos ro" filtra pra 1, selecionar carrega os cards certos e sugere o valor certo no campo de pagamento.
+
+Versão desktop v6.25 → **v6.26**. `dist/SistemaBoloes.exe` reconstruído.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

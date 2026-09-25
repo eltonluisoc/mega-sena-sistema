@@ -1,7 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.25
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.26
+Correções v6.26 (busca de Pagamentos igual a Importar Membro, de vez):
+ - A v6.25 tinha corrigido o roubo de foco mas deixado "clique na
+   setinha" como jeito de ver a lista — usuário pediu explicitamente
+   o MESMO comportamento de "Importar Membro de Bolão Anterior":
+   lista sempre visível embaixo do campo, filtrando a cada tecla,
+   sem precisar clicar em nada.
+ - Combobox de participante em Pagamentos trocada por Entry + Treeview
+   (mesmo padrão de _imp_buscar) — Treeview não disputa foco com o
+   Entry, então não tem o problema que a combobox tinha. Clicar num
+   nome da lista seleciona. _pag_info/_registrar_pag/_emitir_recibo
+   passam a usar self._pag_pid_atual em vez de parsear o texto da
+   combobox. Seleção atual é preservada ao atualizar a lista em
+   segundo plano (troca de aba), só é limpa de propósito depois de
+   uma ação que muda o estado geral (_refresh_all).
+ - Testado de ponta a ponta rodando o app de verdade numa pasta
+   isolada com dados reais: digitar "carlos" mostra 2 resultados,
+   "carlos ro" filtra pra 1, selecionar carrega os cards e sugere o
+   valor certo — sem crash na inicialização nem em nenhum passo.
 Correções v6.25 (2 bugs reportados: busca em Pagamentos e valor no Cadastrar+Pagar):
  - Busca de participante na aba Pagamentos só aceitava 1 letra: o
    código forçava a lista suspensa a abrir a cada tecla digitada
@@ -1734,7 +1752,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.25")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.26")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -2010,7 +2028,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.25",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.26",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -3219,10 +3237,15 @@ class BolaoApp:
     def _build_pag(self):
         p = self.tab_pag
 
-        # ── Seleção do participante — busca ao vivo em vez de combobox
-        # readonly simples (achado real de UX: com vários participantes,
-        # abrir a lista suspensa e procurar era lento; digitar já filtra,
-        # mesmo padrão já usado em Participantes/Histórico). ─────────
+        # ── Seleção do participante — Entry + lista sempre visível
+        # embaixo, mesmo padrão de "Importar Membro de Bolão Anterior"
+        # (pedido explícito do usuário: nada de abrir dropdown/clicar em
+        # seta — digita e a lista já aparece filtrada). A combobox
+        # editável usada antes tinha um problema sem solução real: abrir
+        # a lista suspensa sozinha rouba o foco do teclado pro popup
+        # interno dela (testado e confirmado — ver changelog Rodada 66),
+        # então só dava pra digitar 1 letra por vez. Treeview não disputa
+        # foco com o Entry, então não tem esse problema. ─────────────
         sec1 = section(p, "SELECIONAR PARTICIPANTE")
         sec1.pack(fill="x", padx=20, pady=(16,6))
 
@@ -3230,21 +3253,28 @@ class BolaoApp:
         tk.Label(row_cb, text="Participante:", bg=CORES["bg_section"],
                  font=("Arial",9,"bold"), fg=CORES["fg_label"]).pack(side="left", padx=(0,8))
 
-        self.pag_cb = ttk.Combobox(row_cb, width=40, font=("Arial",10))
-        self.pag_cb.pack(side="left", padx=(0,8), fill="x", expand=True)
-        self.pag_cb.bind("<<ComboboxSelected>>", self._pag_cb_sel)
-        self.pag_cb.bind("<KeyRelease>", self._pag_cb_filtrar)
+        self._pag_pid_atual = None
+        self._pag_busca_var = tk.StringVar()
+        self._pag_busca_entry = tk.Entry(row_cb, textvariable=self._pag_busca_var,
+                                          font=("Arial",10), relief="solid", bd=1)
+        self._pag_busca_entry.pack(side="left", padx=(0,8), fill="x", expand=True)
+        self._pag_busca_var.trace_add("write", lambda *a: self._pag_buscar())
 
         btn(row_cb, "🔄", CORES["btn_azul"],
             self._refresh_all, width=3).pack(side="left", padx=2)
         btn(row_cb, "🧾 Recibo", CORES["btn_verde"],
             self._emitir_recibo, width=11).pack(side="left", padx=2)
 
+        cols_pag_busca = {"Nome": 300}
+        fr_pag_busca, self._pag_busca_tree = make_tree(sec1, cols_pag_busca, height=5)
+        fr_pag_busca.pack(fill="x", pady=(4,0))
+        self._pag_busca_tree.bind("<<TreeviewSelect>>", self._pag_selecionar)
+
         # Estado vazio — orienta o que fazer em vez de deixar a tela em
         # branco antes de escolher alguém (some assim que seleciona,
         # ver _pag_info).
         self._pag_empty_lbl = tk.Label(sec1,
-            text="🔍 Digite ou selecione um participante acima pra ver os dados e registrar um pagamento.",
+            text="🔍 Digite pra filtrar e clique num nome da lista acima pra ver os dados e registrar um pagamento.",
             bg=CORES["bg_section"], fg="#888", font=("Arial",9,"italic"))
         self._pag_empty_lbl.pack(anchor="w", pady=(6,2))
 
@@ -3309,56 +3339,50 @@ class BolaoApp:
         fr_hist, self.pag_hist_tree = make_tree(sec4, cols_hist, height=8)
         fr_hist.pack(fill="both", expand=True)
 
-    def _pag_cb_sel(self, e=None):
+    def _pag_buscar(self):
+        """Filtra a lista de participantes ao vivo, a cada tecla — mesmo
+        padrão da busca de "Importar Membro de Bolão Anterior" (pedido
+        explícito do usuário). Preserva a seleção atual na lista quando
+        ela continua visível no resultado filtrado, pra não perder o
+        destaque visual de quem já estava selecionado ao só atualizar os
+        dados em segundo plano (_refresh_dados_visiveis)."""
+        todos = getattr(self, "_pag_cb_todos", [])
+        termo = self._pag_busca_var.get().strip().lower()
+        self._pag_busca_tree.delete(*self._pag_busca_tree.get_children())
+        fonte = todos if not termo else [v for v in todos if termo in v.lower()]
+        pid_atual = str(getattr(self, "_pag_pid_atual", "") or "")
+        for item in fonte:
+            m = re.search(r"\(ID: (\d+)\)", item)
+            if not m: continue
+            pid = m.group(1)
+            nome = item.split(" (ID:")[0]
+            self._pag_busca_tree.insert("", "end", iid=pid, values=(nome,))
+        if pid_atual and self._pag_busca_tree.exists(pid_atual):
+            self._pag_busca_tree.selection_set(pid_atual)
+
+    def _pag_selecionar(self, e=None):
+        sel = self._pag_busca_tree.selection()
+        if not sel:
+            return
+        self._pag_pid_atual = int(sel[0])
         self._pag_info()
 
-    def _pag_cb_filtrar(self, e=None):
-        """Filtra a lista suspensa a cada tecla — a combobox virou
-        editável (não mais readonly) só pra permitir digitar e filtrar;
-        selecionar continua sendo sempre pela lista (_pag_cb_sel cuida
-        de validar que o texto bate com um "(ID: N)" real).
-
-        Achado real (bug reportado pelo usuário): abrir a lista suspensa
-        sozinho a cada tecla — como fazia antes, via
-        event_generate("<Down>") ou ttk::combobox::Post — move o FOCO
-        do teclado pra dentro do popup interno da combobox (confirmado
-        testando ao vivo: root.focus_get() vira o widget "popdown"
-        depois do Down). Resultado: só a PRIMEIRA letra digitada chegava
-        no campo de texto — as teclas seguintes iam pro popup, que não
-        aceita texto, e pareciam simplesmente não fazer nada. Corrigido
-        só atualizando a lista de opções (values) sem forçar abertura —
-        o usuário continua digitando livremente, e clica na setinha (ou
-        aperta Down deliberadamente, uma vez, quando quiser) pra ver o
-        resultado já filtrado."""
-        if e and e.keysym in ("Up","Down","Return","Escape","Tab","Shift_L","Shift_R"):
-            return
-        todos = getattr(self, "_pag_cb_todos", [])
-        termo = self.pag_cb.get().strip().lower()
-        if not termo:
-            self.pag_cb["values"] = todos
-            return
-        filtrados = [v for v in todos if termo in v.lower()]
-        self.pag_cb["values"] = filtrados
-
     def _pag_info(self, e=None):
-        sel = self.pag_cb.get()
+        pid = getattr(self, "_pag_pid_atual", None)
         # Limpa cards anteriores
         for w in self._pag_cards_frame.winfo_children():
             w.destroy()
-        if not sel:
+        if not pid:
             self._pag_obs_lbl.configure(text="")
             try: self.pag_hist_tree.delete(*self.pag_hist_tree.get_children())
             except Exception: pass
             self._pag_empty_lbl.pack(anchor="w", pady=(6,2))
             return
-        m = re.search(r"\(ID: (\d+)\)", sel)
-        if not m:
-            self._pag_empty_lbl.pack(anchor="w", pady=(6,2))
-            return
-        pid = int(m.group(1))
         bid = self.bid.get()
         pt  = self.db.fetchone("SELECT * FROM participantes WHERE id=?",(pid,))
-        if not pt: return
+        if not pt:
+            self._pag_empty_lbl.pack(anchor="w", pady=(6,2))
+            return
         self._pag_empty_lbl.pack_forget()
         pgs   = self.db.fetchall(
             "SELECT * FROM pagamentos WHERE participante_id=? AND bolao_id=? ORDER BY id",(pid,bid))
@@ -3513,9 +3537,8 @@ class BolaoApp:
         btn(bf_, "Cancelar",  CORES["btn_cinza"], win.destroy, width=10).pack(side="left", padx=6)
 
     def _registrar_pag(self):
-        sel = self.pag_cb.get()
-        if not sel: messagebox.showwarning("Atenção","Selecione um participante!"); return
-        pid = int(re.search(r"\(ID: (\d+)\)",sel).group(1))
+        pid = getattr(self, "_pag_pid_atual", None)
+        if not pid: messagebox.showwarning("Atenção","Selecione um participante!"); return
         bid = self.bid.get()
         v   = to_float(self.pag_val.get())
         if v<=0: messagebox.showwarning("Atenção","Informe um valor válido!"); return
@@ -5513,10 +5536,9 @@ class BolaoApp:
     # ════════════════════════════════════════════════════════════
     def _emitir_recibo(self):
         try:
-            sel = self.pag_cb.get()
-            if not sel:
+            pid = getattr(self, "_pag_pid_atual", None)
+            if not pid:
                 messagebox.showwarning("Atencao","Selecione um participante!"); return
-            pid = int(re.search(r"\(ID: (\d+)\)", sel).group(1))
             bid = self.bid.get()
             pt  = dict(self.db.fetchone("SELECT * FROM participantes WHERE id=?", (pid,)) or {})
             pgs = self.db.fetchall(
@@ -5662,7 +5684,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.25</span>
+        <span>Sistema de Gestão de Bolões v6.26</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -7981,7 +8003,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.25</span>
+        <span>Sistema de Gestão de Bolões v6.26</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -9130,12 +9152,12 @@ class BolaoApp:
             "SELECT * FROM participantes WHERE bolao_id=? AND ativo=1 ORDER BY nome",(bid,))
         items_todos = [f"{dict(p)['nome']} (ID: {dict(p)['id']})" for p in todos]
 
-        self.pag_cb["values"]  = items_todos
         self._pag_cb_todos     = items_todos  # cópia completa p/ o filtro ao vivo
         try: self.cad_edit_cb["values"] = items_todos
         except: pass
         try:
-            self.pag_cb.set("")
+            self._pag_pid_atual = None
+            self._pag_busca_var.set("")
             self._pag_info()
         except: pass
         try: self.cad_edit_cb.set("")
@@ -9180,8 +9202,8 @@ class BolaoApp:
         # Só atualiza a LISTA de opções dos combos — não mexe na seleção
         # atual do usuário (.set() fica intocado de propósito).
         try:
-            self.pag_cb["values"] = items_todos
-            self._pag_cb_todos    = items_todos  # cópia completa p/ o filtro ao vivo
+            self._pag_cb_todos = items_todos  # cópia completa p/ o filtro ao vivo
+            self._pag_buscar()  # atualiza a lista visível sem mexer na seleção atual
         except Exception: pass
         try: self.cad_edit_cb["values"] = items_todos
         except Exception: pass
