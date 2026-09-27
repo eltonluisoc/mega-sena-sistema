@@ -1,7 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.27
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.28
+Correções v6.28 (Integral ainda ficava desatualizado — faltava o campo Valor Esperado):
+ - A v6.27 corrigiu a dessincronia quando o campo COTAS mudava depois
+   de clicar Integral/1 Parcela, mas o usuário reportou o mesmo
+   sintoma de novo: cadastrou pagando Integral R$75,00, mensagem
+   final mostrou R$25,00. Causa remanescente: "Valor Total Esperado"
+   é um campo LIVRE, editável direto (rótulo já dizia isso) — dá pra
+   mudar esse valor sem passar pelo campo Cotas nenhuma vez, e nesse
+   caminho o Pagamento Já Recebido não era avisado da mudança.
+ - Corrigido: Valor Total Esperado agora também dispara o mesmo
+   recálculo (só quando o modo ainda é "integral" — parcela não
+   depende desse campo, só de cotas × valor da parcela).
+ - Validado reproduzindo o cenário exato relatado num teste isolado:
+   importa participante (1 cota, R$25), clica Integral, edita Valor
+   Esperado na mão pra 75,00 — Pagamento Já Recebido acompanha e
+   também vira 75,00.
 Correções v6.27 (Pagamento Já Recebido ficava desatualizado ao mudar cotas):
  - Bug real reportado pelo usuário: cadastrou participante marcando
    "Integral", mas o valor registrado saiu menor que o esperado — e
@@ -1770,7 +1785,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.27")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.28")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -2046,7 +2061,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.27",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.28",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -2417,6 +2432,15 @@ class BolaoApp:
                  text="  (ou informe manualmente — campo livre)",
                  bg=CORES["bg_section"], fg="#888",
                  font=("Arial",8,"italic")).pack(side="left")
+        # Achado real do usuário (Rodada 69): editar este campo na mão
+        # DEPOIS de clicar "Integral" deixava o Pagamento Já Recebido
+        # desatualizado — _cad_cotas_recalcular só reagia a mudança nas
+        # Cotas, mas "Valor Esperado" é um campo livre, editável direto,
+        # sem passar por Cotas nenhuma. Mesmo cuidado de manter em dia
+        # só quando ainda em modo automático.
+        self._cv["valor"].bind("<FocusOut>", lambda e: self._cad_valor_esperado_mudou())
+        self._cv["valor"].bind("<Return>",
+            lambda e: (self._cad_valor_esperado_mudou(), self._cv["valor_pago"].focus_set()))
 
         # Pagamento Já Recebido — usado só pelo botão CADASTRAR + PAGAR.
         # Achado real do usuário: "Cadastrar + Pagar" sempre registrava
@@ -2556,6 +2580,17 @@ class BolaoApp:
         sobrescrever o que ele escreveu na próxima vez que mudar as
         cotas (ver _cad_cotas_recalcular)."""
         self._cad_pago_modo = None
+
+    def _cad_valor_esperado_mudou(self):
+        """Valor Total Esperado mudou (é um campo livre, editável direto
+        — ver rótulo "ou informe manualmente"). Se o Pagamento Já
+        Recebido ainda estiver em modo "integral", refaz o cálculo pra
+        acompanhar. Bug real reportado pelo usuário (Rodada 69): clicou
+        "Integral" e DEPOIS editou o Valor Esperado na mão — como essa
+        edição não passa pelo campo Cotas, _cad_cotas_recalcular nunca
+        era chamado, e o pagamento ficava travado no valor antigo."""
+        if getattr(self, "_cad_pago_modo", None) == "integral":
+            self._cad_preencher_pago_integral()
 
     def _cad_cotas_recalcular(self):
         """Chamado quando o campo Cotas muda (perde o foco ou Enter) ou
@@ -5748,7 +5783,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.27</span>
+        <span>Sistema de Gestão de Bolões v6.28</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -8067,7 +8102,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.27</span>
+        <span>Sistema de Gestão de Bolões v6.28</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>

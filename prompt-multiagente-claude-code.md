@@ -1037,6 +1037,16 @@ Validado com 3 cenários num teste isolado, rodando o app de verdade (banco em m
 
 Versão desktop v6.26 → **v6.27**. `dist/SistemaBoloes.exe` reconstruído. **Usuário precisa corrigir manualmente** o pagamento já registrado errado (R$25,00) pro participante afetado — a correção evita o bug daqui pra frente, não conserta dado já gravado.
 
+## Rodada 69 — Integral ainda ficava desatualizado, faltava o campo Valor Esperado (v6.28, desktop)
+
+Usuário reportou o MESMO sintoma da Rodada 68 de novo, depois de já ter a correção: cadastrou pagando Integral R$75,00, mensagem final mostrou R$25,00. A Rodada 68 só cobria o campo Cotas mudando; faltava o campo "Valor Total Esperado" em si — que é um campo LIVRE, editável direto (o próprio rótulo já dizia "ou informe manualmente"), sem precisar passar pelo campo Cotas nenhuma vez. Editar esse campo na mão DEPOIS de clicar "Integral" não disparava nenhum recálculo do Pagamento Já Recebido.
+
+Corrigido: `self._cv["valor"]` ganhou bindings de `<FocusOut>`/`<Return>` chamando `_cad_valor_esperado_mudou()`, que recalcula o Pagamento Já Recebido só quando `_cad_pago_modo == "integral"` (modo "parcela" não depende desse campo, só de cotas × valor da parcela, então não precisa reagir a ele).
+
+Validado reproduzindo o cenário exato relatado num teste isolado (banco em memória): importa 1 cota (R$25 sugerido), clica Integral, edita Valor Esperado na mão pra 75,00 — Pagamento Já Recebido acompanha e também vira 75,00.
+
+Versão desktop v6.27 → **v6.28**. `dist/SistemaBoloes.exe` reconstruído. Mesma ressalva da Rodada 68: não conserta retroativamente nenhum pagamento já cadastrado errado antes desta correção.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
