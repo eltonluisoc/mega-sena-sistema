@@ -318,8 +318,13 @@ function calcularChancesBolao(cartoesBolao, loteria) {
     // Somado entre os cartões do bolão (valor esperado de cartões
     // premiados nessa faixa — mesma lógica de agregação já usada no
     // "bilhetes equivalentes" abaixo, só que pra essa faixa de prêmio).
-    const acertosAlvoChance = loteria === 'lotofacil' ? 13 : 4;
-    const rotuloChance = loteria === 'lotofacil' ? '13 PTS' : 'QUADRA';
+    // Quina usava quadra (j=4) igual à Mega, mas isso dava sempre uma
+    // fração minúscula (ex.: 0,63%) mesmo em bolões grandes — o usuário
+    // pediu terno (j=3), mais alcançável e que rende um % que já diz
+    // algo por si só (ver também a classificação por estrelas abaixo,
+    // que na Quina passou a usar esse mesmo % em vez de "bilhetes").
+    const acertosAlvoChance = loteria === 'lotofacil' ? 13 : (loteria === 'quina' ? 3 : 4);
+    const rotuloChance = loteria === 'lotofacil' ? '13 PTS' : (loteria === 'quina' ? 'TERNO' : 'QUADRA');
 
     let totalCombinacoesCobertas = 0;
     let totalCombinacoesChance = 0;
@@ -359,48 +364,70 @@ function calcularChancesBolao(cartoesBolao, loteria) {
     // (mais fácil de calibrar contra bolões reais), mas com uma faixa por
     // loteria em vez de uma só — Mega fica como já estava (confirmado
     // correto), Lotofácil sobe bastante (pra não bater EXCELENTE/ÓTIMO
-    // com só alguns cartões grandes) e Quina desce bastante (senão nunca
-    // sai de 1 estrela, já que ali os cartões quase sempre são o mínimo
-    // de 5 números = 1 combinação cada).
+    // com só alguns cartões grandes).
+    //
+    // A Quina saiu desse esquema (ver bloco abaixo): "bilhetes cobertos"
+    // não funciona bem lá porque os cartões quase sempre têm o mínimo de
+    // 5 números (1 combinação cada), então praticamente nunca saía de 1
+    // estrela. Só que exibir a chance de terno do bolão ao lado de uma
+    // classificação vinda de outra conta totalmente diferente ficava
+    // contraditório (ex.: 4★ ÓTIMO ao lado de 0,63% de chance de quadra).
+    // Decisão do usuário: na Quina, a classificação passa a vir direto do
+    // % de chance de terno.
     const FAIXAS_ESTRELAS = {
         mega:      { excelente: 10000, otimo: 5000,  bom: 1000, regular: 100 },
         // Referência: 3 cartões de 18 números = 2.448 bilhetes → cai em
         // BOM (não EXCELENTE/ÓTIMO, que precisam ser MUITO acima da média).
         lotofacil: { excelente: 60000, otimo: 20000, bom: 1500, regular: 300 },
-        quina:     { excelente: 2000,  otimo: 800,   bom: 200,  regular: 50  },
     };
-    const faixas = FAIXAS_ESTRELAS[loteria] || FAIXAS_ESTRELAS.quina;
+
+    // "Chance real" = chance de pelo menos um cartão bater a faixa de
+    // prêmio mais alcançável (ver acertosAlvoChance acima).
+    const probabilidade = totalCombinacoesPossiveis > 0
+        ? totalCombinacoesChance / totalCombinacoesPossiveis
+        : 0;
 
     let estrelas = 0;
     let estrelasHtml = '';
     let classificacao = '';
 
-    if (totalCombinacoesCobertas >= faixas.excelente) {
-        estrelas = 5;
-        classificacao = 'EXCELENTE';
-    } else if (totalCombinacoesCobertas >= faixas.otimo) {
-        estrelas = 4;
-        classificacao = 'ÓTIMO';
-    } else if (totalCombinacoesCobertas >= faixas.bom) {
-        estrelas = 3;
-        classificacao = 'BOM';
-    } else if (totalCombinacoesCobertas >= faixas.regular) {
-        estrelas = 2;
-        classificacao = 'REGULAR';
+    if (loteria === 'quina') {
+        // Faixas de % de chance de terno (não usa "bilhetes cobertos").
+        // Sem faixa REGULAR/2★ — decisão explícita do usuário.
+        const pctChance = probabilidade * 100;
+        if (pctChance >= 80) {
+            estrelas = 5;
+            classificacao = 'EXCELENTE';
+        } else if (pctChance >= 50) {
+            estrelas = 4;
+            classificacao = 'ÓTIMO';
+        } else if (pctChance >= 15) {
+            estrelas = 3;
+            classificacao = 'BOM';
+        } else {
+            estrelas = 1;
+            classificacao = 'SIMPLES';
+        }
     } else {
-        estrelas = 1;
-        classificacao = 'SIMPLES';
+        const faixas = FAIXAS_ESTRELAS[loteria] || FAIXAS_ESTRELAS.mega;
+        if (totalCombinacoesCobertas >= faixas.excelente) {
+            estrelas = 5;
+            classificacao = 'EXCELENTE';
+        } else if (totalCombinacoesCobertas >= faixas.otimo) {
+            estrelas = 4;
+            classificacao = 'ÓTIMO';
+        } else if (totalCombinacoesCobertas >= faixas.bom) {
+            estrelas = 3;
+            classificacao = 'BOM';
+        } else if (totalCombinacoesCobertas >= faixas.regular) {
+            estrelas = 2;
+            classificacao = 'REGULAR';
+        } else {
+            estrelas = 1;
+            classificacao = 'SIMPLES';
+        }
     }
 
-    // "Chance real" = chance de pelo menos um cartão bater a faixa de
-    // prêmio mais alcançável (ver acertosAlvoChance acima) — não mais o
-    // prêmio máximo. Continua sem entrar na base das estrelas (essas
-    // seguem olhando pra "bilhetes equivalentes" do prêmio máximo, ver
-    // comentário acima).
-    const probabilidade = totalCombinacoesPossiveis > 0
-        ? totalCombinacoesChance / totalCombinacoesPossiveis
-        : 0;
-    
     for (let i = 1; i <= 5; i++) {
         if (i <= estrelas) {
             estrelasHtml += '★';

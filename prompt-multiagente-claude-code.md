@@ -1047,6 +1047,18 @@ Validado reproduzindo o cenário exato relatado num teste isolado (banco em mem�
 
 Versão desktop v6.27 → **v6.28**. `dist/SistemaBoloes.exe` reconstruído. Mesma ressalva da Rodada 68: não conserta retroativamente nenhum pagamento já cadastrado errado antes desta correção.
 
+## Rodada 70 — Quina troca "chance de quadra" por "chance de terno" e ganha classificação própria por % (web)
+
+Usuário reportou (com print do card "POTENCIAL DO BOLÃO" no site): um bolão real de Quina (26 cartões, concurso 7130) aparecia como ★★★★ ÓTIMO ao lado de "0,63% CHANCE (QUADRA)" — inconsistente, porque quadra na Quina é sempre uma fração minúscula mesmo em bolões grandes.
+
+Investigado antes de codar: a classificação por estrelas (`FAIXAS_ESTRELAS`) e a "chance %" exibida são cálculos totalmente independentes no `script.js` — estrelas vêm de "bilhetes equivalentes" (Σ C(n,5)), chance vem da fórmula hipergeométrica pra quadra (j=4). Rodei uma consulta real no Firestore (`cartoes`, público, sem precisar de login) pra achar o bolão exato do print e confirmar os números: 26 cartões (quatro de 7 números, quatorze de 8, oito de 9), 75/80 números cobertos, 1.876 bilhetes. Reproduzi a conta do site (0,6337% de quadra, bate com o print) e calculei também o cenário terno (j=3): **16,81%**.
+
+Apresentei os dois números pro usuário decidir. Escolha: trocar pra terno E mudar a classificação da Quina para vir direto do % de chance de terno (não mais de bilhetes cobertos) — faixas definidas pelo usuário: SIMPLES <15%, BOM 15–50%, ÓTIMO 50–80%, EXCELENTE ≥80% (sem faixa REGULAR/2★ pra Quina, decisão explícita dele). Com essas faixas, o bolão do print cai em **3★ BOM (16,81%)**, resolvendo a inconsistência.
+
+Implementado em `calcularChancesBolao()`: `acertosAlvoChance`/`rotuloChance` agora usam terno (`3`/`'TERNO'`) só pra Quina (Mega e Lotofácil inalterados); a lógica de estrelas foi bifurcada — Quina usa as novas faixas de %, Mega/Lotofácil continuam com `FAIXAS_ESTRELAS` (bilhetes cobertos), inalteradas. Validado com `node --check script.js` (sintaxe) e um script Node isolado reproduzindo a conta do bolão real, confirmando 16,81% → 3★ BOM.
+
+`sw.js` `CACHE_NAME` v51 → **v52**.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
