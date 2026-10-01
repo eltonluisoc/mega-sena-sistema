@@ -1059,6 +1059,30 @@ Implementado em `calcularChancesBolao()`: `acertosAlvoChance`/`rotuloChance` ago
 
 `sw.js` `CACHE_NAME` v51 → **v52**.
 
+## Rodada 71 — Causa raiz real do "Cadastrar+Pagar grava valor errado", busca por telefone do site vazia, e revisão de UX com 5 agentes (v6.29, desktop)
+
+Usuário reportou DOIS problemas no mesmo turno: (1) Rogério Pio (tel. 61994272409), cadastrado de verdade no bolão "Mega da Virada 2026", não aparecia na busca por telefone do site; (2) cadastrou Fabrício Ataíde pagando R$75,00 integral via "Cadastrar + Pagar", sistema registrou R$25,00 — o MESMO sintoma das Rodadas 68/69, que já tinham sido corrigidas (ou achávamos).
+
+**Problema 1 — busca por telefone vazia:** investigado consultando o Firestore ao vivo (REST público), não assumido. `busca_participante/61994272409` devolvia 404. Amostrei outros 8 participantes do mesmo bolão (todos 404) e depois outros 4 bolões inteiros (`lotofacil_da_independencia`, `quina_de_sao_joao_2026`, `quina_de_sao_joao_2026_ii`, `mega_da_virada_amigos_2026`) — TODOS os participantes, de TODOS os bolões, sem exceção, sem nenhum doc em `busca_participante`. Causa raiz: existem DOIS caminhos de publicação pro Firestore — o botão manual "🌐 PUBLICAR NO SITE" (`_pub_enviar`), que desde a Rodada 60 chama `atualizar_busca_participante()` depois do PATCH; e a sincronização automática ao FECHAR o programa (dentro de `_on_close`, que publica em "participantes" com uma cópia inline da mesma lógica, não reaproveitando a função). O fluxo real do admin é fechar o programa no dia a dia — não clicar o botão manual a cada participante novo — e esse segundo caminho nunca chamava `atualizar_busca_participante()`. Corrigido adicionando essa chamada logo após o PATCH bem-sucedido no fechamento automático, sem bloquear o fechamento se falhar (mesmo critério não-bloqueante do fluxo manual). **Dados já publicados antes desta correção continuam ausentes** até o usuário clicar uma vez em "🔄 Sincronizar Busca por Telefone (todos os bolões)" na aba Publicar (botão já existia, só nunca tinha sido clicado).
+
+**Problema 2 — causa raiz REAL do bug de valor errado (3ª ocorrência):** as Rodadas 68 e 69 corrigiram bugs genuínos de dessincronia (campo "Pagamento Já Recebido" ficando desatualizado depois de mudar Cotas ou Valor Esperado), mas nenhuma delas era a causa deste caso. Lendo `_cadastrar_e_pagar()` com calma: ela chamava `self._cadastrar(retornar_pid=True, silencioso=True)` e SÓ DEPOIS lia `self._cv["valor_pago"].get()` — mas `_cadastrar()` SEMPRE limpa TODOS os campos do formulário no final (inclusive "Pagamento Já Recebido") e repreenche com o padrão de 1 parcela, pra deixar pronto pro próximo cadastro — mesmo quando chamada internamente com `silencioso=True`. Ou seja: o valor era lido DEPOIS de já ter sido resetado pelo próprio cadastro, 100% das vezes que o valor não fosse coincidentemente igual a 1 parcela. Corrigido lendo `valor_pago` ANTES de chamar `_cadastrar()`. Validado com teste isolado reproduzindo o cenário exato (Integral de R$75,00 → gravava R$25,00 antes da correção → grava R$75,00 depois).
+
+**Revisão de UX com 5 agentes em paralelo** (pedido explícito do usuário: "revise com 5 agentes essa usabilidade"), cada um com um recorte diferente da tela "Incluir Participante" (fluxo de dados/consistência, usabilidade/fricção, validação/limites, importação/duplicidade, ADM/casos de borda). Achados reais confirmados por leitura de código (não especulação) e corrigidos:
+- **ADM isento 100% quebrado**: `_cad_adm_toggle` zera Cotas pra "0" no caso isento, mas `_cadastrar` rejeitava QUALQUER cotas<1 incondicionalmente — cadastrar o ADM isento sempre batia em "Número de cotas inválido!" e travava. Corrigido: cotas mínima passa a ser 0 quando o checkbox ADM está marcado.
+- ADM isento não zerava "Pagamento Já Recebido" (podia registrar pagamento pra alguém isento) nem se protegia de recálculos automáticos subsequentes — `_cad_cotas_recalcular`/`_preencher_valor_cad` podiam reescrever o zeramento em silêncio ao perder foco do campo Cotas sem nem mudar nada. Corrigido: zera também o pagamento + `_cad_pago_modo=None`, e `_preencher_valor_cad` ganhou uma guarda que não recalcula por cima do zeramento intencional.
+- Desmarcar ADM isento não restaurava Cotas="1" — o campo ficava em "0" pra sempre, travando o PRÓXIMO cadastro normal também. Corrigido.
+- Checagem de limite de cotas do bolão rodava DEPOIS de criar a pessoa nova em "pessoas" — se o limite estourasse, ficava um registro órfão (pessoa sem nenhum participante apontando pra ela). Movida pra antes.
+- Importar membro de bolão anterior podia trazer nome/telefone desatualizados: a lista de busca já mostra o dado corrigido (de "pessoas", pós-unificação de duplicados), mas o import de fato usava a cópia antiga denormalizada de "participantes". Corrigido pra usar a mesma fonte.
+- Telefone sem validação de quantidade de dígitos (podia quebrar a busca por telefone do site, ver Problema 1) — adicionado mínimo 10/máximo 11 dígitos.
+- Sem trava contra dois administradores no mesmo bolão — adicionada confirmação quando já existe um.
+- Pagamento maior que o Valor Esperado era gravado sem nenhum aviso — adicionada confirmação quando ultrapassa 5% do esperado (pega o mesmo tipo de erro de digitação dos 3 bugs anteriores).
+- Indicador visual de modo ("● modo: 1 parcela"/"integral"/"editado manualmente") adicionado ao lado do campo de pagamento — antes só dava pra adivinhar olhando o número.
+- Botões CADASTRAR e CADASTRAR+PAGAR ganharam mais espaçamento entre si (reduz risco de clique errado num botão que grava pagamento de verdade).
+
+Validado com 35/35 testes automatizados (regressão) + testes isolados cobrindo: ADM isento (marcar, recalcular sem mudar nada, cadastrar, desmarcar), pagamento integral no cenário exato do Fabrício Ataíde, e confirmação de segundo ADM (incluindo o caso do usuário recusar).
+
+Versão desktop v6.28 → **v6.29**. `dist/SistemaBoloes.exe` reconstruído.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

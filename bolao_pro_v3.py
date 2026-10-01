@@ -1,7 +1,51 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.28
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.29
+Correções v6.29 (causa raiz real do bug "Cadastrar+Pagar grava valor errado",
+busca por telefone do site vazia, e revisão de UX com 5 agentes):
+ - CAUSA RAIZ do bug reportado 3x (ex.: Fabrício Ataíde pagando R$75,00,
+   sistema registrando R$25,00): _cadastrar_e_pagar() lia o campo
+   "Pagamento Já Recebido" DEPOIS de chamar _cadastrar() — mas
+   _cadastrar() SEMPRE limpa esse campo no final (reseta pro padrão de
+   1 parcela), mesmo quando chamado internamente pelo fluxo de pagar.
+   As Rodadas 68/69 corrigiram bugs REAIS de dessincronia, mas não esse.
+   Corrigido lendo o valor ANTES de chamar _cadastrar().
+ - Busca por telefone do site ("Meus Bolões") vinha vazia pra TODOS os
+   participantes, de TODOS os bolões — confirmado consultando o
+   Firestore ao vivo. Causa: a sincronização automática ao fechar o
+   programa nunca chamava atualizar_busca_participante() (só o botão
+   manual "Publicar no Site" fazia isso). Corrigido chamando essa
+   função também no fechamento automático. Dados já publicados antes
+   desta correção continuam faltando até rodar "🔄 Sincronizar Busca
+   por Telefone" uma vez na aba Publicar.
+ - Revisão de UX da tela "Incluir Participante" com 5 agentes em
+   paralelo, focada em achar outros "furos" do mesmo tipo:
+   * ADM isento (adm_paga=0) estava 100% quebrado: _cad_adm_toggle
+     zera Cotas pra "0", mas _cadastrar rejeitava QUALQUER cotas<1
+     incondicionalmente — cadastrar o ADM isento sempre travava.
+   * ADM isento não zerava "Pagamento Já Recebido" (podia registrar
+     pagamento pra alguém isento) nem se protegia de recálculos
+     automáticos subsequentes (_cad_cotas_recalcular etc. reescreviam
+     o zeramento em silêncio).
+   * Desmarcar ADM isento não restaurava Cotas="1", travando o próximo
+     cadastro normal também.
+   * Checagem de limite de cotas rodava DEPOIS de criar a pessoa nova
+     em "pessoas" — se o limite estourasse, ficava um registro órfão.
+   * Importar membro de bolão anterior podia trazer nome/telefone
+     desatualizados (usava a cópia antiga de "participantes" em vez do
+     dado já corrigido em "pessoas", que a própria busca já exibia).
+   * Sem validação de dígitos do telefone (quebrava a busca por
+     telefone do site) e sem nenhuma trava contra dois administradores
+     no mesmo bolão.
+   * Pagamento maior que o Valor Esperado era gravado sem aviso —
+     agora pede confirmação quando passa 5% do esperado.
+   * Indicador visual de modo (1 parcela/integral/editado manualmente)
+     adicionado ao lado do campo de pagamento; botões CADASTRAR e
+     CADASTRAR+PAGAR mais espaçados (reduz risco de clique errado).
+   Validado com 35/35 testes automatizados + testes isolados cobrindo
+   ADM isento (cadastro, recálculo, desmarcar), pagamento integral
+   (cenário real do Fabrício) e confirmação de segundo ADM.
 Correções v6.28 (Integral ainda ficava desatualizado — faltava o campo Valor Esperado):
  - A v6.27 corrigiu a dessincronia quando o campo COTAS mudava depois
    de clicar Integral/1 Parcela, mas o usuário reportou o mesmo
@@ -1785,7 +1829,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.28")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.29")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -2061,7 +2105,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.28",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.29",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -2463,6 +2507,15 @@ class BolaoApp:
             self._cad_preencher_pago_parcela, width=10).pack(side="left", padx=(8,3))
         btn(pag_frame, "Integral", CORES["btn_verde"],
             self._cad_preencher_pago_integral, width=10).pack(side="left")
+        # Achado real (revisão de UX, Rodada 70): nada na tela indicava
+        # qual modo ("1 Parcela"/"Integral"/editado na mão) estava ativo
+        # pro campo acima — só dava pra adivinhar olhando o número e
+        # tentando lembrar se bate com parcela×cotas ou com o total.
+        # Atualizado em _cad_preencher_pago_parcela/_integral/
+        # _cad_pago_editado_manual e no zeramento do ADM isento.
+        self._cad_modo_pago_lbl = tk.Label(pag_frame, text="", bg=CORES["bg_section"],
+                 fg="#999", font=("Arial",8,"bold"))
+        self._cad_modo_pago_lbl.pack(side="left", padx=(8,0))
         tk.Label(pag_frame, text="  (usado só pelo botão CADASTRAR + PAGAR)",
                  bg=CORES["bg_section"], fg="#888",
                  font=("Arial",8,"italic")).pack(side="left", padx=(6,0))
@@ -2496,8 +2549,13 @@ class BolaoApp:
         bf.grid(row=8, column=0, columnspan=2, sticky="w", pady=(6,6))
         btn(bf, "✔ CADASTRAR", CORES["btn_verde"],
             self._cadastrar, width=18).pack(side="left")
+        # Achado real (revisão de UX, Rodada 70): os dois botões ficavam
+        # colados (padx=8) com o mesmo tamanho/altura — "CADASTRAR + PAGAR"
+        # grava um pagamento de verdade no banco (efeito colateral
+        # financeiro, não reversível com Ctrl+Z), então merece mais
+        # distância do clique simples pra reduzir risco de mirar errado.
         btn(bf, "💳 CADASTRAR + PAGAR", CORES["btn_azul"],
-            self._cadastrar_e_pagar, width=22).pack(side="left", padx=8)
+            self._cadastrar_e_pagar, width=22).pack(side="left", padx=(28,8))
         # "Cadastrar" limpa o formulário e continua aberto de propósito
         # (cadastrar vários participantes seguidos sem reabrir o popup)
         # — por isso precisa de um jeito explícito de fechar quando
@@ -2555,6 +2613,7 @@ class BolaoApp:
             self._cv["valor_pago"].delete(0, "end")
             self._cv["valor_pago"].insert(0, f"{valor:.2f}".replace(".", ","))
             self._cad_pago_modo = "parcela"
+            self._cad_atualizar_modo_pago_lbl()
         except Exception:
             pass
 
@@ -2571,6 +2630,7 @@ class BolaoApp:
             self._cv["valor_pago"].delete(0, "end")
             self._cv["valor_pago"].insert(0, f"{valor_esp:.2f}".replace(".", ","))
             self._cad_pago_modo = "integral"
+            self._cad_atualizar_modo_pago_lbl()
         except Exception:
             pass
 
@@ -2580,6 +2640,21 @@ class BolaoApp:
         sobrescrever o que ele escreveu na próxima vez que mudar as
         cotas (ver _cad_cotas_recalcular)."""
         self._cad_pago_modo = None
+        self._cad_atualizar_modo_pago_lbl()
+
+    def _cad_atualizar_modo_pago_lbl(self):
+        """Atualiza o indicador de modo ao lado de 'Pagamento Já
+        Recebido' (achado real, revisão de UX Rodada 70: não havia
+        nenhum jeito de saber, só olhando a tela, se esse valor ainda
+        estava seguindo "1 Parcela"/"Integral" automaticamente ou se foi
+        editado na mão)."""
+        try:
+            modo = getattr(self, "_cad_pago_modo", None)
+            textos = {"parcela": "● modo: 1 parcela", "integral": "● modo: integral"}
+            self._cad_modo_pago_lbl.configure(
+                text=textos.get(modo, "● modo: editado manualmente"))
+        except Exception:
+            pass
 
     def _cad_valor_esperado_mudou(self):
         """Valor Total Esperado mudou (é um campo livre, editável direto
@@ -2619,13 +2694,41 @@ class BolaoApp:
         antes de cadastrar, obrigando corrigir depois quando o
         participante tinha pago o valor integral (achado real do
         usuário: "preciso informar antes de cadastrar e pagar... é
-        importante pra evitar ter que revisar depois")."""
+        importante pra evitar ter que revisar depois").
+
+        CAUSA RAIZ real do bug reportado 3x (Leandro Magnani, e de novo
+        com Fabrício Ataíde pagando 75,00 e registrando 25,00): o valor
+        tinha que ser lido ANTES de chamar _cadastrar(), não depois —
+        _cadastrar() SEMPRE limpa o formulário inteiro no final (inclusive
+        'Pagamento Já Recebido') e repreenche com o padrão de 1 parcela
+        pra deixar pronto pro próximo cadastro, mesmo quando chamado aqui
+        com silencioso=True. Lendo o valor só depois desse reset, o
+        _cadastrar_e_pagar sempre pegava o valor de 1 parcela recém-
+        recalculado (ex.: 25,00), nunca o que o usuário realmente
+        informou/escolheu (ex.: 75,00 via botão Integral) — um bug
+        presente em TODO cadastro+pagamento com valor diferente de 1
+        parcela, não só numa mudança de cotas/valor depois do clique
+        (as causas já corrigidas nas Rodadas 68/69, que eram reais mas
+        não eram esta).
+
+        Achado real (revisão de UX, Rodada 70): nenhum lugar do sistema
+        comparava o Pagamento Já Recebido com o Valor Total Esperado —
+        um valor digitado MUITO maior que o esperado (o tipo de erro de
+        digitação que já causou os 3 bugs anteriores, ex. um dígito a
+        mais) era gravado direto, sem nenhum sinal. Pergunta só quando
+        passa claramente do esperado (não cada centavo de diferença)."""
+        valor_pago = to_float(self._cv["valor_pago"].get())
+        valor_esp_preview = to_float(self._cv["valor"].get())
+        if valor_pago > 0 and valor_esp_preview > 0 and valor_pago > valor_esp_preview * 1.05:
+            if not messagebox.askyesno("Confirmar valor pago",
+                    f"Pagamento de {fmt_brl(valor_pago)} é maior que o Valor "
+                    f"Total Esperado ({fmt_brl(valor_esp_preview)}).\n\n"
+                    f"Confirma esse valor mesmo assim?"):
+                return
         resultado = self._cadastrar(retornar_pid=True, silencioso=True)
         if not resultado:
             return
         pid, nome, bolao_nome = resultado
-
-        valor_pago = to_float(self._cv["valor_pago"].get())
 
         # Resultado no label do popup, não em messagebox — cadastrar
         # vários participantes seguidos não pode exigir um clique OK a
@@ -2661,8 +2764,15 @@ class BolaoApp:
         """Ao marcar como ADM: verifica se bolão tem isento configurado e zera valor."""
         bid = self.bid.get()
         if not self._cv_is_adm.get():
-            # Desmarcou — restaura valor normal
+            # Desmarcou — restaura valor normal. Achado real (revisão de
+            # UX, Rodada 70): o ramo ADM isento força Cotas="0"; sem
+            # restaurar aqui, o campo ficava em "0" pra sempre depois de
+            # desmarcar, e _cadastrar rejeitaria "Número de cotas
+            # inválido!" no próximo cadastro (mesmo já não sendo ADM).
             self._cad_adm_lbl.configure(text="")
+            if self._cv["cotas"].get().strip() == "0":
+                self._cv["cotas"].delete(0, "end")
+                self._cv["cotas"].insert(0, "1")
             self._preencher_valor_cad()
             return
 
@@ -2684,8 +2794,22 @@ class BolaoApp:
             self._cv["valor"].insert(0, "0,00")
             self._cv["cotas"].delete(0, "end")
             self._cv["cotas"].insert(0, "0")
+            # Achado real (revisão de UX, Rodada 70): este zeramento não
+            # tocava em 'Pagamento Já Recebido' — se o modo "1 Parcela"/
+            # "Integral" já estivesse ativo antes de marcar ADM isento
+            # (ex.: o popup já preenche "1 Parcela" sozinho ao abrir),
+            # esse campo ficava com um valor residual não-zero, e
+            # CADASTRAR + PAGAR registraria um pagamento indevido pra
+            # alguém que a tela descreve como isento. _cad_pago_modo=None
+            # também evita que um recálculo automático subsequente
+            # (_cad_cotas_recalcular etc.) reescreva um valor não-zero
+            # aqui — ver guarda em _preencher_valor_cad.
+            self._cv["valor_pago"].delete(0, "end")
+            self._cv["valor_pago"].insert(0, "0,00")
+            self._cad_pago_modo = None
+            self._cad_atualizar_modo_pago_lbl()
             self._cad_adm_lbl.configure(
-                text="✅ ADM isento neste bolão — valor zerado automaticamente.",
+                text="✅ ADM isento neste bolão — valor e pagamento zerados automaticamente.",
                 fg="#1D9E75")
             # Preenche nome se campo vazio e ADM configurado
             if adm_nome and not self._cv["nome"].get().strip():
@@ -2732,6 +2856,16 @@ class BolaoApp:
         try:
             bid = self.bid.get()
             if not bid: return
+            # Achado real (revisão de UX, Rodada 70): sem esta guarda, um
+            # recálculo disparado DEPOIS de marcar ADM isento (ex.: sair
+            # do campo Cotas mesmo sem mudar nada, ou importar outro
+            # membro) tratava Cotas="0" como "1 na prática" (ver abaixo,
+            # "n_cotas<1 → 1") e reescrevia Valor Esperado com um valor
+            # cheio — desfazendo o zeramento intencional em silêncio.
+            if getattr(self, "_cv_is_adm", None) and self._cv_is_adm.get():
+                b_adm = self.db.fetchone("SELECT adm_paga FROM boloes WHERE id=?", (bid,))
+                if b_adm and not (b_adm["adm_paga"] or 0):
+                    return
             b = self.db.fetchone("SELECT valor_total FROM boloes WHERE id=?", (bid,))
             if not b: return
             vt = float(b["valor_total"] or 0)
@@ -2763,11 +2897,32 @@ class BolaoApp:
         # ao buscar/importar de outro bolão.
         tel = re.sub(r"\D", "", tel)
         if not tel: messagebox.showwarning("Atenção","Telefone inválido!"); return
+        # Achado real (revisão de UX, Rodada 70): sem mínimo de dígitos,
+        # um telefone incompleto digitado errado (ex. "999999", 6
+        # dígitos) era aceito de boa — e depois nunca aparece na busca
+        # por telefone do site, que exige 10-11 dígitos (DDD+número).
+        if len(tel) < 10 or len(tel) > 11:
+            messagebox.showwarning("Atenção",
+                f"Telefone '{tel}' tem {len(tel)} dígito(s) — "
+                "informe DDD + número (10 ou 11 dígitos).")
+            return
+
+        # Lido aqui (não só lá na frente, perto do INSERT) porque a
+        # validação de cotas logo abaixo precisa saber se é o ADM isento
+        # — ver comentário na validação.
+        is_adm = getattr(self, "_cv_is_adm", tk.IntVar(value=0)).get()
 
         n_cotas_str = self._cv["cotas"].get().strip() or "1"
         try:
             n_cotas = int(n_cotas_str)
-            if n_cotas < 1: raise ValueError
+            # Achado real (revisão de UX, Rodada 70): ADM isento zera o
+            # campo Cotas pra "0" (_cad_adm_toggle) de propósito — mas
+            # essa validação rejeitava QUALQUER cotas<1 incondicionalmente,
+            # então cadastrar o ADM isento sempre batia em "Número de
+            # cotas inválido!" e travava, 100% das vezes. 0 cotas só é
+            # válido quando é o próprio ADM marcado como isento.
+            cotas_minima = 0 if is_adm else 1
+            if n_cotas < cotas_minima: raise ValueError
         except:
             messagebox.showwarning("Atenção","Número de cotas inválido!"); return
 
@@ -2777,6 +2932,41 @@ class BolaoApp:
         parc       = b["valor_parcela"]     if b else 0
         bolao_nome = b["nome"]              if b else "-"
         max_cotas  = b["num_participantes"] if b else 0
+
+        # ── Verificar limite de cotas do bolão ───────────────────
+        # Achado real (revisão de UX, Rodada 70): essa checagem ficava
+        # DEPOIS de criar a pessoa nova em "pessoas" (bloco abaixo) — se
+        # o limite estourasse, o INSERT em "participantes" era abortado,
+        # mas a pessoa já tinha sido criada, ficando órfã (sem nenhum
+        # participante apontando pra ela). Movida pra ANTES de mexer em
+        # "pessoas": não depende de pessoa_id, só de bid/n_cotas.
+        cotas_ocupadas, max_cotas = self._get_cotas_ocupadas(bid)
+        if max_cotas > 0:
+            cotas_livres = max_cotas - cotas_ocupadas
+            if n_cotas > cotas_livres:
+                messagebox.showwarning("Limite Atingido",
+                    f"O bolão tem {max_cotas} cotas no total.\n"
+                    f"Cotas ocupadas: {cotas_ocupadas}\n"
+                    f"Cotas livres:   {cotas_livres}\n\n"
+                    f"Você está tentando adicionar {n_cotas} cota(s).\n\n"
+                    f"Para adicionar mais, edite o bolão em\n"
+                    f"'Gerenciar Bolões → Editar' e aumente o número de cotas.")
+                return
+
+        # Achado real (revisão de UX, Rodada 70): não existia nenhuma
+        # trava contra cadastrar um SEGUNDO administrador no mesmo
+        # bolão — um clique errado no checkbox ADM criava dois
+        # participantes com is_adm=1 sem aviso nenhum.
+        if is_adm:
+            outro_adm = self.db.fetchone(
+                "SELECT nome FROM participantes WHERE bolao_id=? AND is_adm=1 AND ativo=1",
+                (bid,))
+            if outro_adm:
+                if not messagebox.askyesno("Administrador já definido",
+                        f"'{outro_adm['nome']}' já está marcado como "
+                        f"administrador deste bolão.\n\n"
+                        f"Marcar '{nome}' também como administrador?"):
+                    return
 
         # ── Verifica se telefone já existe na tabela pessoas ─────
         pessoa_existente = self.db.fetchone(
@@ -2816,22 +3006,6 @@ class BolaoApp:
                 "INSERT INTO pessoas (nome,telefone,chave_pix) VALUES (?,?,?)",
                 (nome, tel, pix))
             pessoa_id = self.db.fetchone("SELECT last_insert_rowid() as id")["id"]
-
-        # ── Verificar limite de cotas do bolão ───────────────────
-        cotas_ocupadas, max_cotas = self._get_cotas_ocupadas(bid)
-        if max_cotas > 0:
-            cotas_livres = max_cotas - cotas_ocupadas
-            if n_cotas > cotas_livres:
-                messagebox.showwarning("Limite Atingido",
-                    f"O bolão tem {max_cotas} cotas no total.\n"
-                    f"Cotas ocupadas: {cotas_ocupadas}\n"
-                    f"Cotas livres:   {cotas_livres}\n\n"
-                    f"Você está tentando adicionar {n_cotas} cota(s).\n\n"
-                    f"Para adicionar mais, edite o bolão em\n"
-                    f"'Gerenciar Bolões → Editar' e aumente o número de cotas.")
-                return
-
-        is_adm = getattr(self, "_cv_is_adm", tk.IntVar(value=0)).get()
 
         self.db.execute(
             "INSERT INTO participantes (bolao_id,pessoa_id,nome,telefone,chave_pix,"
@@ -2948,6 +3122,21 @@ class BolaoApp:
         pt = self.db.fetchone("SELECT * FROM participantes WHERE id=?", (pid_orig,))
         if not pt: return
 
+        # Achado real (revisão de UX, Rodada 70): _imp_buscar já prefere
+        # nome/telefone de "pessoas" (fonte corrigida pela unificação de
+        # duplicados) na HORA DE MOSTRAR a lista — mas este import usava
+        # direto a cópia denormalizada de "participantes", sem passar
+        # pelo mesmo JOIN. Resultado: o admin via um nome/telefone já
+        # corrigido na lista, clicava Importar, e o formulário vinha
+        # preenchido com o dado ANTIGO (pré-unificação) da linha
+        # original, não com o que estava sendo exibido. PIX segue vindo
+        # de "participantes" mesmo (tabela "pessoas" não tem PIX mais
+        # atual que essa cópia garantidamente).
+        pessoa = self.db.fetchone("SELECT nome, telefone FROM pessoas WHERE id=?",
+                                   (pt["pessoa_id"],)) if pt["pessoa_id"] else None
+        nome_imp = (pessoa["nome"] if pessoa and pessoa["nome"] else pt["nome"])
+        tel_imp  = (pessoa["telefone"] if pessoa and pessoa["telefone"] else pt["telefone"])
+
         # Preenche o formulário principal com os dados do membro selecionado
         for k, w in self._cv.items():
             if isinstance(w, tk.Text):
@@ -2955,8 +3144,8 @@ class BolaoApp:
             else:
                 w.delete(0,"end")
 
-        self._cv["nome"].insert(0, pt["nome"])
-        self._cv["tel"].insert(0,  pt["telefone"] or "")
+        self._cv["nome"].insert(0, nome_imp)
+        self._cv["tel"].insert(0,  tel_imp or "")
         self._cv["pix"].insert(0,  pt["chave_pix"] or "")
         self._cv["cotas"].insert(0, "1")
         if pt["observacoes"]:
@@ -5783,7 +5972,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.28</span>
+        <span>Sistema de Gestão de Bolões v6.29</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -8102,7 +8291,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.28</span>
+        <span>Sistema de Gestão de Bolões v6.29</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -9685,6 +9874,28 @@ class BolaoApp:
                                 n_and = len(lista) - n_q
                                 win.after(0, lambda nm=nome_b, q=n_q, a=n_and: log(
                                     "       publicado! "+str(q)+" quitados, "+str(a)+" em andamento", "ok"))
+                                # Achado real (usuário buscou pelo telefone no
+                                # site e não encontrou um participante que
+                                # ESTAVA no bolão): esta sincronização
+                                # automática do fechamento publica em
+                                # "participantes" (card público do bolão) mas
+                                # nunca chamava atualizar_busca_participante —
+                                # só o botão manual "PUBLICAR NO SITE" da aba
+                                # Publicar fazia isso (Rodada 60). Como o fluxo
+                                # real do admin é fechar o programa (não clicar
+                                # esse botão a cada participante novo), a
+                                # coleção busca_participante ficou vazia pra
+                                # TODOS os bolões — confirmado consultando o
+                                # Firestore ao vivo antes de corrigir. Não
+                                # bloqueia o fechamento se falhar (mesmo
+                                # critério do fluxo manual): é um índice
+                                # auxiliar de busca, não os dados em si.
+                                try:
+                                    atualizar_busca_participante(
+                                        doc_id_b, nome_b, lot, vt, "", lista)
+                                except Exception as ex_bp:
+                                    win.after(0, lambda e=str(ex_bp)[:80]: log(
+                                        "       (busca por telefone não atualizou: "+e+")", "warn"))
                             else:
                                 err_b.append(nome_b)
                                 win.after(0, lambda s=resp.status: log("       ERRO HTTP "+str(s), "err"))
