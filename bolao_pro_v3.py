@@ -1,7 +1,32 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.29
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.30
+Correções v6.30 (fechamento do programa demorando minutos — regressão
+introduzida pela própria correção da busca por telefone na v6.29):
+ - A correção da v6.29 (sincronizar busca_participante também no
+   fechamento automático) fazia 1 GET + 1 PATCH no Firestore pra CADA
+   participante de CADA bolão publicado — TODA vez que o programa
+   fechava, mesmo pra quem não tinha mudado nada desde o fechamento
+   anterior. Com bolões de 40+ pessoas, isso sozinho virava minutos de
+   espera, e a tela não dava nenhum sinal do que estava rolando (barra
+   de progresso parada na mesma % por muito tempo).
+ - Corrigido com um "fingerprint" (hash) salvo por participante no
+   SQLite local (`participantes.busca_sync_hash`) do que foi mandado da
+   última vez pra cada bolão — se nada mudou (nome/situação/cotas/valor
+   pago), pula o GET+PATCH inteiro sem nenhuma chamada de rede. Na
+   prática, depois do primeiro fechamento pós-atualização, a maioria dos
+   fechamentos seguintes não vai precisar sincronizar quase ninguém.
+ - Visibilidade pedida pelo usuário ("preciso ter noção do que está
+   acontecendo"): cronômetro "⏱ Xs"/"XmYYs" na janela de fechamento,
+   atualizado a cada segundo, visível mesmo quando a % geral fica parada
+   num mesmo número. A etapa de busca por telefone (antes totalmente
+   silenciosa) agora mostra progresso ao vivo no rodapé ("N/total, X
+   atualizados, Y sem mudança") e um resumo com tempo gasto no log.
+ - Validado com testes isolados (sem rede real): hash igual não faz
+   NENHUMA chamada HTTP; participante alterado faz GET+PATCH normalmente
+   e o hash é salvo depois; cronômetro formata e atualiza corretamente e
+   não quebra se a janela for destruída com um tick pendente.
 Correções v6.29 (causa raiz real do bug "Cadastrar+Pagar grava valor errado",
 busca por telefone do site vazia, e revisão de UX com 5 agentes):
  - CAUSA RAIZ do bug reportado 3x (ex.: Fabrício Ataíde pagando R$75,00,
@@ -1053,6 +1078,14 @@ class Database:
             # hora) — na próxima importação, o mesmo doc_id é reconhecido
             # como já aplicado em vez de virar uma segunda linha.
             "ALTER TABLE reservas_movimentos ADD COLUMN origem_doc_id TEXT",
+            # "Fingerprint" do que foi mandado por último pra
+            # busca_participante (ver atualizar_busca_participante) — sem
+            # isso, toda sincronização (inclusive a automática ao fechar
+            # o programa) fazia 1 GET + 1 PATCH no Firestore pra CADA
+            # participante de CADA bolão publicado, mesmo pra quem não
+            # mudou nada desde a última vez — com bolões de 40+ pessoas,
+            # isso sozinho respondia por minutos de espera ao fechar.
+            "ALTER TABLE participantes ADD COLUMN busca_sync_hash TEXT",
         ]
         for m in migs:
             try: c.execute(m)
@@ -1719,21 +1752,65 @@ def _firestore_python_para_valor(v):
         return {"mapValue": {"fields": {k: _firestore_python_para_valor(x) for k, x in v.items()}}}
     return {"nullValue": None}
 
-def atualizar_busca_participante(bolao_doc_id, titulo, loteria, valor_cota, data_limite, participantes):
+def _hash_busca_participante(bolao_doc_id, p):
+    """Fingerprint curto dos campos que realmente vão pro Firestore em
+    busca_participante pra ESTE bolão — usado só pra decidir se vale a
+    pena gastar 1 GET+1 PATCH com essa pessoa de novo (ver
+    atualizar_busca_participante). Não é segurança, é cache."""
+    import hashlib
+    bruto = "|".join([
+        bolao_doc_id, str(p.get("nome") or ""),
+        str(p.get("situacao") or ""), str(p.get("quantidadeCotas") or 1),
+        str(p.get("valorPago") or 0),
+    ])
+    return hashlib.sha1(bruto.encode("utf-8")).hexdigest()[:16]
+
+def atualizar_busca_participante(bolao_doc_id, titulo, loteria, valor_cota, data_limite,
+                                  participantes, ler_hash_fn=None, salvar_hash_fn=None,
+                                  progresso_fn=None):
     """Atualiza busca_participante/{telefone} pra cada participante da
     lista — um documento por PESSOA (chave = telefone só dígitos), com
-    a lista de bolões que ela participa. Faz leitura+escrita por
-    participante (poucas dezenas por bolão, ação manual e rara do
-    admin — não é o tipo de leitura em volume que estourou a cota na
-    Rodada 58). Remove/substitui a entrada antiga do MESMO bolão antes
-    de adicionar a nova, pra não duplicar em republicações/edições.
-    Devolve a lista de nomes que falharam (vazia se tudo OK)."""
+    a lista de bolões que ela participa. Remove/substitui a entrada
+    antiga do MESMO bolão antes de adicionar a nova, pra não duplicar em
+    republicações/edições. Devolve a lista de nomes que falharam (vazia
+    se tudo OK).
+
+    ler_hash_fn(participante_id)/salvar_hash_fn(participante_id, hash):
+    acesso opcional a um "fingerprint" salvo no SQLite local do que foi
+    mandado da última vez pra ESTE bolão (ver _hash_busca_participante).
+    Achado real do usuário (Rodada 71): sem isso, esta função fazia 1 GET
+    + 1 PATCH no Firestore pra CADA participante, TODA vez que o
+    programa fechava (a sincronização automática passou a chamar esta
+    função na Rodada 70) — com bolões de 40+ pessoas, isso sozinho virou
+    minutos de espera visível, mesmo quando ninguém tinha mudado nada
+    desde o fechamento anterior. Com as funções informadas, participantes
+    cujo fingerprint não mudou são pulados sem nenhuma chamada de rede.
+
+    progresso_fn(indice, total, pulou): chamado a cada participante
+    processado (sincronizado ou pulado) — mesmo achado do usuário: essa
+    etapa era TOTALMENTE silenciosa na tela de fechamento, sem nenhum
+    jeito de saber se estava travada ou só sendo lenta."""
     import urllib.request, urllib.error, json
     erros = []
-    for p in participantes:
+    total = len(participantes)
+    for i, p in enumerate(participantes):
         tel = re.sub(r"\D", "", p.get("telefone") or "")
         if not tel:
+            if progresso_fn:
+                try: progresso_fn(i + 1, total, True)
+                except Exception: pass
             continue  # sem telefone não tem como essa pessoa ser encontrada por essa busca
+        pid = p.get("id")
+        novo_hash = _hash_busca_participante(bolao_doc_id, p)
+        if ler_hash_fn is not None and pid is not None:
+            try:
+                if ler_hash_fn(pid) == novo_hash:
+                    if progresso_fn:
+                        try: progresso_fn(i + 1, total, True)
+                        except Exception: pass
+                    continue  # nada mudou pra essa pessoa nesse bolão desde o ultimo sync
+            except Exception:
+                pass  # qualquer erro na leitura do cache => sincroniza normal, por seguranca
         doc_url = f"{FIREBASE_BUSCA_PARTICIPANTE}/{tel}"
         try:
             atual = {}
@@ -1767,9 +1844,15 @@ def atualizar_busca_participante(bolao_doc_id, titulo, loteria, valor_cota, data
             with urllib.request.urlopen(req2, timeout=15) as resp2:
                 if resp2.status != 200:
                     erros.append(p.get("nome") or tel)
+                elif salvar_hash_fn is not None and pid is not None:
+                    try: salvar_hash_fn(pid, novo_hash)
+                    except Exception: pass  # cache nao e critico, so IO de rede acima
         except Exception as ex:
             print(f"[busca_participante] erro em {p.get('nome')}: {ex}")
             erros.append(p.get("nome") or tel)
+        if progresso_fn:
+            try: progresso_fn(i + 1, total, False)
+            except Exception: pass
     return erros
 
 
@@ -1829,7 +1912,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.29")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.30")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -2105,7 +2188,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.29",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.30",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -5972,7 +6055,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.29</span>
+        <span>Sistema de Gestão de Bolões v6.30</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -8291,7 +8374,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.29</span>
+        <span>Sistema de Gestão de Bolões v6.30</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -8635,13 +8718,27 @@ class BolaoApp:
                 situacao = "quitado" if saldo<=0 else "em_andamento"
                 valorPago= int(round(pago))
             tel_digits = re.sub(r"\D", "", str(pt_d.get("telefone") or ""))
-            lista_part.append({"nome":pt_d["nome"],"telefone":tel_digits,
+            # "id" (participante_id) não vai pro documento do Firestore —
+            # é usado só localmente pelo cache de fingerprint em
+            # atualizar_busca_participante (ver Rodada 71).
+            lista_part.append({"id":pid,"nome":pt_d["nome"],"telefone":tel_digits,
                 "valorPago":valorPago,"situacao":situacao,
                 "quantidadeCotas":n_cotas,"dataCadastro":dt_cad})
         if adm_nome and not adm_paga and not adm_cadastrado:
-            lista_part.append({"nome":adm_nome,"telefone":"","valorPago":0,
+            lista_part.append({"id":None,"nome":adm_nome,"telefone":"","valorPago":0,
                 "situacao":"quitado","quantidadeCotas":1,"dataCadastro":""})
         return lista_part
+
+    def _ler_busca_hash(self, pid):
+        """ler_hash_fn pra atualizar_busca_participante (ver Rodada 71),
+        usando self.db — sqlite3.Row não tem .get(), por isso o helper
+        em vez de um lambda inline."""
+        r = self.db.fetchone("SELECT busca_sync_hash FROM participantes WHERE id=?", (pid,))
+        return r["busca_sync_hash"] if r else None
+
+    def _salvar_busca_hash(self, pid, h):
+        """salvar_hash_fn correspondente a _ler_busca_hash."""
+        self.db.execute("UPDATE participantes SET busca_sync_hash=? WHERE id=?", (h, pid))
 
     def _pub_montar_dados(self):
         try:
@@ -8740,7 +8837,8 @@ class BolaoApp:
                 if resultado.get("sucesso") and resultado.get("doc_id"):
                     erros_busca = atualizar_busca_participante(
                         resultado["doc_id"], dados["titulo"], dados["loteria"],
-                        dados["valorPorCota"], dados["dataLimite"], dados["participantes"])
+                        dados["valorPorCota"], dados["dataLimite"], dados["participantes"],
+                        ler_hash_fn=self._ler_busca_hash, salvar_hash_fn=self._salvar_busca_hash)
                     resultado["erros_busca_participante"] = erros_busca
             except Exception as ex:
                 resultado = {"sucesso":False,"erro":str(ex),"status":0,"doc_id":""}
@@ -8829,7 +8927,8 @@ class BolaoApp:
                     pass
                 try:
                     erros = atualizar_busca_participante(
-                        bd["firebase_doc_id"], bd["nome"], loteria, vt, data_limite, lista_part)
+                        bd["firebase_doc_id"], bd["nome"], loteria, vt, data_limite, lista_part,
+                        ler_hash_fn=self._ler_busca_hash, salvar_hash_fn=self._salvar_busca_hash)
                     total_erros.extend(erros)
                 except Exception as ex:
                     total_erros.append(f"{bd.get('nome')}: {ex}")
@@ -9550,9 +9649,36 @@ class BolaoApp:
         prog = ttk.Progressbar(fr_prog, length=630, mode="determinate",
                                style="Accent.Horizontal.TProgressbar")
         prog.pack(fill="x", pady=4)
-        pct_lbl = tk.Label(fr_prog, text="0%", bg="#0d1b2a",
+        fr_prog_rodape = tk.Frame(fr_prog, bg="#0d1b2a")
+        fr_prog_rodape.pack(fill="x")
+        # Achado real do usuário: a sincronização podia levar "uns bons
+        # minutos" sem nenhum jeito de saber se estava travada ou só
+        # sendo lenta — só a % geral, que às vezes ficava parada num
+        # mesmo número por muito tempo (ex.: um bolão grande sincronizando
+        # a busca por telefone por baixo dos panos, ver _progresso_bp
+        # acima). Cronômetro visível, atualizado a cada segundo, dá uma
+        # noção de "ainda está rodando" mesmo quando a % não muda.
+        tempo_lbl = tk.Label(fr_prog_rodape, text="⏱ 0s", bg="#0d1b2a",
+                             fg="#90caf9", font=("Arial",9,"bold"))
+        tempo_lbl.pack(side="left")
+        pct_lbl = tk.Label(fr_prog_rodape, text="0%", bg="#0d1b2a",
                            fg="#1D9E75", font=("Arial",9,"bold"))
-        pct_lbl.pack(anchor="e")
+        pct_lbl.pack(side="right")
+
+        _t_inicio_sync = _time.time()
+        _tick_ativo = {"on": True}
+        win.bind("<Destroy>", lambda e: _tick_ativo.update(on=False) if e.widget is win else None)
+        def _tick_tempo():
+            if not _tick_ativo["on"]:
+                return
+            try:
+                decorrido = int(_time.time() - _t_inicio_sync)
+                tempo_lbl.configure(text=f"⏱ {decorrido // 60}m {decorrido % 60:02d}s"
+                                     if decorrido >= 60 else f"⏱ {decorrido}s")
+                win.after(1000, _tick_tempo)
+            except Exception:
+                pass  # janela já pode ter sido destruída entre o after() e aqui
+        win.after(1000, _tick_tempo)
 
         # Status atual
         status_lbl = tk.Label(win, text="Iniciando...",
@@ -9805,14 +9931,14 @@ class BolaoApp:
                             vp  = int(round(pago))
                         tel3 = _re_c.sub(r"\D","",str(pt_d.get("telefone") or ""))
                         sit_ic = "Q" if sit=="quitado" else "A"
-                        lista.append({"nome":pt_d["nome"],"telefone":tel3,
+                        lista.append({"id":pid3,"nome":pt_d["nome"],"telefone":tel3,
                             "valorPago":vp,"situacao":sit,
                             "quantidadeCotas":n_c,"dataCadastro":dt_c})
                         win.after(0, lambda nm=pt_d["nome"], s=sit_ic, v=vp: log(
                             "       ["+s+"] "+nm+" R$"+str(v), "dim"))
 
                     if adm_low and not adm_pg and not adm_cad:
-                        lista.append({"nome":bd.get("adm_nome",""),"telefone":"",
+                        lista.append({"id":None,"nome":bd.get("adm_nome",""),"telefone":"",
                             "valorPago":0,"situacao":"quitado","quantidadeCotas":1,"dataCadastro":""})
 
                     n_nome = nome_b.lower()
@@ -9891,8 +10017,33 @@ class BolaoApp:
                                 # critério do fluxo manual): é um índice
                                 # auxiliar de busca, não os dados em si.
                                 try:
+                                    _t0_bp = _time.time()
+                                    _contador_bp = {"sinc": 0, "pulou": 0}
+                                    def _ler_hash_conn(pid):
+                                        row = _conn.execute(
+                                            "SELECT busca_sync_hash FROM participantes WHERE id=?",
+                                            (pid,)).fetchone()
+                                        return row[0] if row else None
+                                    def _salvar_hash_conn(pid, h):
+                                        _conn.execute(
+                                            "UPDATE participantes SET busca_sync_hash=? WHERE id=?",
+                                            (h, pid))
+                                        _conn.commit()
+                                    def _progresso_bp(i, tot, pulou, nm=nome_b):
+                                        _contador_bp["pulou" if pulou else "sinc"] += 1
+                                        win.after(0, lambda: footer_lbl.configure(
+                                            text=f"Etapa 2/3 — busca por telefone de '{nm}': "
+                                                 f"{i}/{tot} ({_contador_bp['sinc']} atualizados, "
+                                                 f"{_contador_bp['pulou']} sem mudança)"))
                                     atualizar_busca_participante(
-                                        doc_id_b, nome_b, lot, vt, "", lista)
+                                        doc_id_b, nome_b, lot, vt, "", lista,
+                                        ler_hash_fn=_ler_hash_conn, salvar_hash_fn=_salvar_hash_conn,
+                                        progresso_fn=_progresso_bp)
+                                    _dt_bp = _time.time() - _t0_bp
+                                    win.after(0, lambda s=_contador_bp["sinc"], p=_contador_bp["pulou"],
+                                                     d=_dt_bp: log(
+                                        f"       busca por telefone: {s} atualizados, "
+                                        f"{p} sem mudança ({d:.1f}s)", "dim"))
                                 except Exception as ex_bp:
                                     win.after(0, lambda e=str(ex_bp)[:80]: log(
                                         "       (busca por telefone não atualizou: "+e+")", "warn"))

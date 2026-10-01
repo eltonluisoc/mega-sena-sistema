@@ -1083,6 +1083,18 @@ Validado com 35/35 testes automatizados (regressão) + testes isolados cobrindo:
 
 Versão desktop v6.28 → **v6.29**. `dist/SistemaBoloes.exe` reconstruído.
 
+## Rodada 72 — Fechamento demorando minutos: regressão da própria correção da v6.29, cronômetro visível (v6.30, desktop)
+
+Usuário reportou (com print da tela de fechamento parada em 55%): "fica uns bons minutos atualizando... preciso ver visualmente na tela... contagem de tempo, ou barra de evolução". Investigado antes de assumir: a correção da Rodada 71 (sincronizar `busca_participante` também no fechamento automático, não só no botão manual) fazia **1 GET + 1 PATCH no Firestore por participante, de CADA bolão publicado, TODA vez que o programa fechava** — mesmo pra quem não tinha mudado absolutamente nada desde o fechamento anterior. Com bolões de 40+ pessoas, isso sozinho virava minutos de espera, e esse sub-passo era completamente silencioso na tela (nenhum log, nenhuma atualização de %), explicando a barra "travada" no mesmo número por bastante tempo.
+
+Corrigido com um cache de fingerprint: nova coluna `participantes.busca_sync_hash` guarda um hash (nome+situação+cotas+valor pago) do que foi mandado da última vez pra cada bolão. `atualizar_busca_participante()` ganhou `ler_hash_fn`/`salvar_hash_fn` opcionais — se o hash bate, pula o GET+PATCH inteiro sem nenhuma chamada de rede. Aplicado nos 3 lugares que chamam essa função (fechamento automático, botão manual "Publicar no Site", botão manual "Sincronizar Busca por Telefone"). Na prática, só o PRIMEIRO fechamento depois desta atualização sincroniza todo mundo; os seguintes só tocam quem realmente mudou.
+
+Visibilidade pedida explicitamente pelo usuário: cronômetro "⏱ Xs"/"XmYYs" na janela de fechamento, atualizado a cada segundo via `win.after`, visível mesmo quando a % geral não muda. A etapa de busca por telefone (antes muda e invisível) ganhou um callback de progresso (`progresso_fn`) que atualiza o rodapé ao vivo ("N/total, X atualizados, Y sem mudança") e um resumo com tempo gasto no log ao final de cada bolão.
+
+Validado sem depender de rede real: testes isolados com `urllib.request.urlopen` mockado confirmam que hash igual não dispara NENHUMA chamada HTTP e que um participante alterado dispara GET+PATCH normalmente, salvando o hash novo depois; teste isolado do cronômetro confirma formatação (segundos → "XmYYs" a partir de 60s) e que destruir a janela com um tick de `after()` pendente não lança exceção. 35/35 testes automatizados de regressão continuam passando.
+
+Versão desktop v6.29 → **v6.30**. `dist/SistemaBoloes.exe` reconstruído.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
