@@ -1095,6 +1095,16 @@ Validado sem depender de rede real: testes isolados com `urllib.request.urlopen`
 
 Versão desktop v6.29 → **v6.30**. `dist/SistemaBoloes.exe` reconstruído.
 
+## Rodada 73 — Lançamento de reserva: padrão vira DÉBITO/SAÍDA, não CRÉDITO/ENTRADA (v6.31, desktop)
+
+Pedido direto do usuário: "o lançamento de reserva... padrão ou em lote deve ter como padrão sempre o débito ou saque... para evitar que eu lance débito como crédito em um vacilo... isso já ocorreu antes". Mapeados os três formulários de NOVO lançamento de reserva no sistema (os dois que existem em "Reservas Pessoais" — individual e em lote — e o de "Reserva por Loteria"); todos abriam com CRÉDITO/ENTRADA pré-selecionado no combo, então um clique apressado em "Registrar" sem reparar no tipo já registrava dinheiro como entrada quando era saída, sem nenhuma trava.
+
+Corrigido nos três: `self._rsv_tipo` (Reservas Pessoais, individual) e `tipo_cb` (Reservas Pessoais, em lote, dentro de `_abrir_popup_lote_reserva`) passam a abrir em "DÉBITO (uso)"; `self.res_tipo` (Reserva por Loteria) passa a abrir em "SAÍDA (uso da reserva)". Nos dois primeiros, os campos extras que só apareciam em DÉBITO (Loteria/Concurso/Descrição) já ficam visíveis desde a abertura, já que esse é o novo padrão — removido o `.pack_forget()` que os escondia assumindo CRÉDITO como ponto de partida. As telas de EDIÇÃO de um movimento já existente (`_rsv_editar_mov`, `_editar_mov_res`) não foram tocadas de propósito: elas já carregam o tipo real do registro sendo editado, nunca tiveram um "padrão" fixo — não é o mesmo risco que motivou o pedido.
+
+Validado com `py_compile` + 35/35 testes automatizados de regressão, e conferência textual direta no arquivo de que nenhum dos dois combos de DÉBITO ficou com `pack_forget()` escondendo os campos por padrão.
+
+Versão desktop v6.30 → **v6.31**. `dist/SistemaBoloes.exe` reconstruído.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

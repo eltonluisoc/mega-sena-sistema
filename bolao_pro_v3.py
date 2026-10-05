@@ -1,7 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.30
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.31
+Correções v6.31 (lançamento de reserva: padrão vira DÉBITO/SAÍDA, não
+CRÉDITO/ENTRADA):
+ - Pedido do usuário: "já ocorreu antes" de lançar um débito como
+   crédito num vacilo, porque os três formulários de NOVO lançamento de
+   reserva (Reservas Pessoais — individual e em lote; Reserva por
+   Loteria — individual) sempre abriam com CRÉDITO/ENTRADA pré-marcado.
+   Um clique apressado em "Registrar" sem reparar no combo já marcava
+   dinheiro entrando quando era saída — erro silencioso, nada trava um
+   crédito indevido.
+ - Os três passam a abrir com DÉBITO/SAÍDA marcado por padrão: Reservas
+   Pessoais individual (`self._rsv_tipo`), Reservas Pessoais em lote
+   (`tipo_cb` em `_abrir_popup_lote_reserva`) e Reserva por Loteria
+   (`self.res_tipo`). As telas de EDIÇÃO de movimento já existente
+   (`_rsv_editar_mov`, `_editar_mov_res`) não foram tocadas — essas já
+   carregam o tipo real do registro, nunca tiveram um "padrão" fixo.
 Correções v6.30 (fechamento do programa demorando minutos — regressão
 introduzida pela própria correção da busca por telefone na v6.29):
  - A correção da v6.29 (sincronizar busca_participante também no
@@ -1912,7 +1927,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.30")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.31")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -2188,7 +2203,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.30",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.31",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -6055,7 +6070,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.30</span>
+        <span>Sistema de Gestão de Bolões v6.31</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -6817,7 +6832,10 @@ class BolaoApp:
                  fg=CORES["fg_label"]).pack(side="left",padx=8)
         self.res_tipo=ttk.Combobox(r1,values=["ENTRADA (incremento)","SAÍDA (uso da reserva)"],
                                     width=24,state="readonly",font=("Arial",9))
-        self.res_tipo.set("ENTRADA (incremento)"); self.res_tipo.pack(side="left",padx=4)
+        # Mesmo achado do usuário que motivou o padrão DÉBITO em Reservas
+        # Pessoais (ver self._rsv_tipo): já aconteceu de lançar uma SAÍDA
+        # como ENTRADA por descuido, porque o padrão vinha em ENTRADA.
+        self.res_tipo.set("SAÍDA (uso da reserva)"); self.res_tipo.pack(side="left",padx=4)
 
         r2=tk.Frame(sm,bg=CORES["bg_section"]); r2.pack(fill="x",pady=4)
         tk.Label(r2,text="Valor (R$):",bg=CORES["bg_section"],font=("Arial",9,"bold"),
@@ -7569,7 +7587,13 @@ class BolaoApp:
                  font=("Arial",9,"bold")).pack(side="left", padx=(8,4))
         self._rsv_tipo = ttk.Combobox(r0, width=14, state="readonly", font=("Arial",9),
                                        values=["CRÉDITO (entrada)", "DÉBITO (uso)"])
-        self._rsv_tipo.set("CRÉDITO (entrada)")
+        # Achado real do usuário: já aconteceu de lançar um débito/saque
+        # como crédito por descuido, porque o padrão vinha em CRÉDITO —
+        # erro silencioso (nada trava um crédito indevido, só aumenta o
+        # saldo da pessoa sem avisar nada de errado). DÉBITO como padrão
+        # é a opção mais "seca" de reverter se for engano — crédito
+        # indevido pode já ter sido até sacado quando alguém percebe.
+        self._rsv_tipo.set("DÉBITO (uso)")
         self._rsv_tipo.pack(side="left")
 
         r1 = tk.Frame(sec_form, bg="#243447"); r1.pack(fill="x", pady=3)
@@ -7604,8 +7628,8 @@ class BolaoApp:
         self._rsv_desc = entry(self._rsv_debito_frame, width=22)
         self._rsv_desc.pack(side="left", padx=8)
 
-        # Oculta inicialmente (padrão é CRÉDITO)
-        self._rsv_debito_frame.pack_forget()
+        # Visível desde o início — padrão agora é DÉBITO (ver comentário
+        # acima de self._rsv_tipo.set).
 
         def _on_rsv_tipo(e=None):
             if "DÉBITO" in self._rsv_tipo.get():
@@ -7850,7 +7874,11 @@ class BolaoApp:
                  font=("Arial",9,"bold")).pack(side="left")
         tipo_cb = ttk.Combobox(r0, width=16, state="readonly", font=("Arial",9),
                                 values=["CRÉDITO (entrada)", "DÉBITO (uso)"])
-        tipo_cb.set("CRÉDITO (entrada)")
+        # Mesmo padrão do formulário de 1 pessoa (ver _rsv_tipo acima) —
+        # DÉBITO como padrão, pra não arriscar lançar um débito como
+        # crédito por descuido. Em lote o risco é ainda maior (afeta
+        # várias pessoas de uma vez se passar batido).
+        tipo_cb.set("DÉBITO (uso)")
         tipo_cb.pack(side="left", padx=8)
 
         tk.Label(r0, text="Valor por pessoa (R$):", bg="#243447", fg="#aad4f5",
@@ -7880,7 +7908,7 @@ class BolaoApp:
                  font=("Arial",9,"bold")).pack(side="left")
         desc_entry = entry(debito_frame, width=18)
         desc_entry.pack(side="left", padx=8)
-        debito_frame.pack_forget()  # só aparece em DÉBITO, igual ao form de 1
+        # Visível desde o início — padrão agora é DÉBITO, igual ao form de 1
 
         def _on_tipo(e=None):
             if "DÉBITO" in tipo_cb.get():
@@ -8374,7 +8402,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.30</span>
+        <span>Sistema de Gestão de Bolões v6.31</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
