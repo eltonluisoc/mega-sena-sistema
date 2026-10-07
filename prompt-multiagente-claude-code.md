@@ -1105,6 +1105,18 @@ Validado com `py_compile` + 35/35 testes automatizados de regressão, e conferê
 
 Versão desktop v6.30 → **v6.31**. `dist/SistemaBoloes.exe` reconstruído.
 
+## Rodada 74 — Botão Conferir sobe pra logo após o potencial do bolão; números sorteados sobem pra logo acima do melhor cartão (web)
+
+Dois pedidos do usuário na tela de conferência do site (`index.html`/`script.js`): (1) o botão "🎲 CONFERIR RESULTADOS" só aparecia depois de listar TODOS os cartões do bolão — melhor se aparecesse logo após o card de "potencial do bolão"; (2) ao mostrar o resultado conferido, os números sorteados apareciam perto do final da tela (depois do resumo de prêmios inteiro) — melhor se aparecessem logo no início, perto do melhor cartão.
+
+**Botão Conferir**: antes, `#cartoesArea` recebia um `innerHTML` único com o card de potencial (`calcularChancesBolao`) SEGUIDO da lista completa de cartões agrupados por bolão — e o `<button id="btnConferir">` era um elemento estático posicionado DEPOIS de `#cartoesArea` no HTML, então sempre aparecia depois de tudo, não tinha como ficar "no meio" do conteúdo dinâmico sem mover o próprio nó do botão (arriscado: `innerHTML =` destrói qualquer filho, inclusive um botão movido pra dentro, perdendo o listener na próxima renderização). Solução: separado em dois containers — `#potencialArea` (novo, só o card de potencial) seguido do botão estático, seguido de `#cartoesArea` (só a lista de cartões). `mostrarCartoes()` agora escreve em cada um separadamente; os outros 3 pontos que resetavam `#cartoesArea` (estado vazio, erro, troca de concurso) passaram a limpar `#potencialArea` junto, pra não deixar um card de potencial velho grudado na tela.
+
+**Números sorteados no topo**: em `conferirResultados()` e `exibirResultadoSalvo()` (resultado já salvo), o bloco `.numeros-sorteados` (as bolinhas com os números do sorteio) estava sendo montado por ÚLTIMO no HTML, depois do troféu, do potencial, do resumo de prêmios e da nota de aposta múltipla. Movido pra primeiro — antes até do banner de troféu — com um título novo (`🎱 Números Sorteados`, nova classe `.numeros-sorteados-titulo` no `style.css`) pra ficar claro o que é, já que perdeu o contexto de vir "depois" do resumo.
+
+Validado com `node --check script.js` (sintaxe) e revisão linha a linha de todos os pontos que escrevem/limpam `#cartoesArea` pra confirmar que `#potencialArea` é mantido em sincronia em cada um.
+
+`sw.js` `CACHE_NAME` v52 → **v53**.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

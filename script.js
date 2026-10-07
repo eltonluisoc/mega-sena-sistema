@@ -663,6 +663,9 @@ function limparEstadoCompleto() {
             cartoesArea.innerHTML = '<div class="empty-state">📋 Selecione um concurso para ver os cartões</div>';
         }
     }
+
+    const potencialArea = document.getElementById('potencialArea');
+    if (potencialArea) potencialArea.innerHTML = '';
 }
 
 // ========== EXIBIR RESULTADO SALVO COM FILTRO POR BOLÃO E ESTATÍSTICAS SEPARADAS ==========
@@ -713,7 +716,12 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         const melhorCartaoSalvo = cartoesOrdenados[0];
         const melhorAcertosSalvo = melhorCartaoSalvo ? melhorCartaoSalvo.numeros.filter(n => numerosSorteados.includes(n)).length : 0;
 
-        let html = gerarBannerTrofeu(melhorCartaoSalvo, melhorAcertosSalvo, loteria, numerosSorteados);
+        // Mesmo pedido do usuário aplicado aqui (resultado salvo, não só
+        // ao conferir na hora): números logo no início, perto do melhor
+        // cartão — ver comentário em conferirResultados().
+        let html = `<div class="numeros-sorteados-titulo">🎱 Números Sorteados</div>`;
+        html += `<div class="numeros-sorteados">${numerosSorteados.map(n => `<div class="numero-sorteado-card">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`;
+        html += gerarBannerTrofeu(melhorCartaoSalvo, melhorAcertosSalvo, loteria, numerosSorteados);
         html += chancesHtml;
         html += `<div class="resultado-resumo">`;
 
@@ -742,7 +750,6 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         html += `</div>`;
         html += notaApostaMultiplaHtml(cartoesOrdenados, loteria);
 
-        html += `<div class="numeros-sorteados">${numerosSorteados.map(n => `<div class="numero-sorteado-card">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`;
         html += `<button id="btnWhatsAppResultado" style="background:#25D366; width:100%; padding:12px; border-radius:30px; margin-bottom:20px; font-weight:bold;">📱 COMPARTILHAR RESULTADO NO WHATSAPP</button>`;
         html += `<div class="aviso-conferido" style="background: #d1fae5; padding: 8px; border-radius: 12px; text-align: center; font-size: 12px; color: #065f46; margin-top: 10px;">
                     ✅ Resultado já conferido anteriormente
@@ -803,12 +810,14 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
 async function mostrarCartoes(numerosSorteados = null) {
     const concurso = document.getElementById('concursoSelect').value;
     const container = document.getElementById('cartoesArea');
+    const potencialArea = document.getElementById('potencialArea');
     const bolaoSelect = document.getElementById('bolaoSelect');
-    
+
     if (!container) return;
-    
+
     if (!concurso) {
         container.innerHTML = '<div class="empty-state">📋 Selecione um concurso para ver os cartões</div>';
+        if (potencialArea) potencialArea.innerHTML = '';
         return;
     }
     
@@ -850,12 +859,18 @@ async function mostrarCartoes(numerosSorteados = null) {
         
         if (filtrados.length === 0) {
             container.innerHTML = `<div class="empty-state">📋 Nenhum cartão da ${loteriaAtual.toUpperCase()} para o concurso ${concurso} ${bolaoFiltro !== 'todos' ? 'no bolão ' + bolaoFiltro : ''}</div>`;
+            if (potencialArea) potencialArea.innerHTML = '';
             return;
         }
-        
+
         // --- CALCULAR PROBABILIDADES DO BOLÃO FILTRADO ---
+        // Renderizado em #potencialArea, SEPARADO de #cartoesArea — pedido
+        // do usuário pra o botão Conferir (entre os dois na página) aparecer
+        // logo depois da probabilidade, sem precisar rolar a lista inteira
+        // de cartões primeiro.
         const chancesHtml = calcularChancesBolao(filtrados, loteriaAtual);
-        
+        if (potencialArea) potencialArea.innerHTML = chancesHtml;
+
         // --- ORDENAR POR BOLÃO ---
         const porBolao = {};
         filtrados.forEach(c => {
@@ -863,9 +878,9 @@ async function mostrarCartoes(numerosSorteados = null) {
             if (!porBolao[b]) porBolao[b] = [];
             porBolao[b].push(c);
         });
-        
-        let html = chancesHtml;
-        
+
+        let html = '';
+
         for (const [bolao, listaOriginal] of Object.entries(porBolao)) {
             // Cartões com mais acertos primeiro — sem isso, a ordem era a de
             // gravação no Firestore, não a de acertos.
@@ -906,6 +921,7 @@ async function mostrarCartoes(numerosSorteados = null) {
     } catch (error) {
         console.error('Erro ao carregar cartões:', error);
         container.innerHTML = `<div class="empty-state">❌ Erro ao carregar cartões do concurso ${concurso}</div>`;
+        if (potencialArea) potencialArea.innerHTML = '';
     }
 }
 
@@ -1410,7 +1426,13 @@ async function conferirResultados() {
     // MONTAR RESUMO (TROFÉU + POTENCIAL DO BOLÃO + ESTATÍSTICAS, SEM CARTÕES)
     // ============================================================
     const melhorCartaoConferir = cartoesComAcertos[0];
-    let html = gerarBannerTrofeu(melhorCartaoConferir, melhorCartaoConferir ? melhorCartaoConferir.acertos : 0, loteriaAtual, numerosSorteados);
+    // Pedido do usuário: números sorteados logo no início, bem perto do
+    // melhor cartão — antes ficavam escondidos lá embaixo, depois do
+    // resumo de prêmios inteiro, obrigando rolar a tela pra ver o que
+    // saiu no sorteio.
+    let html = `<div class="numeros-sorteados-titulo">🎱 Números Sorteados</div>`;
+    html += `<div class="numeros-sorteados">${numerosSorteados.map(n => `<div class="numero-sorteado-card">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`;
+    html += gerarBannerTrofeu(melhorCartaoConferir, melhorCartaoConferir ? melhorCartaoConferir.acertos : 0, loteriaAtual, numerosSorteados);
     html += calcularChancesBolao(cartoesParaEstatisticas, loteriaAtual);
 
     html += `<div class="resultado-resumo">`;
@@ -1439,7 +1461,6 @@ async function conferirResultados() {
     html += `</div>`;
     html += notaApostaMultiplaHtml(cartoesComAcertos, loteriaAtual);
 
-    html += `<div class="numeros-sorteados">${numerosSorteados.map(n => `<div class="numero-sorteado-card">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`;
     if (dataSorteio) {
         let dataFormatada = '';
         try {
@@ -2087,6 +2108,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (cartoesArea) {
                 cartoesArea.innerHTML = '<div class="empty-state">📋 Selecione um concurso para ver os cartões</div>';
             }
+            const potencialArea = document.getElementById('potencialArea');
+            if (potencialArea) potencialArea.innerHTML = '';
             const resultadosArea = document.getElementById('resultadosArea');
             if (resultadosArea) {
                 resultadosArea.innerHTML = '<div class="empty-state">🔍 Clique em "Conferir Resultados" para ver os acertos</div>';
