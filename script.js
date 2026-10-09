@@ -716,12 +716,15 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         const melhorCartaoSalvo = cartoesOrdenados[0];
         const melhorAcertosSalvo = melhorCartaoSalvo ? melhorCartaoSalvo.numeros.filter(n => numerosSorteados.includes(n)).length : 0;
 
-        // Mesmo pedido do usuário aplicado aqui (resultado salvo, não só
-        // ao conferir na hora): números logo no início, perto do melhor
-        // cartão — ver comentário em conferirResultados().
-        let html = `<div class="numeros-sorteados-titulo">🎱 Números Sorteados</div>`;
-        html += `<div class="numeros-sorteados">${numerosSorteados.map(n => `<div class="numero-sorteado-card">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`;
-        html += gerarBannerTrofeu(melhorCartaoSalvo, melhorAcertosSalvo, loteria, numerosSorteados);
+        // Os números sorteados NÃO aparecem mais aqui — pedido do usuário
+        // é vê-los bem PERTO do primeiro cartão (o que mais acertou), não
+        // só "no início do resumo". Como #resultadosArea (este bloco) fica
+        // antes de #cartoesArea na página (ver index.html) mas ainda não é
+        // adjacente ao cartão em si, o bloco de números é injetado direto
+        // em #cartoesArea, logo acima do primeiro cartão da lista ordenada
+        // — ver mostrarCartoes(). Aqui mostra só o resumo (troféu/potencial/
+        // prêmios), sem duplicar os números.
+        let html = gerarBannerTrofeu(melhorCartaoSalvo, melhorAcertosSalvo, loteria, numerosSorteados);
         html += chancesHtml;
         html += `<div class="resultado-resumo">`;
 
@@ -754,7 +757,16 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         html += `<div class="aviso-conferido" style="background: #d1fae5; padding: 8px; border-radius: 12px; text-align: center; font-size: 12px; color: #065f46; margin-top: 10px;">
                     ✅ Resultado já conferido anteriormente
                 </div>`;
-        
+
+        // Números sorteados logo aqui — bem acima do primeiro cartão da
+        // lista abaixo (cartoesOrdenados[0] = o que mais acertou, ver
+        // ordenarCartoesPorAcertos). Essa lista é renderizada INLINE
+        // dentro deste mesmo bloco (não em #cartoesArea, que fica sem uso
+        // neste fluxo de "resultado já salvo") — por isso entram aqui
+        // dentro, não no topo do resumo lá em cima.
+        html += `<div class="numeros-sorteados-titulo">🎱 Números Sorteados</div>`;
+        html += `<div class="numeros-sorteados">${numerosSorteados.map(n => `<div class="numero-sorteado-card">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`;
+
         for (const cartao of cartoesOrdenados) {
             const acertos = cartao.numeros.filter(n => numerosSorteados.includes(n)).length;
             let corAcertos;
@@ -879,7 +891,15 @@ async function mostrarCartoes(numerosSorteados = null) {
             porBolao[b].push(c);
         });
 
-        let html = '';
+        // Pedido do usuário: números sorteados bem PERTO do primeiro
+        // cartão que mais acertou (ordenarCartoesPorAcertos, abaixo,
+        // sempre coloca o de mais acertos primeiro) — por isso entram
+        // aqui, logo antes do primeiro grupo de bolão/cartão, não lá no
+        // resumo (gerarBannerTrofeu), que fica numa seção separada.
+        let html = numerosSorteados ? (
+            `<div class="numeros-sorteados-titulo">🎱 Números Sorteados</div>` +
+            `<div class="numeros-sorteados">${numerosSorteados.map(n => `<div class="numero-sorteado-card">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`
+        ) : '';
 
         for (const [bolao, listaOriginal] of Object.entries(porBolao)) {
             // Cartões com mais acertos primeiro — sem isso, a ordem era a de
@@ -1426,13 +1446,14 @@ async function conferirResultados() {
     // MONTAR RESUMO (TROFÉU + POTENCIAL DO BOLÃO + ESTATÍSTICAS, SEM CARTÕES)
     // ============================================================
     const melhorCartaoConferir = cartoesComAcertos[0];
-    // Pedido do usuário: números sorteados logo no início, bem perto do
-    // melhor cartão — antes ficavam escondidos lá embaixo, depois do
-    // resumo de prêmios inteiro, obrigando rolar a tela pra ver o que
-    // saiu no sorteio.
-    let html = `<div class="numeros-sorteados-titulo">🎱 Números Sorteados</div>`;
-    html += `<div class="numeros-sorteados">${numerosSorteados.map(n => `<div class="numero-sorteado-card">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`;
-    html += gerarBannerTrofeu(melhorCartaoConferir, melhorCartaoConferir ? melhorCartaoConferir.acertos : 0, loteriaAtual, numerosSorteados);
+    // Números sorteados NÃO aparecem neste resumo — o cartão de verdade
+    // (grade completa, ordenada por acertos) é renderizado à parte em
+    // #cartoesArea por mostrarCartoes() (ver chamada logo acima, e o
+    // comentário "SEM CARTÕES" nesta seção). Pedido do usuário é ver os
+    // números bem PERTO do primeiro cartão que mais acertou — por isso o
+    // bloco de números é injetado direto no topo de #cartoesArea, logo
+    // acima do primeiro cartão da lista, não aqui no resumo.
+    let html = gerarBannerTrofeu(melhorCartaoConferir, melhorCartaoConferir ? melhorCartaoConferir.acertos : 0, loteriaAtual, numerosSorteados);
     html += calcularChancesBolao(cartoesParaEstatisticas, loteriaAtual);
 
     html += `<div class="resultado-resumo">`;

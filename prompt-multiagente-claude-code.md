@@ -1117,6 +1117,25 @@ Validado com `node --check script.js` (sintaxe) e revisão linha a linha de todo
 
 `sw.js` `CACHE_NAME` v52 → **v53**.
 
+## Rodada 75 — Números sorteados de verdade ADJACENTES ao primeiro cartão (não só "mais acima") (web)
+
+Usuário voltou após a Rodada 74 pedindo pra "certificar" que os números ficassem "logo acima do primeiro cartão que mais acertou... é importante visualizar próximo". Investigando de novo: a Rodada 74 moveu os números pro TOPO do resumo (`resultadosArea`), mas esse resumo inteiro ainda ficava DEPOIS da lista completa de cartões (`cartoesArea`) na página — então os números, mesmo "no início do resumo", continuavam aparecendo só depois de toda a lista de cartões ter passado, longe do primeiro cartão de verdade. Não era o que o usuário pediu.
+
+Investigação mais a fundo revelou duas rotas de exibição DIFERENTES pro mesmo resultado, cada uma com sua própria grade de cartões:
+- **Conferência na hora** (`conferirResultados`): a grade de cartões é renderizada à parte, em `#cartoesArea`, via `mostrarCartoes()`. `resultadosArea` só tem o resumo (troféu/potencial/prêmios), comentado explicitamente "SEM CARTÕES".
+- **Resultado já salvo** (`exibirResultadoSalvo`, quando o concurso já tinha sido conferido antes): resumo E grade de cartões saem JUNTOS, tudo dentro de `resultadosArea` — `#cartoesArea` nem é tocado nessa rota.
+
+Corrigido nas DUAS rotas, cada uma no lugar certo:
+- `index.html`: `#resultadosArea` movido pra ANTES de `#cartoesArea` na página (sem dependência de ordem em CSS/JS — conferido via grep que nada lia por posição relativa, só por `id`).
+- `mostrarCartoes()`: números injetados no TOPO de `#cartoesArea`, logo antes do primeiro grupo de bolão/cartão — removidos do resumo em `conferirResultados()` (que volta a ser só resumo, sem números).
+- `exibirResultadoSalvo()`: números movidos pra logo ANTES do loop que desenha os cartões (depois do resumo, mas imediatamente colado na grade) — não mais no topo do bloco inteiro.
+
+Resultado: nas duas rotas, o bloco de números fica como o elemento imediatamente anterior ao primeiro `<div>` de cartão renderizado — que é sempre o de mais acertos, por `ordenarCartoesPorAcertos`.
+
+Validado com `node --check script.js` (sintaxe) e leitura linha a linha das duas funções confirmando que o bloco de números é o último HTML adicionado antes do primeiro cartão em ambos os casos.
+
+`sw.js` `CACHE_NAME` v53 → **v54**.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

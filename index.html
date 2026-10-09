@@ -264,13 +264,21 @@
 
         <button id="btnConferir" style="margin-bottom: 15px;">🎲 CONFERIR RESULTADOS</button>
 
+        <!-- resultadosArea ANTES de cartoesArea de propósito — pedido do
+             usuário: os números sorteados precisam aparecer bem acima do
+             primeiro cartão (o que mais acertou), não depois da lista
+             inteira. O resumo (troféu/potencial/prêmios) vem aqui, e os
+             números ficam logo antes da grade de cartões em si — em
+             #cartoesArea quando acabou de conferir, ou dentro deste mesmo
+             bloco quando o resultado já estava salvo (ver script.js:
+             mostrarCartoes/exibirResultadoSalvo). -->
+        <div id="resultadosArea">
+            <div class="empty-state">🔍 Clique em "Conferir Resultados" para ver os acertos</div>
+        </div>
+
         <!-- Área de cartões -->
         <div id="cartoesArea">
             <div class="empty-state">📋 Selecione um concurso para ver os cartões</div>
-        </div>
-
-        <div id="resultadosArea">
-            <div class="empty-state">🔍 Clique em "Conferir Resultados" para ver os acertos</div>
         </div>
     </div>
 </div>
