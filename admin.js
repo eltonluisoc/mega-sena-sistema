@@ -424,7 +424,10 @@ function extrairJogosDoTexto(texto) {
     // {2,} = 3+ dezenas: nenhum jogo real tem menos de 5 (mínimo da
     // Quina), mas pega jogos curtos/corrompidos pra validação reclamar
     // em vez de eles sumirem sem aviso. O comprovante não tem nenhuma
-    // outra sequência "N | N | N" fora do bloco de jogos.
+    // outra sequência "N | N | N" fora do bloco de jogos. "Trevos: NN |
+    // NN" (só +Milionária, ver extrairTrevosDoTexto) tem só 2 números —
+    // nunca bate nesse {2,}, então não precisa de nenhum cuidado extra
+    // aqui pra não confundir trevo com dezena.
     const reRunDezenas = /\d{1,2}(?:\s*\|\s*\d{1,2}){2,}/g;
     const jogos = [];
     let m;
@@ -432,6 +435,24 @@ function extrairJogosDoTexto(texto) {
         jogos.push(m[0].split('|').map(x => parseInt(x.trim(), 10)));
     }
     return jogos;
+}
+
+// Trevos da +Milionária: cada jogo imprime uma linha própria logo depois
+// dos números, no formato "Trevos: 03 | 05" (confirmado contra um
+// comprovante real — layout "Jogo N" / dezenas / "Trevos: X | Y" / "Jogo
+// N+1" / ...). Devolve os trevos NA ORDEM EM QUE APARECEM no texto —
+// quem chama casa trevos[i] com jogos[i] pela posição, não por rótulo
+// "Jogo N" (mais simples, e a ordem de impressão já é 1:1 com os jogos).
+function extrairTrevosDoTexto(texto) {
+    const idxSeus = texto.search(/Seus\s+N[uú]meros/i);
+    const secao = idxSeus >= 0 ? texto.slice(idxSeus) : texto;
+    const reTrevos = /Trevos:\s*(\d{1,2}(?:\s*\|\s*\d{1,2})*)/gi;
+    const trevos = [];
+    let m;
+    while ((m = reTrevos.exec(secao)) !== null) {
+        trevos.push(m[1].split('|').map(x => parseInt(x.trim(), 10)));
+    }
+    return trevos;
 }
 
 // Extrai jogos a partir dos itens de texto POSICIONADOS do pdf.js
@@ -462,10 +483,15 @@ function extrairJogosDoTexto(texto) {
 // jogo. E um limiar pequeno "errar pra mais" em outras partes da
 // página (rótulo:valor da tabela "Dados da Aposta", por exemplo) é
 // inofensivo: só o que tem "|" entra na conta de extrairJogosDoTexto.
+// Devolve { jogos, trevos } — trevos[i] é o trevo do jogos[i] (array
+// vazio se a loteria não for +Milionária/não tiver "Trevos:" impresso).
+// Extraídos COLUNA POR COLUNA, na mesma ordem (ver extrairTrevosDoTexto),
+// então a posição em jogos[] e trevos[] sempre casa certo mesmo em
+// layout de 2 colunas.
 function extrairJogosDeItensPosicionados(itens) {
-    if (!itens || itens.length === 0) return [];
+    if (!itens || itens.length === 0) return { jogos: [], trevos: [] };
     const validos = itens.filter(it => it && it.str && it.str.trim());
-    if (validos.length === 0) return [];
+    if (validos.length === 0) return { jogos: [], trevos: [] };
 
     const largura = (it) => (typeof it.width === 'number' && it.width > 0) ? it.width : 0;
     const fontesValidas = validos.map(it => it.fontSize).filter(f => typeof f === 'number' && f > 0).sort((a, b) => a - b);
@@ -505,10 +531,13 @@ function extrairJogosDeItensPosicionados(itens) {
     }
 
     const jogos = [];
+    const trevos = [];
     for (const linhasColuna of textoPorColuna) {
-        jogos.push(...extrairJogosDoTexto(linhasColuna.join('\n')));
+        const textoColuna = linhasColuna.join('\n');
+        jogos.push(...extrairJogosDoTexto(textoColuna));
+        trevos.push(...extrairTrevosDoTexto(textoColuna));
     }
-    return jogos;
+    return { jogos, trevos };
 }
 
 // PURA (sem DOM / sem pdf.js) — recebe o texto já extraído do PDF e os
@@ -523,6 +552,7 @@ function parsearComprovanteCaixa(texto, opts = {}) {
         modalidadeLabel: null,
         concurso: null,
         jogos: [],
+        trevos: [],  // só +Milionária preenche — trevos[i] casa com jogos[i]
         validacao: [],
         divergencias: []
     };
@@ -584,6 +614,16 @@ function parsearComprovanteCaixa(texto, opts = {}) {
         ? opts.jogosPreExtraidos
         : extrairJogosDoTexto(t);
 
+    // Trevos (só +Milionária imprime "Trevos: NN | NN" depois de cada
+    // jogo — confirmado contra um comprovante real do usuário). Mesma
+    // preferência de fonte que os jogos: pré-extraído por posição
+    // quando disponível, senão extrai do texto puro aqui mesmo.
+    if (resultado.modalidade === 'maismilionaria') {
+        resultado.trevos = (opts.trevosPreExtraidos && opts.trevosPreExtraidos.length > 0)
+            ? opts.trevosPreExtraidos
+            : extrairTrevosDoTexto(t);
+    }
+
     if (resultado.jogos.length === 0) {
         resultado.erro = 'Nenhum jogo (sequência de dezenas com " | ") reconhecido no bloco "Seus Números".';
         return resultado;
@@ -591,7 +631,7 @@ function parsearComprovanteCaixa(texto, opts = {}) {
 
     // Validação por jogo — mesmas regras do cadastro manual (regrasLoteria)
     const regras = regrasLoteria(resultado.modalidade);
-    for (const jogo of resultado.jogos) {
+    resultado.jogos.forEach((jogo, i) => {
         const ordenado = [...jogo].sort((a, b) => a - b);
         const unicos = new Set(jogo);
         let erroJogo = null;
@@ -600,8 +640,27 @@ function parsearComprovanteCaixa(texto, opts = {}) {
         else if (jogo.length > regras.maxNumeros) erroJogo = `máximo ${regras.maxNumeros} dezenas (veio ${jogo.length})`;
         else if (unicos.size !== jogo.length) erroJogo = 'dezena repetida no mesmo jogo';
         else if (jogo.some(n => n < 1 || n > regras.maxValor)) erroJogo = `dezena fora do intervalo 1–${regras.maxValor}`;
-        resultado.validacao.push({ jogo: ordenado, ok: erroJogo === null, erro: erroJogo });
-    }
+
+        // +Milionária: valida também os trevos desse jogo (posição i em
+        // resultado.trevos, casada com resultado.jogos — ver comentário
+        // em extrairJogosDeItensPosicionados).
+        let trevoOrdenado = null;
+        if (erroJogo === null && regras.trevos) {
+            const trevo = resultado.trevos[i];
+            if (!trevo || trevo.length === 0) {
+                erroJogo = 'trevos não encontrados pra esse jogo (confira o PDF ou edite depois de importar)';
+            } else {
+                const trevoUnicos = new Set(trevo);
+                if (trevo.some(t => !Number.isInteger(t))) erroJogo = 'trevo ilegível';
+                else if (trevo.length < regras.trevos.min) erroJogo = `mínimo ${regras.trevos.min} trevos (veio ${trevo.length})`;
+                else if (trevo.length > regras.trevos.max) erroJogo = `máximo ${regras.trevos.max} trevos (veio ${trevo.length})`;
+                else if (trevoUnicos.size !== trevo.length) erroJogo = 'trevo repetido no mesmo jogo';
+                else if (trevo.some(t => t < 1 || t > regras.trevos.maxValor)) erroJogo = `trevo fora do intervalo 1–${regras.trevos.maxValor}`;
+                else trevoOrdenado = [...trevo].sort((a, b) => a - b);
+            }
+        }
+        resultado.validacao.push({ jogo: ordenado, trevo: trevoOrdenado, ok: erroJogo === null, erro: erroJogo });
+    });
 
     // Divergências vs. o que o usuário informou na tela (não bloqueiam a
     // extração — a tela avisa e deixa ele decidir "cadastrar assim mesmo").
@@ -757,10 +816,12 @@ async function processarPdfsImportacao(fileList) {
         try {
             const { texto, itens } = await extrairDadosPdf(file);
             _debugItensImportacaoPdf(file.name, itens);
+            const extraido = extrairJogosDeItensPosicionados(itens);
             resultado = parsearComprovanteCaixa(texto, {
                 loteriaEsperada: cfg.loteria,
                 concursoEsperado: cfg.concurso,
-                jogosPreExtraidos: extrairJogosDeItensPosicionados(itens)
+                jogosPreExtraidos: extraido.jogos,
+                trevosPreExtraidos: extraido.trevos
             });
         } catch (e) {
             resultado = { status: 'erro', erro: 'Falha ao ler o PDF: ' + (e.message || e), jogos: [], validacao: [], divergencias: [] };
@@ -805,6 +866,7 @@ function renderImportacaoPdf() {
             <div style="margin:4px 0;">
                 <span style="font-size:12px;color:#475569;font-weight:600;margin-right:6px;">Jogo ${j + 1}${v.ok ? '' : ' ⚠️'}</span>
                 ${_chipsDezenas(v.jogo, v.ok)}
+                ${v.trevo ? `<span style="margin-left:4px;">${_chipsDezenas(v.trevo, v.ok).replace(/border-radius:6px/g, 'border-radius:50%')}</span>` : ''}
                 ${v.ok ? '' : `<span style="font-size:11px;color:#991b1b;margin-left:6px;">${v.erro}</span>`}
             </div>`).join('');
 
@@ -816,21 +878,10 @@ function renderImportacaoPdf() {
                 </label>
             </div>` : '';
 
-        // +Milionária: o layout do comprovante pra TREVOS ainda não foi
-        // conferido contra um PDF real (achado ao implementar — não
-        // arrisquei "adivinhar" o formato e gravar trevo errado sem o
-        // admin perceber). Números importam normal; trevos ficam em
-        // branco nesses cartões, com aviso aqui pra editar depois.
-        const avisoTrevos = r.modalidade === 'maismilionaria'
-            ? `<div style="background:#dcfce7;border-radius:8px;padding:8px 10px;margin:8px 0;font-size:12px;color:#166534;">
-                🍀 Trevos não são extraídos automaticamente do PDF ainda — edite cada cartão depois de importar (botão ✏️ na lista) pra adicionar os trevos.
-               </div>` : '';
-
         return `<div class="card" style="border-left:4px solid ${contam && jogosValidos > 0 ? '#22c55e' : '#f59e0b'};">
             <div style="font-weight:700;color:#166534;">✅ ${item.arquivo}</div>
             <div style="font-size:13px;color:#64748b;margin:4px 0;">${r.modalidadeLabel} · concurso ${r.concurso || '?'} · ${r.jogos.length} jogo(s) · ${jogosValidos} válido(s)</div>
             ${divergHtml}
-            ${avisoTrevos}
             ${linhasJogos}
         </div>`;
     }).join('');
@@ -878,7 +929,7 @@ async function confirmarImportacaoPdf() {
         const r = item.resultado;
         if (r.status !== 'ok') continue;
         if (r.divergencias.length > 0 && !item.override) continue;
-        r.validacao.forEach(v => { if (v.ok) aGravar.push(v.jogo); });
+        r.validacao.forEach(v => { if (v.ok) aGravar.push({ numeros: v.jogo, trevos: v.trevo }); });
     }
     if (aGravar.length === 0) { showToast('⚠️ Nenhum jogo válido para cadastrar.', 'warning'); return; }
 
@@ -891,7 +942,9 @@ async function confirmarImportacaoPdf() {
     // O(n²): ~400 cartões num concurso grande chegavam a somar dezenas de
     // milhares de leituras sozinho, o bastante pra estourar a cota diária
     // gratuita do Firestore num único lote (achado real, ver Rodada 58).
-    // Checagem de duplicado agora é só contra um Set local.
+    // Checagem de duplicado agora é só contra um Set local. +Milionária
+    // inclui trevos na chave — mesmos números com trevos diferentes é
+    // aposta diferente, não duplicado (mesma lógica de existeCartaoDuplicado).
     const chavesExistentes = new Set();
     try {
         const snapshotExistentes = await db.collection('cartoes')
@@ -901,16 +954,20 @@ async function confirmarImportacaoPdf() {
             .get();
         snapshotExistentes.forEach(doc => {
             const d = doc.data();
-            if (d.numeros) chavesExistentes.add(d.numeros.slice().sort((a, b) => a - b).join(','));
+            if (d.numeros) {
+                const chaveT = d.trevos ? '|' + d.trevos.slice().sort((a, b) => a - b).join(',') : '';
+                chavesExistentes.add(d.numeros.slice().sort((a, b) => a - b).join(',') + chaveT);
+            }
         });
     } catch (e) {
         console.error('Erro ao checar cartões existentes:', e);
     }
 
     let ok = 0, dup = 0, erro = 0;
-    for (const jogo of aGravar) {
-        const numeros = [...jogo].sort((a, b) => a - b);
-        const chave = numeros.join(',');
+    for (const { numeros: numerosBrutos, trevos: trevosBrutos } of aGravar) {
+        const numeros = [...numerosBrutos].sort((a, b) => a - b);
+        const trevos = trevosBrutos ? [...trevosBrutos].sort((a, b) => a - b) : null;
+        const chave = numeros.join(',') + (trevos ? '|' + trevos.join(',') : '');
         try {
             if (chavesExistentes.has(chave)) { dup++; continue; }
             const novoCartao = {
@@ -924,6 +981,7 @@ async function confirmarImportacaoPdf() {
                 totalNumeros: numeros.length,
                 origem: 'importacao-pdf'
             };
+            if (trevos) novoCartao.trevos = trevos;
             const docRef = await db.collection('cartoes').add(novoCartao);
             cartoes.push({ id: docRef.id, ...novoCartao });
             chavesExistentes.add(chave);

@@ -15,7 +15,12 @@ const assert = require('node:assert/strict');
 const { loadBrowserScript } = require('./helpers/loadBrowserScript');
 
 const sandbox = loadBrowserScript('admin.js');
-const extrairJogos = sandbox.extrairJogosDeItensPosicionados;
+// extrairJogosDeItensPosicionados agora devolve { jogos, trevos } (a
+// +Milionária precisa dos dois, casados por posição — ver admin.js) —
+// os testes deste arquivo só se importam com os jogos (números), daí o
+// adaptador aqui em vez de tocar em cada chamada abaixo.
+const extrairJogos = (itens) => sandbox.extrairJogosDeItensPosicionados(itens).jogos;
+const extrairTrevos = (itens) => sandbox.extrairJogosDeItensPosicionados(itens).trevos;
 
 const plano = (v) => Array.isArray(v) || (v && typeof v.length === 'number' && typeof v !== 'string')
   ? Array.from(v, plano) : v;
@@ -85,6 +90,43 @@ test('2 colunas, jogos sem quebra de linha (caso Mega já coberto antes)', () =>
   assert.equal(jogos.length, 2);
   assert.deepEqual(plano(jogos[0]), [12, 14, 19, 27, 41, 45, 48, 54, 59, 60]);
   assert.deepEqual(plano(jogos[1]), [9, 13, 18, 22, 25, 36, 40, 47, 53, 54]);
+});
+
+// +Milionária real: 2 colunas, cada jogo é "Jogo N" / dezenas / "Trevos:
+// X | Y" (3 linhas), coluna esquerda = jogos ímpares, direita = pares —
+// layout exato do comprovante real enviado pelo usuário. Confirma que
+// trevos[i] continua casado com jogos[i] mesmo vindo de colunas
+// diferentes e entremeados na ordem de leitura (coluna inteira primeiro,
+// não linha por linha) — é esse reordenamento por coluna que poderia
+// desalinhar jogo e trevo se a extração dos dois não andasse em lockstep
+// (ver extrairJogosDeItensPosicionados).
+test('+Milionária: 2 colunas com trevos — jogo e trevo continuam casados por posição', () => {
+  const itens = criarItens([
+    [
+      'Jogo 1', '03 | 19 | 20 | 39 | 44 | 46 | 47', 'Trevos: 03 | 05',
+      'Jogo 3', '05 | 17 | 21 | 34 | 46 | 47 | 50', 'Trevos: 03 | 06',
+    ],
+    [
+      'Jogo 2', '05 | 08 | 10 | 12 | 21 | 28 | 29', 'Trevos: 02 | 03',
+      'Jogo 4', '14 | 18 | 21 | 22 | 31 | 44 | 47', 'Trevos: 03 | 04',
+    ],
+  ]);
+  const extraido = sandbox.extrairJogosDeItensPosicionados(itens);
+  const jogos = plano(extraido.jogos);
+  const trevos = plano(extraido.trevos);
+  assert.equal(jogos.length, 4);
+  assert.equal(trevos.length, 4);
+  // Ordem esperada: coluna inteira da esquerda primeiro (Jogo 1, Jogo 3),
+  // depois a coluna inteira da direita (Jogo 2, Jogo 4) — é assim que
+  // extrairJogosDeItensPosicionados concatena (textoPorColuna, em ordem).
+  assert.deepEqual(jogos[0], [3, 19, 20, 39, 44, 46, 47]);
+  assert.deepEqual(trevos[0], [3, 5]);
+  assert.deepEqual(jogos[1], [5, 17, 21, 34, 46, 47, 50]);
+  assert.deepEqual(trevos[1], [3, 6]);
+  assert.deepEqual(jogos[2], [5, 8, 10, 12, 21, 28, 29]);
+  assert.deepEqual(trevos[2], [2, 3]);
+  assert.deepEqual(jogos[3], [14, 18, 21, 22, 31, 44, 47]);
+  assert.deepEqual(trevos[3], [3, 4]);
 });
 
 // O BUG relatado: comprovante Lotofácil de 2 colunas com jogos de 17

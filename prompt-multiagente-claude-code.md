@@ -1179,6 +1179,20 @@ Validado com: `node --check` nos 3 arquivos JS tocados; suíte JS completa (`nod
 
 Versão desktop v6.31 → **v6.32**. `sw.js` `CACHE_NAME` v55 → **v56**.
 
+## Rodada 78 — Extração automática dos trevos do PDF da +Milionária (completa o que ficou pendente da Rodada 77)
+
+A Rodada 77 deixou a extração de TREVOS do comprovante PDF deliberadamente de fora — sem um comprovante real da +Milionária pra confirmar o formato exato desse campo, não arrisquei adivinhar e gravar trevo errado num cartão de verdade sem o admin perceber. O usuário mandou um comprovante real (concurso 397, 11 jogos de 7 dezenas, todos com 2 trevos) nesta rodada, confirmando o formato: cada jogo imprime "Jogo N" / dezenas / **"Trevos: NN | NN"** numa linha própria logo depois das dezenas, e "Modalidade: +Milionária" vem como uma palavra só com "+" colado (sem espaço) — exatamente a forma que o regex conservador da Rodada 77 já reconhecia.
+
+**Implementado**: nova função `extrairTrevosDoTexto()` (admin.js), irmã de `extrairJogosDoTexto()` — mesmo regex de dezenas pipe-separadas, mas buscando depois do rótulo "Trevos:". Para o caminho REAL usado no navegador (`extrairJogosDeItensPosicionados`, que separa colunas pelas coordenadas x/y do pdf.js), a extração de trevos roda **na mesma coluna, no mesmo laço**, garantindo que `trevos[i]` sempre casa com `jogos[i]` por posição mesmo num comprovante de 2 colunas — testado explicitamente com um layout sintético de 2 colunas (jogos ímpares à esquerda, pares à direita) pra confirmar que o reordenamento por coluna não desalinha jogo e trevo.
+
+`parsearComprovanteCaixa` passou a validar os trevos de cada jogo igual já validava as dezenas (quantidade 2–6, intervalo 1–6, sem repetidos) — um jogo com trevo ausente ou inválido fica marcado com erro na tela de revisão, igual um jogo com dezena errada, em vez de ser gravado incompleto. A tela de revisão mostra os trevos como bolinhas verdes ao lado das dezenas de cada jogo. `confirmarImportacaoPdf` agora grava os trevos junto do cartão, e a checagem de duplicado (tanto na importação de PDF quanto em "Verificar Duplicados") passou a incluir trevos na chave — mesmos números com trevos diferentes são apostas diferentes, não duplicata.
+
+Removido o aviso "trevos não extraídos, edite depois" da tela de importação (ficou obsoleto — trevos agora extraem normal). A opção de editar manualmente continua existindo em `editarCartao` pra qualquer caso que a extração não pegue.
+
+**Validado com o texto REAL do comprovante enviado** (não um exemplo inventado): novo teste em `test/parser-comprovante.test.js` roda o texto completo das 11 apostas do comprovante do usuário e confere, número por número e trevo por trevo, o primeiro jogo, o último e um do meio — garantindo que a extração bate com o PDF de verdade, não só com uma string sintética. Mais um teste em `test/parser-comprovante-posicoes.test.js` cobre o caminho de 2 colunas com coordenadas simuladas. 54/54 testes passando (2 novos).
+
+`sw.js` `CACHE_NAME` v56 → **v57**.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

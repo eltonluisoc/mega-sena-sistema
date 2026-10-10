@@ -86,6 +86,87 @@ Jogo 10
 0800 726 0101 4004 0104 0800 104 0104 0800 726 0207 0800 725 7474
 Página: 1 de 1`;
 
+// Texto extraído de um comprovante REAL de +Milionária enviado pelo
+// usuário (concurso 397, 11 jogos de 7 dezenas, 2 trevos cada — todos no
+// mínimo). Confirma o formato real: "Trevos: NN | NN" numa linha própria
+// logo depois das dezenas de cada jogo, e "Modalidade: +Milionária"
+// (só 1 palavra, "+" colado, sem espaço) — o caso que motivou manter o
+// regex da modalidade conservador (ver comentário em parsearComprovanteCaixa).
+const COMPROVANTE_MILIONARIA = `Dados da Aposta
+Loterias
+Comprovante de Aposta Bolão +Milionária
+Nome: ELTON LUIS DE OLIVEIRA
+CONCEICAO CPF: 874.671.865-68
+Data da aposta: 08/10/2026 Subcanal da compra: IOS
+Hora da aposta: 07:39:23 Data da compra: 10/10/2026
+Valor total da
+aposta: R$ 29,69 Hora da compra: 16:44:51
+Valor da cota: R$ 22,00 Data do sorteio: 11/10/2026
+Valor tarifa de
+serviço: R$ 7,69 Código E. Lotérico: 09.005974-3
+Modalidade: +Milionária Terminal aposta: 26480
+Cota: 13/21 Concurso: 397
+Seus Números:
+Jogo 1
+03 | 19 | 20 | 39 | 44 | 46 | 47
+Trevos: 03 | 05
+Jogo 2
+05 | 08 | 10 | 12 | 21 | 28 | 29
+Trevos: 02 | 03
+Jogo 3
+05 | 17 | 21 | 34 | 46 | 47 | 50
+Trevos: 03 | 06
+Jogo 4
+14 | 18 | 21 | 22 | 31 | 44 | 47
+Trevos: 03 | 04
+Jogo 5
+11 | 18 | 19 | 21 | 31 | 33 | 50
+Trevos: 01 | 06
+Jogo 6
+09 | 12 | 18 | 28 | 32 | 33 | 38
+Trevos: 01 | 02
+Jogo 7
+10 | 23 | 25 | 28 | 29 | 36 | 44
+Trevos: 01 | 04
+Jogo 8
+07 | 14 | 17 | 18 | 22 | 25 | 47
+Trevos: 02 | 05
+Jogo 9
+02 | 07 | 12 | 19 | 20 | 29 | 36
+Trevos: 02 | 06
+Jogo 10
+10 | 14 | 19 | 37 | 45 | 47 | 48
+Trevos: 05 | 06
+Jogo 11
+14 | 21 | 36 | 39 | 42 | 46 | 50
+Trevos: 01 | 05
+Página: 1 de 2`;
+
+test('comprovante real da +Milionária: extrai os 11 jogos com seus trevos certos', () => {
+  const r = parsear(COMPROVANTE_MILIONARIA, { loteriaEsperada: 'maismilionaria', concursoEsperado: '397' });
+  assert.equal(r.status, 'ok');
+  assert.equal(r.modalidade, 'maismilionaria');
+  assert.equal(r.modalidadeLabel, '+Milionária');
+  assert.equal(r.concurso, '397');
+  assert.equal(r.jogos.length, 11);
+  assert.equal(r.trevos.length, 11);
+  assert.ok(r.validacao.every(v => v.ok), JSON.stringify(r.validacao.filter(v => !v.ok)));
+  assert.ok(r.jogos.every(j => j.length === 7));
+  assert.ok(r.trevos.every(t => t.length === 2));
+
+  // Confere jogo 1 e jogo 11 (primeiro e último) número a número E
+  // trevo a trevo, pra garantir que a posição casa certo do início ao
+  // fim da lista, não só "a quantidade bate".
+  assert.deepEqual(plano(r.validacao[0].jogo), [3, 19, 20, 39, 44, 46, 47]);
+  assert.deepEqual(plano(r.validacao[0].trevo), [3, 5]);
+  assert.deepEqual(plano(r.validacao[10].jogo), [14, 21, 36, 39, 42, 46, 50]);
+  assert.deepEqual(plano(r.validacao[10].trevo), [1, 5]);
+
+  // Jogo 6, só pra variar (trevos 01|02 — testa que "01" não ambiguou
+  // com o início de nenhum outro número).
+  assert.deepEqual(plano(r.validacao[5].trevo), [1, 2]);
+});
+
 test('comprovante1: extrai modalidade, concurso e os 2 jogos de 10 dezenas', () => {
   const r = parsear(COMPROVANTE_1, { loteriaEsperada: 'mega', concursoEsperado: '3056' });
   assert.equal(r.status, 'ok');
