@@ -838,6 +838,18 @@ function _chipsDezenas(dezenas, ok) {
     return dezenas.map(n => `<span style="display:inline-block;min-width:22px;text-align:center;background:${bg};color:${fg};border-radius:6px;padding:2px 6px;margin:2px;font-family:monospace;font-size:12px;font-weight:700;">${String(n).padStart(2, '0')}</span>`).join('');
 }
 
+// Achado real do usuário: os trevos extraídos do PDF (+Milionária)
+// apareciam com o MESMO verde/formato das dezenas na tela de revisão —
+// deu a impressão de "faltou extrair", quando na verdade já estavam lá,
+// só indistinguíveis dos números. Cor âmbar + redondo + rótulo "🍀"
+// deixa claro que é outra coisa.
+function _chipsTrevos(trevos, ok) {
+    const bg = ok ? '#fef3c7' : '#fee2e2';
+    const fg = ok ? '#92400e' : '#991b1b';
+    const chips = trevos.map(t => `<span style="display:inline-block;min-width:22px;text-align:center;background:${bg};color:${fg};border-radius:50%;padding:2px 7px;margin:2px;font-family:monospace;font-size:12px;font-weight:700;">${String(t).padStart(2, '0')}</span>`).join('');
+    return `<span style="font-size:11px;color:#92400e;font-weight:600;margin-left:8px;">🍀</span>${chips}`;
+}
+
 function renderImportacaoPdf() {
     const cont = document.getElementById('pdfImportResultados');
     const rodape = document.getElementById('pdfImportRodape');
@@ -866,7 +878,7 @@ function renderImportacaoPdf() {
             <div style="margin:4px 0;">
                 <span style="font-size:12px;color:#475569;font-weight:600;margin-right:6px;">Jogo ${j + 1}${v.ok ? '' : ' ⚠️'}</span>
                 ${_chipsDezenas(v.jogo, v.ok)}
-                ${v.trevo ? `<span style="margin-left:4px;">${_chipsDezenas(v.trevo, v.ok).replace(/border-radius:6px/g, 'border-radius:50%')}</span>` : ''}
+                ${v.trevo ? _chipsTrevos(v.trevo, v.ok) : ''}
                 ${v.ok ? '' : `<span style="font-size:11px;color:#991b1b;margin-left:6px;">${v.erro}</span>`}
             </div>`).join('');
 

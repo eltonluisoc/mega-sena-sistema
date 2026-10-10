@@ -1193,6 +1193,18 @@ Removido o aviso "trevos não extraídos, edite depois" da tela de importação 
 
 `sw.js` `CACHE_NAME` v56 → **v57**.
 
+## Rodada 79 — Trevos da +Milionária extraídos mas invisíveis na revisão do PDF (ajuste de UX)
+
+Usuário testou a extração real da Rodada 78 e mandou print: os trevos extraídos apareciam na tela de revisão, mas com o MESMO estilo verde/quadrado das 7 dezenas do jogo, na mesma linha, sem nenhum rótulo — pareciam "mais 2 números do jogo" em vez de trevos, dando a impressão de que a extração tinha falhado (não tinha: os dados já estavam certos, só a exibição que não deixava claro o que era o quê).
+
+Corrigido com um estilo próprio pros trevos na tela de revisão (`_chipsTrevos`, nova função em admin.js): cor âmbar (em vez do verde das dezenas), formato redondo, e rótulo "🍀" antes dos chips — visualmente inconfundível com as dezenas do jogo agora. A lista de cartões já salvos (`exibirCartoesAdmin`) já tinha essa mesma clareza (🍀 por chip + linha própria), não precisou mudar.
+
+Nota à parte (não é bug, só avisando): a ORDEM dos jogos mostrados na revisão segue a ordem de extração por COLUNA (ver Rodada 77 — comprovante de 2 colunas extrai a coluna inteira da esquerda primeiro, depois a da direita), não necessariamente a numeração "Jogo N" original impressa no PDF. Os dados de cada jogo (números+trevos) continuam um conjunto completo e correto, só o rótulo de posição na tela pode não bater 1:1 com o "Jogo N" do PDF.
+
+Validado com `node --check admin.js` e a suíte completa (54/54, sem teste novo — ajuste é só de estilo HTML).
+
+`sw.js` `CACHE_NAME` v57 → **v58**.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
