@@ -3451,14 +3451,24 @@ async function mostrarHistorico(id, nome) {
             <button class="btn-copiar-historico" data-id="${id}" data-nome="${nome}" style="margin-top: 12px; background: #25D366; color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; width: 100%; touch-action: manipulation; font-weight: 600;">
                 📤 COPIAR HISTÓRICO PARA WHATSAPP
             </button>
+            <button class="btn-copiar-historico-completo" data-id="${id}" data-nome="${nome}" style="margin-top: 8px; background: #475569; color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; width: 100%; touch-action: manipulation;">
+                📜 COPIAR HISTÓRICO COMPLETO (desde o início)
+            </button>
         `;
-        
+
         div.innerHTML = html;
         if (btn) btn.textContent = '🙈 OCULTAR HISTÓRICO';
         document.querySelector(`.btn-copiar-historico[data-id="${id}"]`)?.addEventListener('click', function() {
             copiarHistoricoWhatsApp(id, nome);
         });
-        
+        // Achado real do usuário: o extrato pra WhatsApp sempre cortava
+        // "a partir do último depósito" (ver copiarHistoricoWhatsApp),
+        // sem jeito de pegar o histórico INTEIRO quando precisava. Este
+        // botão é a opção extra pra isso — mesmo dado, sem o corte.
+        document.querySelector(`.btn-copiar-historico-completo[data-id="${id}"]`)?.addEventListener('click', function() {
+            copiarHistoricoWhatsApp(id, nome, true);
+        });
+
     } catch (error) {
         console.error('Erro ao carregar histórico:', error);
         div.innerHTML = `<div style="color: #ef4444;">❌ Erro ao carregar histórico: ${error.message}</div>`;
@@ -3802,36 +3812,45 @@ function abrirModalLancamentoLote() {
     };
 }
 
-async function copiarHistoricoWhatsApp(id, nome) {
+// completo=true pula o filtro "a partir do último depósito" e manda o
+// histórico INTEIRO — pedido do usuário: o extrato sempre vinha cortado
+// no último depósito (bom pra conferir o ciclo atual rapidinho), mas sem
+// nenhum jeito de pegar o histórico completo quando precisava (ex.:
+// reclamação antiga, auditoria). Mantém o filtrado como padrão (já era o
+// comportamento esperado, não muda nada pra quem só clica no botão de
+// sempre) e acrescenta um segundo botão/opção só pra isso.
+async function copiarHistoricoWhatsApp(id, nome, completo = false) {
     try {
         showToast('📋 Gerando mensagem...', 'info');
-        
+
         const doc = await db.collection('reservas_participantes').doc(id).get();
-        
+
         if (!doc.exists) {
             showToast('❌ Reserva não encontrada', 'error');
             return;
         }
-        
+
         const data = doc.data();
         const historico = data.historico || [];
         const saldoAtual = data.saldoReserva || 0;
-        
+
         if (historico.length === 0) {
             showToast('📭 Nenhuma movimentação para copiar', 'warning');
             return;
         }
-        
+
         const historicoOrdenado = [...historico].reverse();
         let ultimoDepositoIndex = -1;
-        
-        for (let i = 0; i < historicoOrdenado.length; i++) {
-            if (historicoOrdenado[i].tipo === 'deposito') {
-                ultimoDepositoIndex = i;
-                break;
+
+        if (!completo) {
+            for (let i = 0; i < historicoOrdenado.length; i++) {
+                if (historicoOrdenado[i].tipo === 'deposito') {
+                    ultimoDepositoIndex = i;
+                    break;
+                }
             }
         }
-        
+
         let historicoFiltrado;
         if (ultimoDepositoIndex === -1) {
             historicoFiltrado = [...historico];
@@ -3839,15 +3858,17 @@ async function copiarHistoricoWhatsApp(id, nome) {
             const historicoApartirDeposito = historicoOrdenado.slice(0, ultimoDepositoIndex + 1);
             historicoFiltrado = historicoApartirDeposito.reverse();
         }
-        
+
         const linha = '──────────────────';
         const dataAtual = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
         const horaAtual = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-        
+
         let mensagem = `📊 *EXTRATO DE RESERVAS*\n`;
         mensagem += `👤 *Participante:* ${nome}\n`;
         mensagem += `📅 *Data:* ${dataAtual} às ${horaAtual}\n`;
-        if (ultimoDepositoIndex !== -1) {
+        if (completo) {
+            mensagem += `📌 *Histórico completo*\n`;
+        } else if (ultimoDepositoIndex !== -1) {
             mensagem += `📌 *Mostrando movimentações a partir do último depósito*\n`;
         }
         mensagem += `${linha}\n\n`;
@@ -3882,15 +3903,16 @@ async function copiarHistoricoWhatsApp(id, nome) {
             mensagem += `\n`;
         }
         
+        const rotuloResumo = completo ? 'completo' : 'a partir do último depósito';
         mensagem += `${linha}\n`;
-        mensagem += `📊 *RESUMO (a partir do último depósito):*\n`;
+        mensagem += `📊 *RESUMO (${rotuloResumo}):*\n`;
         mensagem += `   💰 Total de depósitos: R$ ${totalDepositos.toFixed(2)}\n`;
         mensagem += `   💸 Total de saques: R$ ${totalSaques.toFixed(2)}\n`;
         mensagem += `   🎯 Total de uso: R$ ${totalUso.toFixed(2)}\n`;
         mensagem += `   ──────────────────\n`;
         mensagem += `   💵 *Saldo atual: R$ ${saldoAtual.toFixed(2)}*\n`;
         mensagem += `   ──────────────────\n`;
-        mensagem += `   📊 *${historicoFiltrado.length} movimentações* (a partir do último depósito)\n\n`;
+        mensagem += `   📊 *${historicoFiltrado.length} movimentações* (${rotuloResumo})\n\n`;
         mensagem += `${linha}\n`;
         mensagem += `🔗 *Bolões Aleatórios*\n`;
         mensagem += `https://rebrand.ly/boloesaleatorios`;

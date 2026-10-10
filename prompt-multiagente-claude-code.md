@@ -1136,6 +1136,18 @@ Validado com `node --check script.js` (sintaxe) e leitura linha a linha das duas
 
 `sw.js` `CACHE_NAME` v53 → **v54**.
 
+## Rodada 76 — Histórico de reserva: opção de ver/copiar o extrato COMPLETO, não só desde o último depósito (admin/web)
+
+Pedido do usuário: no painel admin, ao pedir o histórico de reserva de um participante, o extrato pra WhatsApp sempre vinha cortado "a partir do último depósito" — útil pra conferir o ciclo atual rápido, mas sem nenhum jeito de pegar o histórico INTEIRO quando precisava (ex.: auditoria, reclamação antiga).
+
+Investigado antes de mexer: a visualização em tela (`mostrarHistorico`, botão "📜 VER HISTÓRICO") já mostra TUDO, sem filtro nenhum — o corte só existe na função que gera o texto pra copiar pro WhatsApp (`copiarHistoricoWhatsApp`, admin.js), que procura o depósito mais recente no histórico e descarta tudo antes dele.
+
+Corrigido sem alterar o comportamento padrão (continua cortando no último depósito por padrão, que já era o esperado): `copiarHistoricoWhatsApp` ganhou um parâmetro opcional `completo` (default `false`); quando `true`, pula a busca do último depósito e manda o array inteiro, trocando os textos "a partir do último depósito" por "histórico completo" na mensagem gerada. Novo botão "📜 COPIAR HISTÓRICO COMPLETO (desde o início)" adicionado logo abaixo do botão de sempre, em `mostrarHistorico`, chamando a mesma função com `completo=true`.
+
+Validado com `node --check admin.js` (sintaxe).
+
+`sw.js` `CACHE_NAME` v54 → **v55**.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
