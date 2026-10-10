@@ -104,7 +104,10 @@
            iOS/macOS): uma trilha cinza, o segmento ativo "flutua" em
            branco por cima, em vez de 3 caixas soltas com borda. ===== */
         .loteria-selector {
-            max-width: 420px;
+            /* 480px (não mais 420px) — 4 loterias agora (+Milionária
+               entrou), cada segmento ficava espremido demais no mesmo
+               espaço de 3. */
+            max-width: 480px;
             margin: 0 auto 26px;
             padding: 4px;
             background: #e8e8ed;
@@ -130,11 +133,12 @@
         }
         .loteria-btn .loteria-icon { font-size: 15px; display: inline; }
         .loteria-btn .loteria-nome {
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             color: var(--text-secondary);
             margin-top: 0;
             letter-spacing: 0;
+            white-space: nowrap;
         }
         .loteria-btn:hover:not(.active) { background: rgba(255, 255, 255, 0.6); }
         .loteria-btn.active {
@@ -214,6 +218,10 @@
         <button id="btnQuina" class="loteria-btn quina">
             <span class="loteria-icon">🎯</span>
             <span class="loteria-nome">QUINA</span>
+        </button>
+        <button id="btnMaisMilionaria" class="loteria-btn maismilionaria">
+            <span class="loteria-icon">🍀</span>
+            <span class="loteria-nome">MILIONÁRIA</span>
         </button>
     </div>
 

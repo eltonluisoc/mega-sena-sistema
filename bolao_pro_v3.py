@@ -1,7 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.31
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.32
+Correções v6.32 (+Milionária adicionada ao combo de loterias):
+ - Pedido do usuário: o site e o admin ganharam suporte à +Milionária
+   (ver script.js/admin.js/admin.html/index.html) — o desktop não
+   cadastra cartões (isso é só pelo site), mas registra bolões,
+   participantes, premiações e reservas, e esses módulos têm um combo
+   de loteria com texto livre. "+Milionária" entrou em LOTERIAS (845).
+ - Os 3 pontos que INFEREM a loteria a partir do NOME do bolão (não da
+   coluna `loteria` salva) pra decidir o que publicar no Firestore —
+   _pub_montar_dados_impl, _pub_sincronizar_busca_telefone, e a
+   sincronização automática do fechamento (_on_close) — ganharam um
+   branch pra "milionaria"/"milionária" no nome, ANTES do fallback que
+   sempre cai em "mega". Sem isso, um bolão chamado "+Milionária de
+   Natal" seria publicado no site como `loteria: "mega"`, com os
+   cartões nunca aparecendo na aba certa.
 Correções v6.31 (lançamento de reserva: padrão vira DÉBITO/SAÍDA, não
 CRÉDITO/ENTRADA):
  - Pedido do usuário: "já ocorreu antes" de lançar um débito como
@@ -842,7 +856,7 @@ CORES = {
 }
 
 MESES    = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
-LOTERIAS = ["Mega-Sena","Lotofácil","Quina","Lotomania","Loteca","Timemania",
+LOTERIAS = ["Mega-Sena","Lotofácil","Quina","+Milionária","Lotomania","Loteca","Timemania",
             "Dia de Sorte","Super Sete","Dupla Sena","Federal","Outros"]
 
 # ─────────────────────────────────────────────
@@ -1927,7 +1941,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.31")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.32")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -2203,7 +2217,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.31",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.32",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -6070,7 +6084,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.31</span>
+        <span>Sistema de Gestão de Bolões v6.32</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -8402,7 +8416,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.31</span>
+        <span>Sistema de Gestão de Bolões v6.32</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -8802,6 +8816,8 @@ class BolaoApp:
         nome_lower = bd["nome"].lower()
         if "lotofacil" in nome_lower or "lotofácil" in nome_lower:
             loteria = "lotofacil"
+        elif "milionaria" in nome_lower or "milionária" in nome_lower:
+            loteria = "maismilionaria"
         elif "mega" in nome_lower:
             loteria = "mega"
         elif "quina" in nome_lower:
@@ -8943,6 +8959,8 @@ class BolaoApp:
                 nome_lower = (bd.get("nome") or "").lower()
                 if "lotofacil" in nome_lower or "lotofácil" in nome_lower:
                     loteria = "lotofacil"
+                elif "milionaria" in nome_lower or "milionária" in nome_lower:
+                    loteria = "maismilionaria"
                 elif "quina" in nome_lower:
                     loteria = "quina"
                 else:
@@ -9971,6 +9989,7 @@ class BolaoApp:
 
                     n_nome = nome_b.lower()
                     if "lotofacil" in n_nome or "lotofácil" in n_nome: lot="lotofacil"
+                    elif "milionaria" in n_nome or "milionária" in n_nome: lot="maismilionaria"
                     elif "quina" in n_nome: lot="quina"
                     elif "lotomania" in n_nome: lot="lotomania"
                     else: lot="mega"

@@ -1148,6 +1148,37 @@ Validado com `node --check admin.js` (sintaxe).
 
 `sw.js` `CACHE_NAME` v54 → **v55**.
 
+## Rodada 77 — Adiciona a +Milionária como 4ª loteria (site + admin + desktop)
+
+Pedido do usuário: "vamos também apostar nessa loteria" — adicionar a +Milionária em todo o sistema, tanto pra cadastrar cartões no admin quanto pra conferir resultados no site, "conforme funciona para as demais loterias" (incluindo importação de PDF).
+
+**Por que foi grande**: a +Milionária sorteia DOIS conjuntos independentes — 6 números de 1 a 50 (igual as outras loterias, só que universo/tamanho diferentes) E 2 trevos de 1 a 6 — enquanto as outras 3 loterias do sistema são todas "escolha N de M, sorteiam K, confere quantos bateu" num único sorteio. Antes de codar, mandei um agente mapear TODOS os pontos do código que lidam com loteria (dezenas de condicionais `if/else` espalhadas, sem tabela central) e pesquisei a estrutura oficial de faixas de prêmio da +Milionária (10 faixas, combinando acertos de números com acertos de trevo — confirmado contra fontes externas, não achei a tabela no site oficial da Caixa). Perguntei ao usuário o nível de profundidade antes de começar: confirmou implementação completa (números + trevos de verdade, não só números) com os limites oficiais (6 a 12 números, 2 a 6 trevos).
+
+**Decisões de design**:
+- Chave interna da loteria: `maismilionaria` (bate com o slug usado pela API da Caixa e por wrappers da comunidade).
+- As 10 faixas oficiais (`tierChaveMilionaria` em script.js): combinam acertos de números (2 a 6) com acertos de trevo (1 ou 2) — com uma assimetria real: 3 ou 2 números com ZERO trevo não paga nada (diferente de 6/5/4 números, que pagam mesmo sem trevo). Confirmado com 3 testes novos em `test/calculos-script.test.js`.
+- "Bilhetes equivalentes"/potencial do bolão: passou a multiplicar a combinatória de números PELA combinatória de trevos (`C(n,6)×C(m,2)`) — um cartão com mais trevos que o mínimo também é aposta múltipla nessa dimensão.
+- Faixas de estrelas (`FAIXAS_ESTRELAS.maismilionaria`): calibração inicial por proporção de universo (não há bolões reais da +Milionária ainda pra calibrar contra, diferente das outras 3) — universo completo (números×trevo) é ~4,76× o da Mega, faixas da Mega escaladas pelo mesmo fator. Comentário no código avisa pra recalibrar quando houver histórico real.
+- "Chance" exibida no card de potencial: só a parte NÚMEROS (4 de 6, rótulo "4 NÚMEROS") — os dois sorteios são independentes, o trevo não muda essa probabilidade.
+
+**O que NÃO foi implementado, por quê, e onde isso fica visível pro usuário**: a extração automática de TREVOS de dentro de um PDF de comprovante não foi implementada — não há (que eu tenha achado) um comprovante real da +Milionária pra confirmar o formato exato desse campo, e arriscar "adivinhar" o layout poderia gravar trevo errado num cartão real sem o admin perceber. Números continuam sendo importados do PDF normalmente (mesmo mecanismo das outras 3 loterias); a tela de revisão da importação mostra um aviso verde "🍀 Trevos não são extraídos automaticamente do PDF ainda — edite cada cartão depois de importar" quando a modalidade é +Milionária. O mesmo vale pra API de resultados da Caixa (`buscarResultadoInterno`): tenta vários nomes de campo prováveis (`trevosSorteados`, `listaTrevos`, etc.) e avisa no console se nenhum bater, em vez de falhar calado.
+
+**Tudo que mudou, por arquivo**:
+- `firestore.rules`: `resultados_conferidos` aceita o campo opcional `trevos` e a loteria `maismilionaria`.
+- `index.html`: 4º botão no seletor de loteria (🍀 MILIONÁRIA), `.loteria-selector` alargado de 420px pra 480px pra caber os 4 sem espremer.
+- `script.js` (o mais extenso): cache/mapas de concursos por loteria, `calcularChancesBolao` (universo 50, trevos multiplicando bilhetes), `calcularPremiosMilionaria`/`tierChaveMilionaria` (as 10 faixas), `gerarResumoPremiosMilionaria` (grid de 10 itens em vez de 5), `ordenarCartoesPorAcertos` (desempate por trevo), `gerarBannerTrofeu` (mostra trevos do melhor cartão), `mostrarCartoes`/`exibirResultadoSalvo`/`conferirResultados` (trevos sorteados exibidos junto dos números, por cartão), `buscarResultadoInterno` (URL da API + leitura defensiva dos trevos), `compartilharWhatsApp`, `setLoteria`. Nova tabela central `LOTERIA_K`/`LOTERIA_UNIVERSO`/`LOTERIA_TREVOS` reduz repetição e risco de esquecer um branch novo nessas funções.
+- `admin.html`: 4º botão nos 2 seletores (Cadastro e aba Cartões), opção no import de PDF, campo de trevos no modo digitação, 2ª grade de trevos no modo seleção, 4º card no dashboard.
+- `admin.js` (o mais extenso): `regrasLoteria` ganhou sub-objeto `trevos`; nova `parseTrevosTexto` (paralela a `parseNumerosTexto`); grade de trevos (`inicializarGradeTrevos`, `toggleTrevoSelecao` e afins, paralelos às funções de números); `existeCartaoDuplicado` e `verificarDuplicados` passam a incluir trevos na chave de duplicata (mesmos números com trevos diferentes é aposta diferente, não duplicado); os 3 fluxos de cadastro (digitação, seleção, seleção-toggle) validam e gravam trevos; `editarCartao` ganhou campo de trevos; `exibirCartoesAdmin`/`exportarCartoes` mostram trevos; `parsearComprovanteCaixa` ganhou suporte a "+Milionária" no nome da modalidade (achado real ao testar: o regex não podia virar genérico demais, por causa de um caso real "Modalidade: Lotofácil da Independência" — ver teste); estatísticas do dashboard (`calcularEstatisticas`, `atualizarDashboardEstatisticas`) ganharam a 4ª loteria.
+- `bolao_pro_v3.py`: "+Milionária" em `LOTERIAS`; os 3 pontos que inferem loteria pelo NOME do bolão (não cadastra cartões, mas publica bolões/participantes no site).
+- `consulta.js`/`participantes.html`: mapas de nome de loteria.
+- `test/calculos-script.test.js` e `test/calculos-admin.test.js`: testes novos pra `tierChaveMilionaria`, `calcularPremiosMilionaria` (aposta múltipla cruzando números×trevos, e o caso "sem prêmio"), `regrasLoteria`, `parseTrevosTexto`. Também corrigidos 2 testes que já estavam quebrados ANTES desta rodada (defasados desde a mudança Quina→terno da Rodada 70, nunca tinham sido rodados depois).
+
+**Bug que eu mesmo introduzi e corrigi na mesma rodada**: o primeiro regex que escrevi pra reconhecer "+Milionária"/"Mais Milionária" no campo "Modalidade:" do comprovante PDF ficou genérico demais (aceitava uma 2ª palavra separada por espaço) e quebrou um teste que já passava — um comprovante real tem "Modalidade: Lotofácil da Independência" (nome do BOLÃO colado depois do nome da loteria). Corrigido revertendo pra um regex mais conservador (só 1 palavra + hífen opcional, + "+" opcional na frente) — "Mais Milionária" (2 palavras) não vai ser reconhecido automaticamente até alguém confirmar contra um comprovante real, mas isso é uma limitação assumida e documentada, não um bug silencioso.
+
+Validado com: `node --check` nos 3 arquivos JS tocados; suíte JS completa (`node --test test/*.test.js`) — 52/52 passando, incluindo 6 testes novos e 2 consertados; `py_compile` + suíte Python (35/35); `.exe` reconstruído.
+
+Versão desktop v6.31 → **v6.32**. `sw.js` `CACHE_NAME` v55 → **v56**.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

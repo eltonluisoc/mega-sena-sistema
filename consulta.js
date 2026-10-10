@@ -182,7 +182,8 @@ async function consultarBoloes() {
                     const loteriaNomes = {
                         'mega': 'MEGA-SENA',
                         'lotofacil': 'LOTOFÁCIL',
-                        'quina': 'QUINA'
+                        'quina': 'QUINA',
+                        'maismilionaria': '+MILIONÁRIA'
                     };
                     const loteriaNome = loteriaNomes[bolao.loteria] || bolao.loteria.toUpperCase();
                     

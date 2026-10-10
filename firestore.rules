@@ -49,12 +49,16 @@ service cloud.firestore {
     // nesse cache pra todo mundo (inclusive pra decidir quem "ganhou").
     match /resultados_conferidos/{document} {
       allow read: if true;
+      // 'trevos' é opcional (só +Milionária usa) — hasOnly só limita quais
+      // chaves PODEM existir, não exige que todas estejam presentes, então
+      // documentos das outras 3 loterias (sem trevos) continuam válidos.
       allow create: if request.resource.data.keys().hasOnly(
-                        ['loteria','concurso','numeros','dataConferencia','dataSorteio','conferido','admin'])
-                    && request.resource.data.loteria in ['mega','lotofacil','quina']
+                        ['loteria','concurso','numeros','trevos','dataConferencia','dataSorteio','conferido','admin'])
+                    && request.resource.data.loteria in ['mega','lotofacil','quina','maismilionaria']
                     && request.resource.data.numeros is list
                     && request.resource.data.numeros.size() > 0
                     && request.resource.data.numeros.size() <= 20
+                    && (!('trevos' in request.resource.data) || (request.resource.data.trevos is list && request.resource.data.trevos.size() == 2))
                     && request.resource.data.conferido == true;
       allow update, delete: if isAdmin();
     }

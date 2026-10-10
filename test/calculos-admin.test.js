@@ -55,3 +55,25 @@ test('calcularEstatisticas - soma prêmios de vários cartões do mesmo concurso
   assert.equal(top3[0].maxAcertos, 5);
   assert.equal(top3[0].quantidade, 2);
 });
+
+test('regrasLoteria - +Milionária tem as 2 dimensões (números e trevos)', () => {
+  const regras = sandbox.regrasLoteria('maismilionaria');
+  assert.equal(regras.minNumeros, 6);
+  assert.equal(regras.maxNumeros, 12);
+  assert.equal(regras.maxValor, 50);
+  assert.equal(regras.trevos.min, 2);
+  assert.equal(regras.trevos.max, 6);
+  assert.equal(regras.trevos.maxValor, 6);
+});
+
+test('parseTrevosTexto - valida quantidade mínima/máxima e intervalo', () => {
+  const regrasTrevos = { min: 2, max: 6, maxValor: 6 };
+  // Array construído dentro do sandbox (vm context) é de um "realm"
+  // diferente do array literal aqui — deepEqual falha por causa disso
+  // mesmo com os valores idênticos; o spread recria num array nativo.
+  assert.deepEqual([...sandbox.parseTrevosTexto('02 05', regrasTrevos).trevos], [2, 5]);
+  assert.match(sandbox.parseTrevosTexto('05', regrasTrevos).erro, /mínimo 2/);
+  assert.match(sandbox.parseTrevosTexto('01 02 03 04 05 06 07', regrasTrevos).erro, /máximo 6/);
+  assert.match(sandbox.parseTrevosTexto('02 07', regrasTrevos).erro, /entre 1 e 6/);
+  assert.match(sandbox.parseTrevosTexto('02 02', regrasTrevos).erro, /repetidos/);
+});

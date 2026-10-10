@@ -89,27 +89,23 @@ test('calcularChancesBolao - cobertura de números e total de cartões da mega',
   assert.match(html, />2<\/div>/);
 });
 
-// Regressão do bug: a classificação por estrelas usava um número absoluto
-// de "bilhetes equivalentes" (>=10000 = EXCELENTE etc.) igual pras 3
+// Histórico: a classificação por estrelas usava um número absoluto de
+// "bilhetes equivalentes" (>=10000 = EXCELENTE etc.) igual pras 3
 // loterias, mas esse número cresce em ritmos bem diferentes conforme a
 // loteria (k=6 na Mega, k=15 na Lotofácil, k=5 na Quina) — um bolão de
-// cartões de 18 números na Lotofácil batia 5 estrelas com poucos
-// cartões, enquanto um bolão de Quina com cartões do mínimo de 5 números
-// (o mais comum na prática) quase nunca saía de 1 estrela, por maior que
-// fosse o bolão. Uma primeira correção (probabilidade real vs. universo)
-// ainda deixava a Lotofácil generosa demais (3 cartões de 18 números
-// batendo EXCELENTE); a versão final usa faixas absolutas calibradas por
-// loteria (ver FAIXAS_ESTRELAS em script.js).
-test('calcularChancesBolao - Quina com cartões mínimos (5 números) não trava sempre em 1 estrela', () => {
-  // 60 cartões do mínimo (5 números = 1 combinação cada) — um bolão
-  // razoavelmente grande que, pelo critério antigo (>=100 bilhetes pra
-  // sair de SIMPLES), nunca passaria de 1 estrela.
+// Quina com cartões do mínimo de 5 números (o mais comum na prática)
+// quase nunca saía de 1 estrela, por maior que fosse o bolão.
+// Rodada 70: a Quina saiu desse esquema de vez — a classificação passou
+// a vir direto do % de chance de TERNO (não mais de bilhetes cobertos),
+// sem faixa REGULAR/2★ (decisão explícita do usuário). 60 cartões do
+// mínimo rendem ~6,9% de chance de terno, que cai em SIMPLES (<15%).
+test('calcularChancesBolao - Quina classifica pelo % de chance de terno, não por bilhetes', () => {
   const cartoes = Array.from({ length: 60 }, (_, i) => ({
     numeros: [1 + i % 76, 2 + i % 76, 3 + i % 76, 4 + i % 76, 5 + i % 76],
   }));
   const html = sandbox.calcularChancesBolao(cartoes, 'quina');
 
-  assert.match(html, /\(REGULAR\)/);
+  assert.match(html, /\(SIMPLES\)/);
 });
 
 test('calcularChancesBolao - Lotofácil: 3 cartões de 18 números (2.448 bilhetes) é BOM, nunca EXCELENTE', () => {
@@ -166,11 +162,14 @@ test('calcularChancesBolao - Lotofácil mostra a chance de 13 pontos', () => {
   assert.match(html, /CHANCE \(13 PTS\)/);
 });
 
-test('calcularChancesBolao - Quina mostra a chance de QUADRA, não de quina', () => {
+// Rodada 70: trocado de QUADRA pra TERNO na Quina (0,63% de quadra
+// ficava "ÓTIMO 4★" ao lado de um número minúsculo até pra bolões
+// grandes — terno rende um % que já diz algo por si só).
+test('calcularChancesBolao - Quina mostra a chance de TERNO, não de quina/quadra', () => {
   const cartoes = [{ numeros: [1, 2, 3, 4, 5] }];
   const html = sandbox.calcularChancesBolao(cartoes, 'quina');
 
-  assert.match(html, /CHANCE \(QUADRA\)/);
+  assert.match(html, /CHANCE \(TERNO\)/);
 });
 
 // Pedido do usuário: um cartão de 8 números na Mega com 4 acertos não é
@@ -204,4 +203,57 @@ test('calcularPremios - soma corretamente as apostas múltiplas de vários cart�
   assert.equal(premios.quadra, 6);
   assert.equal(premios.terno, 16);
   assert.equal(premios.duque, 6);
+});
+
+// +Milionária: as 10 faixas oficiais (confirmadas via busca externa, não
+// achei a tabela no site da Caixa) combinam acertos de números (2 a 6)
+// com acertos de trevo (1 ou 2) — e a combinação NÃO é só "todo par
+// conta": 3 ou 2 números com ZERO trevo não paga nada, só com 1 ou 2
+// trevos. tierChaveMilionaria é a função que decide isso; testa as 10
+// faixas válidas e os 2 casos "sem prêmio" mais fáceis de errar.
+test('tierChaveMilionaria - as 10 faixas oficiais, mais os casos sem prêmio', () => {
+  assert.equal(sandbox.tierChaveMilionaria(6, 2), 'n6t2');
+  assert.equal(sandbox.tierChaveMilionaria(6, 1), 'n6t');
+  assert.equal(sandbox.tierChaveMilionaria(6, 0), 'n6t');
+  assert.equal(sandbox.tierChaveMilionaria(5, 2), 'n5t2');
+  assert.equal(sandbox.tierChaveMilionaria(5, 1), 'n5t');
+  assert.equal(sandbox.tierChaveMilionaria(5, 0), 'n5t');
+  assert.equal(sandbox.tierChaveMilionaria(4, 2), 'n4t2');
+  assert.equal(sandbox.tierChaveMilionaria(4, 1), 'n4t');
+  assert.equal(sandbox.tierChaveMilionaria(4, 0), 'n4t');
+  assert.equal(sandbox.tierChaveMilionaria(3, 2), 'n3t2');
+  assert.equal(sandbox.tierChaveMilionaria(3, 1), 'n3t1');
+  assert.equal(sandbox.tierChaveMilionaria(2, 2), 'n2t2');
+  assert.equal(sandbox.tierChaveMilionaria(2, 1), 'n2t1');
+  // Casos sem prêmio: 3 ou 2 números com ZERO trevo não paga (diferente
+  // de 6/5/4 números, que pagam mesmo com 0 trevo).
+  assert.equal(sandbox.tierChaveMilionaria(3, 0), null);
+  assert.equal(sandbox.tierChaveMilionaria(2, 0), null);
+  assert.equal(sandbox.tierChaveMilionaria(1, 2), null);
+  assert.equal(sandbox.tierChaveMilionaria(0, 2), null);
+});
+
+// Mesmo padrão do teste de aposta múltipla da Mega acima: 1 número extra
+// (7 em vez do mínimo 6) faz o cartão valer C(7,6)=7 apostas simples —
+// 6 delas batendo 5 números (sobrando a 7ª fora do sorteio) e 1 batendo
+// os 6. Os 2 trevos do cartão são exatamente o mínimo (sem multiplicar
+// nessa dimensão), então toda a combinatória de trevo some num fator 1.
+test('calcularPremiosMilionaria - cartão de 7 números (aposta múltipla) cruza certo com os 2 trevos', () => {
+  const cartoes = [{ numeros: [1, 2, 3, 4, 5, 6, 7], trevos: [1, 2] }];
+  const premios = sandbox.calcularPremios(cartoes, [1, 2, 3, 4, 5, 6], 'maismilionaria', [1, 2]);
+  assert.equal(premios.n6t2, 1);  // C(6,6)·C(1,1) × C(2,2)·C(0,0) = 1×1
+  assert.equal(premios.n5t2, 6);  // C(6,5)·C(1,1) × C(2,2)·C(0,0) = 6×1
+  const total = Object.values(premios).reduce((a, b) => a + b, 0);
+  assert.equal(total, sandbox.combinacao(7, 6)); // as 7 apostas simples do cartão, todas pagando
+});
+
+// A assimetria real da +Milionária: 3 (ou 2) números batidos só vira
+// prêmio se vier com pelo menos 1 trevo — 0 trevo não paga nada nessas
+// faixas (diferente de 6/5/4 números, que pagam mesmo sem trevo).
+test('calcularPremiosMilionaria - 3 números sem nenhum trevo não gera prêmio nenhum', () => {
+  const cartoes = [{ numeros: [1, 2, 3, 4, 5, 6], trevos: [1, 2] }];
+  // Sorteio bate só 3 dos números do cartão e nenhum dos 2 trevos.
+  const premios = sandbox.calcularPremios(cartoes, [1, 2, 3, 40, 41, 42], 'maismilionaria', [5, 6]);
+  const total = Object.values(premios).reduce((a, b) => a + b, 0);
+  assert.equal(total, 0);
 });

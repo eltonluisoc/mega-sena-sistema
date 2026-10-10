@@ -1259,12 +1259,12 @@
             <div class="dashboard-card" style="background: #e8f2ff; border-color: #93c5fd;">
                 <div class="dashboard-number" style="color: #0071e3;" id="dashboardTotalCartoes">0</div>
                 <div style="font-size: 14px; font-weight: 600; color: #1e3a5f;">📋 TOTAL DE CARTÕES</div>
-                <div style="font-size: 10px; color: #9ca3af; margin-top: 4px;" id="dashboardCartoesLoteriaDetalhes">Mega: 0 · Lotofácil: 0 · Quina: 0</div>
+                <div style="font-size: 10px; color: #9ca3af; margin-top: 4px;" id="dashboardCartoesLoteriaDetalhes">Mega: 0 · Lotofácil: 0 · Quina: 0 · +Milionária: 0</div>
             </div>
             <div class="dashboard-card" style="background: #e8f2ff; border-color: #93c5fd;">
                 <div class="dashboard-number" style="color: #0058b3; font-size: 22px;" id="dashboardBilhetes">0</div>
                 <div style="font-size: 14px; font-weight: 600; color: #1e3a5f;">🎫 BILHETES JOGADOS</div>
-                <div style="font-size: 10px; color: #9ca3af; margin-top: 4px;" id="dashboardBilhetesDetalhes">Mega: 0 · Lotofácil: 0 · Quina: 0</div>
+                <div style="font-size: 10px; color: #9ca3af; margin-top: 4px;" id="dashboardBilhetesDetalhes">Mega: 0 · Lotofácil: 0 · Quina: 0 · +Milionária: 0</div>
             </div>
             <div class="dashboard-card" style="background: #ede9fe; border-color: #c4b5fd;">
                 <div class="dashboard-number" style="color: #7c3aed;" id="dashboardTotalBoloes">0</div>
@@ -1287,6 +1287,10 @@
         <div style="font-size: 13px; font-weight: 600; color: #78350f; text-align: center;">🎯 TOP CONCURSOS QUINA</div>
         <div style="font-size: 12px; color: #78350f; margin-top: 8px; line-height: 1.7;" id="dashboardMelhorQuinaDetalhes">Nenhum resultado ainda</div>
     </div>
+    <div class="dashboard-card" style="background: #dcfce7; border-color: #86efac; text-align: left;">
+        <div style="font-size: 13px; font-weight: 600; color: #166534; text-align: center;">🍀 TOP CONCURSOS +MILIONÁRIA</div>
+        <div style="font-size: 12px; color: #166534; margin-top: 8px; line-height: 1.7;" id="dashboardMelhorMilionariaDetalhes">Nenhum resultado ainda</div>
+    </div>
 </div>
 
     </div>
@@ -1307,6 +1311,7 @@
                         <button id="adminBtnMega" class="loteria-btn-admin mega" style="flex:1; padding: 10px; border: 2px solid #8b5cf6; border-radius: 30px; font-weight: bold; background: #ede9fe; color: #6d28d9; cursor: pointer; transition: all 0.2s;">🎯 MEGA</button>
                         <button id="adminBtnLotofacil" class="loteria-btn-admin lotofacil active" style="flex:1; padding: 10px; border: 2px solid #10b981; border-radius: 30px; font-weight: bold; background: #d1fae5; color: #065f46; cursor: pointer; transition: all 0.2s;">🌟 LOTOFÁCIL</button>
                         <button id="adminBtnQuina" class="loteria-btn-admin quina" style="flex:1; padding: 10px; border: 2px solid #ef4444; border-radius: 30px; font-weight: bold; background: #fee2e2; color: #991b1b; cursor: pointer; transition: all 0.2s;">🎯 QUINA</button>
+                        <button id="adminBtnMilionaria" class="loteria-btn-admin maismilionaria" style="flex:1; padding: 10px; border: 2px solid #16a34a; border-radius: 30px; font-weight: bold; background: #dcfce7; color: #166534; cursor: pointer; transition: all 0.2s;">🍀 +MILIONÁRIA</button>
                     </div>
                     <div style="font-size: 12px; color: #64748b; margin-top: 8px; text-align: center;">Selecione a loteria para cadastrar cartões</div>
                 </div>
@@ -1315,7 +1320,7 @@
                 <div class="card" style="border: 2px solid #0071e3;">
                     <div class="card-header">
                         ✏️ CADASTRO INDIVIDUAL
-                        <span class="badge">MEGA • LOTOFÁCIL • QUINA</span>
+                        <span class="badge">MEGA • LOTOFÁCIL • QUINA • +MILIONÁRIA</span>
                     </div>
                     <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 600; color: #1e293b;">
@@ -1351,6 +1356,13 @@
                             <label id="labelNumerosIndividual">🔢 Números (separados por espaço)</label>
                             <input type="text" id="numerosIndividual" class="form-control" placeholder="Ex: 01 02 03 04 05 06">
                             <div id="dicaNumerosIndividual" style="font-size: 12px; color: #64748b; margin-top: 4px;">💡 Digite os números separados por espaço</div>
+                        </div>
+                        <!-- Só +Milionária usa — sorteia números E trevos
+                             separadamente (2 a 6 trevos, universo 1-6). -->
+                        <div class="form-group" id="campoTrevosDigitacao" style="display: none;">
+                            <label>🍀 Trevos (separados por espaço, 2 a 6)</label>
+                            <input type="text" id="trevosIndividual" class="form-control" placeholder="Ex: 02 05">
+                            <div style="font-size: 12px; color: #64748b; margin-top: 4px;">💡 Mínimo 2, máximo 6 trevos (1 a 6)</div>
                         </div>
                         <button id="btnAdicionarIndividual" class="btn btn-success btn-block">➕ ADICIONAR CARTÃO</button>
                     </div>
@@ -1404,6 +1416,22 @@
                             </div>
                             <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px;" id="previaNumerosSelecionados">
                                 <span style="color: #94a3b8; font-size: 12px;">Nenhum número selecionado</span>
+                            </div>
+                        </div>
+                        <!-- Só +Milionária usa — segunda grade, separada da
+                             de números, pros 6 trevos possíveis. -->
+                        <div style="margin-top: 20px; display: none;" id="campoTrevosSelecao">
+                            <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 8px; color: #1e293b;">🍀 Clique nos trevos para selecionar (2 a 6):</label>
+                            <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                                <input type="text" id="trevosTextoSelecao" class="form-control" placeholder="Ou digite/cole: 01 03">
+                                <button id="btnPreencherTrevosTexto" type="button" class="btn btn-primary" style="width: auto; white-space: nowrap;">✍️ Preencher</button>
+                            </div>
+                            <div id="gradeTrevosSelecao" class="grade-numeros" style="max-width: 260px;"></div>
+                            <div style="margin-top: 10px;">
+                                <span id="contadorTrevosSelecao" style="font-size: 14px; font-weight: 600; color: #16a34a;">0 trevos selecionados</span>
+                            </div>
+                            <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px;" id="previaTrevosSelecionados">
+                                <span style="color: #94a3b8; font-size: 12px;">Nenhum trevo selecionado</span>
                             </div>
                         </div>
                     </div>
@@ -1515,6 +1543,7 @@
                                 <option value="mega">Mega-Sena</option>
                                 <option value="lotofacil">Lotofácil</option>
                                 <option value="quina">Quina</option>
+                                <option value="maismilionaria">+Milionária</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -1557,6 +1586,7 @@
                         <button id="cartoesBtnMega" class="loteria-btn-admin mega active" style="flex:1; padding: 10px; border: 2px solid #8b5cf6; border-radius: 30px; font-weight: bold; background: #ede9fe; color: #6d28d9; cursor: pointer; transition: all 0.2s; transform: scale(0.98); filter: brightness(0.9); box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);">🎯 MEGA</button>
                         <button id="cartoesBtnLotofacil" class="loteria-btn-admin lotofacil" style="flex:1; padding: 10px; border: 2px solid #10b981; border-radius: 30px; font-weight: bold; background: #d1fae5; color: #065f46; cursor: pointer; transition: all 0.2s;">🌟 LOTOFÁCIL</button>
                         <button id="cartoesBtnQuina" class="loteria-btn-admin quina" style="flex:1; padding: 10px; border: 2px solid #ef4444; border-radius: 30px; font-weight: bold; background: #fee2e2; color: #991b1b; cursor: pointer; transition: all 0.2s;">🎯 QUINA</button>
+                        <button id="cartoesBtnMilionaria" class="loteria-btn-admin maismilionaria" style="flex:1; padding: 10px; border: 2px solid #16a34a; border-radius: 30px; font-weight: bold; background: #dcfce7; color: #166534; cursor: pointer; transition: all 0.2s;">🍀 +MILIONÁRIA</button>
                     </div>
                 </div>
                 <div class="card">

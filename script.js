@@ -2,7 +2,20 @@ let cartoes = [];
 let resultadosMega = {};
 let resultadosLotofacil = {};
 let resultadosQuina = {};
+let resultadosMaisMilionaria = {};
 let loteriaAtual = 'mega';
+// Config central de "k" (dezenas sorteadas) e universo de números por
+// loteria — várias funções abaixo tinham essa mesma cadeia de ternários
+// (mega?6 : lotofacil?15 : 5) repetida, com Quina como fallback
+// silencioso pra QUALQUER tipo não reconhecido. Adicionar a +Milionária
+// direto nessas tabelas evita repetir — e esquecer — um branch novo em
+// cada função. numerosPossiveis é só o universo de NÚMEROS (a
+// +Milionária também sorteia 2 trevos de 1-6, tratado à parte onde
+// precisa — ver LOTERIA_TREVOS).
+const LOTERIA_K = { mega: 6, lotofacil: 15, quina: 5, maismilionaria: 6 };
+const LOTERIA_UNIVERSO = { mega: 60, lotofacil: 25, quina: 80, maismilionaria: 50 };
+// Só a +Milionária tem essa segunda dimensão (trevo da sorte).
+const LOTERIA_TREVOS = { maismilionaria: { k: 2, universo: 6 } };
 let ultimoResultadoConcurso = null;
 let ultimoResultadoDados = null;
 let pixGeral = '';
@@ -295,14 +308,20 @@ function calcularChancesBolao(cartoesBolao, loteria) {
     } else if (loteria === 'lotofacil') {
         totalCombinacoesPossiveis = 3268760;
         numerosPossiveis = 25;
+    } else if (loteria === 'maismilionaria') {
+        // C(50,6) — só a parte de NÚMEROS. O trevo (C(6,2)=15 combinações)
+        // é uma dimensão separada, somada à parte na "chance" e nos
+        // "bilhetes equivalentes" abaixo — ver comentários mais adiante.
+        totalCombinacoesPossiveis = 15890700;
+        numerosPossiveis = 50;
     } else {
         totalCombinacoesPossiveis = 24040016;
         numerosPossiveis = 80;
     }
-    
+
     // Dezenas sorteadas (k) por loteria — usado tanto no cálculo do prêmio
     // máximo (bilhetes/estrelas, abaixo) quanto no de "chance real".
-    const dezenasSorteadas = loteria === 'mega' ? 6 : (loteria === 'lotofacil' ? 15 : 5);
+    const dezenasSorteadas = LOTERIA_K[loteria] || 5;
 
     // "Chance real" mostrava a chance do prêmio MÁXIMO (sena/15 pontos/
     // quina) — na prática, sempre uma fração minúscula (ex.: 0,007%),
@@ -324,15 +343,29 @@ function calcularChancesBolao(cartoesBolao, loteria) {
     // algo por si só (ver também a classificação por estrelas abaixo,
     // que na Quina passou a usar esse mesmo % em vez de "bilhetes").
     const acertosAlvoChance = loteria === 'lotofacil' ? 13 : (loteria === 'quina' ? 3 : 4);
-    const rotuloChance = loteria === 'lotofacil' ? '13 PTS' : (loteria === 'quina' ? 'TERNO' : 'QUADRA');
+    // +Milionária: a "chance" mostrada é só da parte NÚMEROS (4 de 6) —
+    // os dois sorteios (números/trevo) são independentes, então o trevo
+    // não muda essa probabilidade; ele entra separado nas faixas de
+    // prêmio reais (ver calcularPremios), não neste resumo rápido.
+    const rotuloChance = loteria === 'lotofacil' ? '13 PTS'
+        : (loteria === 'quina' ? 'TERNO' : (loteria === 'maismilionaria' ? '4 NÚMEROS' : 'QUADRA'));
 
     let totalCombinacoesCobertas = 0;
     let totalCombinacoesChance = 0;
     let numerosUtilizados = new Set();
+    const trevoCfg = LOTERIA_TREVOS[loteria];
 
     for (const cartao of cartoesBolao) {
         const qtdNumeros = cartao.numeros.length;
-        const combinacoesDoCartao = combinacao(qtdNumeros, dezenasSorteadas);
+        let combinacoesDoCartao = combinacao(qtdNumeros, dezenasSorteadas);
+        // "Bilhetes equivalentes" da +Milionária precisa multiplicar pela
+        // combinatória de trevos também — um cartão com mais trevos que o
+        // mínimo (2) é aposta múltipla NESSA dimensão também, igual já
+        // vale pros números. Sem isso, um cartão de 6 números + 6 trevos
+        // (que cobre 15 combinações de trevo) contaria como 1 bilhete só.
+        if (trevoCfg && cartao.trevos && cartao.trevos.length > 0) {
+            combinacoesDoCartao *= combinacao(cartao.trevos.length, trevoCfg.k);
+        }
         totalCombinacoesCobertas += combinacoesDoCartao;
 
         totalCombinacoesChance += combinacao(qtdNumeros, acertosAlvoChance) *
@@ -379,6 +412,13 @@ function calcularChancesBolao(cartoesBolao, loteria) {
         // Referência: 3 cartões de 18 números = 2.448 bilhetes → cai em
         // BOM (não EXCELENTE/ÓTIMO, que precisam ser MUITO acima da média).
         lotofacil: { excelente: 60000, otimo: 20000, bom: 1500, regular: 300 },
+        // Calibração inicial por PROPORÇÃO de universo (sem bolões reais
+        // da +Milionária ainda pra calibrar contra, diferente das outras
+        // 3 — ajustar aqui quando houver histórico real): universo
+        // completo (números × trevo) é ~4,76× o da Mega
+        // (238.360.500 / 50.063.860), então as faixas da Mega escaladas
+        // pelo mesmo fator.
+        maismilionaria: { excelente: 48000, otimo: 24000, bom: 4800, regular: 500 },
     };
 
     // "Chance real" = chance de pelo menos um cartão bater a faixa de
@@ -493,7 +533,9 @@ function calcularChancesBolao(cartoesBolao, loteria) {
     `;
 }
 
-function ordenarCartoesPorAcertos(cartoesLista, numerosSorteados) {
+// trevosSorteados é opcional — só a +Milionária usa (desempate por
+// acertos de trevo quando dois cartões empatam em números).
+function ordenarCartoesPorAcertos(cartoesLista, numerosSorteados, trevosSorteados = null) {
     if (!numerosSorteados) {
         // Antes de conferir o resultado não existe "acertos" pra ordenar
         // por — mostra do cartão com MAIS dezenas pro com menos (o
@@ -518,7 +560,13 @@ function ordenarCartoesPorAcertos(cartoesLista, numerosSorteados) {
     return [...cartoesLista].sort((a, b) => {
         const acertosA = a.numeros.filter(n => numerosSorteados.includes(n)).length;
         const acertosB = b.numeros.filter(n => numerosSorteados.includes(n)).length;
-        return acertosB - acertosA;
+        if (acertosB !== acertosA) return acertosB - acertosA;
+        if (trevosSorteados) {
+            const trevosA = (a.trevos || []).filter(t => trevosSorteados.includes(t)).length;
+            const trevosB = (b.trevos || []).filter(t => trevosSorteados.includes(t)).length;
+            return trevosB - trevosA;
+        }
+        return 0;
     });
 }
 
@@ -546,8 +594,66 @@ function contarPremiosPorFaixa(qtdNumeros, acertos, k) {
     return porFaixa;
 }
 
-function calcularPremios(cartoesLista, numerosSorteados, loteria) {
-    const k = loteria === 'lotofacil' ? 15 : (loteria === 'quina' ? 5 : 6);
+// +Milionária: as 10 faixas oficiais combinam acertos de NÚMEROS (até 6)
+// com acertos de TREVO (até 2) — confirmado contra fontes externas (não
+// achei a tabela no site oficial da Caixa, só em reportagens, mas as 10
+// faixas batem entre elas): 6+2t, 6+(1 ou 0)t, 5+2t, 5+(1 ou 0)t,
+// 4+2t, 4+(1 ou 0)t, 3+2t, 3+1t, 2+2t, 2+1t. Importante: 3 ou 2 números
+// com ZERO trevo não ganha nada (diferente das faixas 6/5/4, que pagam
+// mesmo sem trevo) — essa assimetria é real, não erro de digitação.
+function tierChaveMilionaria(acertosNum, acertosTrevo) {
+    if (acertosNum === 6) return acertosTrevo === 2 ? 'n6t2' : 'n6t';
+    if (acertosNum === 5) return acertosTrevo === 2 ? 'n5t2' : 'n5t';
+    if (acertosNum === 4) return acertosTrevo === 2 ? 'n4t2' : 'n4t';
+    if (acertosNum === 3) return acertosTrevo === 2 ? 'n3t2' : (acertosTrevo === 1 ? 'n3t1' : null);
+    if (acertosNum === 2) return acertosTrevo === 2 ? 'n2t2' : (acertosTrevo === 1 ? 'n2t1' : null);
+    return null;
+}
+
+function calcularPremiosMilionaria(cartoesLista, numerosSorteados, trevosSorteados) {
+    const somaFaixas = { n6t2:0, n6t:0, n5t2:0, n5t:0, n4t2:0, n4t:0,
+                          n3t2:0, n3t1:0, n2t2:0, n2t1:0 };
+    cartoesLista.forEach(cartao => {
+        const trevosCartao = cartao.trevos || [];
+        const acertosNum = cartao.numeros.filter(n => numerosSorteados.includes(n)).length;
+        const acertosTrevo = trevosCartao.filter(t => trevosSorteados.includes(t)).length;
+        const faixasNum = contarPremiosPorFaixa(cartao.numeros.length, acertosNum, 6);
+        // Mesma função genérica, aplicada aos trevos (k=2 em vez de 6) —
+        // reaproveita exatamente a mesma matemática de aposta múltipla.
+        const faixasTrevo = contarPremiosPorFaixa(trevosCartao.length, acertosTrevo, 2);
+        for (const [jNumStr, qtdNum] of Object.entries(faixasNum)) {
+            for (const [jTrevoStr, qtdTrevo] of Object.entries(faixasTrevo)) {
+                const chave = tierChaveMilionaria(Number(jNumStr), Number(jTrevoStr));
+                if (chave) somaFaixas[chave] += qtdNum * qtdTrevo;
+            }
+        }
+    });
+    return somaFaixas;
+}
+
+// Grade de 10 itens (não 5, como as outras loterias) — as faixas reais
+// da +Milionária são mais granulares, combinando números e trevo. O
+// grid CSS (.resultado-resumo, auto-fit) já flui pra mais linhas
+// sozinho, sem precisar de nenhum ajuste de layout aqui.
+function gerarResumoPremiosMilionaria(premios) {
+    const itens = [
+        ['n6t2', '6N+2T', '#f59e0b'], ['n6t', '6N+1T/0T', '#eab308'],
+        ['n5t2', '5N+2T', '#f97316'], ['n5t', '5N+1T/0T', '#a855f7'],
+        ['n4t2', '4N+2T', '#8b5cf6'], ['n4t', '4N+1T/0T', '#3b82f6'],
+        ['n3t2', '3N+2T', '#06b6d4'], ['n3t1', '3N+1T', '#10b981'],
+        ['n2t2', '2N+2T', '#64748b'], ['n2t1', '2N+1T', '#94a3b8'],
+    ];
+    return itens.map(([chave, rotulo, cor]) =>
+        `<div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:${cor}">${premios[chave] || 0}</div><div class="resultado-resumo-label">${rotulo}</div></div>`
+    ).join('');
+}
+
+// trevosSorteados só é usado (e obrigatório) pra +Milionária.
+function calcularPremios(cartoesLista, numerosSorteados, loteria, trevosSorteados = null) {
+    if (loteria === 'maismilionaria') {
+        return calcularPremiosMilionaria(cartoesLista, numerosSorteados, trevosSorteados || []);
+    }
+    const k = LOTERIA_K[loteria] || 5;
     const somaFaixas = { sena:0, quina:0, quadra:0, terno:0, duque:0,
                           pontos15:0, pontos14:0, pontos13:0, pontos12:0, pontos11:0 };
     const nomesPorJ = loteria === 'lotofacil'
@@ -570,32 +676,45 @@ function calcularPremios(cartoesLista, numerosSorteados, loteria) {
 // números de SENA/QUINA/QUADRA/etc. batem exatamente com a contagem de
 // cartões (1 cartão = 1 prêmio) e a nota seria só ruído.
 function notaApostaMultiplaHtml(cartoesLista, loteria) {
-    const k = loteria === 'lotofacil' ? 15 : (loteria === 'quina' ? 5 : 6);
-    const temMultipla = cartoesLista.some(c => c.numeros.length > k);
-    if (!temMultipla) return '';
+    const k = LOTERIA_K[loteria] || 5;
+    const trevoCfg = LOTERIA_TREVOS[loteria];
+    const temMultiplaNum = cartoesLista.some(c => c.numeros.length > k);
+    const temMultiplaTrevo = trevoCfg && cartoesLista.some(c => (c.trevos || []).length > trevoCfg.k);
+    if (!temMultiplaNum && !temMultiplaTrevo) return '';
+    const extra = temMultiplaTrevo
+        ? ` (e cartões com mais de ${trevoCfg.k} trevos valem várias apostas simples também, na combinação de trevo)`
+        : '';
     return `<div style="font-size: 11px; color: #64748b; text-align: center; margin: -6px 0 14px;">
-        💡 Cartões com mais de ${k} números valem várias apostas simples — os números acima contam <strong>prêmios</strong>, não cartões.
+        💡 Cartões com mais de ${k} números valem várias apostas simples${extra} — os números acima contam <strong>prêmios</strong>, não cartões.
     </div>`;
 }
 
 // ============================================
 // BANNER DE TROFÉU (melhor resultado do bolão selecionado)
 // ============================================
-function nomeNivelAcerto(loteria, acertos) {
+// acertosTrevo só é usado (e só faz sentido) pra +Milionária — as faixas
+// de prêmio reais combinam números com trevo, ver calcularPremiosMilionaria.
+function nomeNivelAcerto(loteria, acertos, acertosTrevo = null) {
     if (loteria === 'lotofacil') return `${acertos} PONTOS`;
+    if (loteria === 'maismilionaria') {
+        const sufixoTrevo = acertosTrevo === null ? '' :
+            (acertosTrevo >= 2 ? ' + 2 TREVOS' : (acertosTrevo === 1 ? ' + 1 TREVO' : ''));
+        return `${acertos} NÚMEROS${sufixoTrevo}`;
+    }
     const nomes = { 6: 'SENA', 5: 'QUINA', 4: 'QUADRA' };
     return nomes[acertos] || `${acertos} ACERTOS`;
 }
 
 // Só acende para resultados realmente notáveis (quadra+ na Mega/Quina,
-// 13+ pontos na Lotofácil) — duque/terno são comuns demais pra virar
-// comemoração, banalizaria o destaque.
-function gerarBannerTrofeu(melhorCartao, melhorAcertos, loteria, numerosSorteados) {
+// 13+ pontos na Lotofácil, 4+ números na +Milionária) — faixas menores
+// são comuns demais pra virar comemoração, banalizaria o destaque.
+// trevosSorteados/melhorAcertosTrevo só entram pra +Milionária.
+function gerarBannerTrofeu(melhorCartao, melhorAcertos, loteria, numerosSorteados, trevosSorteados = null, melhorAcertosTrevo = 0) {
     if (!melhorCartao || !melhorAcertos) return '';
     const piso = loteria === 'lotofacil' ? 13 : 4;
     if (melhorAcertos < piso) return '';
 
-    const nivel = nomeNivelAcerto(loteria, melhorAcertos);
+    const nivel = nomeNivelAcerto(loteria, melhorAcertos, loteria === 'maismilionaria' ? melhorAcertosTrevo : null);
     // Número batido (⭐ + dourado) vs número do cartão que não saiu —
     // antes os 8 (ou mais) números do cartão apareciam todos iguais,
     // sem dar pra ver de cara QUAIS bateram.
@@ -608,13 +727,24 @@ function gerarBannerTrofeu(melhorCartao, melhorAcertos, loteria, numerosSorteado
         })
         .join('');
 
+    // +Milionária: chips dos trevos do melhor cartão, mesmo esquema visual
+    // dos números (dourado+⭐ = trevo batido).
+    const trevosHtml = (loteria === 'maismilionaria' && melhorCartao.trevos && melhorCartao.trevos.length)
+        ? melhorCartao.trevos.map(t => {
+            const bateu = trevosSorteados && trevosSorteados.includes(t);
+            const bg = bateu ? '#f59e0b' : '#16a34a';
+            const estrela = bateu ? '⭐' : '';
+            return `<span style="font-family:monospace;font-size:12px;font-weight:800;background:${bg};color:white;border-radius:50%;padding:6px 9px;min-width:14px;text-align:center;display:inline-block;box-shadow:0 2px 4px rgba(0,0,0,0.15);">${estrela}🍀${t}</span>`;
+        }).join('')
+        : '';
+
     // Cartão com mais números que o mínimo da loteria (aposta múltipla)
     // vale VÁRIAS apostas simples na mesma faixa de prêmio — 4 acertos
     // num cartão de 8 números não é "1 quadra", é uma pra cada
     // combinação de 6 que cobre exatamente esses 4 acertos. Deixa isso
     // explícito aqui, no cartão que mais chamou atenção, pra não parecer
     // que o resumo abaixo (que já soma isso certo) "inventou" números.
-    const k = loteria === 'lotofacil' ? 15 : (loteria === 'quina' ? 5 : 6);
+    const k = LOTERIA_K[loteria] || 5;
     let notaMultipla = '';
     if (melhorCartao.numeros.length > k) {
         const faixas = contarPremiosPorFaixa(melhorCartao.numeros.length, melhorAcertos, k);
@@ -639,6 +769,7 @@ function gerarBannerTrofeu(melhorCartao, melhorAcertos, loteria, numerosSorteado
                 </div>
             </div>
             <div style="display: flex; gap: 5px; flex-wrap: wrap;">${numerosHtml}</div>
+            ${trevosHtml ? `<div style="display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px;">${trevosHtml}</div>` : ''}
             ${notaMultipla}
         </div>
     `;
@@ -683,9 +814,12 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         let query = db.collection('cartoes')
             .where('tipo', '==', loteria)
             .where('concurso', '==', concurso);
-        
-        const snapshot = await query.get();
-        
+
+        const [snapshot, trevosSorteados] = await Promise.all([
+            query.get(),
+            buscarTrevosConferidos(loteria, concurso)
+        ]);
+
         const cartoesFiltrados = [];
         snapshot.forEach(doc => {
             const d = doc.data();
@@ -696,25 +830,28 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
                 }
                 cartoesFiltrados.push({
                     numeros: d.numeros,
+                    trevos: d.trevos || null,
                     bolao: bolao,
                     tipoParticipacao: d.tipoParticipacao || 'exclusivo'
                 });
             }
         });
-        
+
         if (cartoesFiltrados.length === 0) {
             area.innerHTML = `<div class="empty-state">📋 Nenhum cartão encontrado para este bolão</div>`;
             hideLoading();
             return;
         }
-        
-        const cartoesOrdenados = ordenarCartoesPorAcertos(cartoesFiltrados, numerosSorteados);
+
+        const cartoesOrdenados = ordenarCartoesPorAcertos(cartoesFiltrados, numerosSorteados, trevosSorteados);
         const chancesHtml = calcularChancesBolao(cartoesFiltrados, loteria);
 
-        const premios = calcularPremios(cartoesOrdenados, numerosSorteados, loteria);
+        const premios = calcularPremios(cartoesOrdenados, numerosSorteados, loteria, trevosSorteados);
 
         const melhorCartaoSalvo = cartoesOrdenados[0];
         const melhorAcertosSalvo = melhorCartaoSalvo ? melhorCartaoSalvo.numeros.filter(n => numerosSorteados.includes(n)).length : 0;
+        const melhorAcertosTrevoSalvo = (melhorCartaoSalvo && trevosSorteados)
+            ? (melhorCartaoSalvo.trevos || []).filter(t => trevosSorteados.includes(t)).length : 0;
 
         // Os números sorteados NÃO aparecem mais aqui — pedido do usuário
         // é vê-los bem PERTO do primeiro cartão (o que mais acertou), não
@@ -724,7 +861,7 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         // em #cartoesArea, logo acima do primeiro cartão da lista ordenada
         // — ver mostrarCartoes(). Aqui mostra só o resumo (troféu/potencial/
         // prêmios), sem duplicar os números.
-        let html = gerarBannerTrofeu(melhorCartaoSalvo, melhorAcertosSalvo, loteria, numerosSorteados);
+        let html = gerarBannerTrofeu(melhorCartaoSalvo, melhorAcertosSalvo, loteria, numerosSorteados, trevosSorteados, melhorAcertosTrevoSalvo);
         html += chancesHtml;
         html += `<div class="resultado-resumo">`;
 
@@ -742,11 +879,13 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
                 <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#a855f7">${premios.pontos13}</div><div class="resultado-resumo-label">13 PTS</div></div>
                 <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#3b82f6">${premios.pontos12}</div><div class="resultado-resumo-label">12 PTS</div></div>
                 <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#64748b">${premios.pontos11}</div><div class="resultado-resumo-label">11 PTS</div></div>`;
+        } else if (loteria === 'maismilionaria') {
+            html += gerarResumoPremiosMilionaria(premios);
         } else {
             html += `
                 <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#f59e0b">${premios.quina}</div><div class="resultado-resumo-label">QUINA</div></div>
-                <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#eab308">${premios.quadra}</div><div class="resultado-resumo-label">QUADRA</div></div>
-                <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#a855f7">${premios.terno}</div><div class="resultado-resumo-label">TERNO</div></div>
+                <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#a855f7">${premios.quadra}</div><div class="resultado-resumo-label">QUADRA</div></div>
+                <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#3b82f6">${premios.terno}</div><div class="resultado-resumo-label">TERNO</div></div>
                 <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#64748b">${premios.duque}</div><div class="resultado-resumo-label">DUQUE</div></div>`;
         }
         html += `<div class="resultado-resumo-item"><div class="resultado-resumo-numero">${cartoesOrdenados.length}</div><div class="resultado-resumo-label">CARTÕES</div></div>`;
@@ -766,11 +905,17 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         // dentro, não no topo do resumo lá em cima.
         html += `<div class="numeros-sorteados-titulo">🎱 Números Sorteados</div>`;
         html += `<div class="numeros-sorteados">${numerosSorteados.map(n => `<div class="numero-sorteado-card">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`;
+        if (loteria === 'maismilionaria' && trevosSorteados) {
+            html += `<div class="numeros-sorteados-titulo">🍀 Trevos Sorteados</div>`;
+            html += `<div class="numeros-sorteados">${trevosSorteados.map(t => `<div class="numero-sorteado-card" style="background:#16a34a;">${t}</div>`).join('')}</div>`;
+        }
 
         for (const cartao of cartoesOrdenados) {
             const acertos = cartao.numeros.filter(n => numerosSorteados.includes(n)).length;
+            const acertosTrevo = (loteria === 'maismilionaria' && trevosSorteados)
+                ? (cartao.trevos || []).filter(t => trevosSorteados.includes(t)).length : null;
             let corAcertos;
-            if (loteria === 'mega') {
+            if (loteria === 'mega' || loteria === 'maismilionaria') {
                 if (acertos >= 6) corAcertos = '#f59e0b';
                 else if (acertos === 5) corAcertos = '#eab308';
                 else if (acertos === 4) corAcertos = '#a855f7';
@@ -782,14 +927,17 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
                 else if (acertos === 3) corAcertos = '#a855f7';
                 else corAcertos = '#cbd5e1';
             }
-            
+
             const tipoParticipacao = (cartao.tipoParticipacao === 'cota' ? '🎟️ Cota' : '👥 Exclusivo')
-                + ` · ${cartao.numeros.length} números`;
+                + ` · ${cartao.numeros.length} números`
+                + (cartao.trevos ? ` + ${cartao.trevos.length} trevos` : '');
+
+            const rotuloAcertos = acertosTrevo === null ? `${acertos} acertos` : `${acertos} núm + ${acertosTrevo} trevo${acertosTrevo === 1 ? '' : 's'}`;
 
             html += `<div class="cartao-item-unificado">
                         <div class="cartao-header">
                             <span class="cartao-bolao">${cartao.bolao} - ${tipoParticipacao}</span>
-                            <span class="cartao-acertos" style="background:${corAcertos};">${acertos} acertos</span>
+                            <span class="cartao-acertos" style="background:${corAcertos};">${rotuloAcertos}</span>
                         </div>
                         <div class="cartao-numeros">
                             ${cartao.numeros.map(n => {
@@ -797,17 +945,23 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
                                 return `<span class="${acertou ? 'numero-acertado' : 'numero-normal'}">${n.toString().padStart(2,'0')}</span>`;
                             }).join('')}
                         </div>
+                        ${cartao.trevos ? `<div class="cartao-numeros" style="margin-top:4px;">
+                            ${cartao.trevos.map(t => {
+                                const acertou = trevosSorteados && trevosSorteados.includes(t);
+                                return `<span class="${acertou ? 'numero-acertado' : 'numero-normal'}" style="border-radius:50%;">🍀${t}</span>`;
+                            }).join('')}
+                        </div>` : ''}
                     </div>`;
         }
-        
+
         area.innerHTML = html;
         
         const btnWhats = document.getElementById('btnWhatsAppResultado');
         if (btnWhats) btnWhats.addEventListener('click', compartilharWhatsApp);
         
         ultimoResultadoConcurso = concurso;
-        ultimoResultadoDados = { numeros: numerosSorteados, premios };
-        
+        ultimoResultadoDados = { numeros: numerosSorteados, trevos: trevosSorteados, premios };
+
         console.log(`✅ Resultado exibido com ${cartoesOrdenados.length} cartões ordenados`);
     } catch (error) {
         console.error('Erro ao exibir resultado salvo:', error);
@@ -819,7 +973,8 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
 
 // ========== MOSTRAR CARTÕES COM FILTRO POR BOLÃO ==========
 // ========== MOSTRAR CARTÕES COM FILTRO POR BOLÃO E PROBABILIDADES ==========
-async function mostrarCartoes(numerosSorteados = null) {
+// trevosSorteados só é relevante (e só é passado) pra +Milionária.
+async function mostrarCartoes(numerosSorteados = null, trevosSorteados = null) {
     const concurso = document.getElementById('concursoSelect').value;
     const container = document.getElementById('cartoesArea');
     const potencialArea = document.getElementById('potencialArea');
@@ -863,6 +1018,7 @@ async function mostrarCartoes(numerosSorteados = null) {
                     concurso: d.concurso,
                     bolao: bolao,
                     numeros: d.numeros,
+                    trevos: d.trevos || null,
                     tipo: d.tipo,
                     tipoParticipacao: d.tipoParticipacao || 'exclusivo'
                 });
@@ -900,41 +1056,56 @@ async function mostrarCartoes(numerosSorteados = null) {
             `<div class="numeros-sorteados-titulo">🎱 Números Sorteados</div>` +
             `<div class="numeros-sorteados">${numerosSorteados.map(n => `<div class="numero-sorteado-card">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`
         ) : '';
+        if (loteriaAtual === 'maismilionaria' && trevosSorteados) {
+            html += `<div class="numeros-sorteados-titulo">🍀 Trevos Sorteados</div>` +
+                `<div class="numeros-sorteados">${trevosSorteados.map(t => `<div class="numero-sorteado-card" style="background:#16a34a;">${t}</div>`).join('')}</div>`;
+        }
 
         for (const [bolao, listaOriginal] of Object.entries(porBolao)) {
             // Cartões com mais acertos primeiro — sem isso, a ordem era a de
             // gravação no Firestore, não a de acertos.
-            const lista = ordenarCartoesPorAcertos(listaOriginal, numerosSorteados);
+            const lista = ordenarCartoesPorAcertos(listaOriginal, numerosSorteados, trevosSorteados);
             html += `<div style="margin-bottom:20px"><div style="background:#3b82f6;color:white;padding:8px 12px;border-radius:8px;margin-bottom:10px;">🎯 ${bolao}</div>`;
             html += `<div style="display:flex;flex-direction:column;gap:10px;">`;
 
             for (const cartao of lista) {
                 const tipoParticipacao = (cartao.tipoParticipacao === 'cota' ? '🎟️ Cota' : '👥 Exclusivo')
-                    + ` · ${cartao.numeros.length} números`;
+                    + ` · ${cartao.numeros.length} números`
+                    + (cartao.trevos ? ` + ${cartao.trevos.length} trevos` : '');
                 const acertosCount = numerosSorteados ? cartao.numeros.filter(n => numerosSorteados.includes(n)).length : 0;
-                
+                const acertosTrevoCount = (trevosSorteados && cartao.trevos)
+                    ? cartao.trevos.filter(t => trevosSorteados.includes(t)).length : null;
+                const rotuloAcertos = acertosTrevoCount === null ? `${acertosCount} acertos`
+                    : `${acertosCount} núm + ${acertosTrevoCount} trevo${acertosTrevoCount === 1 ? '' : 's'}`;
+
                 const numsHtml = cartao.numeros.map(n => {
                     const acertou = numerosSorteados ? numerosSorteados.includes(n) : false;
                     return `<span style="background:${acertou ? '#10b981' : '#e2e8f0'};color:${acertou ? 'white' : '#333'};padding:6px 10px;border-radius:8px;font-family:monospace;font-size:12px;font-weight:${acertou ? 'bold' : 'normal'};min-width:35px;text-align:center;">${n.toString().padStart(2,'0')}</span>`;
                 }).join('');
-                
+                const trevosHtmlCartao = cartao.trevos ? cartao.trevos.map(t => {
+                    const acertou = trevosSorteados ? trevosSorteados.includes(t) : false;
+                    return `<span style="background:${acertou ? '#10b981' : '#e2e8f0'};color:${acertou ? 'white' : '#333'};padding:6px 9px;border-radius:50%;font-family:monospace;font-size:12px;font-weight:${acertou ? 'bold' : 'normal'};min-width:14px;text-align:center;">🍀${t}</span>`;
+                }).join('') : '';
+
                 html += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px;">
                             <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
                                 <span style="font-weight:bold;font-size:12px;">${tipoParticipacao}</span>
-                                ${numerosSorteados ? `<span style="background:#cbd5e1;padding:4px 10px;border-radius:20px;font-size:11px;">${acertosCount} acertos</span>` : ''}
+                                ${numerosSorteados ? `<span style="background:#cbd5e1;padding:4px 10px;border-radius:20px;font-size:11px;">${rotuloAcertos}</span>` : ''}
                             </div>
                             <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;">${numsHtml}</div>
+                            ${trevosHtmlCartao ? `<div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:6px;">${trevosHtmlCartao}</div>` : ''}
                         </div>`;
             }
             html += `</div></div>`;
         }
         container.innerHTML = html;
-        
+
         // --- ATUALIZAR PROBABILIDADES NO TÍTULO DO CARD ---
         const cardHeader = document.getElementById('cardHeaderConferencia');
         if (cardHeader) {
             const totalCartoes = filtrados.length;
-            const loteriaNome = loteriaAtual === 'mega' ? 'MEGA' : loteriaAtual === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA';
+            const loteriaNome = loteriaAtual === 'mega' ? 'MEGA' : loteriaAtual === 'lotofacil' ? 'LOTOFÁCIL'
+                : loteriaAtual === 'maismilionaria' ? '+MILIONÁRIA' : 'QUINA';
             cardHeader.innerHTML = `🎯 CONFERIR RESULTADOS - ${loteriaNome} (${totalCartoes} cartões)`;
         }
         
@@ -958,11 +1129,12 @@ async function carregarDados() {
         const ultimosConcursos = {
             mega: null,
             lotofacil: null,
-            quina: null
+            quina: null,
+            maismilionaria: null
         };
-        
-        const concursosMap = { mega: [], lotofacil: [], quina: [] };
-        const boloesMap = { mega: {}, lotofacil: {}, quina: {} };
+
+        const concursosMap = { mega: [], lotofacil: [], quina: [], maismilionaria: [] };
+        const boloesMap = { mega: {}, lotofacil: {}, quina: {}, maismilionaria: {} };
         
         concursosSnapshot.forEach(doc => {
             const d = doc.data();
@@ -983,13 +1155,13 @@ async function carregarDados() {
             }
         });
         
-        for (const loteria of ['mega', 'lotofacil', 'quina']) {
+        for (const loteria of ['mega', 'lotofacil', 'quina', 'maismilionaria']) {
             for (const concurso in boloesMap[loteria]) {
                 boloesMap[loteria][concurso] = Array.from(boloesMap[loteria][concurso]);
             }
         }
-        
-        for (const loteria of ['mega', 'lotofacil', 'quina']) {
+
+        for (const loteria of ['mega', 'lotofacil', 'quina', 'maismilionaria']) {
             concursosMap[loteria].sort((a, b) => b - a);
         }
         
@@ -1014,6 +1186,7 @@ async function carregarDados() {
                         concurso: d.concurso,
                         bolao: d.bolao || 'Sem Bolão',
                         numeros: d.numeros,
+                        trevos: d.trevos || null,
                         tipo: d.tipo,
                         tipoParticipacao: d.tipoParticipacao || 'exclusivo'
                     });
@@ -1024,7 +1197,12 @@ async function carregarDados() {
         try {
             const resultadosPromises = [];
             for (const [loteria, concurso] of Object.entries(ultimosConcursos)) {
-                if (concurso) {
+                // resultados_mega/_lotofacil/_quina são coleções legado — só
+                // lidas aqui, ninguém mais grava nelas. Não existe (nem faz
+                // sentido criar) uma "resultados_maismilionaria": sem regra
+                // no Firestore, a leitura cairia em permission-denied e
+                // rejeitaria o Promise.all inteiro à toa.
+                if (concurso && loteria !== 'maismilionaria') {
                     resultadosPromises.push(
                         db.collection(`resultados_${loteria}`).doc(concurso.toString()).get()
                     );
@@ -1195,17 +1373,22 @@ async function setLoteria(loteria) {
     const btnMega = document.getElementById('btnMegaSena');
     const btnLoto = document.getElementById('btnLotofacil');
     const btnQuina = document.getElementById('btnQuina');
-    
+    const btnMilionaria = document.getElementById('btnMaisMilionaria');
+
     btnMega.classList.remove('active');
     btnLoto.classList.remove('active');
     btnQuina.classList.remove('active');
-    
+    if (btnMilionaria) btnMilionaria.classList.remove('active');
+
     if (loteria === 'mega') {
         btnMega.classList.add('active');
         document.getElementById('cardHeaderConferencia').innerHTML = '🎯 CONFERIR RESULTADOS - MEGA';
     } else if (loteria === 'lotofacil') {
         btnLoto.classList.add('active');
         document.getElementById('cardHeaderConferencia').innerHTML = '🎯 CONFERIR RESULTADOS - LOTOFÁCIL';
+    } else if (loteria === 'maismilionaria') {
+        if (btnMilionaria) btnMilionaria.classList.add('active');
+        document.getElementById('cardHeaderConferencia').innerHTML = '🎯 CONFERIR RESULTADOS - +MILIONÁRIA';
     } else {
         btnQuina.classList.add('active');
         document.getElementById('cardHeaderConferencia').innerHTML = '🎯 CONFERIR RESULTADOS - QUINA';
@@ -1238,7 +1421,9 @@ async function setLoteria(loteria) {
         await mostrarCartoes();
     }
     
-    showToast(`🔄 Mudou para ${loteria === 'mega' ? 'MEGA' : loteria === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA'}`, 'info');
+    const nomeToast = loteria === 'mega' ? 'MEGA' : loteria === 'lotofacil' ? 'LOTOFÁCIL'
+        : loteria === 'maismilionaria' ? '+MILIONÁRIA' : 'QUINA';
+    showToast(`🔄 Mudou para ${nomeToast}`, 'info');
 }
 
 // ========== APLICAR SELEÇÃO VINDA DA URL (link "Ver Cartões" da
@@ -1255,7 +1440,7 @@ async function aplicarSelecaoDaUrl() {
     const bolaoParam = params.get('bolao');
     if (!loteriaParam && !concursoParam && !bolaoParam) return;
 
-    if (loteriaParam && ['mega', 'lotofacil', 'quina'].includes(loteriaParam)) {
+    if (loteriaParam && ['mega', 'lotofacil', 'quina', 'maismilionaria'].includes(loteriaParam)) {
         await setLoteria(loteriaParam);
     }
 
@@ -1300,24 +1485,40 @@ async function aplicarSelecaoDaUrl() {
 }
 
 async function buscarResultadoInterno(concurso, loteria) {
-    let numeros = null, data = null;
+    let numeros = null, data = null, trevos = null;
     try {
         let url;
         if (loteria === 'mega') url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/megasena/${concurso}`;
         else if (loteria === 'lotofacil') url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/lotofacil/${concurso}`;
+        else if (loteria === 'maismilionaria') url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/maismilionaria/${concurso}`;
         else url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/quina/${concurso}`;
         const resp = await fetch(url);
         if (resp.ok) {
             const dados = await resp.json();
             const dezenas = dados.listaDezenas;
-            let minLength = loteria === 'mega' ? 6 : loteria === 'lotofacil' ? 15 : 5;
+            let minLength = LOTERIA_K[loteria] || 5;
             if (dezenas && dezenas.length >= minLength) {
                 numeros = dezenas.map(n => parseInt(n));
                 data = dados.dataApuracao;
             }
+            if (loteria === 'maismilionaria') {
+                // Achado real: não consegui confirmar o nome exato do campo
+                // de trevos na API da Caixa sem um concurso real pra testar
+                // (API privada, sem documentação pública) — tenta os nomes
+                // mais prováveis e avisa claramente no console se nenhum
+                // bater, em vez de falhar calado. Se isso aparecer nos logs
+                // quando a +Milionária tiver sorteio de verdade, inspecione
+                // a resposta da API (aba Network do navegador) e ajuste aqui.
+                const listaTrevos = dados.trevosSorteados || dados.listaTrevos || dados.dezenasTrevo || dados.trevos;
+                if (listaTrevos && listaTrevos.length >= 2) {
+                    trevos = listaTrevos.map(t => parseInt(t)).sort((a,b) => a-b);
+                } else {
+                    console.warn('⚠️ +Milionária: não achei o campo de trevos na resposta da API. Resposta completa:', dados);
+                }
+            }
         }
     } catch(e) { console.log('Erro na busca:', e); }
-    if (numeros) { numeros.sort((a,b)=>a-b); return { numeros, dataSorteio: data }; }
+    if (numeros) { numeros.sort((a,b)=>a-b); return { numeros, dataSorteio: data, trevos }; }
     return null;
 }
 
@@ -1349,6 +1550,7 @@ async function conferirResultados() {
                 concurso: d.concurso,
                 bolao: d.bolao || 'Sem Bolão',
                 numeros: d.numeros,
+                trevos: d.trevos || null,
                 tipo: d.tipo,
                 tipoParticipacao: d.tipoParticipacao || 'exclusivo'
             });
@@ -1380,18 +1582,22 @@ async function conferirResultados() {
 
     // BUSCAR RESULTADO
     let numerosSorteados = null;
+    let trevosSorteados = null;
     let dataSorteio = null;
-    
+
     // Verificar se já foi conferido
     const resultadoConferido = await verificarResultadoConferido(loteriaAtual, concurso);
-    
+
     if (resultadoConferido) {
         numerosSorteados = resultadoConferido;
         console.log(`📋 Resultado já conferido anteriormente para ${loteriaAtual} concurso ${concurso}`);
-        
+
         const conferidoDoc = await db.collection('resultados_conferidos').doc(`${loteriaAtual}_${concurso}`).get();
         if (conferidoDoc.exists && conferidoDoc.data().dataSorteio) {
             dataSorteio = conferidoDoc.data().dataSorteio;
+        }
+        if (conferidoDoc.exists && conferidoDoc.data().trevos) {
+            trevosSorteados = conferidoDoc.data().trevos;
         }
     } else {
         // Buscar da API
@@ -1399,10 +1605,12 @@ async function conferirResultados() {
         if (busca && busca.numeros) {
             numerosSorteados = busca.numeros;
             dataSorteio = busca.dataSorteio;
-            
+            trevosSorteados = busca.trevos || null;
+
             // Salvar no cache
             if (loteriaAtual === 'mega') resultadosMega[concurso] = numerosSorteados;
             else if (loteriaAtual === 'lotofacil') resultadosLotofacil[concurso] = numerosSorteados;
+            else if (loteriaAtual === 'maismilionaria') resultadosMaisMilionaria[concurso] = numerosSorteados;
             else resultadosQuina[concurso] = numerosSorteados;
             console.log(`📋 Resultado buscado da API para ${loteriaAtual} concurso ${concurso}`);
         } else {
@@ -1422,24 +1630,25 @@ async function conferirResultados() {
     // EXIBIR CARTÕES NA ÁREA DE CARTÕES (APENAS UMA VEZ)
     // ============================================================
     // Chama mostrarCartoes com os números sorteados para exibir os cartões marcados
-    await mostrarCartoes(numerosSorteados);
-    
+    await mostrarCartoes(numerosSorteados, trevosSorteados);
+
     // ============================================================
     // CALCULAR ESTATÍSTICAS
     // ============================================================
     const cartoesComAcertos = cartoesParaEstatisticas.map(cartao => {
         const acertos = cartao.numeros.filter(n => numerosSorteados.includes(n)).length;
-        return { ...cartao, acertos };
-    }).sort((a, b) => b.acertos - a.acertos);
-    
-    const premios = calcularPremios(cartoesComAcertos, numerosSorteados, loteriaAtual);
+        const acertosTrevo = trevosSorteados ? (cartao.trevos || []).filter(t => trevosSorteados.includes(t)).length : 0;
+        return { ...cartao, acertos, acertosTrevo };
+    }).sort((a, b) => (b.acertos - a.acertos) || (b.acertosTrevo - a.acertosTrevo));
+
+    const premios = calcularPremios(cartoesComAcertos, numerosSorteados, loteriaAtual, trevosSorteados);
 
     ultimoResultadoConcurso = concurso;
-    ultimoResultadoDados = { numeros: numerosSorteados, dataSorteio, premios };
+    ultimoResultadoDados = { numeros: numerosSorteados, trevos: trevosSorteados, dataSorteio, premios };
 
     // Salvar no Firebase se não foi conferido
     if (!resultadoConferido) {
-        await salvarResultadoConferido(loteriaAtual, concurso, numerosSorteados, dataSorteio);
+        await salvarResultadoConferido(loteriaAtual, concurso, numerosSorteados, dataSorteio, trevosSorteados);
     }
 
     // ============================================================
@@ -1453,7 +1662,7 @@ async function conferirResultados() {
     // números bem PERTO do primeiro cartão que mais acertou — por isso o
     // bloco de números é injetado direto no topo de #cartoesArea, logo
     // acima do primeiro cartão da lista, não aqui no resumo.
-    let html = gerarBannerTrofeu(melhorCartaoConferir, melhorCartaoConferir ? melhorCartaoConferir.acertos : 0, loteriaAtual, numerosSorteados);
+    let html = gerarBannerTrofeu(melhorCartaoConferir, melhorCartaoConferir ? melhorCartaoConferir.acertos : 0, loteriaAtual, numerosSorteados, trevosSorteados, melhorCartaoConferir ? melhorCartaoConferir.acertosTrevo : 0);
     html += calcularChancesBolao(cartoesParaEstatisticas, loteriaAtual);
 
     html += `<div class="resultado-resumo">`;
@@ -1471,6 +1680,8 @@ async function conferirResultados() {
             <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#a855f7">${premios.pontos13}</div><div class="resultado-resumo-label">13 PTS</div></div>
             <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#3b82f6">${premios.pontos12}</div><div class="resultado-resumo-label">12 PTS</div></div>
             <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#64748b">${premios.pontos11}</div><div class="resultado-resumo-label">11 PTS</div></div>`;
+    } else if (loteriaAtual === 'maismilionaria') {
+        html += gerarResumoPremiosMilionaria(premios);
     } else {
         html += `
             <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#f59e0b">${premios.quina}</div><div class="resultado-resumo-label">QUINA</div></div>
@@ -1525,11 +1736,15 @@ function compartilharWhatsApp() {
         showToast('⚠️ Nenhum resultado para compartilhar', 'warning');
         return;
     }
-    const { numeros, dataSorteio, premios } = ultimoResultadoDados;
+    const { numeros, trevos, dataSorteio, premios } = ultimoResultadoDados;
     const linha = '──────────';
-    let loteriaNome = loteriaAtual === 'mega' ? 'MEGA-SENA' : (loteriaAtual === 'lotofacil' ? 'LOTOFÁCIL' : 'QUINA');
-    
+    let loteriaNome = loteriaAtual === 'mega' ? 'MEGA-SENA' : (loteriaAtual === 'lotofacil' ? 'LOTOFÁCIL'
+        : loteriaAtual === 'maismilionaria' ? '+MILIONÁRIA' : 'QUINA');
+
     let msg = `*🏆 RESULTADO - ${loteriaNome}* 🎲\n🏆 Rumo ao Grande Prêmio!\n${linha}\n📌 Concurso: ${ultimoResultadoConcurso}\n🎯 Números Sorteados:\n   ${numeros.join(' - ')}\n`;
+    if (loteriaAtual === 'maismilionaria' && trevos) {
+        msg += `🍀 Trevos Sorteados:\n   ${trevos.join(' - ')}\n`;
+    }
     
     if (dataSorteio) {
         let dataFormatada = '';
@@ -1573,6 +1788,13 @@ function compartilharWhatsApp() {
         if (premios.pontos15 > 0) msg += `🎉🎉🎉 15 PONTOS! PARABÉNS! 🎉🎉🎉\n`;
         else if (premios.pontos14 > 0) msg += `⭐ 14 pontos! Muito perto!\n`;
         else if (premios.pontos13 > 0) msg += `⚠️ 13 pontos! Quase lá!\n`;
+        else msg += `💪 Vamos tentar novamente no próximo concurso.\n`;
+    } else if (loteriaAtual === 'maismilionaria') {
+        msg += `   ✨ 6N+2Trevos: ${premios.n6t2}\n   ✨ 6N+Trevo: ${premios.n6t}\n   ✨ 5N+2Trevos: ${premios.n5t2}\n   ✅ 5N+Trevo: ${premios.n5t}\n   ✅ 4N+2Trevos: ${premios.n4t2}\n   ✅ 4N+Trevo: ${premios.n4t}\n\n`;
+        if (premios.n6t2 > 0) msg += `🎉🎉🎉 6 NÚMEROS + 2 TREVOS! PARABÉNS! 🎉🎉🎉\n`;
+        else if (premios.n6t > 0) msg += `🎉🎉🎉 SENA! PARABÉNS! 🎉🎉🎉\n`;
+        else if (premios.n5t2 > 0 || premios.n5t > 0) msg += `⭐ Quina! Quase lá!\n`;
+        else if (premios.n4t2 > 0 || premios.n4t > 0) msg += `⚠️ Quadra! Estamos no caminho certo!\n`;
         else msg += `💪 Vamos tentar novamente no próximo concurso.\n`;
     } else {
         msg += `   ✨ Quina: ${premios.quina}\n   ✨ Quadra: ${premios.quadra}\n   ✅ Terno: ${premios.terno}\n   ✅ Duque: ${premios.duque}\n\n`;
@@ -1787,10 +2009,11 @@ async function carregarBolaoAtivo() {
     }
 }
 
-async function salvarResultadoConferido(loteria, concurso, numeros, dataSorteio = null) {
+// trevos só é usado (e só existe) pra +Milionária.
+async function salvarResultadoConferido(loteria, concurso, numeros, dataSorteio = null, trevos = null) {
     try {
         const docId = `${loteria}_${concurso}`;
-        await db.collection('resultados_conferidos').doc(docId).set({
+        const doc = {
             loteria: loteria,
             concurso: concurso,
             numeros: numeros,
@@ -1798,7 +2021,12 @@ async function salvarResultadoConferido(loteria, concurso, numeros, dataSorteio 
             dataSorteio: dataSorteio,
             conferido: true,
             admin: true
-        });
+        };
+        // Só grava o campo se existir — firestore.rules faz hasOnly() na
+        // lista de campos permitidos, mas não quer dizer que todo doc
+        // precisa ter todos eles; as outras loterias continuam sem 'trevos'.
+        if (trevos) doc.trevos = trevos;
+        await db.collection('resultados_conferidos').doc(docId).set(doc);
         console.log(`✅ Resultado do ${loteria} concurso ${concurso} salvo no Firebase como conferido`);
     } catch (error) {
         console.error('Erro ao salvar resultado conferido:', error);
@@ -1817,6 +2045,26 @@ async function verificarResultadoConferido(loteria, concurso) {
         return null;
     } catch (error) {
         console.error('Erro ao verificar resultado conferido:', error);
+        return null;
+    }
+}
+
+// Busca só o campo 'trevos' de um resultado já conferido — função
+// separada (não mexe no retorno de verificarResultadoConferido, que
+// outras 9 chamadas no código tratam como array de números só) pra não
+// arriscar quebrar esses call sites. Só +Milionária tem trevos; pra
+// qualquer outra loteria nem tenta buscar.
+async function buscarTrevosConferidos(loteria, concurso) {
+    if (loteria !== 'maismilionaria') return null;
+    try {
+        const docId = `${loteria}_${concurso}`;
+        const doc = await db.collection('resultados_conferidos').doc(docId).get();
+        if (doc.exists && doc.data().conferido === true) {
+            return doc.data().trevos || null;
+        }
+        return null;
+    } catch (error) {
+        console.error('Erro ao buscar trevos conferidos:', error);
         return null;
     }
 }
@@ -1915,7 +2163,8 @@ async function carregarBolaoAberto() {
         const loteriaNomes = {
             'mega': 'MEGA-SENA',
             'lotofacil': 'LOTOFÁCIL',
-            'quina': 'QUINA'
+            'quina': 'QUINA',
+            'maismilionaria': '+MILIONÁRIA'
         };
         const loteriaNome = loteriaNomes[bolao.loteria] || bolao.loteria?.toUpperCase() || 'LOTERIA';
 
@@ -2040,6 +2289,9 @@ async function buscarResultadoAutomatico() {
     } else if (loteriaAtual === 'lotofacil') {
         resultados = resultadosLotofacil;
         nomeLoteria = 'LOTOFÁCIL';
+    } else if (loteriaAtual === 'maismilionaria') {
+        resultados = resultadosMaisMilionaria;
+        nomeLoteria = '+MILIONÁRIA';
     } else {
         resultados = resultadosQuina;
         nomeLoteria = 'QUINA';
@@ -2067,6 +2319,7 @@ async function buscarResultadoAutomatico() {
     if (busca && busca.numeros && busca.numeros.length > 0) {
         if (loteriaAtual === 'mega') resultadosMega[concurso] = busca.numeros;
         else if (loteriaAtual === 'lotofacil') resultadosLotofacil[concurso] = busca.numeros;
+        else if (loteriaAtual === 'maismilionaria') resultadosMaisMilionaria[concurso] = busca.numeros;
         else resultadosQuina[concurso] = busca.numeros;
         
         if (statusDiv) {
@@ -2101,6 +2354,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btnMegaSena').addEventListener('click', () => setLoteria('mega'));
     document.getElementById('btnLotofacil').addEventListener('click', () => setLoteria('lotofacil'));
     document.getElementById('btnQuina').addEventListener('click', () => setLoteria('quina'));
+    document.getElementById('btnMaisMilionaria')?.addEventListener('click', () => setLoteria('maismilionaria'));
     
     document.getElementById('concursoSelect').addEventListener('change', async () => {
         console.log('🔄 Concurso alterado, limpando estado...');
