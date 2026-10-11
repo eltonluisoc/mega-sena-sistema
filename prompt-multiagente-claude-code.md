@@ -1205,6 +1205,16 @@ Validado com `node --check admin.js` e a suíte completa (54/54, sem teste novo 
 
 `sw.js` `CACHE_NAME` v57 → **v58**.
 
+## Rodada 80 — Excluir 1 cartão direto na lista (admin)
+
+Pedido do usuário: "quero ter a opção de excluir um cartão cadastrado... hoje não tenho". Investigado: já existia exclusão em LOTE na aba Cartões (marcar checkbox de cada cartão + botão "🗑️ EXCLUIR" à parte, que só fica óbvio depois de marcar algo) — mas nenhum botão direto por cartão, e nada na tela de revisão da importação de PDF (que limpa a lista assim que confirma, sem deixar rastro pra corrigir um erro ali mesmo). Resultado: corrigir 1 cartão errado (inclusive um que saiu torto de uma importação de PDF) exigia achar o checkbox certo no meio da lista.
+
+Corrigido com um botão "🗑️ Excluir" direto em cada cartão da lista (`exibirCartoesAdmin`), ao lado do "✏️ Editar" que já existia — nova função `excluirCartaoUnico(id)`, mesmo padrão de confirmação e exclusão do Firestore que `excluirSelecionados()` já usava, só que pra 1 cartão só, sem precisar de checkbox. A confirmação mostra concurso/bolão/números (e trevos, se a loteria for +Milionária) antes de excluir, pra não apagar o cartão errado por engano. Como cartões importados por PDF caem nesta MESMA lista depois de confirmados, isso também resolve o caso específico que o usuário citou ("depois que concluo a importação não tenho como excluir") — sem precisar mexer na tela de importação em si.
+
+Validado com `node --check admin.js` e suíte completa (54/54 — sem teste novo, é só UI/Firestore write, mesmo padrão já coberto pela função irmã).
+
+`sw.js` `CACHE_NAME` v58 → **v59**.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

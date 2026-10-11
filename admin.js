@@ -1574,6 +1574,7 @@ function exibirCartoesAdmin() {
                             </div>
                             <div style="display:flex; gap:6px;">
                                 <button class="btn-editar" data-id="${cartao.id}" style="background:#0071e3; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px;">✏️ Editar</button>
+                                <button class="btn-excluir-cartao" data-id="${cartao.id}" style="background:#ef4444; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px;">🗑️ Excluir</button>
                             </div>
                         </div>
                         <div style="font-size:12px; color:#666; margin:5px 0;">
@@ -1597,7 +1598,19 @@ function exibirCartoesAdmin() {
             editarCartao(this.dataset.id);
         });
     });
-    
+
+    // Achado real do usuário: só existia exclusão em LOTE (marcar
+    // checkbox + botão "EXCLUIR" à parte) — nenhum jeito rápido de
+    // excluir 1 cartão errado sem procurar o checkbox dele na lista.
+    // Botão direto no card, ao lado de Editar, resolve isso (inclusive
+    // pra cartões que acabaram de entrar por importação de PDF — eles
+    // aparecem nesta mesma lista).
+    document.querySelectorAll('.btn-excluir-cartao').forEach(btn => {
+        btn.addEventListener('click', function() {
+            excluirCartaoUnico(this.dataset.id);
+        });
+    });
+
     document.querySelectorAll('.checkbox-cartao').forEach(cb => cb.onchange = atualizarContadorSelecionados);
     atualizarContadorSelecionados();
     
@@ -2615,6 +2628,38 @@ async function editarCartao(id) {
     } catch (error) {
         console.error('Erro ao abrir edição:', error);
         showToast('❌ Erro ao carregar cartão para edição', 'error');
+    }
+}
+
+// ============================================
+// EXCLUIR 1 CARTÃO (atalho direto na lista, sem precisar marcar
+// checkbox) — pedido do usuário: precisava poder corrigir um cartão
+// errado (ex.: veio torto de uma importação de PDF) sem caçar o
+// checkbox dele no meio da lista e usar o botão de exclusão em lote.
+// ============================================
+async function excluirCartaoUnico(id) {
+    const cartao = cartoes.find(c => c.id === id);
+    const resumo = cartao
+        ? `Concurso ${cartao.concurso} · Bolão: ${cartao.bolao || 'Sem Bolão'}\nNúmeros: ${(cartao.numeros || []).join(', ')}` +
+          (cartao.trevos ? `\nTrevos: ${cartao.trevos.join(', ')}` : '')
+        : `Cartão #${id.slice(-6)}`;
+
+    if (!confirm(`⚠️ Excluir este cartão?\n\n${resumo}\n\nEsta ação NÃO pode ser desfeita!`)) {
+        showToast('❌ Exclusão cancelada', 'info');
+        return;
+    }
+
+    showLoading('Excluindo cartão...');
+    try {
+        await db.collection('cartoes').doc(id).delete();
+        cartoes = cartoes.filter(c => c.id !== id);
+        hideLoading();
+        showToast('✅ Cartão excluído!', 'success');
+        await carregarDadosAdmin();
+    } catch (error) {
+        hideLoading();
+        console.error('Erro ao excluir cartão:', error);
+        showToast('❌ Erro ao excluir cartão: ' + error.message, 'error');
     }
 }
 
