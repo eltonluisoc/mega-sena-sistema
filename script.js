@@ -1790,11 +1790,18 @@ function compartilharWhatsApp() {
         else if (premios.pontos13 > 0) msg += `⚠️ 13 pontos! Quase lá!\n`;
         else msg += `💪 Vamos tentar novamente no próximo concurso.\n`;
     } else if (loteriaAtual === 'maismilionaria') {
-        msg += `   ✨ 6N+2Trevos: ${premios.n6t2}\n   ✨ 6N+Trevo: ${premios.n6t}\n   ✨ 5N+2Trevos: ${premios.n5t2}\n   ✅ 5N+Trevo: ${premios.n5t}\n   ✅ 4N+2Trevos: ${premios.n4t2}\n   ✅ 4N+Trevo: ${premios.n4t}\n\n`;
+        // Achado real do usuário: a mensagem só listava as 6 faixas de
+        // cima (4 a 6 números) — as 4 de baixo (3 e 2 números) também são
+        // faixas de prêmio REAIS da Caixa (valor fixo, R$50/R$24/R$12/R$6),
+        // só que só pagam combinadas com trevo (0 trevo não premia nessas
+        // 2 faixas — ver tierChaveMilionaria). Completo com as 10, igual
+        // já mostra no resumo do site (gerarResumoPremiosMilionaria).
+        msg += `   ✨ 6N+2Trevos: ${premios.n6t2}\n   ✨ 6N+Trevo: ${premios.n6t}\n   ✨ 5N+2Trevos: ${premios.n5t2}\n   ✅ 5N+Trevo: ${premios.n5t}\n   ✅ 4N+2Trevos: ${premios.n4t2}\n   ✅ 4N+Trevo: ${premios.n4t}\n   🍀 3N+2Trevos: ${premios.n3t2}\n   🍀 3N+1Trevo: ${premios.n3t1}\n   🍀 2N+2Trevos: ${premios.n2t2}\n   🍀 2N+1Trevo: ${premios.n2t1}\n\n`;
         if (premios.n6t2 > 0) msg += `🎉🎉🎉 6 NÚMEROS + 2 TREVOS! PARABÉNS! 🎉🎉🎉\n`;
         else if (premios.n6t > 0) msg += `🎉🎉🎉 SENA! PARABÉNS! 🎉🎉🎉\n`;
         else if (premios.n5t2 > 0 || premios.n5t > 0) msg += `⭐ Quina! Quase lá!\n`;
         else if (premios.n4t2 > 0 || premios.n4t > 0) msg += `⚠️ Quadra! Estamos no caminho certo!\n`;
+        else if (premios.n3t2 > 0 || premios.n3t1 > 0 || premios.n2t2 > 0 || premios.n2t1 > 0) msg += `🍀 Prêmio garantido nas faixas de 2 ou 3 números com trevo!\n`;
         else msg += `💪 Vamos tentar novamente no próximo concurso.\n`;
     } else {
         msg += `   ✨ Quina: ${premios.quina}\n   ✨ Quadra: ${premios.quadra}\n   ✅ Terno: ${premios.terno}\n   ✅ Duque: ${premios.duque}\n\n`;

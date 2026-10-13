@@ -1215,6 +1215,16 @@ Validado com `node --check admin.js` e suíte completa (54/54 — sem teste novo
 
 `sw.js` `CACHE_NAME` v58 → **v59**.
 
+## Rodada 81 — Mensagem do WhatsApp da +Milionária ficava faltando 4 das 10 faixas de prêmio
+
+Pedido do usuário: ao conferir a +Milionária, a mensagem gerada pra compartilhar no grupo do WhatsApp (`compartilharWhatsApp`, script.js) só listava 6 faixas (6, 5 e 4 números, cada uma combinada com trevo) — faltavam as 4 faixas de baixo (3 números + 2 trevos, 3 números + 1 trevo, 2 números + 2 trevos, 2 números + 1 trevo), que também são faixas de prêmio REAIS da Caixa (valor fixo — R$50/R$24/R$12/R$6 segundo a fonte pesquisada na Rodada 77), só que com a particularidade de só pagarem combinadas com pelo menos 1 trevo (0 trevo nessas 2 faixas não premia nada). O resumo mostrado no site (`gerarResumoPremiosMilionaria`) já mostrava as 10 corretamente desde a Rodada 77 — só a mensagem do WhatsApp tinha ficado incompleta.
+
+Corrigido: as 4 faixas que faltavam foram acrescentadas na mensagem (ícone 🍀 pra diferenciar das faixas de cima), e a lógica de "qual frase de comemoração usar" ganhou um novo caso pra quando o resultado só bate uma dessas 4 faixas de baixo (antes caía direto em "vamos tentar de novo", mesmo tendo ganho prêmio).
+
+Validado com `node --check script.js` e suíte completa (54/54).
+
+`sw.js` `CACHE_NAME` v59 → **v60**.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
