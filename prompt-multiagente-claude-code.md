@@ -1225,6 +1225,22 @@ Validado com `node --check script.js` e suíte completa (54/54).
 
 `sw.js` `CACHE_NAME` v59 → **v60**.
 
+## Rodada 82 — Histórico detalhado de pagamentos (data + valor) na tela de Participantes do admin web
+
+Pedido do usuário: "ao clicar em bolão no admin, participantes preciso ter o resumo completo de quantas cotas o participante pagou, em detalhes, com data inclusive". Hoje em dia (antes desta rodada), a tela só mostrava o valor TOTAL pago por participante (`valorPago`) — nenhum detalhe de quando cada parcela entrou.
+
+Investigado antes de codar: a tabela local `pagamentos` (SQLite, desktop) sempre teve esse detalhe — um registro por pagamento, com `valor`/`data_pagamento`/`mes_referencia` — mas nunca tinha sido sincronizada pro Firestore, que só recebia a soma agregada via `SUM(valor)`. O admin web só lê o que está no Firestore (`participantes/{bolaoId}`), então faltava o dado na origem, não só a exibição.
+
+**Desktop (bolao_pro_v3.py)**: novo campo `historicoPagamentos` (array de `{valor, data, mesReferencia}`) adicionado em `_montar_lista_part_firestore()` (usada por "Publicar no Site" e pela sincronização em lote de busca por telefone) e no bloco equivalente, hand-copiado, da sincronização automática do fechamento (`_on_close`) — os dois pontos que de fato escrevem a coleção `participantes` no Firestore. `enviar_bolao_para_site()` e o PATCH inline do fechamento precisaram incluir o novo campo na conversão pro formato do Firestore (usando o conversor genérico `_firestore_python_para_valor` só pra esse campo, pra não arriscar mudar o comportamento dos outros).
+
+**Achado real ao implementar** (bug que eu mesmo quase deixei passar): `ORDER BY data_pagamento` na consulta SQL ordena pelo DIA primeiro — `data_pagamento` é texto "DD/MM/AAAA", e string sort compara caractere a caractere, então "10/01/2026" (dia 10) vinha ANTES de "20/12/2025" (dia 20) mesmo sendo DEPOIS cronologicamente. Pego porque testei especificamente um cenário assim (dia maior numa data mais antiga), não só o caso "feliz" onde dia e cronologia coincidem por acaso. Corrigido remontando "AAAAMMDD" com `substr()` só pra efeito de ordenação.
+
+**Admin web (admin.js)**: cada card de participante (`carregarParticipantesAdmin`) ganhou um botão "📋 Ver histórico (N pagamentos)" que expande uma lista com data, valor e mês de referência de cada pagamento — ordenados cronologicamente de novo no JS (`_compararDataBR`, mesmo cuidado do backend, como defesa extra contra dado sincronizado fora de ordem). Participantes publicados ANTES desta rodada mostram "sem histórico detalhado" até o bolão ser republicado ou o desktop fechado de novo — dado antigo não tem como ganhar histórico retroativo.
+
+Validado com: teste isolado no desktop (participante com 3 pagamentos, confere o array montado E a conversão pro formato Firestore); teste isolado específico pro bug de ordenação (dia 20/dez/2025 vs dia 05/jan/2026, que string-sort erraria); 2 testes novos em `test/calculos-admin.test.js` pra `_compararDataBR`. 56/56 testes JS passando, 35/35 Python.
+
+Versão desktop v6.32 → **v6.33**. `dist/SistemaBoloes.exe` reconstruído. `sw.js` `CACHE_NAME` v60 → **v61**.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

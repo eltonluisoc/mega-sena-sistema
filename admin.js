@@ -3534,6 +3534,24 @@ function handleSelectChange(event) {
 let _participantesAdminAtuais = [];
 let _bolaoParticipantesAtual = { titulo: '', valorPorCota: 0 };
 
+// Compara 2 datas no formato "DD/MM/AAAA" (strings) pra ordenar o
+// histórico de pagamentos cronologicamente — localeCompare/sort direto
+// na string ordenaria pelo DIA primeiro, não pelo ano/mês (mesmo achado
+// real do backend, ver comentário em _montar_lista_part_firestore no
+// bolao_pro_v3.py). Datas vazias/inválidas vão pro fim.
+function _compararDataBR(a, b) {
+    const parse = (h) => {
+        const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec((h && h.data) || '');
+        if (!m) return null;
+        return Number(m[3]) * 10000 + Number(m[2]) * 100 + Number(m[1]);
+    };
+    const na = parse(a), nb = parse(b);
+    if (na === null && nb === null) return 0;
+    if (na === null) return 1;
+    if (nb === null) return -1;
+    return na - nb;
+}
+
 async function carregarParticipantesAdmin(bolaoId) {
     const container = document.getElementById('listaParticipantesAdmin');
     const btnCopiar = document.getElementById('btnCopiarListaWhatsApp');
@@ -3584,7 +3602,17 @@ async function carregarParticipantesAdmin(bolaoId) {
                 statusText: statusText,
                 quantidadeCotas: quantidadeCotas,
                 valorPago: valorPago,
-                valorPorCota: valorPorCota
+                valorPorCota: valorPorCota,
+                // Pedido do usuário: resumo completo de quantas cotas o
+                // participante pagou, EM DETALHES, com data — antes só
+                // existia o total agregado (valorPago), sem nenhum jeito
+                // de ver quando cada parcela entrou. Sincronizado do
+                // desktop desde a Rodada 82 (ver _montar_lista_part_firestore
+                // em bolao_pro_v3.py); participantes publicados ANTES
+                // dessa rodada ainda não têm esse campo até o bolão ser
+                // republicado (ou o programa fechado de novo) — por isso
+                // o "|| []" aqui, pra não quebrar com dado antigo.
+                historicoPagamentos: p.historicoPagamentos || []
             };
         });
         
@@ -3599,9 +3627,19 @@ async function carregarParticipantesAdmin(bolaoId) {
                         <span><strong>💰 VALOR POR COTA:</strong> R$ ${valorPorCota.toFixed(2)}</span>
                     </div>`;
         html += '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">';
-        
-        participantesFormatados.forEach(p => {
+
+        participantesFormatados.forEach((p, i) => {
             const totalEsperado = p.valorPorCota * p.quantidadeCotas;
+            const hist = [...p.historicoPagamentos].sort(_compararDataBR);
+            const idHist = `histPagAdmin${i}`;
+            const temHist = hist.length > 0;
+
+            const linhasHist = hist.map(h => `
+                <div style="display:flex; justify-content:space-between; font-size:11px; padding:4px 0; border-bottom:1px dashed #e2e8f0;">
+                    <span>📅 ${escapeHtml(h.data || '—')}${h.mesReferencia ? ` <span style="color:#94a3b8;">(ref. ${escapeHtml(h.mesReferencia)})</span>` : ''}</span>
+                    <strong style="color:#10b981;">R$ ${(h.valor || 0).toFixed(2)}</strong>
+                </div>`).join('');
+
             html += `
                 <div style="background: #ffffff; border-radius: 12px; padding: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0;">
@@ -3616,12 +3654,30 @@ async function carregarParticipantesAdmin(bolaoId) {
                         <span>💵 Pago: <strong style="color: #10b981;">R$ ${p.valorPago.toFixed(2)}</strong></span>
                         <span>Total: R$ ${totalEsperado.toFixed(2)}</span>
                     </div>
+                    ${temHist ? `
+                    <button type="button" class="btn-ver-hist-pagamento" data-alvo="${idHist}" data-qtd="${hist.length}" style="margin-top:8px; width:100%; background:#f1f5f9; color:#334155; border:none; padding:6px; border-radius:8px; font-size:11px; font-weight:600; cursor:pointer;">
+                        📋 Ver histórico (${hist.length} pagamento${hist.length > 1 ? 's' : ''})
+                    </button>
+                    <div id="${idHist}" style="display:none; margin-top:6px;">${linhasHist}</div>
+                    ` : `<div style="margin-top:8px; font-size:11px; color:#94a3b8;">📋 Sem histórico detalhado (sincronize o bolão de novo pelo desktop)</div>`}
                 </div>
             `;
         });
         html += '</div>';
 
         container.innerHTML = html;
+        document.querySelectorAll('.btn-ver-hist-pagamento').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const alvo = document.getElementById(this.dataset.alvo);
+                if (!alvo) return;
+                const vaiAbrir = alvo.style.display === 'none';
+                alvo.style.display = vaiAbrir ? 'block' : 'none';
+                const qtd = this.dataset.qtd;
+                this.textContent = vaiAbrir
+                    ? `🙈 Ocultar histórico (${qtd} pagamento${qtd > 1 ? 's' : ''})`
+                    : `📋 Ver histórico (${qtd} pagamento${qtd > 1 ? 's' : ''})`;
+            });
+        });
         _participantesAdminAtuais = participantesFormatados;
         if (btnCopiar) btnCopiar.disabled = false;
 

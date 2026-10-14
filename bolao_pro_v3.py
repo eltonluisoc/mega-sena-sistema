@@ -1,7 +1,27 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.32
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.33
+Correções v6.33 (histórico detalhado de pagamentos sincronizado pro
+admin web):
+ - Pedido do usuário: na tela de Participantes do admin web, ele só via
+   o valorPago TOTAL de cada participante, sem nenhum detalhe de QUANDO
+   cada parcela foi paga — queria "o resumo completo... em detalhes, com
+   data inclusive" ao clicar num bolão.
+ - A tabela local "pagamentos" sempre teve esse detalhe (um registro por
+   pagamento, com data e valor) — só nunca tinha sido sincronizado pro
+   Firestore, que só recebia o agregado. _montar_lista_part_firestore()
+   (usada por "Publicar no Site" e pela sincronização em lote) e o bloco
+   equivalente da sincronização automática do fechamento (_on_close)
+   ganharam um novo campo "historicoPagamentos": array de
+   {valor, data, mesReferencia} por participante, lido direto da tabela
+   "pagamentos" e ordenado cronologicamente.
+ - Achado real ao implementar: "ORDER BY data_pagamento" na consulta
+   SQL (data_pagamento é texto "DD/MM/AAAA") ordena pelo DIA primeiro,
+   não pelo ano/mês — "10/01/2026" vinha antes de "20/12/2025" na
+   ordenação, mesmo sendo depois de verdade. Corrigido remontando
+   "AAAAMMDD" só pra ordenar (substr), testado com um cenário que expõe
+   exatamente esse caso (dia maior numa data mais antiga).
 Correções v6.32 (+Milionária adicionada ao combo de loterias):
  - Pedido do usuário: o site e o admin ganharam suporte à +Milionária
    (ver script.js/admin.js/admin.html/index.html) — o desktop não
@@ -1662,6 +1682,10 @@ def enviar_bolao_para_site(titulo, loteria, valor_cota,
     valores_part = []
     for p in participantes:
         tel_digits = _re_fb.sub(r"\D", "", str(p.get("telefone") or ""))
+        # historicoPagamentos (Rodada 82): reaproveita o conversor
+        # genérico (_firestore_python_para_valor) só pra este campo —
+        # os outros seguem montados na mão, pra não arriscar mudar
+        # comportamento deles.
         valores_part.append({
             "mapValue": {
                 "fields": {
@@ -1671,6 +1695,7 @@ def enviar_bolao_para_site(titulo, loteria, valor_cota,
                     "situacao":        {"stringValue": str(p.get("situacao","em_andamento"))},
                     "quantidadeCotas": {"integerValue": str(int(p.get("quantidadeCotas",1)))},
                     "dataCadastro":    {"stringValue": str(p.get("dataCadastro",""))},
+                    "historicoPagamentos": _firestore_python_para_valor(p.get("historicoPagamentos") or []),
                 }
             }
         })
@@ -1941,7 +1966,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.32")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.33")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -2217,7 +2242,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.32",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.33",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -6084,7 +6109,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.32</span>
+        <span>Sistema de Gestão de Bolões v6.33</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -8416,7 +8441,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.32</span>
+        <span>Sistema de Gestão de Bolões v6.33</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -8730,10 +8755,17 @@ class BolaoApp:
 
     def _montar_lista_part_firestore(self, bid, vt, bd):
         """Monta a lista de participantes no formato usado pro Firestore
-        (nome/telefone/valorPago/situacao/quantidadeCotas/dataCadastro) —
-        extraído de _pub_montar_dados_impl pra ser reaproveitado também
-        pela sincronização em lote de busca_participante (Rodada 60,
-        _pub_sincronizar_busca_telefone), sem duplicar a lógica."""
+        (nome/telefone/valorPago/situacao/quantidadeCotas/dataCadastro/
+        historicoPagamentos) — extraído de _pub_montar_dados_impl pra ser
+        reaproveitado também pela sincronização em lote de busca_participante
+        (Rodada 60, _pub_sincronizar_busca_telefone), sem duplicar a lógica.
+
+        historicoPagamentos (Rodada 82): pedido do usuário — o admin web
+        só mostrava o valorPago TOTAL por participante, sem nenhum
+        detalhe de QUANDO cada parcela foi paga. Cada pagamento
+        individual (tabela "pagamentos" local) vira um item
+        {valor, data, mesReferencia} nesse array, pra aparecer detalhado
+        na tela de Participantes do admin web."""
         partic = self.db.fetchall(
             "SELECT * FROM participantes WHERE bolao_id=? AND ativo=1 ORDER BY nome", (bid,))
         adm_nome     = bd.get("adm_nome","").strip()
@@ -8743,6 +8775,25 @@ class BolaoApp:
             "SELECT participante_id, SUM(valor) as total_pago, MIN(data_pagamento) as dt_cad "
             "FROM pagamentos WHERE bolao_id=? GROUP BY participante_id", (bid,))
         pag_map = {r["participante_id"]: r for r in pag_rows}
+        # Itemizado, por participante — ORDER BY data_pagamento garante
+        # que o histórico já chega ordenado cronologicamente no site,
+        # sem precisar ordenar de novo em JS. data_pagamento é texto
+        # "DD/MM/AAAA" — "ORDER BY data_pagamento" direto ordenaria pelo
+        # DIA primeiro (string), não por ano/mês (achado real testando:
+        # "10/01/2026" viria antes de "05/12/2025" mesmo sendo depois de
+        # verdade). substr() remonta "AAAAMMDD" só pra ordenar certo.
+        itens_rows = self.db.fetchall(
+            "SELECT participante_id, valor, data_pagamento, mes_referencia "
+            "FROM pagamentos WHERE bolao_id=? "
+            "ORDER BY substr(data_pagamento,7,4) || substr(data_pagamento,4,2) || substr(data_pagamento,1,2), id",
+            (bid,))
+        itens_map = {}
+        for r in itens_rows:
+            itens_map.setdefault(r["participante_id"], []).append({
+                "valor": float(r["valor"] or 0),
+                "data": r["data_pagamento"] or "",
+                "mesReferencia": r["mes_referencia"] or "",
+            })
         adm_cadastrado = False; lista_part = []
         for pt in partic:
             pt_d = dict(pt); pid = pt_d["id"]
@@ -8765,10 +8816,12 @@ class BolaoApp:
             # atualizar_busca_participante (ver Rodada 71).
             lista_part.append({"id":pid,"nome":pt_d["nome"],"telefone":tel_digits,
                 "valorPago":valorPago,"situacao":situacao,
-                "quantidadeCotas":n_cotas,"dataCadastro":dt_cad})
+                "quantidadeCotas":n_cotas,"dataCadastro":dt_cad,
+                "historicoPagamentos":itens_map.get(pid, [])})
         if adm_nome and not adm_paga and not adm_cadastrado:
             lista_part.append({"id":None,"nome":adm_nome,"telefone":"","valorPago":0,
-                "situacao":"quitado","quantidadeCotas":1,"dataCadastro":""})
+                "situacao":"quitado","quantidadeCotas":1,"dataCadastro":"",
+                "historicoPagamentos":[]})
         return lista_part
 
     def _ler_busca_hash(self, pid):
@@ -9958,6 +10011,25 @@ class BolaoApp:
                         "SELECT participante_id, SUM(valor) as t, MIN(data_pagamento) as dt "
                         "FROM pagamentos WHERE bolao_id=? GROUP BY participante_id", (bid,))
                     pag_map  = {r["participante_id"]: r for r in pag_rows}
+                    # historicoPagamentos (Rodada 82) — mesmo motivo do
+                    # _montar_lista_part_firestore: este bloco é uma cópia
+                    # paralela pra sincronização automática do fechamento,
+                    # que não reaproveita aquela função (usa db2/_conn em
+                    # vez de self.db).
+                    # Mesmo cuidado de ordenação do bloco acima — ver
+                    # comentário em _montar_lista_part_firestore.
+                    itens_rows = db2.fetchall(
+                        "SELECT participante_id, valor, data_pagamento, mes_referencia "
+                        "FROM pagamentos WHERE bolao_id=? "
+                        "ORDER BY substr(data_pagamento,7,4) || substr(data_pagamento,4,2) || substr(data_pagamento,1,2), id",
+                        (bid,))
+                    itens_map = {}
+                    for r in itens_rows:
+                        itens_map.setdefault(r["participante_id"], []).append({
+                            "valor": float(r["valor"] or 0),
+                            "data": r["data_pagamento"] or "",
+                            "mesReferencia": r["mes_referencia"] or "",
+                        })
 
                     adm_cad = False; lista = []
                     for pt in partic:
@@ -9979,13 +10051,15 @@ class BolaoApp:
                         sit_ic = "Q" if sit=="quitado" else "A"
                         lista.append({"id":pid3,"nome":pt_d["nome"],"telefone":tel3,
                             "valorPago":vp,"situacao":sit,
-                            "quantidadeCotas":n_c,"dataCadastro":dt_c})
+                            "quantidadeCotas":n_c,"dataCadastro":dt_c,
+                            "historicoPagamentos":itens_map.get(pid3, [])})
                         win.after(0, lambda nm=pt_d["nome"], s=sit_ic, v=vp: log(
                             "       ["+s+"] "+nm+" R$"+str(v), "dim"))
 
                     if adm_low and not adm_pg and not adm_cad:
                         lista.append({"id":None,"nome":bd.get("adm_nome",""),"telefone":"",
-                            "valorPago":0,"situacao":"quitado","quantidadeCotas":1,"dataCadastro":""})
+                            "valorPago":0,"situacao":"quitado","quantidadeCotas":1,"dataCadastro":"",
+                            "historicoPagamentos":[]})
 
                     n_nome = nome_b.lower()
                     if "lotofacil" in n_nome or "lotofácil" in n_nome: lot="lotofacil"
@@ -10014,6 +10088,7 @@ class BolaoApp:
                             "situacao":{"stringValue":p["situacao"]},
                             "quantidadeCotas":{"integerValue":str(int(p["quantidadeCotas"]))},
                             "dataCadastro":{"stringValue":p["dataCadastro"]},
+                            "historicoPagamentos":_firestore_python_para_valor(p.get("historicoPagamentos") or []),
                         }}})
 
                     doc_b = {"fields":{

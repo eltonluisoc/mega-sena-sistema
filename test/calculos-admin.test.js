@@ -77,3 +77,24 @@ test('parseTrevosTexto - valida quantidade mínima/máxima e intervalo', () => {
   assert.match(sandbox.parseTrevosTexto('02 07', regrasTrevos).erro, /entre 1 e 6/);
   assert.match(sandbox.parseTrevosTexto('02 02', regrasTrevos).erro, /repetidos/);
 });
+
+// Achado real (Rodada 82): ordenar strings "DD/MM/AAAA" direto (sort
+// nativo/localeCompare) ordena pelo DIA primeiro, não pelo ano/mês —
+// "05/01/2026" viria ANTES de "20/12/2025" mesmo sendo depois de
+// verdade. _compararDataBR corrige isso tanto no backend (SQL) quanto
+// aqui no admin.js (defesa contra dado sincronizado fora de ordem).
+test('_compararDataBR - ordena cronologicamente, não por dia em string', () => {
+  const hist = [
+    { data: '05/01/2026' },  // mais recente
+    { data: '20/12/2025' },  // mais antigo, mas dia (20) > dia do outro (05)
+    { data: '12/02/2026' },  // no meio
+  ];
+  const ordenado = [...hist].sort(sandbox._compararDataBR);
+  assert.deepEqual(ordenado.map(h => h.data), ['20/12/2025', '05/01/2026', '12/02/2026']);
+});
+
+test('_compararDataBR - datas inválidas/vazias vão pro fim, sem travar', () => {
+  const hist = [{ data: '' }, { data: '10/05/2026' }, { data: 'lixo' }];
+  const ordenado = [...hist].sort(sandbox._compararDataBR);
+  assert.equal(ordenado[0].data, '10/05/2026');
+});
