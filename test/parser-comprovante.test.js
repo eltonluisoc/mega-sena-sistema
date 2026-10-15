@@ -167,6 +167,62 @@ test('comprovante real da +Milionária: extrai os 11 jogos com seus trevos certo
   assert.deepEqual(plano(r.validacao[5].trevo), [1, 2]);
 });
 
+// BUG REAL reportado pelo usuário: "quanto tentei importar esses jogos o
+// sistema deu erro". 4 comprovantes reais enviados — 3 deles com 3
+// trevos marcados por jogo (não o mínimo de 2). Causa: extrairJogosDoTexto
+// assumia que "Trevos: NN | NN" tem SEMPRE 2 números, então nunca bateria
+// na regex de "sequência de 3+ dezenas" — com 3 trevos, a própria linha
+// "Trevos: 03 | 05 | 06" TEM 3 números e virava um "jogo" fantasma de 3
+// dezenas, dobrando a contagem de jogos e falhando a validação de mínimo
+// (nenhuma loteria tem jogo com menos de 5 dezenas). Texto abaixo é o
+// bloco "Seus Números" real de um dos comprovantes enviados (6 dezenas +
+// 3 trevos por jogo, layout de 1 coluna — o de 2 colunas tem teste
+// equivalente em parser-comprovante-posicoes.test.js).
+const COMPROVANTE_MILIONARIA_3_TREVOS = `Dados da Aposta
+Loterias
+Comprovante de Aposta Bolão +Milionária
+Nome: ELTON LUIS DE OLIVEIRA
+CONCEICAO CPF: 874.671.865-68
+Data da aposta: 13/10/2026 Subcanal da compra: IOS
+Hora da aposta: 09:05:57 Data da compra: 14/10/2026
+Valor total da
+aposta: R$ 26,99 Hora da compra: 19:08:59
+Valor da cota: R$ 20,00 Data do sorteio: 14/10/2026
+Valor tarifa de
+serviço: R$ 6,99 Código E. Lotérico: 04.006551-0
+Modalidade: +Milionária Terminal aposta: 81
+Cota: 7/9 Concurso: 398
+Seus Números:
+Jogo 1
+07 | 18 | 26 | 29 | 42 | 45
+Trevos: 02 | 05 | 06
+Jogo 2
+01 | 07 | 08 | 22 | 24 | 31
+Trevos: 02 | 03 | 06
+Jogo 3
+03 | 15 | 33 | 37 | 43 | 50
+Trevos: 04 | 05 | 06
+Página: 1 de 2`;
+
+test('comprovante real com 3 trevos por jogo (não o mínimo de 2) — sem jogo fantasma', () => {
+  const r = parsear(COMPROVANTE_MILIONARIA_3_TREVOS,
+    { loteriaEsperada: 'maismilionaria', concursoEsperado: '398' });
+  assert.equal(r.status, 'ok');
+  // Antes do fix: cada linha "Trevos: NN | NN | NN" virava um jogo
+  // fantasma de 3 dezenas — isto é, r.jogos.length viria 6 (3 reais + 3
+  // fantasmas), não 3, e os fantasmas reprovariam a validação por terem
+  // menos que o mínimo de dezenas de qualquer loteria.
+  assert.equal(r.jogos.length, 3);
+  assert.equal(r.trevos.length, 3);
+  assert.ok(r.validacao.every(v => v.ok), JSON.stringify(r.validacao.filter(v => !v.ok)));
+  assert.ok(r.jogos.every(j => j.length === 6));
+  assert.ok(r.trevos.every(t => t.length === 3));
+  assert.deepEqual(plano(r.validacao[0].jogo), [7, 18, 26, 29, 42, 45]);
+  assert.deepEqual(plano(r.validacao[0].trevo), [2, 5, 6]);
+  assert.deepEqual(plano(r.validacao[2].jogo), [3, 15, 33, 37, 43, 50]);
+  assert.deepEqual(plano(r.validacao[2].trevo), [4, 5, 6]);
+});
+
 test('comprovante1: extrai modalidade, concurso e os 2 jogos de 10 dezenas', () => {
   const r = parsear(COMPROVANTE_1, { loteriaEsperada: 'mega', concursoEsperado: '3056' });
   assert.equal(r.status, 'ok');

@@ -129,6 +129,46 @@ test('+Milionária: 2 colunas com trevos — jogo e trevo continuam casados por 
   assert.deepEqual(trevos[3], [3, 4]);
 });
 
+// BUG REAL (achado com 4 comprovantes +Milionária reais do usuário, Rodada
+// 85): o teste acima só cobre o MÍNIMO de 2 trevos por jogo — 3 dos 4
+// comprovantes reais enviados vieram com 3 trevos marcados (a
+// +Milionária aceita de 2 a 6). "Trevos: 03 | 05 | 06" tem 3 números
+// ligados por "|", e extrairJogosDoTexto (chamada por coluna aqui dentro)
+// batia essa linha como se fosse mais um "jogo" de 3 dezenas — dobrava a
+// contagem de jogos por coluna e desalinhava jogos[]/trevos[] por
+// posição. Mesmo layout de 2 colunas do teste anterior, só trocando 2
+// trevos por 3 em cada jogo — dados reais do comprovante enviado.
+test('+Milionária: 2 colunas com 3 trevos por jogo (não o mínimo) — sem jogo fantasma, sem desalinhar', () => {
+  const itens = criarItens([
+    [
+      'Jogo 1', '01 | 05 | 06 | 13 | 17 | 32', 'Trevos: 03 | 05 | 06',
+      'Jogo 3', '02 | 04 | 11 | 28 | 29 | 32', 'Trevos: 01 | 02 | 04',
+    ],
+    [
+      'Jogo 2', '11 | 13 | 24 | 29 | 33 | 48', 'Trevos: 04 | 05 | 06',
+      'Jogo 4', '01 | 10 | 14 | 24 | 36 | 39', 'Trevos: 03 | 04 | 05',
+    ],
+  ]);
+  const extraido = sandbox.extrairJogosDeItensPosicionados(itens);
+  const jogos = plano(extraido.jogos);
+  const trevos = plano(extraido.trevos);
+  // Antes do fix: cada "Trevos: X | Y | Z" virava um jogo fantasma de 3
+  // dezenas, então jogos.length viria 8 (4 reais + 4 fantasmas) em vez
+  // de 4, e o pareamento jogos[i]/trevos[i] por posição desalinhava.
+  assert.equal(jogos.length, 4);
+  assert.equal(trevos.length, 4);
+  assert.ok(jogos.every(j => j.length === 6), JSON.stringify(jogos));
+  assert.ok(trevos.every(t => t.length === 3), JSON.stringify(trevos));
+  assert.deepEqual(jogos[0], [1, 5, 6, 13, 17, 32]);
+  assert.deepEqual(trevos[0], [3, 5, 6]);
+  assert.deepEqual(jogos[1], [2, 4, 11, 28, 29, 32]);
+  assert.deepEqual(trevos[1], [1, 2, 4]);
+  assert.deepEqual(jogos[2], [11, 13, 24, 29, 33, 48]);
+  assert.deepEqual(trevos[2], [4, 5, 6]);
+  assert.deepEqual(jogos[3], [1, 10, 14, 24, 36, 39]);
+  assert.deepEqual(trevos[3], [3, 4, 5]);
+});
+
 // O BUG relatado: comprovante Lotofácil de 2 colunas com jogos de 17
 // dezenas cada, quebrando em 2 linhas. Antes (texto achatado) a coluna A
 // terminava a 1ª linha com "|" solto que grudava no "01" da coluna B,

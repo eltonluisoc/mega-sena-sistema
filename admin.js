@@ -421,17 +421,28 @@ const ROTULO_LOTERIA = { mega: 'Mega-Sena', lotofacil: 'Lotofácil', quina: 'Qui
 function extrairJogosDoTexto(texto) {
     const idxSeus = texto.search(/Seus\s+N[uú]meros/i);
     const secao = idxSeus >= 0 ? texto.slice(idxSeus) : texto;
+    // BUG REAL (achado com 4 comprovantes +Milionária reais do usuário):
+    // a suposição de que "Trevos: NN | NN" sempre tem só 2 números e por
+    // isso nunca bate no {2,} abaixo só vale pro MÍNIMO de trevos — a
+    // +Milionária aceita marcar de 2 a 6. Com 3+ trevos marcados (comum —
+    // 3 dos 4 comprovantes reais testados vieram assim), a própria linha
+    // "Trevos: 03 | 05 | 06" tem 3 números ligados por "|" e batia nessa
+    // mesma regex, virando um "jogo" fantasma de 3 dezenas — dobrava a
+    // contagem de jogos E cada fantasma falhava a validação de mínimo de
+    // dezenas (nenhuma loteria tem jogo com menos de 5). Corrigido
+    // removendo as linhas de trevos ANTES de procurar jogos (a extração
+    // de trevos de verdade, extrairTrevosDoTexto, roda sobre o texto
+    // original — só esta função precisa da versão sem elas).
+    const semTrevos = secao.replace(/Trevos:\s*\d{1,2}(?:\s*\|\s*\d{1,2})*/gi, '');
     // {2,} = 3+ dezenas: nenhum jogo real tem menos de 5 (mínimo da
     // Quina), mas pega jogos curtos/corrompidos pra validação reclamar
     // em vez de eles sumirem sem aviso. O comprovante não tem nenhuma
-    // outra sequência "N | N | N" fora do bloco de jogos. "Trevos: NN |
-    // NN" (só +Milionária, ver extrairTrevosDoTexto) tem só 2 números —
-    // nunca bate nesse {2,}, então não precisa de nenhum cuidado extra
-    // aqui pra não confundir trevo com dezena.
+    // outra sequência "N | N | N" fora do bloco de jogos (e das linhas de
+    // trevos, já removidas acima).
     const reRunDezenas = /\d{1,2}(?:\s*\|\s*\d{1,2}){2,}/g;
     const jogos = [];
     let m;
-    while ((m = reRunDezenas.exec(secao)) !== null) {
+    while ((m = reRunDezenas.exec(semTrevos)) !== null) {
         jogos.push(m[0].split('|').map(x => parseInt(x.trim(), 10)));
     }
     return jogos;

@@ -1284,6 +1284,20 @@ Validado com teste isolado de Tk ao vivo (3 participantes, 1 em cada status — 
 
 Versão desktop v6.34 → **v6.35**. `dist/SistemaBoloes.exe` reconstruído.
 
+## Rodada 85 — Bug real: importação de comprovante +Milionária falhava com 3+ trevos marcados
+
+Usuário enviou 4 comprovantes reais da +Milionária (concurso 398) e relatou: "quanto tentei importar esse jogos o sistema deu erro... provavelmente por conta de alguns cartões trerem 3 trevos". Arquivos salvos em `C:\Users\Elton\Downloads\comprovanteAposta*.pdf` — 3 deles com 3 trevos marcados por jogo, 1 com o mínimo de 2.
+
+**Diagnóstico**: sem browser pra rodar o pdf.js de verdade, usei `pdfplumber` (Python) pra extrair as posições reais (x/y/largura) de cada palavra dos 4 PDFs e reimplementei em Python, linha por linha, o MESMO algoritmo de agrupamento por coluna que `extrairJogosDeItensPosicionados` usa no admin.js (mesmo limiar de gap, mesma lógica de segmentação) — assim dava pra ver exatamente o que a função real produziria sem precisar de um navegador. Resultado: nos 3 comprovantes com 3 trevos, a função devolvia o DOBRO de "jogos" esperado (ex.: 20 em vez de 10), com metade deles tendo só 3 dezenas. No comprovante com 2 trevos (mínimo), tudo saía certo.
+
+**Causa raiz**: `extrairJogosDoTexto` (admin.js) tinha um comentário explícito assumindo que uma linha "Trevos: NN | NN" **sempre** tem exatamente 2 números, então nunca bateria na regex de "sequência de 3+ dezenas" (`\d{1,2}(?:\s*\|\s*\d{1,2}){2,}`) usada pra achar os jogos. Essa suposição só vale pro MÍNIMO de trevos da +Milionária (2) — a regra oficial permite marcar de 2 a 6. Com 3 trevos, a própria linha "Trevos: 03 | 05 | 06" tem 3 números ligados por "|" e batia na mesma regex, virando um "jogo" fantasma de 3 dezenas: dobrava a contagem de jogos E cada fantasma reprovava a validação de mínimo de dezenas (nenhuma loteria tem jogo com menos de 5), gerando exatamente o erro relatado. Os testes existentes nunca pegaram isso porque todos os fixtures de +Milionária (inclusive o comprovante real usado nas Rodadas 57/58) vinham com 2 trevos — o caso mínimo.
+
+**Correção**: `extrairJogosDoTexto` agora remove toda linha "Trevos: ..." (com qualquer quantidade de trevos) do texto ANTES de procurar jogos, com `secao.replace(/Trevos:\s*\d{1,2}(?:\s*\|\s*\d{1,2})*/gi, '')`. A extração de trevos de verdade (`extrairTrevosDoTexto`) continua rodando sobre o texto original — só a busca de jogos precisava da versão "limpa". Correção única, usada tanto no caminho de texto achatado (1 coluna) quanto no caminho posicional por coluna (`extrairJogosDeItensPosicionados`, que chama a mesma função por coluna).
+
+**Validado com**: 2 testes novos usando dados reais dos comprovantes enviados — um no layout de 1 coluna (`test/parser-comprovante.test.js`, `parsearComprovanteCaixa` fim a fim) e um no layout de 2 colunas (`test/parser-comprovante-posicoes.test.js`, que é o layout real desses comprovantes — "Jogo 1" esquerda / "Jogo 2" direita / "Jogo 3" esquerda / ...), ambos com 3 trevos por jogo reproduzindo o bug exato e confirmando que não sobra nenhum "jogo fantasma". Depois, reconfirmado contra os 4 PDFs reais de novo via o diagnóstico posicional em Python: os 4 agora extraem exatamente o número de jogos esperado (10, 14, 14, 14) com jogos.length === trevos.length em todos. 59/59 testes JS passando (57 antes + 2 novos).
+
+sw.js `CACHE_NAME` v61 → **v62** (mudança só no admin.js, sem rebuild do desktop).
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
