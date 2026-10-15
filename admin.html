@@ -1213,6 +1213,9 @@
             <button class="sidebar-item" data-section="boloes">
                 <span class="icon">👥</span> Bolões
             </button>
+            <button class="sidebar-item" data-section="financeiro">
+                <span class="icon">💳</span> Financeiro
+            </button>
             <button class="sidebar-item" data-section="reservas">
                 <span class="icon">💰</span> Reservas
             </button>
@@ -1631,14 +1634,42 @@
                     </div>
                     <button id="btnSalvarSelecao" class="btn btn-primary btn-block" style="margin-top: 15px;">💾 SALVAR CONFIGURAÇÕES</button>
                 </div>
+            </section>
+
+            <!-- ============================================ -->
+            <!-- SEÇÃO: FINANCEIRO -->
+            <!-- Pedido do usuário: "preciso ter como facilmente listar um
+                 bolão e ver todos os participantes e tudo que foi pago por
+                 ele". Essa tela já existia (Rodada 82) mas vivia escondida
+                 dentro de "Bolões" (2º card, depois de "Gerenciar Bolões") —
+                 virou seção própria no menu (Rodada 87), com um resumo
+                 financeiro no topo que não existia antes (mesmas classes
+                 .dashboard-cards/.dashboard-card/.dashboard-number do
+                 Dashboard, pra manter a mesma identidade visual do site). -->
+            <!-- ============================================ -->
+            <section id="section-financeiro" class="section">
                 <div class="card">
-                    <div class="card-header">👥 PARTICIPANTES POR BOLÃO</div>
-                    <select id="bolaoSelectParticipantes" class="form-control" style="margin-bottom: 12px;">
+                    <div class="card-header">💳 FINANCEIRO POR BOLÃO</div>
+                    <select id="bolaoSelectParticipantes" class="form-control" style="margin-bottom: 14px;">
                         <option value="">Selecione um bolão</option>
                     </select>
+                    <div class="dashboard-cards" id="finKpisResumo" style="display: none; margin-bottom: 16px;">
+                        <div class="dashboard-card" style="background: #e8f2ff; border-color: #93c5fd;">
+                            <div class="dashboard-number" style="color: #0071e3;" id="finKpiTotalParticipantes">0</div>
+                            <div style="font-size: 13px; font-weight: 600; color: #1e3a5f;">👥 PARTICIPANTES</div>
+                        </div>
+                        <div class="dashboard-card" style="background: #f0fdf4; border-color: #bbf7d0;">
+                            <div class="dashboard-number" style="color: #10b981;" id="finKpiTotalArrecadado">R$ 0,00</div>
+                            <div style="font-size: 13px; font-weight: 600; color: #065f46;">💰 TOTAL ARRECADADO</div>
+                        </div>
+                        <div class="dashboard-card" style="background: #fef3c7; border-color: #fde68a;">
+                            <div class="dashboard-number" style="color: #f59e0b;" id="finKpiTotalPendente">R$ 0,00</div>
+                            <div style="font-size: 13px; font-weight: 600; color: #92400e;">⏳ TOTAL PENDENTE</div>
+                        </div>
+                    </div>
                     <button id="btnCopiarListaWhatsApp" class="btn btn-success btn-block" style="margin-bottom: 15px;" disabled>📱 COPIAR LISTA PARA WHATSAPP</button>
-                    <div id="listaParticipantesAdmin" style="max-height: 400px; overflow-y: auto;">
-                        <div class="empty-state">Selecione um bolão para ver os participantes</div>
+                    <div id="listaParticipantesAdmin" style="max-height: 500px; overflow-y: auto;">
+                        <div class="empty-state">Selecione um bolão para ver os participantes e pagamentos</div>
                     </div>
                 </div>
             </section>

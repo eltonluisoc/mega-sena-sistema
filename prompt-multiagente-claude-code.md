@@ -1318,6 +1318,18 @@ Validado com teste isolado de Tk ao vivo (3 participantes nos 3 status reais —
 
 Versão desktop v6.35 → **v6.36**. `dist/SistemaBoloes.exe` reconstruído.
 
+## Rodada 87 — Nova seção "Financeiro" no admin web (promovida de dentro de "Bolões")
+
+Pedido do usuário: "no admin, preciso ter como facilmente listar um bolão e ver todos os participantes e tudo que foi pago por ele... todos os participantes, pagamentos etc... revisar e melhorar a tela". A funcionalidade já existia desde a Rodada 82 (card "PARTICIPANTES POR BOLÃO"), mas vivia escondida dentro da seção "Bolões" (2º card, depois de "Gerenciar Bolões" — que é config/ativação de bolão, assunto diferente). Perguntei se deveria virar seção própria no menu ou só ser redesenhada no lugar — o usuário confirmou: seção própria.
+
+**Mudanças em `admin.html`**: novo item no menu lateral "💳 Financeiro" (a navegação por `data-section` já é genérica, não precisou de JS novo pra troca de seção). Nova `<section id="section-financeiro">` com o card movido (não duplicado) de dentro de "Bolões" — mesmos elementos/ids (`bolaoSelectParticipantes`, `listaParticipantesAdmin`, `btnCopiarListaWhatsApp`), só de seção. A seção "Bolões" ficou só com "👥 GERENCIAR BOLÕES" (config), coerente com o nome.
+
+**Resumo financeiro no topo (NOVO)**: 3 KPIs — Total de Participantes, Total Arrecadado, Total Pendente — reaproveitando as mesmas classes CSS do Dashboard (`.dashboard-cards`/`.dashboard-card`/`.dashboard-number`), escondidos (`display:none`) até um bolão com dados ser selecionado (em vez de mostrar zeros enganosos). Cálculo isolado numa função pura `_calcularKpisFinanceiro` (separada de `_financeiroKpisAtualizar`, que só escreve no DOM) — mesmo padrão já usado em `parsearComprovanteCaixa`/`calcularEstatisticas`, pra poder testar a lógica sem precisar de DOM de verdade. `carregarParticipantesAdmin`/`handleSelectChange`/`copiarListaParticipantesWhatsApp` não mudaram de lógica, só ganharam a chamada pro resumo.
+
+Validado com 3 testes novos em `test/calculos-admin.test.js` pra `_calcularKpisFinanceiro` (soma certa com cotas múltiplas, nunca conta pendente negativo, lista vazia/indefinida não quebra) e checagem manual de que não sobrou nenhum id duplicado depois de mover o card. 62/62 testes JS passando (59 antes + 3 novos).
+
+sw.js `CACHE_NAME` v62 → **v63**.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

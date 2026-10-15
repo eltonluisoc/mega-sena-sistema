@@ -98,3 +98,38 @@ test('_compararDataBR - datas inválidas/vazias vão pro fim, sem travar', () =>
   const ordenado = [...hist].sort(sandbox._compararDataBR);
   assert.equal(ordenado[0].data, '10/05/2026');
 });
+
+// Rodada 87: resumo financeiro no topo da nova seção "Financeiro" do
+// admin web (pedido do usuário: "ver todos os participantes e tudo que
+// foi pago"). _calcularKpisFinanceiro é a parte pura (sem DOM) de
+// _financeiroKpisAtualizar, testável direto.
+test('_calcularKpisFinanceiro - soma arrecadado e pendente certo, cotas múltiplas incluídas', () => {
+  const participantes = [
+    { valorPago: 100, quantidadeCotas: 1, valorPorCota: 100 }, // quitado
+    { valorPago: 40,  quantidadeCotas: 2, valorPorCota: 100 }, // deve 160
+    { valorPago: 0,   quantidadeCotas: 1, valorPorCota: 100 }, // deve 100
+  ];
+  const r = sandbox._calcularKpisFinanceiro(participantes);
+  assert.equal(r.totalParticipantes, 3);
+  assert.equal(r.totalArrecadado, 140);
+  assert.equal(r.totalPendente, 260);
+});
+
+test('_calcularKpisFinanceiro - nunca conta pendente negativo (quem pagou mais que o esperado)', () => {
+  const participantes = [{ valorPago: 150, quantidadeCotas: 1, valorPorCota: 100 }];
+  const r = sandbox._calcularKpisFinanceiro(participantes);
+  assert.equal(r.totalPendente, 0);
+});
+
+test('_calcularKpisFinanceiro - lista vazia/indefinida não quebra', () => {
+  // Objeto devolvido pelo sandbox vm é de outro "realm" — deepEqual
+  // falha na checagem de protótipo mesmo com valores idênticos (mesmo
+  // achado documentado no helper `plano` de parser-comprovante.test.js).
+  // Compara campo a campo em vez do objeto inteiro.
+  for (const entrada of [[], undefined]) {
+    const r = sandbox._calcularKpisFinanceiro(entrada);
+    assert.equal(r.totalParticipantes, 0);
+    assert.equal(r.totalArrecadado, 0);
+    assert.equal(r.totalPendente, 0);
+  }
+});

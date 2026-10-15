@@ -3537,6 +3537,7 @@ function handleSelectChange(event) {
         const btnCopiar = document.getElementById('btnCopiarListaWhatsApp');
         if (btnCopiar) btnCopiar.disabled = true;
         _participantesAdminAtuais = [];
+        _financeiroKpisAtualizar([]);
     }
 }
 
@@ -3563,6 +3564,41 @@ function _compararDataBR(a, b) {
     return na - nb;
 }
 
+// Resumo financeiro no topo da seção (Rodada 87) — pedido do usuário:
+// "ver todos os participantes e tudo que foi pago" de forma fácil. Some
+// (display:none) sempre que não há um bolão com dados pra resumir, em
+// vez de mostrar zeros enganosos.
+// PURA (sem DOM) — separada de _financeiroKpisAtualizar pra poder ser
+// testada direto, mesmo padrão já usado em parsearComprovanteCaixa/
+// calcularEstatisticas (a parte que decide os números fica isolada da
+// parte que escreve no DOM, que só faz sentido testar visualmente).
+function _calcularKpisFinanceiro(participantesFormatados) {
+    const lista = participantesFormatados || [];
+    const totalArrecadado = lista.reduce((s, p) => s + (p.valorPago || 0), 0);
+    const totalPendente = lista.reduce((s, p) => {
+        const esperado = p.valorPorCota * p.quantidadeCotas;
+        return s + Math.max(0, esperado - (p.valorPago || 0));
+    }, 0);
+    return { totalParticipantes: lista.length, totalArrecadado, totalPendente };
+}
+
+function _financeiroKpisAtualizar(participantesFormatados) {
+    const box = document.getElementById('finKpisResumo');
+    if (!box) return;
+    if (!participantesFormatados || participantesFormatados.length === 0) {
+        box.style.display = 'none';
+        return;
+    }
+    const { totalParticipantes, totalArrecadado, totalPendente } = _calcularKpisFinanceiro(participantesFormatados);
+    const elTotal = document.getElementById('finKpiTotalParticipantes');
+    const elArrecadado = document.getElementById('finKpiTotalArrecadado');
+    const elPendente = document.getElementById('finKpiTotalPendente');
+    if (elTotal) elTotal.textContent = String(totalParticipantes);
+    if (elArrecadado) elArrecadado.textContent = `R$ ${totalArrecadado.toFixed(2)}`;
+    if (elPendente) elPendente.textContent = `R$ ${totalPendente.toFixed(2)}`;
+    box.style.display = 'grid';
+}
+
 async function carregarParticipantesAdmin(bolaoId) {
     const container = document.getElementById('listaParticipantesAdmin');
     const btnCopiar = document.getElementById('btnCopiarListaWhatsApp');
@@ -3571,11 +3607,13 @@ async function carregarParticipantesAdmin(bolaoId) {
     if (!bolaoId) {
         container.innerHTML = '<div class="empty-state">Selecione um bolão para ver os participantes</div>';
         if (btnCopiar) btnCopiar.disabled = true;
+        _financeiroKpisAtualizar([]);
         return;
     }
 
     container.innerHTML = '<div class="loading">🔍 Carregando participantes...</div>';
     if (btnCopiar) btnCopiar.disabled = true;
+    _financeiroKpisAtualizar([]);
 
     try {
         const doc = await db.collection('participantes').doc(bolaoId).get();
@@ -3690,6 +3728,7 @@ async function carregarParticipantesAdmin(bolaoId) {
             });
         });
         _participantesAdminAtuais = participantesFormatados;
+        _financeiroKpisAtualizar(participantesFormatados);
         if (btnCopiar) btnCopiar.disabled = false;
 
     } catch (error) {
