@@ -1,7 +1,83 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.33
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.35
+Correções v6.35 (polimento de design/usabilidade da aba Participantes
+fundida, revisão com 5 agentes em paralelo):
+ - Pedido do usuário após a fusão da Rodada 83: "deixar essa guia
+   perfeita... ainda tem redundâncias... quero design padrão apple...
+   e usabilidade perfeita". 5 agentes revisaram em paralelo (redundância,
+   paleta/estética, fluxo de interação, limpeza de código, validação
+   funcional ao vivo) e os achados foram consolidados numa implementação
+   só, pra não ter edições conflitantes no mesmo arquivo.
+ - [Bug real encontrado] A lista mestre e o card de status do Perfil
+   calculavam status na mão (só Quitado/Pendente binário), em vez de usar
+   os mesmos helpers centrais do Dashboard/Relatório
+   (_n_cotas_participante/_status_part_adm). Consequência: quem estava
+   "Em Dia" (pagou o esperado até o mês atual, sem terminar o total)
+   aparecia idêntico a quem estava realmente atrasado, e o status de um
+   participante ADM isento divergia entre telas. Corrigido chamando os
+   mesmos helpers em toda parte — agora os 3 estados (Quitado/Em
+   Dia/Pendente) aparecem certos e iguais em qualquer tela.
+ - [Redundância] Popup "Editar Cadastro" recriava uma combobox com todos
+   os participantes e "re-selecionava" o já conhecido via regex, mesmo
+   quando chamado com o id já certo (duplo-clique ou botão no painel) —
+   duplicava a lista mestre que o usuário já tinha usado pra chegar até
+   ali. Agora, com id conhecido, abre direto com o formulário carregado,
+   sem combobox.
+ - [Redundância] Registrar um pagamento não atualizava a lista mestre
+   (coluna Status/Cotas) até o usuário clicar no botão manual de
+   atualizar ou trocar de seção — corrigido chamando a atualização da
+   lista automaticamente ao registrar.
+ - [Design] Paleta reduzida ao padrão "1 cor de destaque" (Apple HIG):
+   seletor segmentado do topo e seleção da treeview agora usam o MESMO
+   azul (antes o seletor usava laranja, a mesma cor que em todo o resto
+   do app significa "pendente/alerta" — dois significados pra uma cor
+   só). Os 4 cards financeiros do painel de detalhe (antes 4 cores
+   saturadas diferentes, "dashboard arco-íris") viraram cards neutros
+   brancos com borda fina; só o valor do saldo ganha cor (vermelho se
+   falta pagar, verde se quitado).
+ - [Design] Hierarquia de botões: "Incluir Participante" é a única ação
+   em destaque sólido da lista; "Atualizar"/"Remover"/"Unificar" (e
+   "Editar Cadastro"/"Recibo" no painel de detalhe) viraram botões
+   "texto" (sem bloco de cor), só a cor do texto sinaliza o tipo de
+   ação — antes "Remover" (destrutivo) tinha o mesmo peso visual de
+   "Incluir" (a ação mais comum).
+ - [Usabilidade] Campo de observações ganhou moldura leve (antes era
+   texto cinza-itálico minúsculo entre os cards e o formulário de
+   pagamento, fácil de ignorar mesmo carregando acordos de pagamento
+   relevantes). Comboboxes de Mês/Ano do formulário de pagamento
+   entraram na cadeia de Enter/Tab (faltavam, só Valor/Data/Obs
+   avançavam campo a campo).
+ - Validado com teste isolado de Tk ao vivo (3 participantes com os 3
+   status diferentes, incluindo o caso "Em Dia" que não existia antes) e
+   os 35 testes Python existentes continuam passando.
+Correções v6.34 (abas Participantes e Financeiro fundidas numa só):
+ - Pedido do usuário: as abas "Participantes" e "Financeiro" ficavam
+   confusas — pra ver tudo sobre uma pessoa (cadastro + situação
+   financeira + histórico) era preciso ir em duas telas diferentes, cada
+   uma com busca própria, sem nenhuma mostrar tudo junto. Pedido
+   explícito: "resolver tudo em uma aba... ter na mão as informações do
+   participante de forma completa ao selecionar o nome dele".
+ - A real duplicação era entre a lista de cadastro e a sub-aba
+   "Pagamentos" (que já era, na prática, o perfil financeiro de UM
+   participante). As outras 4 sub-abas de Financeiro (Depósitos,
+   Relatório, Reservas Pessoais, Histórico) são ferramentas do
+   bolão/fundo inteiro, não de uma pessoa só — fundir tudo numa tela
+   mesclando os dois tipos de informação pioraria a usabilidade, por
+   isso usei o mesmo padrão "seletor segmentado + tkraise()" já aprovado
+   antes pelo usuário na fusão da aba Gestão (_build_gestao_unificada).
+ - Nova seção "👤 Perfil do Participante", mestre-detalhe: lista de
+   participantes sempre visível à esquerda (antes só em "Participantes"),
+   e ao clicar num nome aparece à direita o cadastro completo, status,
+   cards financeiros (esperado/pago/saldo/qtd pagamentos), observações,
+   formulário de registrar pagamento e o histórico de pagamentos dessa
+   pessoa — tudo que antes exigia trocar de aba e buscar de novo. Botões
+   "✏ Editar Cadastro" e "🧾 Recibo" ficam visíveis ali, não só via
+   duplo-clique como antes.
+ - As 5 outras seções (Depósitos/Relatório/Reservas Pessoais/
+   Histórico Geral/Pessoas-Unificar) tiveram só o contêiner trocado (de
+   ttk.Notebook pra este seletor) — nenhuma lógica interna delas mudou.
 Correções v6.33 (histórico detalhado de pagamentos sincronizado pro
 admin web):
  - Pedido do usuário: na tela de Participantes do admin web, ele só via
@@ -935,6 +1011,17 @@ def btn(parent, text, color, cmd, width=22, **kw):
                   activebackground=color, cursor="hand2",
                   padx=10, pady=6, command=cmd, width=width, **kw)
     return b
+
+def btn_secundario(parent, text, fg, cmd, width=10, **kw):
+    """Botão "texto" (sem bloco de cor sólida) — usado ao lado de um
+    `btn()` primário pra dar hierarquia visual: 1 ação em destaque sólido
+    por tela, as outras só com a cor do texto sinalizando o tipo (azul
+    neutro, vermelho pra destrutivo, cinza pra utilitário), no padrão de
+    botões secundários do HIG da Apple."""
+    return tk.Button(parent, text=text, bg=CORES["bg_frame"], fg=fg,
+                      font=("Arial",9,"bold"), relief="flat", bd=0,
+                      activebackground="#e5e5ea", activeforeground=fg,
+                      cursor="hand2", padx=8, pady=6, width=width, command=cmd, **kw)
 
 def section(parent, title="", pady=8):
     return tk.LabelFrame(parent, text=f"  {title}  " if title else "",
@@ -1966,7 +2053,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.33")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.35")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -2242,7 +2329,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.33",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.35",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -2291,20 +2378,18 @@ class BolaoApp:
         self.nb = ttk.Notebook(self.root)
         self.nb.pack(fill="both", expand=True, padx=6, pady=4)
 
-        # ── 5 guias reorganizadas ──────────────────────────────────
+        # ── 4 guias reorganizadas (Rodada 83: Participantes + Financeiro
+        # fundidas numa só — pedido do usuário: as duas ficavam confusas,
+        # com cadastro e perfil financeiro de cada pessoa espalhados em
+        # telas separadas, cada uma com busca própria) ─────────────────
         for attr, label in [
             ("tab_grp_inicio", "🏠 Inicio"),
             ("tab_grp_part",   "👥 Participantes"),
-            ("tab_grp_fin",    "💰 Financeiro"),
             ("tab_grp_gestao", "🏆 Gestao"),
             ("tab_grp_sys",    "⚙ Sistema"),
         ]:
             frame = tk.Frame(self.nb, bg=CORES["bg_frame"])
             setattr(self, attr, frame); self.nb.add(frame, text=label)
-
-        # aliases para compatibilidade
-        self.tab_cad     = self.tab_grp_part
-        self.tab_pag_grp = self.tab_grp_fin
 
         # ── Inicio ────────────────────────────────────────────────────
         # Layout mestre-detalhe fixo (proposta do modelo Fable pra
@@ -2333,34 +2418,19 @@ class BolaoApp:
             _f.place(relx=0, rely=0, relwidth=1, relheight=1)
         self._inicio_modo_atual = "geral"
 
-        # ── Participantes (2 sub-abas — "Novo" e "Editar" viraram
-        # popups abertos a partir da lista, mesmo padrão já usado em
-        # Financeiro/Início: uma lista só, com "+ Novo" e duplo-clique
-        # pra editar, em vez de 3 abas pro mesmo assunto) ────────────
-        nb_part = ttk.Notebook(self.tab_grp_part, style="Inner.TNotebook")
-        nb_part.pack(fill="both", expand=True, padx=4, pady=4)
-        self.tab_cad_lista = tk.Frame(nb_part, bg=CORES["bg_frame"])
-        self.tab_pessoas   = tk.Frame(nb_part, bg=CORES["bg_frame"])
-        nb_part.add(self.tab_cad_lista, text="👥 Participantes")
-        nb_part.add(self.tab_pessoas,   text="🔗 Pessoas / Unificar")
-
-        # ── Financeiro (6 sub-abas — "Editar" já tinha sido removida,
-        # redundante com "Histórico"; "Visualizar/Recibo" foi fundida em
-        # "Pagamentos" na revisão multiagente, pelo mesmo motivo: eram a
-        # mesma tela por participante, só sincronizadas por um StringVar
-        # pra fingir que eram uma coisa só) ──────────────────────────
-        nb_fin = ttk.Notebook(self.tab_grp_fin, style="Inner.TNotebook")
-        nb_fin.pack(fill="both", expand=True, padx=4, pady=4)
-        self.tab_pag    = tk.Frame(nb_fin, bg=CORES["bg_frame"])
-        self.tab_dep    = tk.Frame(nb_fin, bg=CORES["bg_frame"])
-        self.tab_rel    = tk.Frame(nb_fin, bg=CORES["bg_frame"])
-        self.tab_rsv    = tk.Frame(nb_fin, bg=CORES["bg_frame"])
-        self.tab_hist   = tk.Frame(nb_fin, bg=CORES["bg_frame"])
-        nb_fin.add(self.tab_pag,    text="💳 Pagamentos")
-        nb_fin.add(self.tab_dep,    text="🏦 Depositos")
-        nb_fin.add(self.tab_rel,    text="📊 Relatorio")
-        nb_fin.add(self.tab_rsv,    text="💰 Reservas Pessoais")
-        nb_fin.add(self.tab_hist,   text="📋 Historico")
+        # ── Participantes + Financeiro fundidos (Rodada 83) — mesma
+        # técnica "notebook sem abas" já usada em Gestão
+        # (_build_gestao_unificada): seletor segmentado fixo no topo, 6
+        # seções empilhadas na mesma área via tkraise(). A seção "Perfil
+        # do Participante" é NOVA — funde a lista de cadastro (antes aba
+        # própria "👥 Participantes") com a tela de pagamentos (antes
+        # sub-aba "💳 Pagamentos" de Financeiro) num layout mestre-detalhe:
+        # selecionar o nome na lista já mostra tudo (cadastro, status,
+        # saldo, histórico, registrar pagamento), sem trocar de tela nem
+        # buscar de novo. As outras 5 seções são ferramentas do
+        # bolão/fundo inteiro (não de uma pessoa só) e continuam
+        # EXATAMENTE como eram — só o contêiner ao redor mudou. ────────
+        self._build_part_fin_unificado()
 
         # ── Gestao: Caixa/Premios/Lançamentos — antes 3 sub-abas de um
         # notebook interno, virou 1 tela só com resumo sempre visível e
@@ -2384,7 +2454,7 @@ class BolaoApp:
         self._build_dashboard()
         self._build_bolao_sel()
         self.tab_dash.tkraise()
-        self._build_cad_lista()
+        self._build_perfil_participante()
         self._build_pag()
         self._build_rel()
         self._build_dep()
@@ -2395,6 +2465,7 @@ class BolaoApp:
         self._mostrar_gestao_secao("prem")  # seção padrão ao abrir + botão em destaque
         self._build_reservas()
         self._build_pessoas()
+        self._mostrar_part_fin_secao("perfil")  # seção padrão ao abrir + botão em destaque
         self._build_publicar()
         self._build_bkp()
         self._build_log()
@@ -2410,13 +2481,94 @@ class BolaoApp:
         # (virou PanedWindow) — sua atualização é feita explicitamente em
         # _ir_para_visao_geral()/_selecionar_bolao_via_cartao(), disparada
         # pelo clique na lista da esquerda, não por um evento de troca de
-        # aba que não existe mais ali. nb_gestao também saiu da lista —
-        # virou seletor próprio (_build_gestao_unificada), atualizado
-        # direto em _mostrar_gestao_secao().
+        # aba que não existe mais ali. nb_gestao saiu da lista — virou
+        # seletor próprio (_build_gestao_unificada), atualizado direto em
+        # _mostrar_gestao_secao(). nb_part/nb_fin saíram pelo mesmo
+        # motivo (Rodada 83) — viraram seletor próprio
+        # (_build_part_fin_unificado), atualizado direto em
+        # _mostrar_part_fin_secao().
         def _on_qualquer_troca_de_aba(event):
             self.root.after(50, self._refresh_dados_visiveis)
-        for _nb in (self.nb, nb_part, nb_fin, nb_sys):
+        for _nb in (self.nb, nb_sys):
             _nb.bind("<<NotebookTabChanged>>", _on_qualquer_troca_de_aba)
+
+    def _build_part_fin_unificado(self):
+        """Participantes + Financeiro fundidos (Rodada 83) — pedido do
+        usuário: as duas abas ficavam confusas, com cadastro e perfil
+        financeiro da mesma pessoa espalhados em telas separadas, cada
+        uma com busca própria. Mesma técnica "notebook sem abas" já usada
+        em Gestão (_build_gestao_unificada): seletor segmentado fixo no
+        topo + 6 seções empilhadas na mesma área via tkraise(). Só a
+        seção "Perfil" é nova (_build_perfil_participante); as outras 5
+        (self.tab_dep/tab_rel/tab_rsv/tab_hist/tab_pessoas) continuam
+        existindo exatamente como antes — _build_dep/_build_rel/
+        _build_historico/_build_reservas/_build_pessoas não precisaram
+        mudar nada, só o contêiner ao redor delas mudou."""
+        p = self.tab_grp_part
+
+        hdr = tk.Frame(p, bg=CORES["bg_frame"], pady=10)
+        hdr.pack(fill="x", padx=16)
+        tk.Label(hdr, text="👥 PARTICIPANTES & FINANCEIRO", bg=CORES["bg_frame"],
+                 fg=CORES["fg_title"], font=("Arial",13,"bold")).pack(side="left")
+
+        sel_row = tk.Frame(p, bg=CORES["bg_frame"]); sel_row.pack(fill="x", padx=16, pady=(0,6))
+        self._part_fin_sel_btns = {}
+        secoes = [("perfil", "👤 Perfil do Participante"),
+                  ("dep",     "🏦 Depositos"),
+                  ("rel",     "📊 Relatorio"),
+                  ("rsv",     "💰 Reservas Pessoais"),
+                  ("hist",    "📋 Historico Geral"),
+                  ("pessoas", "🔗 Pessoas / Unificar")]
+        for chave, label in secoes:
+            # Achado na revisão de design: a cor de "seção ativa" aqui era
+            # laranja — a mesma cor que, em TODA outra tela do app (lista
+            # de participantes, cards de status), significa "pendente/
+            # alerta". Um botão de navegação não devia emprestar a cor de
+            # um aviso financeiro. Usa o mesmo azul que já é o destaque
+            # único do app (seleção de linha na treeview, ações
+            # primárias) — 1 cor de "ativo/selecionado" em todo lugar.
+            b = tk.Button(sel_row, text=label, font=("Arial",9,"bold"),
+                          bg="#e5e5ea", fg="#1d1d1f",
+                          relief="flat", bd=0, padx=12, pady=8, cursor="hand2",
+                          activebackground="#2196F3", activeforeground="white",
+                          command=lambda c=chave: self._mostrar_part_fin_secao(c))
+            b.pack(side="left", padx=(0,4))
+            self._part_fin_sel_btns[chave] = b
+
+        part_fin_container = tk.Frame(p, bg=CORES["bg_frame"])
+        part_fin_container.pack(fill="both", expand=True, padx=4, pady=(0,4))
+        self.tab_perfil  = tk.Frame(part_fin_container, bg=CORES["bg_frame"])
+        self.tab_dep     = tk.Frame(part_fin_container, bg=CORES["bg_frame"])
+        self.tab_rel     = tk.Frame(part_fin_container, bg=CORES["bg_frame"])
+        self.tab_rsv     = tk.Frame(part_fin_container, bg=CORES["bg_frame"])
+        self.tab_hist    = tk.Frame(part_fin_container, bg=CORES["bg_frame"])
+        self.tab_pessoas = tk.Frame(part_fin_container, bg=CORES["bg_frame"])
+        for f in (self.tab_perfil, self.tab_dep, self.tab_rel,
+                  self.tab_rsv, self.tab_hist, self.tab_pessoas):
+            f.place(relx=0, rely=0, relwidth=1, relheight=1)
+
+        self._part_fin_secao_atual = "perfil"
+
+    def _mostrar_part_fin_secao(self, secao):
+        """Troca qual seção de Participantes/Financeiro aparece —
+        chamada pelos botões do seletor segmentado. Recarrega os dados da
+        seção escolhida (não vivem mais num ttk.Notebook com evento de
+        troca de aba pra disparar isso sozinho)."""
+        self._part_fin_secao_atual = secao
+        frame = {"perfil": self.tab_perfil, "dep": self.tab_dep, "rel": self.tab_rel,
+                 "rsv": self.tab_rsv, "hist": self.tab_hist,
+                 "pessoas": self.tab_pessoas}[secao]
+        frame.tkraise()
+        for chave, b in self._part_fin_sel_btns.items():
+            ativo = chave == secao
+            b.configure(bg=("#2196F3" if ativo else "#e5e5ea"),
+                        fg=("white" if ativo else "#1d1d1f"))
+        if secao == "perfil": self._cad_lista_load()
+        elif secao == "dep": self._dep_refresh()
+        elif secao == "rel": self._gerar_rel()
+        elif secao == "rsv": self._rsv_load()
+        elif secao == "hist": self._hist_load()
+        elif secao == "pessoas": self._pessoas_load()
 
     # ════════════════════════════════════════════════════════════
     #  HELPERS CENTRALIZADOS — status e cotas
@@ -3306,28 +3458,42 @@ class BolaoApp:
 
     def _abrir_popup_editar_participante(self, participante_id=None):
         """Popup de edição de participante — antes era a aba própria
-        "✏ Editar Participante". Se participante_id for informado (ex.:
-        duplo-clique numa linha da lista de Participantes), já abre com
-        esse participante selecionado e o formulário preenchido."""
+        "✏ Editar Participante". Achado na revisão de design (5 agentes,
+        pedido do usuário): os 2 pontos que abrem este popup hoje
+        (duplo-clique na lista, botão "✏ Editar Cadastro" no painel de
+        detalhe) SEMPRE sabem o participante — mas o popup recriava uma
+        combobox com TODOS os participantes de novo e "re-selecionava"
+        via regex no texto, like um segundo seletor duplicando a lista
+        mestre que o usuário já usou pra chegar até aqui. Agora, quando
+        participante_id é informado, pula a combobox inteiramente — só
+        um rótulo com o nome + formulário já carregado. A combobox só
+        volta a aparecer no caso órfão (chamado sem id nenhum), que não
+        tem nenhum chamador hoje mas é mantido como caminho de segurança."""
         win = tk.Toplevel(self.root)
         win.title("Editar Participante")
-        win.geometry("560x420")
+        win.geometry("560x400")
         win.configure(bg=CORES["bg_frame"])
         win.grab_set(); win.lift(); win.focus_force()
         p = win
 
+        self._cad_edit_pid = participante_id
         top = tk.Frame(p, bg=CORES["bg_frame"]); top.pack(fill="x", padx=20, pady=12)
-        tk.Label(top, text="Participante:", bg=CORES["bg_frame"],
-                 fg=CORES["fg_label"], font=("Arial",9,"bold")).pack(side="left")
-        self.cad_edit_cb = ttk.Combobox(top, width=42, state="readonly", font=("Arial",10))
-        self.cad_edit_cb.pack(side="left", padx=8)
-        self.cad_edit_cb.bind("<<ComboboxSelected>>", self._cad_edit_sel)
 
-        bid = self.bid.get()
-        todos = self.db.fetchall(
-            "SELECT * FROM participantes WHERE bolao_id=? AND ativo=1 ORDER BY nome", (bid,))
-        items_todos = [f"{dict(pt)['nome']} (ID: {dict(pt)['id']})" for pt in todos]
-        self.cad_edit_cb["values"] = items_todos
+        if participante_id is None:
+            tk.Label(top, text="Participante:", bg=CORES["bg_frame"],
+                     fg=CORES["fg_label"], font=("Arial",9,"bold")).pack(side="left")
+            self.cad_edit_cb = ttk.Combobox(top, width=42, state="readonly", font=("Arial",10))
+            self.cad_edit_cb.pack(side="left", padx=8)
+            self.cad_edit_cb.bind("<<ComboboxSelected>>", self._cad_edit_sel)
+            bid = self.bid.get()
+            todos = self.db.fetchall(
+                "SELECT * FROM participantes WHERE bolao_id=? AND ativo=1 ORDER BY nome", (bid,))
+            self.cad_edit_cb["values"] = [f"{dict(pt)['nome']} (ID: {dict(pt)['id']})" for pt in todos]
+        else:
+            pt0 = self.db.fetchone("SELECT nome FROM participantes WHERE id=?", (participante_id,))
+            tk.Label(top, text="✏ Editando: " + (pt0["nome"] if pt0 else "—"),
+                     bg=CORES["bg_frame"], fg=CORES["fg_title"],
+                     font=("Arial",11,"bold")).pack(side="left")
 
         self._cad_edit_form_frame = tk.Frame(p, bg=CORES["bg_frame"])
         self._cad_edit_form_frame.pack(fill="x", padx=20)
@@ -3348,20 +3514,10 @@ class BolaoApp:
         btn(bf,"Fechar",CORES["btn_cinza"],win.destroy,width=10).pack(side="left",padx=4)
 
         if participante_id is not None:
-            for item in items_todos:
-                m = re.search(r"\(ID: (\d+)\)", item)
-                if m and int(m.group(1)) == participante_id:
-                    self.cad_edit_cb.set(item)
-                    self._cad_edit_sel()
-                    break
+            self._cad_edit_carregar(participante_id)
 
-    def _cad_edit_sel(self, e=None):
-        sel = self.cad_edit_cb.get()
-        if not sel: return
-        import re as _re
-        m = _re.search(r"\(ID: (\d+)\)", sel)
-        if not m: return
-        pt = self.db.fetchone("SELECT * FROM participantes WHERE id=?", (int(m.group(1)),))
+    def _cad_edit_carregar(self, pid):
+        pt = self.db.fetchone("SELECT * FROM participantes WHERE id=?", (pid,))
         if not pt: return
         for key, w in self._cad_edit_vars.items():
             w.delete(0,"end")
@@ -3371,13 +3527,18 @@ class BolaoApp:
                 except: val = "0,00"
             w.insert(0, str(val))
 
-    def _cad_edit_salvar(self):
+    def _cad_edit_sel(self, e=None):
         sel = self.cad_edit_cb.get()
-        if not sel: messagebox.showwarning("Atenção","Selecione um participante!"); return
+        if not sel: return
         import re as _re
         m = _re.search(r"\(ID: (\d+)\)", sel)
         if not m: return
-        pid = int(m.group(1))
+        self._cad_edit_pid = int(m.group(1))
+        self._cad_edit_carregar(self._cad_edit_pid)
+
+    def _cad_edit_salvar(self):
+        pid = getattr(self, "_cad_edit_pid", None)
+        if not pid: messagebox.showwarning("Atenção","Selecione um participante!"); return
         nome = self._cad_edit_vars["nome"].get().strip()
         if not nome: messagebox.showwarning("Atenção","Nome é obrigatório!"); return
         # Só dígitos — mesmo achado de _cadastrar: telefone salvo com
@@ -3417,38 +3578,86 @@ class BolaoApp:
     # ════════════════════════════════════════════════════════════
     #  ABA CADASTRAR — Lista / Remover
     # ════════════════════════════════════════════════════════════
-    def _build_cad_lista(self):
-        p = self.tab_cad_lista
+    def _build_perfil_participante(self):
+        """Seção "Perfil do Participante" (Rodada 83) — funde a antiga
+        aba de cadastro (lista) com a antiga sub-aba "Pagamentos" (perfil
+        financeiro) num layout mestre-detalhe: lista sempre visível à
+        esquerda, e selecionar um nome já mostra tudo à direita (cadastro,
+        status, cards financeiros, histórico, registrar pagamento) — sem
+        precisar de uma segunda busca nem trocar de tela. self._pag_info()
+        (inalterado) é quem desenha o painel da direita; aqui só muda
+        QUEM dispara a seleção (a lista desta tela, não mais uma busca
+        própria dentro de Pagamentos — ver _perfil_tree_sel)."""
+        main = tk.Frame(self.tab_perfil, bg=CORES["bg_frame"])
+        main.pack(fill="both", expand=True, padx=16, pady=(12,8))
+        main.columnconfigure(0, weight=1)
+        main.columnconfigure(1, weight=2)
+        main.rowconfigure(0, weight=1)
 
-        top = tk.Frame(p, bg=CORES["bg_frame"]); top.pack(fill="x", padx=20, pady=10)
-        btn(top,"➕ Incluir Participante",CORES["btn_verde"],self._abrir_popup_novo_participante,width=20).pack(side="left",padx=4)
-        btn(top,"🔄 Atualizar",CORES["btn_azul"],self._cad_lista_load,width=14).pack(side="left",padx=4)
-        btn(top,"🗑 Remover Selecionado",CORES["btn_vermelho"],self._cad_remover,width=22).pack(side="left",padx=4)
-        btn(top,"🧹 Unificar Duplicados",CORES["btn_roxo"],self._unificar_duplicados,width=20).pack(side="left",padx=4)
+        p = tk.Frame(main, bg=CORES["bg_frame"])
+        p.grid(row=0, column=0, sticky="nsew", padx=(0,8))
 
-        top2 = tk.Frame(p, bg=CORES["bg_frame"]); top2.pack(fill="x", padx=20, pady=(0,6))
-        tk.Label(top2, text="🔎 Buscar:", bg=CORES["bg_frame"], fg=CORES["fg_label"],
+        # Hierarquia de botões (achado da revisão de design): antes os 4
+        # botões eram blocos sólidos coloridos de peso visual idêntico —
+        # "Remover" (destrutivo) chamava tanta atenção quanto "Incluir"
+        # (a ação mais comum). Padrão Apple: 1 ação primária em destaque
+        # sólido; o resto como botão "texto" (ver btn_secundario), só a
+        # cor do TEXTO sinaliza o tipo de ação.
+        top = tk.Frame(p, bg=CORES["bg_frame"]); top.pack(fill="x", pady=(0,8))
+        btn(top,"➕ Incluir Participante",CORES["btn_azul"],
+            self._abrir_popup_novo_participante,width=20).pack(side="left",padx=(0,8))
+        btn_secundario(top,"🔄 Atualizar","#2196F3",self._cad_lista_load,width=11).pack(side="left",padx=2)
+        btn_secundario(top,"🗑 Remover","#e74c3c",self._cad_remover,width=10).pack(side="left",padx=2)
+        btn_secundario(top,"🧹 Unificar","#6e6e73",self._unificar_duplicados,width=10).pack(side="left",padx=2)
+
+        top2 = tk.Frame(p, bg=CORES["bg_frame"]); top2.pack(fill="x", pady=(0,6))
+        tk.Label(top2, text="🔎", bg=CORES["bg_frame"], fg=CORES["fg_label"],
                  font=("Arial",9,"bold")).pack(side="left")
         self._cad_lista_busca_var = tk.StringVar()
-        e_busca = entry(top2, width=30, textvariable=self._cad_lista_busca_var)
-        e_busca.pack(side="left", padx=6)
+        e_busca = entry(top2, width=24, textvariable=self._cad_lista_busca_var)
+        e_busca.pack(side="left", padx=6, fill="x", expand=True)
         self._cad_lista_busca_var.trace_add("write", lambda *a: self._filtrar_cad_lista())
-        tk.Label(top2, text="  ⚠ Não é possível remover participante com pagamentos depositados.",
-                 bg=CORES["bg_frame"], fg="#e67e22", font=("Arial",8,"italic")).pack(side="left",padx=8)
 
         sec = section(p,"PARTICIPANTES DO BOLÃO ATIVO")
-        sec.pack(fill="both", expand=True, padx=20, pady=(0,4))
-        cols = {"ID":50,"Nome":220,"Telefone":140,"Cotas":60,"Valor Esperado":130,"Status":120}
+        sec.pack(fill="both", expand=True)
+        cols = {"ID":40,"Nome":180,"Telefone":110,"Cotas":50,"Status":90}
         fr, self._cad_lista_tree = make_tree(sec, cols, height=20)
         fr.pack(fill="both", expand=True)
         self._cad_lista_tree.tag_configure("quitado", background="#d5f5e3")
+        self._cad_lista_tree.tag_configure("emdia", background="#d6eaf8")
         self._cad_lista_tree.tag_configure("pendente", background="#fde8d8")
         self._cad_lista_tree.bind("<Double-1>", self._cad_lista_dblclick)
-        tk.Label(p, text="💡 Duplo clique num participante para editar seus dados.",
-                 bg=CORES["bg_frame"], fg=CORES["fg_label"], font=("Arial",8,"italic")).pack(
-                 anchor="w", padx=20, pady=(0,10))
+        self._cad_lista_tree.bind("<<TreeviewSelect>>", self._perfil_tree_sel)
+        tk.Label(p, text="💡 Clique pra ver os dados completos. Duplo clique pra editar o cadastro.\n"
+                         "⚠ Não é possível remover participante com pagamentos depositados.",
+                 bg=CORES["bg_frame"], fg=CORES["fg_label"], font=("Arial",8,"italic"),
+                 justify="left").pack(anchor="w", pady=(6,0))
+
+        self._perfil_detalhe = tk.Frame(main, bg=CORES["bg_frame"])
+        self._perfil_detalhe.grid(row=0, column=1, sticky="nsew")
+
+    def _perfil_tree_sel(self, event=None):
+        """Dispara ao clicar num nome na lista do Perfil do Participante
+        — substitui a antiga busca própria de Pagamentos (_pag_buscar/
+        _pag_selecionar, removidas): self._pag_info() já sabe desenhar o
+        painel completo a partir de self._pag_pid_atual, só precisava de
+        outra fonte de seleção."""
+        sel = self._cad_lista_tree.selection()
+        if not sel: return
+        self._pag_pid_atual = int(sel[0])
+        self._pag_info()
 
     def _cad_lista_load(self):
+        """Achado na revisão de design (5 agentes, pedido do usuário):
+        esta lista calculava status/cotas na mão (só Quitado/Pendente
+        binário) em vez de usar os helpers centrais
+        _n_cotas_participante/_status_part_adm — os mesmos usados no
+        Dashboard e no Relatório. Duas consequências reais: (1) faltava
+        o 3º estado "🟦 Em Dia" (pagou o esperado até o mês atual, mesmo
+        sem terminar o total), então quem estava em dia aparecia igual a
+        quem estava realmente atrasado; (2) participante ADM isento
+        ficava com status diferente aqui vs. no Dashboard/Relatório.
+        Corrigido chamando os mesmos helpers que todo o resto do app usa."""
         bid = self.bid.get()
         self._cad_lista_dados_full = []
         if not bid:
@@ -3457,6 +3666,8 @@ class BolaoApp:
         b   = self.db.fetchone("SELECT * FROM boloes WHERE id=?", (bid,))
         bd  = dict(b) if b else {}
         vt  = float(bd.get("valor_total",0) or 0)
+        adm_paga       = bd.get("adm_paga", 0)
+        adm_nome_lower = (bd.get("adm_nome","") or "").strip().lower()
         _,parc_esp,parc = self._calc_parcela_atual(bd)
         parts = self.db.fetchall(
             "SELECT * FROM participantes WHERE bolao_id=? AND ativo=1 ORDER BY nome",(bid,))
@@ -3465,12 +3676,15 @@ class BolaoApp:
             pago_row = self.db.fetchone(
                 "SELECT SUM(valor) as t FROM pagamentos WHERE participante_id=? AND bolao_id=?",
                 (pt_d["id"], bid))
-            pago  = pago_row["t"] or 0
-            ve    = pt_d["valor_esperado"] or 0
-            cotas = round(ve/vt) if vt>0 else 1
-            saldo = max(0, ve-pago)
-            status = "✅ Quitado" if saldo<=0 else "⚠ Pendente"
-            tag    = "quitado" if saldo<=0 else "pendente"
+            pago   = pago_row["t"] or 0
+            ve     = pt_d["valor_esperado"] or 0
+            cotas  = self._n_cotas_participante(ve, vt)
+            eh_adm = bool(pt_d.get("is_adm")) or (
+                adm_nome_lower and adm_nome_lower in pt_d["nome"].lower())
+            status_raw, tag, _pago_f, _saldo_f = self._status_part_adm(
+                {"is_adm": eh_adm}, pago, ve, parc_esp, parc*cotas, adm_paga)
+            icone  = {"quitado":"✅","emdia":"🟦","pendente":"⚠"}.get(tag,"⚠")
+            status = f"{icone} {status_raw.title()}"
             self._cad_lista_dados_full.append(
                 (pt_d["id"], pt_d["nome"], pt_d["telefone"] or "-", cotas, fmt_brl(ve), status, tag))
         self._filtrar_cad_lista()
@@ -3478,12 +3692,20 @@ class BolaoApp:
     def _filtrar_cad_lista(self):
         termo = getattr(self, "_cad_lista_busca_var", None)
         termo = termo.get().strip().lower() if termo else ""
+        # Preserva o destaque visual de quem já estava selecionado (essa
+        # lista agora também dirige o painel de detalhe do Perfil do
+        # Participante — sem isso, cada _refresh_dados_visiveis() ao
+        # trocar de aba apagava o destaque mesmo sem trocar quem está
+        # selecionado).
+        pid_atual = str(getattr(self, "_pag_pid_atual", "") or "")
         self._cad_lista_tree.delete(*self._cad_lista_tree.get_children())
         for pid, nome, tel, cotas, ve_show, status, tag in getattr(self, "_cad_lista_dados_full", []):
             if termo and termo not in nome.lower():
                 continue
             self._cad_lista_tree.insert("","end", iid=str(pid), tags=(tag,),
-                values=(pid, nome, tel, cotas, ve_show, status))
+                values=(pid, nome, tel, cotas, status))
+        if pid_atual and self._cad_lista_tree.exists(pid_atual):
+            self._cad_lista_tree.selection_set(pid_atual)
 
     def _cad_lista_dblclick(self, event):
         sel = self._cad_lista_tree.selection()
@@ -3660,58 +3882,51 @@ class BolaoApp:
     #  ABA 2 — REGISTRAR PAGAMENTOS
     # ════════════════════════════════════════════════════════════
     def _build_pag(self):
-        p = self.tab_pag
-
-        # ── Seleção do participante — Entry + lista sempre visível
-        # embaixo, mesmo padrão de "Importar Membro de Bolão Anterior"
-        # (pedido explícito do usuário: nada de abrir dropdown/clicar em
-        # seta — digita e a lista já aparece filtrada). A combobox
-        # editável usada antes tinha um problema sem solução real: abrir
-        # a lista suspensa sozinha rouba o foco do teclado pro popup
-        # interno dela (testado e confirmado — ver changelog Rodada 66),
-        # então só dava pra digitar 1 letra por vez. Treeview não disputa
-        # foco com o Entry, então não tem esse problema. ─────────────
-        sec1 = section(p, "SELECIONAR PARTICIPANTE")
-        sec1.pack(fill="x", padx=20, pady=(16,6))
-
-        row_cb = tk.Frame(sec1, bg=CORES["bg_section"]); row_cb.pack(fill="x", pady=4)
-        tk.Label(row_cb, text="Participante:", bg=CORES["bg_section"],
-                 font=("Arial",9,"bold"), fg=CORES["fg_label"]).pack(side="left", padx=(0,8))
+        # Rodada 83: deixou de ter busca/lista própria — a seleção agora
+        # vem da lista do "Perfil do Participante" (_perfil_tree_sel), que
+        # fica sempre visível ao lado deste painel. O que sobrou aqui é só
+        # o conteúdo do perfil em si (cards, registrar pagamento,
+        # histórico), desenhado em self._perfil_detalhe.
+        p = self._perfil_detalhe
 
         self._pag_pid_atual = None
-        self._pag_busca_var = tk.StringVar()
-        self._pag_busca_entry = tk.Entry(row_cb, textvariable=self._pag_busca_var,
-                                          font=("Arial",10), relief="solid", bd=1)
-        self._pag_busca_entry.pack(side="left", padx=(0,8), fill="x", expand=True)
-        self._pag_busca_var.trace_add("write", lambda *a: self._pag_buscar())
 
-        btn(row_cb, "🔄", CORES["btn_azul"],
-            self._refresh_all, width=3).pack(side="left", padx=2)
-        btn(row_cb, "🧾 Recibo", CORES["btn_verde"],
+        # Botões "texto" (não-primários) — a ação em destaque sólido desta
+        # tela é "💳 Registrar Pagamento" (sec3, mais abaixo), que é a
+        # tarefa mais frequente; editar cadastro e emitir recibo são
+        # ocasionais, por isso ficam discretos aqui no topo.
+        acoes = tk.Frame(p, bg=CORES["bg_frame"]); acoes.pack(fill="x", pady=(0,6))
+        btn_secundario(acoes, "✏ Editar Cadastro", "#2196F3",
+            lambda: self._abrir_popup_editar_participante(
+                participante_id=self._pag_pid_atual), width=16).pack(side="left", padx=2)
+        btn_secundario(acoes, "🧾 Recibo", "#6e6e73",
             self._emitir_recibo, width=11).pack(side="left", padx=2)
-
-        cols_pag_busca = {"Nome": 300}
-        fr_pag_busca, self._pag_busca_tree = make_tree(sec1, cols_pag_busca, height=5)
-        fr_pag_busca.pack(fill="x", pady=(4,0))
-        self._pag_busca_tree.bind("<<TreeviewSelect>>", self._pag_selecionar)
 
         # Estado vazio — orienta o que fazer em vez de deixar a tela em
         # branco antes de escolher alguém (some assim que seleciona,
         # ver _pag_info).
-        self._pag_empty_lbl = tk.Label(sec1,
-            text="🔍 Digite pra filtrar e clique num nome da lista acima pra ver os dados e registrar um pagamento.",
-            bg=CORES["bg_section"], fg="#888", font=("Arial",9,"italic"))
-        self._pag_empty_lbl.pack(anchor="w", pady=(6,2))
+        self._pag_empty_lbl = tk.Label(p,
+            text="🔍 Clique num participante na lista à esquerda pra ver os dados e registrar um pagamento.",
+            bg=CORES["bg_frame"], fg="#888", font=("Arial",9,"italic"))
+        self._pag_empty_lbl.pack(anchor="w", pady=(0,6))
 
         # ── Informações do participante — cards visuais ──────────
         self._sec_pag_info = tk.Frame(p, bg=CORES["bg_frame"])
         self._sec_pag_info.pack(fill="x", padx=20, pady=6)
         self._pag_cards_frame = tk.Frame(self._sec_pag_info, bg=CORES["bg_frame"])
         self._pag_cards_frame.pack(fill="x")
-        self._pag_obs_lbl = tk.Label(self._sec_pag_info, text="", bg=CORES["bg_frame"],
-                                      fg=CORES["fg_label"], font=("Arial",8), anchor="w",
-                                      wraplength=760, justify="left")
-        self._pag_obs_lbl.pack(fill="x", pady=(4,0))
+        # Achado da revisão de usabilidade: observações costumam guardar
+        # acordos de pagamento ("paga parcelado", "combinou dia 10") bem
+        # relevantes na hora de registrar um valor — texto cinza-itálico
+        # minúsculo escondia isso entre os cards e o formulário. Ganhou
+        # moldura leve pra pesar mais, do mesmo jeito que os cards abaixo.
+        _obs_box = tk.Frame(self._sec_pag_info, bg="#ffffff",
+                             highlightbackground="#e5e5ea", highlightthickness=1)
+        _obs_box.pack(fill="x", pady=(8,0))
+        self._pag_obs_lbl = tk.Label(_obs_box, text="", bg="#ffffff",
+                                      fg=CORES["fg_label"], font=("Arial",9), anchor="w",
+                                      wraplength=760, justify="left", padx=12, pady=8)
+        self._pag_obs_lbl.pack(fill="x")
 
         # ── Formulário de pagamento — tudo numa linha, Enter avança
         # de campo em campo até registrar (mesmo padrão já usado no
@@ -3724,11 +3939,18 @@ class BolaoApp:
                  font=("Arial",9,"bold"), fg=CORES["fg_label"]).pack(side="left")
         self.pag_mes = ttk.Combobox(r1, values=MESES, width=6, state="readonly")
         self.pag_mes.set(MESES[date.today().month-1]); self.pag_mes.pack(side="left", padx=(4,2))
+        # Achado da revisão de usabilidade: Enter nos campos Valor/Data/Obs
+        # já avançava pro próximo campo, mas Mês/Ano (lançamento
+        # retroativo) ficavam fora dessa cadeia, obrigando a soltar o
+        # teclado pra clicar na combobox — baixo impacto (caso raro), mas
+        # fácil de corrigir.
+        self.pag_mes.bind("<Return>", lambda e: self.pag_ano.focus_set())
         tk.Label(r1, text="/", bg=CORES["bg_section"],
                  font=("Arial",10,"bold")).pack(side="left")
         self.pag_ano = ttk.Combobox(r1, values=[str(y) for y in range(2020,2036)],
                                     width=6, state="readonly")
         self.pag_ano.set(str(date.today().year)); self.pag_ano.pack(side="left", padx=(2,16))
+        self.pag_ano.bind("<Return>", lambda e: self.pag_val.focus_set())
 
         tk.Label(r1, text="Valor (R$):", bg=CORES["bg_section"],
                  font=("Arial",9,"bold"), fg=CORES["fg_label"]).pack(side="left")
@@ -3764,34 +3986,6 @@ class BolaoApp:
         fr_hist, self.pag_hist_tree = make_tree(sec4, cols_hist, height=8)
         fr_hist.pack(fill="both", expand=True)
 
-    def _pag_buscar(self):
-        """Filtra a lista de participantes ao vivo, a cada tecla — mesmo
-        padrão da busca de "Importar Membro de Bolão Anterior" (pedido
-        explícito do usuário). Preserva a seleção atual na lista quando
-        ela continua visível no resultado filtrado, pra não perder o
-        destaque visual de quem já estava selecionado ao só atualizar os
-        dados em segundo plano (_refresh_dados_visiveis)."""
-        todos = getattr(self, "_pag_cb_todos", [])
-        termo = self._pag_busca_var.get().strip().lower()
-        self._pag_busca_tree.delete(*self._pag_busca_tree.get_children())
-        fonte = todos if not termo else [v for v in todos if termo in v.lower()]
-        pid_atual = str(getattr(self, "_pag_pid_atual", "") or "")
-        for item in fonte:
-            m = re.search(r"\(ID: (\d+)\)", item)
-            if not m: continue
-            pid = m.group(1)
-            nome = item.split(" (ID:")[0]
-            self._pag_busca_tree.insert("", "end", iid=pid, values=(nome,))
-        if pid_atual and self._pag_busca_tree.exists(pid_atual):
-            self._pag_busca_tree.selection_set(pid_atual)
-
-    def _pag_selecionar(self, e=None):
-        sel = self._pag_busca_tree.selection()
-        if not sel:
-            return
-        self._pag_pid_atual = int(sel[0])
-        self._pag_info()
-
     def _pag_info(self, e=None):
         pid = getattr(self, "_pag_pid_atual", None)
         # Limpa cards anteriores
@@ -3814,47 +4008,76 @@ class BolaoApp:
         pago  = sum(x["valor"] for x in pgs)
         ve    = pt["valor_esperado"] or 0
         saldo = max(0, ve - pago)
-        quitado = saldo <= 0
+
+        # Status de 3 estados (Quitado/Em Dia/Pendente) usando os MESMOS
+        # helpers centrais do Dashboard/Relatório (_n_cotas_participante/
+        # _status_part_adm) — achado da revisão de design: antes era um
+        # cálculo binário próprio (só Quitado/Pendente), escondendo quem
+        # estava "Em Dia" sob o mesmo laranja de quem estava atrasado de
+        # verdade, e divergindo do status do ADM isento mostrado em
+        # outras telas.
+        bd       = dict(self.db.fetchone("SELECT * FROM boloes WHERE id=?", (bid,)) or {})
+        vt       = float(bd.get("valor_total") or 0)
+        adm_paga = bd.get("adm_paga", 0)
+        adm_nome_lower = (bd.get("adm_nome","") or "").strip().lower()
+        n_cotas_pt = self._n_cotas_participante(ve, vt)
+        eh_adm   = bool(pt["is_adm"]) or (
+            adm_nome_lower and adm_nome_lower in (pt["nome"] or "").lower())
+        _, parc_esp, parc = self._calc_parcela_atual(bd)
+        status_raw, status_tag, _pago_f, _saldo_f = self._status_part_adm(
+            {"is_adm": eh_adm}, pago, ve, parc_esp, parc*n_cotas_pt, adm_paga)
+        quitado = status_tag == "quitado"
 
         # ── Linha 1: info do participante ─────────────────────────
         r1 = tk.Frame(self._pag_cards_frame, bg=CORES["bg_frame"])
-        r1.pack(fill="x", pady=(0,4))
+        r1.pack(fill="x", pady=(0,8))
 
-        # Card nome/contato
-        c_nome = tk.Frame(r1, bg="#1e3348", padx=14, pady=10, relief="flat")
-        c_nome.pack(side="left", fill="both", expand=True, padx=(0,4))
+        # Card nome/contato — cabeçalho do perfil, único card com cor
+        # sólida de propósito (identidade visual da pessoa selecionada;
+        # o resto da tela é neutro, seguindo o padrão "1 cor de destaque"
+        # em vez do "dashboard arco-íris" anterior).
+        c_nome = tk.Frame(r1, bg="#1e3348", padx=16, pady=12, relief="flat")
+        c_nome.pack(side="left", fill="both", expand=True, padx=(0,8))
         tk.Label(c_nome, text="👤  "+pt["nome"], bg="#1e3348", fg="white",
-                 font=("Arial",10,"bold")).pack(anchor="w")
+                 font=("Arial",11,"bold")).pack(anchor="w")
         tel = pt["telefone"] or "—"; pix = pt["chave_pix"] or "—"
         tk.Label(c_nome, text=f"📱 {tel}   |   PIX: {pix}", bg="#1e3348",
-                 fg="#aad4f5", font=("Arial",8)).pack(anchor="w", pady=(1,0))
+                 fg="#aad4f5", font=("Arial",8)).pack(anchor="w", pady=(2,0))
 
-        # Card status — mais compacto
-        cor_st = "#1D9E75" if quitado else "#e67e22"
-        st_txt = "✅ QUITADO" if quitado else "⚠ PENDENTE"
-        c_st = tk.Frame(r1, bg=cor_st, padx=10, pady=6, width=110)
-        c_st.pack(side="right", fill="y", padx=(4,0))
+        # Card status — mesma cor/tag da lista mestre à esquerda
+        # (quitado=verde, em dia=azul, pendente=laranja), pra nunca
+        # divergir entre as duas colunas da mesma tela.
+        cor_st  = {"quitado":"#1D9E75","emdia":"#2196F3","pendente":"#e67e22"}[status_tag]
+        icone_st = {"quitado":"✅","emdia":"🟦","pendente":"⚠"}[status_tag]
+        c_st = tk.Frame(r1, bg=cor_st, padx=12, pady=6, width=120)
+        c_st.pack(side="right", fill="y", padx=(8,0))
         c_st.pack_propagate(False)
-        tk.Label(c_st, text=st_txt, bg=cor_st, fg="white",
+        tk.Label(c_st, text=f"{icone_st} {status_raw.upper()}", bg=cor_st, fg="white",
                  font=("Arial",9,"bold")).pack(expand=True)
 
-        # ── Linha 2: cards financeiros compactos ─────────────────
+        # ── Linha 2: cards financeiros — fundo neutro branco com borda
+        # fina, só o VALOR do saldo ganha cor (vermelho se falta pagar,
+        # verde se quitado); achado da revisão de design: 4 cores
+        # saturadas diferentes aqui competiam entre si e com o card de
+        # status, sem nenhuma carregar significado além de "decoração".
         r2 = tk.Frame(self._pag_cards_frame, bg=CORES["bg_frame"])
         r2.pack(fill="x")
-        for titulo, valor, cor in [
-            ("💰 Valor Esperado", fmt_brl(ve),      "#8e44ad"),
-            ("✅ Total Pago",     fmt_brl(pago),     "#1D9E75"),
-            ("📋 Saldo Restante", fmt_brl(saldo),    "#e74c3c" if saldo>0 else "#1D9E75"),
-            ("🔢 Pagamentos",     str(len(pgs)),      "#2196F3"),
+        cor_saldo = "#e74c3c" if saldo>0 else "#1D9E75"
+        for titulo, valor, cor_valor in [
+            ("VALOR ESPERADO", fmt_brl(ve),      "#1d1d1f"),
+            ("TOTAL PAGO",     fmt_brl(pago),     "#1d1d1f"),
+            ("SALDO RESTANTE", fmt_brl(saldo),    cor_saldo),
+            ("PAGAMENTOS",     str(len(pgs)),     "#1d1d1f"),
         ]:
-            c = tk.Frame(r2, bg=cor, padx=10, pady=6)
-            c.pack(side="left", fill="both", expand=True, padx=2)
-            tk.Label(c, text=titulo, bg=cor, fg="white",
+            c = tk.Frame(r2, bg="#ffffff", highlightbackground="#e5e5ea",
+                         highlightthickness=1, padx=14, pady=10)
+            c.pack(side="left", fill="both", expand=True, padx=4)
+            tk.Label(c, text=titulo, bg="#ffffff", fg="#6e6e73",
                      font=("Arial",7,"bold")).pack(anchor="w")
-            tk.Label(c, text=valor, bg=cor, fg="white",
-                     font=("Arial",11,"bold")).pack(anchor="w", pady=(1,0))
+            tk.Label(c, text=valor, bg="#ffffff", fg=cor_valor,
+                     font=("Arial",13,"bold")).pack(anchor="w", pady=(2,0))
 
-        self._pag_obs_lbl.configure(text="Obs.: " + (pt["observacoes"] or "-"))
+        self._pag_obs_lbl.configure(text="📝 " + (pt["observacoes"] or "Sem observações"))
 
         self.pag_hist_tree.delete(*self.pag_hist_tree.get_children())
         for pgx in pgs:
@@ -3870,10 +4093,6 @@ class BolaoApp:
         # restante (pagamento final, menor que a parcela cheia) nem se
         # já estiver quitado.
         self.pag_val.delete(0,"end")
-        b_val = self.db.fetchone("SELECT valor_parcela, valor_total FROM boloes WHERE id=?", (bid,))
-        parc  = float(b_val["valor_parcela"] or 0) if b_val else 0
-        vt    = float(b_val["valor_total"] or 0) if b_val else 0
-        n_cotas_pt = self._n_cotas_participante(ve, vt)
         sugestao = parc * n_cotas_pt
         if not quitado and sugestao > 0:
             self.pag_val.insert(0, f"{min(sugestao, saldo):.2f}".replace(".", ","))
@@ -3983,6 +4202,13 @@ class BolaoApp:
         # antes do pagamento ate o usuario trocar de bolao manualmente
         # (o auto-refresh ao trocar de aba nao cobre ficar na mesma aba).
         try: self._dash_load()
+        except Exception: pass
+        # Achado na revisão de design: faltava isso aqui, então a lista
+        # mestre do Perfil (coluna Status/Cotas, à esquerda) só atualizava
+        # depois de clicar no botão manual "🔄" ou trocar de seção — essa
+        # chamada preserva a seleção atual (_filtrar_cad_lista já cuida
+        # disso), então o "🔄" passa a ser um atalho opcional, não muleta.
+        try: self._cad_lista_load()
         except Exception: pass
 
     # ════════════════════════════════════════════════════════════
@@ -6109,7 +6335,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.33</span>
+        <span>Sistema de Gestão de Bolões v6.35</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -8441,7 +8667,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.33</span>
+        <span>Sistema de Gestão de Bolões v6.35</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -9638,12 +9864,10 @@ class BolaoApp:
             "SELECT * FROM participantes WHERE bolao_id=? AND ativo=1 ORDER BY nome",(bid,))
         items_todos = [f"{dict(p)['nome']} (ID: {dict(p)['id']})" for p in todos]
 
-        self._pag_cb_todos     = items_todos  # cópia completa p/ o filtro ao vivo
         try: self.cad_edit_cb["values"] = items_todos
         except: pass
         try:
             self._pag_pid_atual = None
-            self._pag_busca_var.set("")
             self._pag_info()
         except: pass
         try: self.cad_edit_cb.set("")
@@ -9686,11 +9910,9 @@ class BolaoApp:
             "SELECT * FROM participantes WHERE bolao_id=? AND ativo=1 ORDER BY nome",(bid,))
         items_todos = [f"{dict(p)['nome']} (ID: {dict(p)['id']})" for p in todos]
         # Só atualiza a LISTA de opções dos combos — não mexe na seleção
-        # atual do usuário (.set() fica intocado de propósito).
-        try:
-            self._pag_cb_todos = items_todos  # cópia completa p/ o filtro ao vivo
-            self._pag_buscar()  # atualiza a lista visível sem mexer na seleção atual
-        except Exception: pass
+        # atual do usuário (.set() fica intocado de propósito). A lista de
+        # participantes do Perfil (_cad_lista_load, logo abaixo) já cobre
+        # a atualização visual sem precisar de uma cópia separada aqui.
         try: self.cad_edit_cb["values"] = items_todos
         except Exception: pass
         try: self._cad_lista_load()

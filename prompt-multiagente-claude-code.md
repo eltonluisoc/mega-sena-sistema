@@ -1241,6 +1241,49 @@ Validado com: teste isolado no desktop (participante com 3 pagamentos, confere o
 
 Versão desktop v6.32 → **v6.33**. `dist/SistemaBoloes.exe` reconstruído. `sw.js` `CACHE_NAME` v60 → **v61**.
 
+## Rodada 83 — Abas "Participantes" e "Financeiro" fundidas numa só (desktop)
+
+Pedido do usuário: "A aba Participantes e Financeiro ficam confusas... queria resolver tudo em uma aba... e ter na mão as informações do participante de forma completa ao selecionar o nome dele... revise... pensando sempre na UX... usabilidade". Perguntei se o pedido era só juntar o cadastro com o perfil financeiro (a duplicação real) ou as duas abas inteiras — o usuário confirmou: quer as duas inteiras juntas, "organizada melhor e funcional".
+
+Investigado antes de codar: "Participantes" tinha 2 sub-abas (lista de cadastro + "Pessoas/Unificar", registro global entre bolões). "Financeiro" tinha 5 (Pagamentos — que na prática já era o perfil financeiro de UM participante, com busca própria — e Depósitos/Relatório/Reservas Pessoais/Histórico, ferramentas do bolão/fundo inteiro, não de uma pessoa). A confusão relatada vinha da duplicação entre a lista de cadastro e "Pagamentos": duas buscas separadas pra achar a mesma pessoa, informação fragmentada.
+
+Usado o mesmo padrão já aprovado pelo usuário antes na fusão da aba Gestão (`_build_gestao_unificada`/`_mostrar_gestao_secao`): seletor segmentado fixo no topo + seções empilhadas na mesma área via `tkraise()`, sem `ttk.Notebook` interno (nenhum evento de troca de aba — cada seção recarrega seus dados explicitamente ao ser escolhida). Resultado: 1 aba de topo "👥 Participantes" com 6 seções (`_build_part_fin_unificado`):
+
+- **👤 Perfil do Participante** (nova, `_build_perfil_participante`) — mestre-detalhe: lista de participantes do bolão ativo sempre visível à esquerda (corpo da antiga lista de cadastro, só reparentado), e ao clicar num nome (`<<TreeviewSelect>>` → `_perfil_tree_sel`) aparece à direita o cadastro completo, status, cards financeiros (esperado/pago/saldo/qtd pagamentos), observações, formulário de registrar pagamento e histórico de pagamentos — tudo que antes exigia trocar de aba e buscar de novo numa segunda caixa de busca. A busca própria da antiga "Pagamentos" (`_pag_buscar`/`_pag_selecionar`) foi removida — `_pag_info()` (que desenha o painel) não mudou nada, só passou a ser disparada pela lista compartilhada. Botões "✏ Editar Cadastro" e "🧾 Recibo" ficam visíveis no painel de detalhe (antes só via duplo-clique ou numa busca separada).
+- **🏦 Depósitos / 📊 Relatório / 💰 Reservas Pessoais / 📋 Histórico Geral / 🔗 Pessoas-Unificar** — as 5 telas continuam EXATAMENTE como eram (`_build_dep`/`_build_rel`/`_build_reservas`/`_build_historico`/`_build_pessoas` sem nenhuma mudança interna), só o contêiner ao redor mudou — mesma garantia documentada na fusão da Gestão, propositalmente não misturadas na visão "Perfil" porque são operações do fundo inteiro, não de uma pessoa só (decisão de UX, não só técnica: enfiar tudo numa tela só pioraria a usabilidade em vez de resolver a confusão relatada).
+
+Validado com teste isolado de Tk ao vivo (bolão + 2 participantes + 1 pagamento num banco `:memory:`): confirma 4 abas de topo (era 5), lista do Perfil carregada, seleção de um nome populando os cards certos (nome/telefone/status/valor pago), seleção preservada ao trocar de seção e voltar, e as 6 seções trocando sem erro. 35/35 testes Python (`test/test_bolao_pro_v3.py`) continuam passando — nenhuma função de cálculo/dedup mudou de assinatura.
+
+Versão desktop v6.33 → **v6.34**. `dist/SistemaBoloes.exe` reconstruído.
+
+## Rodada 84 — Polimento de design/usabilidade da aba Participantes fundida (5 agentes em paralelo)
+
+Pedido do usuário, logo após a Rodada 83: "use 5 agentes para deixar essa guia perfeita.... ainda tem redundâncias.... quero design padrão apple.... e usabilidade perfeita". Diferente das rodadas anteriores (1 agente investigando e eu implementando), aqui usei 5 agentes `general-purpose` em paralelo (background), cada um revisando a MESMA tela por um ângulo diferente, sem editar nada — só relatório — pra eu consolidar os achados numa implementação única (5 agentes editando o mesmo arquivo em paralelo teria gerado conflito):
+
+1. **Redundância** — caçou ações/informação duplicada e lixo de código deixado pela fusão.
+2. **Paleta/estética "Apple"** — avaliou a paleta de cores, tipografia, hierarquia de botões, dentro do que o Tkinter puro realmente desenha (sem CSS, sem sombra, sem canto arredondado nativo).
+3. **Fluxo de interação/usabilidade** — simulou tarefas reais de um admin não-técnico (achar alguém, registrar pagamento, corrigir telefone, remover duplicata) e mediu indireção/cliques.
+4. **Limpeza de código pós-fusão** — grep extensivo por nomes/atributos que deveriam ter sido removidos na Rodada 83 e não foram, `py_compile`, checagem de `def` duplicado.
+5. **Validação funcional ao vivo** — rodou o mesmo teste isolado de Tk (`DB_FILE=":memory:"`, `BolaoApp.__new__`) com 3 participantes em 3 situações diferentes, clicou em cada um, registrou um pagamento de verdade, e tirou um "raio-x" de cores/fontes reais (`cget`) de cada widget do painel, pros outros agentes de design terem dados concretos em vez de advinhar a aparência.
+
+**Achado mais importante (bug real, não só estética)**: os agentes 1 e 3, de forma independente, apontaram a mesma causa raiz — a lista mestre (`_cad_lista_load`) e o card de status do painel (`_pag_info`) calculavam status na mão (`saldo<=0 ? Quitado : Pendente`), em vez de usar os helpers centrais já usados em Dashboard/Relatório (`_n_cotas_participante`/`_status_part_adm`). Isso escondia o 3º estado real do sistema, "🟦 Em Dia" (pagou o esperado até o mês atual, sem ter terminado o total) — quem estava em dia aparecia com a MESMA cor/ícone de quem estava realmente atrasado, bem na tela que o usuário pediu pra ser a fonte única de verdade sobre cada participante. Também fazia o status de um ADM isento divergir entre esta tela e o Dashboard. Corrigido chamando os mesmos helpers nos dois lugares; `_cad_lista_tree` ganhou a tag `emdia` (mesmo azul `#d6eaf8` já usado no Relatório).
+
+**Outras correções implementadas, por agente de origem**:
+- *(Redundância)* Popup "✏ Editar Cadastro" recriava uma combobox com todos os participantes e "re-selecionava" o já conhecido via regex, mesmo chamado com `participante_id` certo (os 2 únicos call-sites sempre passam id) — virou: com id conhecido, mostra só um rótulo com o nome e carrega o formulário direto (`_cad_edit_carregar`); a combobox fica só pro caso órfão (sem chamador hoje, mantida como caminho de segurança).
+- *(Redundância)* `_registrar_pag` não recarregava a lista mestre — corrigido chamando `_cad_lista_load()` ao final, preservando a seleção (`_filtrar_cad_lista` já guarda `_pag_pid_atual`).
+- *(Paleta)* Seletor segmentado do topo usava laranja `#e67e22` pra "seção ativa" — a MESMA cor que, em todo o resto do app, significa "pendente/alerta". Trocado pro azul `#2196F3`, que já é a cor de seleção da treeview — 1 cor de destaque, 1 significado.
+- *(Paleta)* Os 4 cards financeiros do painel de detalhe (antes roxo/verde/vermelho-ou-verde/azul, "dashboard arco-íris") viraram cards neutros brancos com borda fina `#e5e5ea`; título cinza `#6e6e73`, valor `#1d1d1f` bold — só o valor do Saldo Restante ganha cor (vermelho `#e74c3c`/verde `#1D9E75`).
+- *(Paleta)* Nova função `btn_secundario()` (ao lado de `btn()`) — botão "texto" sem bloco de cor sólida, só a cor do texto sinaliza o tipo de ação. Usada pra dar hierarquia: "➕ Incluir Participante" é a única ação em destaque sólido da lista mestre; "🔄 Atualizar"/"🗑 Remover"/"🧹 Unificar" (e "✏ Editar Cadastro"/"🧾 Recibo" no painel) viraram botões-texto — antes "Remover" (destrutivo) tinha peso visual igual a "Incluir" (ação mais comum).
+- *(Usabilidade)* Campo de observações ganhou moldura leve (card branco com borda) — antes era texto cinza-itálico minúsculo entre os cards e o formulário, fácil de ignorar mesmo carregando acordos de pagamento relevantes na hora de registrar um valor.
+- *(Usabilidade)* Comboboxes Mês/Ano do formulário de pagamento entraram na cadeia de Enter (faltavam — só Valor→Data→Obs→Registrar avançava com Enter).
+- *(Limpeza de código)* Confirmado pelo agente 4: nenhuma referência residual a nomes removidos na Rodada 83, `py_compile` limpo, nenhum `def` duplicado novo, colunas do treeview batendo com os valores inseridos. Única observação (não é bug): 3 prefixos (`_cad_*`/`_pag_*`/`_perfil_*`) coexistem na mesma tela — deliberado, renomear tudo ampliaria o risco sem ganho real agora.
+
+**Não implementado nesta rodada** (fora de escopo, reportado mas não corrigido): o agente 5 encontrou, incidentalmente, que `mes_referencia` é gravado em 2 formatos diferentes dependendo de qual tela registra o pagamento (`"Jan/2026"` no formulário principal vs. `"01/2026"` no popup rápido) — bug de dado pré-existente, anterior a esta fusão, que afeta ordenação/filtro em Relatório/Histórico. Não corrigido agora porque exigiria decidir o que fazer com registros antigos já gravados no formato velho (risco em dado de produção) — fica anotado pra uma rodada dedicada.
+
+Validado com teste isolado de Tk ao vivo (3 participantes, 1 em cada status — Quitado/Em Dia/Pendente, incluindo o cenário "Em Dia" que não existia antes de testar) e os 35 testes Python existentes continuam passando.
+
+Versão desktop v6.34 → **v6.35**. `dist/SistemaBoloes.exe` reconstruído.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
