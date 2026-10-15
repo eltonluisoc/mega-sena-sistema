@@ -1298,6 +1298,26 @@ Usuário enviou 4 comprovantes reais da +Milionária (concurso 398) e relatou: "
 
 sw.js `CACHE_NAME` v61 → **v62** (mudança só no admin.js, sem rebuild do desktop).
 
+## Rodada 86 — Aba "Financeiro" (desktop): renomeada e redesenhada do zero (lista em acordeão)
+
+Pedido do usuário, mesmo depois da fusão (Rodada 83) e do polimento com 5 agentes (Rodada 84): "Essa aba precisa ser redesenhada... o nome devia ser financeiro... e ela precisa ser totalmente redesenhada para ser efeita [perfeita]... mais fácil de usar... com as funcionalidades mais usadas à mão... e facilidade de obter todas as informações do membro na guia". Perguntei se era refinar o layout existente ou redesenhar do zero — o usuário confirmou: do zero.
+
+**Por que abandonar o layout lista+detalhe** (treeview estreita à esquerda + painel fixo à direita, da Rodada 83/84): ele foi pensado pra "selecionar 1 pessoa por vez" e não tinha NENHUM resumo agregado — pra saber "como está o bolão financeiramente" era preciso ir pra outra sub-aba (Relatório). Uma tela chamada "Financeiro" devia responder essa pergunta antes de qualquer clique.
+
+**Desenho novo** (`_build_financeiro`, substitui `_build_perfil_participante`+`_build_pag`): lista em acordeão, largura cheia —
+- **Resumo financeiro no topo (NOVO)**: cards de Total de Participantes, Total Arrecadado, Total Pendente e contagem Quitados/Em Dia/Pendentes, sempre visíveis, recalculados a partir dos mesmos dados já carregados pra lista (sem query extra).
+- **Barra de ações/filtros**: busca por nome, filtro por status (Todos/Quitados/Em Dia/Pendentes, botões tipo segmentado), "➕ Incluir Participante", "🧹 Unificar Duplicados".
+- **Lista rolável de linhas** (`Canvas`+`Frame`+`Scrollbar`, mesma técnica já usada em `_build_inicio_lista`/`_build_dashboard`): 1 linha por participante. Colapsada mostra nome, badge de status (3 cores), saldo resumido e um atalho "💳" que abre o popup de pagamento rápido já existente (`_abrir_popup_registrar_pagamento`) sem precisar expandir — a ação mais comum, ao alcance de 1 clique. Clicar na linha expande, mostrando tudo (telefone/PIX, os 4 cards financeiros, observações, formulário completo de registrar pagamento, histórico) desenhado DENTRO da própria linha (`_financeiro_construir_detalhe`, que reaproveita `_pag_info` sem mudar a lógica dela, só onde ela desenha).
+- **Acordeão de 1 linha por vez**: expandir uma colapsa a anterior automaticamente — decisão deliberada que permite continuar reaproveitando os widgets de formulário ÚNICOS que já existiam (`self.pag_val`/`self.pag_mes`/etc.) sem precisar de uma instância por participante, evitando reescrever o sistema de registro de pagamento inteiro.
+
+**Aba de topo renomeada**: "👥 Participantes" → "💰 Financeiro" (as 6 seções que ela abriga — Participantes, Depósitos, Relatório, Reservas, Histórico, Pessoas — são todas sobre dinheiro/pessoas do bolão). Seção interna renomeada de "👤 Perfil do Participante" → "👥 Participantes".
+
+Praticamente toda a LÓGICA de dados foi reaproveitada sem mudar nada (`_pag_info`, `_registrar_pag`, `_confirmar_pagamento_isento`, `_emitir_recibo`, `_abrir_popup_editar_participante`, `_abrir_popup_novo_participante`, `_unificar_duplicados`, `_status_part_adm`/`_n_cotas_participante`) — só a estrutura visual ao redor mudou. `_registrar_pag`/`_refresh_all`/`_refresh_dados_visiveis` simplificados: antes precisavam de 2 chamadas separadas (atualizar o painel de detalhe fixo + a lista ao lado); agora 1 chamada (`_financeiro_lista_load`) recalcula os KPIs e reconstrói a lista inteira, preservando por id qual participante estava com a linha expandida.
+
+Validado com teste isolado de Tk ao vivo (3 participantes nos 3 status reais — Quitado/Em Dia/Pendente): confirma aba renomeada, seção renomeada, KPIs batendo com a soma real dos dados, status corretos por linha, expandir mostra o conteúdo certo, expandir uma segunda linha colapsa a primeira sozinha (acordeão), registrar um pagamento pelo formulário atualiza o banco E os KPIs E mantém a linha expandida, filtro por status e busca por nome funcionando, e o atalho "💳" não mexe em qual linha está expandida. 35/35 testes Python continuam passando.
+
+Versão desktop v6.35 → **v6.36**. `dist/SistemaBoloes.exe` reconstruído.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

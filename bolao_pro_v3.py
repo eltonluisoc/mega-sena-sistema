@@ -1,7 +1,41 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.35
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.36
+Correções v6.36 (aba renomeada pra "Financeiro" e redesenhada do zero —
+lista em acordeão com resumo financeiro):
+ - Pedido do usuário, mesmo depois da fusão (Rodada 83) e do polimento
+   (Rodada 84): "o nome devia ser financeiro... ela precisa ser
+   totalmente redesenhada... mais fácil de usar... com as
+   funcionalidades mais usadas à mão... e facilidade de obter todas as
+   informações do membro". Perguntado se era refinar o que já existia ou
+   redesenhar do zero — o usuário confirmou: do zero.
+ - Aba de topo renomeada de "👥 Participantes" pra "💰 Financeiro" (as 6
+   seções que ela abriga — Participantes, Depósitos, Relatório, Reservas,
+   Histórico, Pessoas — são todas sobre dinheiro/pessoas do bolão, o nome
+   novo cabe melhor que "Participantes").
+ - O layout lista+detalhe fixo (treeview estreita + painel ao lado) foi
+   abandonado — não tinha nenhum resumo agregado ("como está o bolão?"),
+   só servia pra olhar 1 pessoa de cada vez. Virou uma LISTA EM ACORDEÃO,
+   largura cheia (`_build_financeiro`): resumo financeiro sempre visível
+   no topo (total de participantes, total arrecadado, total pendente,
+   contagem quitados/em dia/pendentes — NOVO, não existia antes), barra
+   de busca + filtro por status + ações, e uma linha por participante que
+   expande no próprio lugar ao clicar (mesmo conteúdo completo de antes —
+   cards, observações, registrar pagamento, histórico — só desenhado
+   dentro da linha, não mais num painel fixo). Só 1 linha fica aberta por
+   vez, o que permite continuar reaproveitando os widgets de formulário
+   ÚNICOS que já existiam (self.pag_val etc.) sem reescrever o sistema de
+   registro de pagamento inteiro.
+ - Ação mais usada (registrar pagamento) ganhou um atalho "💳" direto na
+   linha COLAPSADA (reaproveita o popup rápido já existente
+   `_abrir_popup_registrar_pagamento`) — não precisa mais expandir a
+   linha só pra lançar um pagamento comum.
+ - Toda a LÓGICA de dados foi reaproveitada sem mudar (`_pag_info`,
+   `_registrar_pag`, `_confirmar_pagamento_isento`, `_emitir_recibo`,
+   `_abrir_popup_editar_participante`, `_abrir_popup_novo_participante`,
+   `_unificar_duplicados`, `_status_part_adm`/`_n_cotas_participante`) —
+   só a estrutura visual ao redor mudou.
 Correções v6.35 (polimento de design/usabilidade da aba Participantes
 fundida, revisão com 5 agentes em paralelo):
  - Pedido do usuário após a fusão da Rodada 83: "deixar essa guia
@@ -2053,7 +2087,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.35")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.36")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -2329,7 +2363,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.35",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.36",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -2381,10 +2415,14 @@ class BolaoApp:
         # ── 4 guias reorganizadas (Rodada 83: Participantes + Financeiro
         # fundidas numa só — pedido do usuário: as duas ficavam confusas,
         # com cadastro e perfil financeiro de cada pessoa espalhados em
-        # telas separadas, cada uma com busca própria) ─────────────────
+        # telas separadas, cada uma com busca própria. Rodada 86: a aba
+        # renomeada pra "Financeiro" — pedido do usuário — já que as 6
+        # seções que ela abriga (Participantes, Depósitos, Relatório,
+        # Reservas, Histórico, Pessoas) são todas sobre dinheiro/pessoas
+        # do bolão, não só cadastro) ─────────────────────────────────
         for attr, label in [
             ("tab_grp_inicio", "🏠 Inicio"),
-            ("tab_grp_part",   "👥 Participantes"),
+            ("tab_grp_part",   "💰 Financeiro"),
             ("tab_grp_gestao", "🏆 Gestao"),
             ("tab_grp_sys",    "⚙ Sistema"),
         ]:
@@ -2454,8 +2492,7 @@ class BolaoApp:
         self._build_dashboard()
         self._build_bolao_sel()
         self.tab_dash.tkraise()
-        self._build_perfil_participante()
-        self._build_pag()
+        self._build_financeiro()
         self._build_rel()
         self._build_dep()
         self._build_historico()
@@ -2499,7 +2536,8 @@ class BolaoApp:
         uma com busca própria. Mesma técnica "notebook sem abas" já usada
         em Gestão (_build_gestao_unificada): seletor segmentado fixo no
         topo + 6 seções empilhadas na mesma área via tkraise(). Só a
-        seção "Perfil" é nova (_build_perfil_participante); as outras 5
+        seção "Participantes" é a mais nova (_build_financeiro, redesenho
+        do zero na Rodada 86 — ver docstring dela); as outras 5
         (self.tab_dep/tab_rel/tab_rsv/tab_hist/tab_pessoas) continuam
         existindo exatamente como antes — _build_dep/_build_rel/
         _build_historico/_build_reservas/_build_pessoas não precisaram
@@ -2508,12 +2546,12 @@ class BolaoApp:
 
         hdr = tk.Frame(p, bg=CORES["bg_frame"], pady=10)
         hdr.pack(fill="x", padx=16)
-        tk.Label(hdr, text="👥 PARTICIPANTES & FINANCEIRO", bg=CORES["bg_frame"],
+        tk.Label(hdr, text="💰 FINANCEIRO", bg=CORES["bg_frame"],
                  fg=CORES["fg_title"], font=("Arial",13,"bold")).pack(side="left")
 
         sel_row = tk.Frame(p, bg=CORES["bg_frame"]); sel_row.pack(fill="x", padx=16, pady=(0,6))
         self._part_fin_sel_btns = {}
-        secoes = [("perfil", "👤 Perfil do Participante"),
+        secoes = [("perfil", "👥 Participantes"),
                   ("dep",     "🏦 Depositos"),
                   ("rel",     "📊 Relatorio"),
                   ("rsv",     "💰 Reservas Pessoais"),
@@ -2563,7 +2601,7 @@ class BolaoApp:
             ativo = chave == secao
             b.configure(bg=("#2196F3" if ativo else "#e5e5ea"),
                         fg=("white" if ativo else "#1d1d1f"))
-        if secao == "perfil": self._cad_lista_load()
+        if secao == "perfil": self._financeiro_lista_load()
         elif secao == "dep": self._dep_refresh()
         elif secao == "rel": self._gerar_rel()
         elif secao == "rsv": self._rsv_load()
@@ -2680,7 +2718,7 @@ class BolaoApp:
                                    width=26, font=("Arial",9), relief="solid", bd=1)
         self._imp_entry.pack(side="left", padx=(0,8), fill="x", expand=True)
         # Busca ao vivo, mesmo padrão já usado na lista de participantes
-        # (_filtrar_cad_lista) — sem precisar clicar em "Buscar" nem
+        # (_financeiro_filtrar) — sem precisar clicar em "Buscar" nem
         # apertar Enter a cada tentativa.
         self._imp_entry_var.trace_add("write", lambda *a: self._imp_buscar())
 
@@ -3340,7 +3378,7 @@ class BolaoApp:
     def _imp_buscar(self):
         """Busca participantes em TODOS os bolões pelo nome digitado — ao
         vivo, a cada tecla (trace no _imp_entry_var), mesmo padrão já
-        usado na lista de participantes (_filtrar_cad_lista). Por isso
+        usado na lista de participantes (_financeiro_filtrar). Por isso
         nada aqui pode ser messagebox — apareceria a cada tecla digitada."""
         bid_atual = self.bid.get()
         termo = self._imp_entry_var.get().strip().lower()
@@ -3578,90 +3616,112 @@ class BolaoApp:
     # ════════════════════════════════════════════════════════════
     #  ABA CADASTRAR — Lista / Remover
     # ════════════════════════════════════════════════════════════
-    def _build_perfil_participante(self):
-        """Seção "Perfil do Participante" (Rodada 83) — funde a antiga
-        aba de cadastro (lista) com a antiga sub-aba "Pagamentos" (perfil
-        financeiro) num layout mestre-detalhe: lista sempre visível à
-        esquerda, e selecionar um nome já mostra tudo à direita (cadastro,
-        status, cards financeiros, histórico, registrar pagamento) — sem
-        precisar de uma segunda busca nem trocar de tela. self._pag_info()
-        (inalterado) é quem desenha o painel da direita; aqui só muda
-        QUEM dispara a seleção (a lista desta tela, não mais uma busca
-        própria dentro de Pagamentos — ver _perfil_tree_sel)."""
-        main = tk.Frame(self.tab_perfil, bg=CORES["bg_frame"])
-        main.pack(fill="both", expand=True, padx=16, pady=(12,8))
-        main.columnconfigure(0, weight=1)
-        main.columnconfigure(1, weight=2)
-        main.rowconfigure(0, weight=1)
+    def _build_financeiro(self):
+        """Seção "Participantes" da aba Financeiro — redesenho do zero
+        (Rodada 86), a pedido do usuário: o layout lista+detalhe fixo
+        (Rodada 83/84) virou uma lista rolável de linhas em ACORDEÃO,
+        largura cheia. Dois problemas resolvidos de uma vez: (1) não
+        existia nenhum resumo financeiro agregado nessa tela — agora tem,
+        sempre visível no topo; (2) a divisão fixa em 2 colunas desperdiçava
+        espaço pra quem só queria ver a lista, e forçava rolagem dupla
+        (lista estreita + painel). Cada participante expande no próprio
+        lugar — mesmo conteúdo completo de antes (cards, observações,
+        registrar pagamento, histórico), só desenhado dentro da própria
+        linha em vez de um painel fixo ao lado (ver
+        _financeiro_construir_detalhe, que reaproveita _pag_info sem
+        mudar a lógica dela, só ONDE ela desenha). Só 1 linha fica aberta
+        por vez (acordeão) — é isso que permite continuar reaproveitando
+        os widgets de formulário ÚNICOS que já existiam (self.pag_val
+        etc.), sem precisar de uma instância por participante."""
+        p = self.tab_perfil
 
-        p = tk.Frame(main, bg=CORES["bg_frame"])
-        p.grid(row=0, column=0, sticky="nsew", padx=(0,8))
+        # ── Resumo financeiro (NOVO — não existia antes nesta tela) ──
+        kpi_row = tk.Frame(p, bg=CORES["bg_frame"]); kpi_row.pack(fill="x", padx=16, pady=(12,8))
+        self._fin_kpi_labels = {}
+        for chave, titulo, cor in [
+            ("total",       "👥 PARTICIPANTES",     "#2196F3"),
+            ("arrecadado",  "💰 TOTAL ARRECADADO",  "#1D9E75"),
+            ("pendente",    "⏳ TOTAL PENDENTE",    "#e67e22"),
+            ("status",      "📊 QUITADOS·EM DIA·PENDENTES", "#8e44ad"),
+        ]:
+            c = tk.Frame(kpi_row, bg=cor, padx=14, pady=10)
+            c.pack(side="left", fill="both", expand=True, padx=4)
+            tk.Label(c, text=titulo, bg=cor, fg="white", font=("Arial",8,"bold")).pack(anchor="w")
+            lv = tk.Label(c, text="—", bg=cor, fg="white", font=("Arial",14,"bold"))
+            lv.pack(anchor="w", pady=(2,0))
+            self._fin_kpi_labels[chave] = lv
 
-        # Hierarquia de botões (achado da revisão de design): antes os 4
-        # botões eram blocos sólidos coloridos de peso visual idêntico —
-        # "Remover" (destrutivo) chamava tanta atenção quanto "Incluir"
-        # (a ação mais comum). Padrão Apple: 1 ação primária em destaque
-        # sólido; o resto como botão "texto" (ver btn_secundario), só a
-        # cor do TEXTO sinaliza o tipo de ação.
-        top = tk.Frame(p, bg=CORES["bg_frame"]); top.pack(fill="x", pady=(0,8))
+        # ── Barra de ações e filtros ──────────────────────────────────
+        top = tk.Frame(p, bg=CORES["bg_frame"]); top.pack(fill="x", padx=16, pady=(0,6))
         btn(top,"➕ Incluir Participante",CORES["btn_azul"],
             self._abrir_popup_novo_participante,width=20).pack(side="left",padx=(0,8))
-        btn_secundario(top,"🔄 Atualizar","#2196F3",self._cad_lista_load,width=11).pack(side="left",padx=2)
-        btn_secundario(top,"🗑 Remover","#e74c3c",self._cad_remover,width=10).pack(side="left",padx=2)
         btn_secundario(top,"🧹 Unificar","#6e6e73",self._unificar_duplicados,width=10).pack(side="left",padx=2)
 
-        top2 = tk.Frame(p, bg=CORES["bg_frame"]); top2.pack(fill="x", pady=(0,6))
-        tk.Label(top2, text="🔎", bg=CORES["bg_frame"], fg=CORES["fg_label"],
-                 font=("Arial",9,"bold")).pack(side="left")
-        self._cad_lista_busca_var = tk.StringVar()
-        e_busca = entry(top2, width=24, textvariable=self._cad_lista_busca_var)
-        e_busca.pack(side="left", padx=6, fill="x", expand=True)
-        self._cad_lista_busca_var.trace_add("write", lambda *a: self._filtrar_cad_lista())
+        tk.Label(top, text="🔎", bg=CORES["bg_frame"], fg=CORES["fg_label"],
+                 font=("Arial",9,"bold")).pack(side="left", padx=(16,2))
+        self._fin_busca_var = tk.StringVar()
+        e_busca = entry(top, width=20, textvariable=self._fin_busca_var)
+        e_busca.pack(side="left", padx=(0,8))
+        self._fin_busca_var.trace_add("write", lambda *a: self._financeiro_filtrar())
 
-        sec = section(p,"PARTICIPANTES DO BOLÃO ATIVO")
-        sec.pack(fill="both", expand=True)
-        cols = {"ID":40,"Nome":180,"Telefone":110,"Cotas":50,"Status":90}
-        fr, self._cad_lista_tree = make_tree(sec, cols, height=20)
-        fr.pack(fill="both", expand=True)
-        self._cad_lista_tree.tag_configure("quitado", background="#d5f5e3")
-        self._cad_lista_tree.tag_configure("emdia", background="#d6eaf8")
-        self._cad_lista_tree.tag_configure("pendente", background="#fde8d8")
-        self._cad_lista_tree.bind("<Double-1>", self._cad_lista_dblclick)
-        self._cad_lista_tree.bind("<<TreeviewSelect>>", self._perfil_tree_sel)
-        tk.Label(p, text="💡 Clique pra ver os dados completos. Duplo clique pra editar o cadastro.\n"
-                         "⚠ Não é possível remover participante com pagamentos depositados.",
-                 bg=CORES["bg_frame"], fg=CORES["fg_label"], font=("Arial",8,"italic"),
-                 justify="left").pack(anchor="w", pady=(6,0))
+        self._fin_filtro_status = "todos"
+        self._fin_filtro_btns = {}
+        for chave, label in [("todos","Todos"),("quitado","✅ Quitados"),
+                              ("emdia","🟦 Em Dia"),("pendente","⚠ Pendentes")]:
+            b = tk.Button(top, text=label, font=("Arial",8,"bold"),
+                          relief="flat", bd=0, padx=10, pady=5, cursor="hand2",
+                          command=lambda c=chave: self._financeiro_set_filtro(c))
+            b.pack(side="left", padx=2)
+            self._fin_filtro_btns[chave] = b
+        self._financeiro_atualizar_botoes_filtro()
 
-        self._perfil_detalhe = tk.Frame(main, bg=CORES["bg_frame"])
-        self._perfil_detalhe.grid(row=0, column=1, sticky="nsew")
+        # ── Lista rolável de participantes (acordeão) — mesma técnica
+        # Canvas+Frame+Scrollbar já usada em _build_inicio_lista e
+        # _build_dashboard, mouse-wheel ligado só com o cursor em cima. ──
+        sec = section(p, "PARTICIPANTES DO BOLÃO ATIVO")
+        sec.pack(fill="both", expand=True, padx=16, pady=(0,12))
+        canvas = tk.Canvas(sec, bg=CORES["bg_frame"], highlightthickness=0)
+        sb = ttk.Scrollbar(sec, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+        self._fin_lista_frame = tk.Frame(canvas, bg=CORES["bg_frame"])
+        canvas_window = canvas.create_window((0,0), window=self._fin_lista_frame, anchor="nw")
+        canvas.bind("<Configure>", lambda e: canvas.itemconfig(canvas_window, width=e.width))
+        self._fin_lista_frame.bind(
+            "<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        def _scroll(e): canvas.yview_scroll(int(-1*(e.delta/120)), "units")
+        canvas.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", _scroll))
+        canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
 
-    def _perfil_tree_sel(self, event=None):
-        """Dispara ao clicar num nome na lista do Perfil do Participante
-        — substitui a antiga busca própria de Pagamentos (_pag_buscar/
-        _pag_selecionar, removidas): self._pag_info() já sabe desenhar o
-        painel completo a partir de self._pag_pid_atual, só precisava de
-        outra fonte de seleção."""
-        sel = self._cad_lista_tree.selection()
-        if not sel: return
-        self._pag_pid_atual = int(sel[0])
-        self._pag_info()
+        self._fin_dados_full = []
+        self._fin_linha_containers = {}
+        self._fin_linha_chevrons = {}
+        self._pag_pid_atual = None
 
-    def _cad_lista_load(self):
-        """Achado na revisão de design (5 agentes, pedido do usuário):
-        esta lista calculava status/cotas na mão (só Quitado/Pendente
-        binário) em vez de usar os helpers centrais
-        _n_cotas_participante/_status_part_adm — os mesmos usados no
-        Dashboard e no Relatório. Duas consequências reais: (1) faltava
-        o 3º estado "🟦 Em Dia" (pagou o esperado até o mês atual, mesmo
-        sem terminar o total), então quem estava em dia aparecia igual a
-        quem estava realmente atrasado; (2) participante ADM isento
-        ficava com status diferente aqui vs. no Dashboard/Relatório.
-        Corrigido chamando os mesmos helpers que todo o resto do app usa."""
+    def _financeiro_set_filtro(self, chave):
+        self._fin_filtro_status = chave
+        self._financeiro_atualizar_botoes_filtro()
+        self._financeiro_filtrar()
+
+    def _financeiro_atualizar_botoes_filtro(self):
+        for chave, b in self._fin_filtro_btns.items():
+            ativo = chave == self._fin_filtro_status
+            b.configure(bg=("#2196F3" if ativo else "#e5e5ea"),
+                        fg=("white" if ativo else "#1d1d1f"))
+
+    def _financeiro_lista_load(self):
+        """Recalcula os dados de TODOS os participantes do bolão ativo
+        (status de 3 estados via _status_part_adm/_n_cotas_participante —
+        mesmos helpers centrais do Dashboard/Relatório, corrigido na
+        Rodada 84) e os KPIs agregados do topo, depois reconstrói a lista
+        (_financeiro_filtrar cuida de aplicar busca/filtro e preservar
+        qual linha estava expandida)."""
         bid = self.bid.get()
-        self._cad_lista_dados_full = []
+        self._fin_dados_full = []
         if not bid:
-            self._filtrar_cad_lista()
+            self._financeiro_atualizar_kpis()
+            self._financeiro_filtrar()
             return
         b   = self.db.fetchone("SELECT * FROM boloes WHERE id=?", (bid,))
         bd  = dict(b) if b else {}
@@ -3681,44 +3741,147 @@ class BolaoApp:
             cotas  = self._n_cotas_participante(ve, vt)
             eh_adm = bool(pt_d.get("is_adm")) or (
                 adm_nome_lower and adm_nome_lower in pt_d["nome"].lower())
-            status_raw, tag, _pago_f, _saldo_f = self._status_part_adm(
+            status_raw, tag, _pago_f, saldo_f = self._status_part_adm(
                 {"is_adm": eh_adm}, pago, ve, parc_esp, parc*cotas, adm_paga)
-            icone  = {"quitado":"✅","emdia":"🟦","pendente":"⚠"}.get(tag,"⚠")
-            status = f"{icone} {status_raw.title()}"
-            self._cad_lista_dados_full.append(
-                (pt_d["id"], pt_d["nome"], pt_d["telefone"] or "-", cotas, fmt_brl(ve), status, tag))
-        self._filtrar_cad_lista()
+            saldo = saldo_f if saldo_f is not None else max(0, ve - pago)
+            self._fin_dados_full.append({
+                "id": pt_d["id"], "nome": pt_d["nome"], "telefone": pt_d["telefone"] or "-",
+                "cotas": cotas, "pago": pago, "ve": ve, "saldo": saldo,
+                "status_label": status_raw.title(), "tag": tag,
+            })
+        self._financeiro_atualizar_kpis()
+        self._financeiro_filtrar()
 
-    def _filtrar_cad_lista(self):
-        termo = getattr(self, "_cad_lista_busca_var", None)
-        termo = termo.get().strip().lower() if termo else ""
-        # Preserva o destaque visual de quem já estava selecionado (essa
-        # lista agora também dirige o painel de detalhe do Perfil do
-        # Participante — sem isso, cada _refresh_dados_visiveis() ao
-        # trocar de aba apagava o destaque mesmo sem trocar quem está
-        # selecionado).
-        pid_atual = str(getattr(self, "_pag_pid_atual", "") or "")
-        self._cad_lista_tree.delete(*self._cad_lista_tree.get_children())
-        for pid, nome, tel, cotas, ve_show, status, tag in getattr(self, "_cad_lista_dados_full", []):
-            if termo and termo not in nome.lower():
+    def _financeiro_atualizar_kpis(self):
+        dados = self._fin_dados_full
+        total_arrecadado = sum(d["pago"] for d in dados)
+        total_pendente   = sum(d["saldo"] for d in dados)
+        n_quitado  = sum(1 for d in dados if d["tag"] == "quitado")
+        n_emdia    = sum(1 for d in dados if d["tag"] == "emdia")
+        n_pendente = sum(1 for d in dados if d["tag"] == "pendente")
+        self._fin_kpi_labels["total"].configure(text=str(len(dados)))
+        self._fin_kpi_labels["arrecadado"].configure(text=fmt_brl(total_arrecadado))
+        self._fin_kpi_labels["pendente"].configure(text=fmt_brl(total_pendente))
+        self._fin_kpi_labels["status"].configure(text=f"✅{n_quitado}  🟦{n_emdia}  ⚠{n_pendente}")
+
+    def _financeiro_filtrar(self):
+        """Reconstrói a lista rolável a partir de _fin_dados_full,
+        aplicando busca + filtro de status — chamada tanto pela digitação
+        na busca/clique nos filtros quanto por _financeiro_lista_load
+        (dado novo). Preserva qual participante estava com a linha
+        expandida (por id), igual _filtrar_cad_lista fazia com a seleção
+        da treeview antiga."""
+        termo = self._fin_busca_var.get().strip().lower() if hasattr(self, "_fin_busca_var") else ""
+        pid_aberto = getattr(self, "_pag_pid_atual", None)
+        for w in self._fin_lista_frame.winfo_children():
+            w.destroy()
+        self._fin_linha_containers = {}
+        self._fin_linha_chevrons = {}
+        self._pag_pid_atual = None
+        algum = False
+        for d in getattr(self, "_fin_dados_full", []):
+            if termo and termo not in d["nome"].lower():
                 continue
-            self._cad_lista_tree.insert("","end", iid=str(pid), tags=(tag,),
-                values=(pid, nome, tel, cotas, status))
-        if pid_atual and self._cad_lista_tree.exists(pid_atual):
-            self._cad_lista_tree.selection_set(pid_atual)
+            if self._fin_filtro_status != "todos" and d["tag"] != self._fin_filtro_status:
+                continue
+            self._financeiro_criar_linha(self._fin_lista_frame, d)
+            algum = True
+        if not algum:
+            tk.Label(self._fin_lista_frame, text="Nenhum participante encontrado.",
+                     bg=CORES["bg_frame"], fg="#888", font=("Arial",9,"italic")).pack(pady=20)
+        if pid_aberto and pid_aberto in self._fin_linha_containers:
+            self._financeiro_expandir_linha(pid_aberto)
 
-    def _cad_lista_dblclick(self, event):
-        sel = self._cad_lista_tree.selection()
-        if not sel: return
-        self._abrir_popup_editar_participante(participante_id=int(sel[0]))
+    def _financeiro_criar_linha(self, parent, dados):
+        """Desenha 1 linha da lista (estado colapsado): nome, status,
+        saldo resumido, atalho de pagamento rápido (reaproveita o popup
+        já existente _abrir_popup_registrar_pagamento, sem precisar
+        expandir a linha — ação mais usada ao alcance de 1 clique) e um
+        chevron. Clicar em qualquer parte da linha (fora do atalho)
+        chama _financeiro_toggle_linha."""
+        pid = dados["id"]
+        cor_st   = {"quitado":"#1D9E75","emdia":"#2196F3","pendente":"#e67e22"}[dados["tag"]]
+        icone_st = {"quitado":"✅","emdia":"🟦","pendente":"⚠"}[dados["tag"]]
 
-    def _cad_remover(self):
-        sel = self._cad_lista_tree.selection()
-        if not sel: messagebox.showwarning("Atenção","Selecione um participante!"); return
-        pid = int(sel[0])
-        pt  = self.db.fetchone("SELECT * FROM participantes WHERE id=?", (pid,))
+        linha = tk.Frame(parent, bg="#ffffff", highlightbackground="#e5e5ea", highlightthickness=1)
+        linha.pack(fill="x", pady=3, padx=2)
 
-        # Proteção: verificar se tem pagamentos depositados
+        header = tk.Frame(linha, bg="#ffffff", cursor="hand2")
+        header.pack(fill="x", padx=14, pady=10)
+
+        esq = tk.Frame(header, bg="#ffffff"); esq.pack(side="left", fill="x", expand=True)
+        tk.Label(esq, text=dados["nome"], bg="#ffffff", fg="#1d1d1f",
+                 font=("Arial",10,"bold")).pack(anchor="w")
+        cotas_txt = f"{dados['cotas']} cota" + ("s" if dados["cotas"] != 1 else "")
+        tk.Label(esq, text=f"{cotas_txt} · Saldo {fmt_brl(dados['saldo'])}",
+                 bg="#ffffff", fg="#6e6e73", font=("Arial",8)).pack(anchor="w")
+
+        dir_ = tk.Frame(header, bg="#ffffff"); dir_.pack(side="right")
+        badge = tk.Frame(dir_, bg=cor_st, padx=10, pady=4)
+        badge.pack(side="left", padx=(0,8))
+        tk.Label(badge, text=f"{icone_st} {dados['status_label']}", bg=cor_st, fg="white",
+                 font=("Arial",8,"bold")).pack()
+        btn_atalho = tk.Button(dir_, text="💳", font=("Arial",12), relief="flat", bd=0,
+                                bg="#ffffff", fg="#2196F3", activebackground="#e5e5ea",
+                                cursor="hand2",
+                                command=lambda: self._financeiro_pagamento_rapido(pid, dados))
+        btn_atalho.pack(side="left", padx=4)
+        chevron = tk.Label(dir_, text="▸", bg="#ffffff", fg="#6e6e73", font=("Arial",11,"bold"))
+        chevron.pack(side="left", padx=(6,0))
+        self._fin_linha_chevrons[pid] = chevron
+
+        def _ligar_clique(widget):
+            widget.bind("<Button-1>", lambda e: self._financeiro_toggle_linha(pid))
+            for filho in widget.winfo_children():
+                if filho is not btn_atalho:
+                    _ligar_clique(filho)
+        _ligar_clique(header)
+
+        detalhe_container = tk.Frame(linha, bg=CORES["bg_frame"])
+        self._fin_linha_containers[pid] = detalhe_container
+
+    def _financeiro_toggle_linha(self, pid):
+        if self._pag_pid_atual == pid:
+            self._financeiro_colapsar_linha(pid)
+        else:
+            self._financeiro_expandir_linha(pid)
+
+    def _financeiro_expandir_linha(self, pid):
+        if self._pag_pid_atual is not None and self._pag_pid_atual != pid:
+            self._financeiro_colapsar_linha(self._pag_pid_atual)
+        container = self._fin_linha_containers.get(pid)
+        if container is None:
+            return
+        self._pag_pid_atual = pid
+        container.pack(fill="x", padx=14, pady=(0,12))
+        self._financeiro_construir_detalhe(container, pid)
+        chevron = self._fin_linha_chevrons.get(pid)
+        if chevron: chevron.configure(text="▾")
+
+    def _financeiro_colapsar_linha(self, pid):
+        container = self._fin_linha_containers.get(pid)
+        if container is not None:
+            for w in container.winfo_children():
+                w.destroy()
+            container.pack_forget()
+        chevron = self._fin_linha_chevrons.get(pid)
+        if chevron: chevron.configure(text="▸")
+        if self._pag_pid_atual == pid:
+            self._pag_pid_atual = None
+
+    def _financeiro_pagamento_rapido(self, pid, dados):
+        """Atalho "💳" na linha colapsada — abre o popup de registro
+        rápido já usado em todo o sistema (Dashboard, etc.), sem precisar
+        expandir a linha primeiro."""
+        self._abrir_popup_registrar_pagamento(
+            pid, self.bid.get(), valor_sugerido=dados.get("saldo", 0), nome_exibicao=dados["nome"])
+
+    def _financeiro_remover(self, pid):
+        """Equivalente ao antigo _cad_remover, agora recebendo o id
+        direto (botão dentro da linha expandida) em vez de ler seleção de
+        uma Treeview que não existe mais."""
+        pt = self.db.fetchone("SELECT * FROM participantes WHERE id=?", (pid,))
+        if not pt: return
         dep = self.db.fetchone(
             "SELECT COUNT(*) as n FROM pagamentos WHERE participante_id=? AND depositado=1",(pid,))
         if dep["n"] > 0:
@@ -3727,7 +3890,6 @@ class BolaoApp:
                 f"Este participante possui {dep['n']} pagamento(s) já depositado(s).\n\n"
                 f"Para remover, primeiro corrija os depósitos na aba Depósitos.")
             return
-
         if messagebox.askyesno("Confirmar",
             f"Remover '{pt['nome']}' do bolão?\n\nEsta ação não pode ser desfeita."):
             self.db.execute("UPDATE participantes SET ativo=0 WHERE id=?", (pid,))
@@ -3881,34 +4043,26 @@ class BolaoApp:
     # ════════════════════════════════════════════════════════════
     #  ABA 2 — REGISTRAR PAGAMENTOS
     # ════════════════════════════════════════════════════════════
-    def _build_pag(self):
-        # Rodada 83: deixou de ter busca/lista própria — a seleção agora
-        # vem da lista do "Perfil do Participante" (_perfil_tree_sel), que
-        # fica sempre visível ao lado deste painel. O que sobrou aqui é só
-        # o conteúdo do perfil em si (cards, registrar pagamento,
-        # histórico), desenhado em self._perfil_detalhe.
-        p = self._perfil_detalhe
+    def _financeiro_construir_detalhe(self, parent, pid):
+        """Conteúdo completo de 1 participante (Rodada 86) — desenhado
+        dentro do container de detalhe da linha expandida no acordeão,
+        não mais num painel fixo (era _build_pag, construído 1x só; agora
+        é reconstruído a cada expansão e destruído ao colapsar, porque só
+        1 linha fica aberta por vez). self._pag_pid_atual já foi setado
+        por _financeiro_expandir_linha antes de chamar isto. No fim,
+        chama self._pag_info() (inalterada) pra popular os cards/
+        histórico/sugestão de valor com os dados reais do pid."""
+        p = parent
+        self._pag_pid_atual = pid
 
-        self._pag_pid_atual = None
-
-        # Botões "texto" (não-primários) — a ação em destaque sólido desta
-        # tela é "💳 Registrar Pagamento" (sec3, mais abaixo), que é a
-        # tarefa mais frequente; editar cadastro e emitir recibo são
-        # ocasionais, por isso ficam discretos aqui no topo.
         acoes = tk.Frame(p, bg=CORES["bg_frame"]); acoes.pack(fill="x", pady=(0,6))
         btn_secundario(acoes, "✏ Editar Cadastro", "#2196F3",
             lambda: self._abrir_popup_editar_participante(
                 participante_id=self._pag_pid_atual), width=16).pack(side="left", padx=2)
         btn_secundario(acoes, "🧾 Recibo", "#6e6e73",
             self._emitir_recibo, width=11).pack(side="left", padx=2)
-
-        # Estado vazio — orienta o que fazer em vez de deixar a tela em
-        # branco antes de escolher alguém (some assim que seleciona,
-        # ver _pag_info).
-        self._pag_empty_lbl = tk.Label(p,
-            text="🔍 Clique num participante na lista à esquerda pra ver os dados e registrar um pagamento.",
-            bg=CORES["bg_frame"], fg="#888", font=("Arial",9,"italic"))
-        self._pag_empty_lbl.pack(anchor="w", pady=(0,6))
+        btn_secundario(acoes, "🗑 Remover", "#e74c3c",
+            lambda: self._financeiro_remover(pid), width=10).pack(side="left", padx=2)
 
         # ── Informações do participante — cards visuais ──────────
         self._sec_pag_info = tk.Frame(p, bg=CORES["bg_frame"])
@@ -3986,7 +4140,15 @@ class BolaoApp:
         fr_hist, self.pag_hist_tree = make_tree(sec4, cols_hist, height=8)
         fr_hist.pack(fill="both", expand=True)
 
+        self._pag_info()
+
     def _pag_info(self, e=None):
+        """Popula os cards/obs/histórico/sugestão de valor do
+        participante self._pag_pid_atual. Rodada 86: chamada sempre com
+        um pid válido (só é invocada de dentro de uma linha expandida no
+        acordeão — ver _financeiro_construir_detalhe), mas mantém os
+        retornos antecipados por segurança (ex.: participante removido
+        entre a expansão da linha e o registro de um pagamento)."""
         pid = getattr(self, "_pag_pid_atual", None)
         # Limpa cards anteriores
         for w in self._pag_cards_frame.winfo_children():
@@ -3995,14 +4157,11 @@ class BolaoApp:
             self._pag_obs_lbl.configure(text="")
             try: self.pag_hist_tree.delete(*self.pag_hist_tree.get_children())
             except Exception: pass
-            self._pag_empty_lbl.pack(anchor="w", pady=(6,2))
             return
         bid = self.bid.get()
         pt  = self.db.fetchone("SELECT * FROM participantes WHERE id=?",(pid,))
         if not pt:
-            self._pag_empty_lbl.pack(anchor="w", pady=(6,2))
             return
-        self._pag_empty_lbl.pack_forget()
         pgs   = self.db.fetchall(
             "SELECT * FROM pagamentos WHERE participante_id=? AND bolao_id=? ORDER BY id",(pid,bid))
         pago  = sum(x["valor"] for x in pgs)
@@ -4196,19 +4355,19 @@ class BolaoApp:
             (pid,bid,f"{self.pag_mes.get()}/{self.pag_ano.get()}",v,
              self.pag_dt.get().strip(),self.pag_obs.get().strip()))
         messagebox.showinfo("Sucesso",f"Pagamento de {fmt_brl(v)} registrado!")
-        self._pag_info()
-        self.pag_obs.delete(0,"end")
         # Sem isso, Dashboard/Relatorio/Cards ficavam com os valores de
         # antes do pagamento ate o usuario trocar de bolao manualmente
         # (o auto-refresh ao trocar de aba nao cobre ficar na mesma aba).
         try: self._dash_load()
         except Exception: pass
-        # Achado na revisão de design: faltava isso aqui, então a lista
-        # mestre do Perfil (coluna Status/Cotas, à esquerda) só atualizava
-        # depois de clicar no botão manual "🔄" ou trocar de seção — essa
-        # chamada preserva a seleção atual (_filtrar_cad_lista já cuida
-        # disso), então o "🔄" passa a ser um atalho opcional, não muleta.
-        try: self._cad_lista_load()
+        # Rodada 86: 1 chamada só recalcula os KPIs do topo e reconstrói
+        # a linha deste participante com os dados frescos (a linha
+        # continua expandida — _financeiro_filtrar preserva isso por id)
+        # — antes eram 2 chamadas separadas (_pag_info + _cad_lista_load)
+        # porque a lista e o painel de detalhe eram 2 áreas diferentes da
+        # tela; agora o detalhe vive DENTRO da própria linha, então
+        # reconstruir a lista já cobre os dois.
+        try: self._financeiro_lista_load()
         except Exception: pass
 
     # ════════════════════════════════════════════════════════════
@@ -6335,7 +6494,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.35</span>
+        <span>Sistema de Gestão de Bolões v6.36</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -8667,7 +8826,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.35</span>
+        <span>Sistema de Gestão de Bolões v6.36</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -9866,13 +10025,18 @@ class BolaoApp:
 
         try: self.cad_edit_cb["values"] = items_todos
         except: pass
-        try:
-            self._pag_pid_atual = None
-            self._pag_info()
-        except: pass
         try: self.cad_edit_cb.set("")
         except: pass
-        try: self._cad_lista_load()
+        # Rodada 86: 1 chamada só recalcula KPIs + reconstrói a lista de
+        # participantes (antes eram 2 — _pag_info pro painel fixo de
+        # detalhe, _cad_lista_load pra lista — porque eram 2 áreas
+        # diferentes da tela; agora o detalhe vive dentro da própria
+        # linha). Colapsa a linha expandida de propósito (_refresh_all
+        # roda depois de SALVAR algo em qualquer lugar do app, não só
+        # aqui — mesmo comportamento de antes, que limpava a seleção).
+        try:
+            self._pag_pid_atual = None
+            self._financeiro_lista_load()
         except: pass
 
         self._gerar_rel()
@@ -9911,11 +10075,12 @@ class BolaoApp:
         items_todos = [f"{dict(p)['nome']} (ID: {dict(p)['id']})" for p in todos]
         # Só atualiza a LISTA de opções dos combos — não mexe na seleção
         # atual do usuário (.set() fica intocado de propósito). A lista de
-        # participantes do Perfil (_cad_lista_load, logo abaixo) já cobre
-        # a atualização visual sem precisar de uma cópia separada aqui.
+        # participantes do Financeiro (_financeiro_lista_load, logo
+        # abaixo) já preserva qual linha está expandida por id, então
+        # trocar de aba e voltar não fecha o que o usuário tinha aberto.
         try: self.cad_edit_cb["values"] = items_todos
         except Exception: pass
-        try: self._cad_lista_load()
+        try: self._financeiro_lista_load()
         except Exception: pass
         self._gerar_rel()
         self._dep_refresh()
