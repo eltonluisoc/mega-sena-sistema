@@ -631,17 +631,17 @@ function calcularPremiosMilionaria(cartoesLista, numerosSorteados, trevosSortead
     return somaFaixas;
 }
 
-// Grade de 10 itens (não 5, como as outras loterias) — as faixas reais
-// da +Milionária são mais granulares, combinando números e trevo. O
-// grid CSS (.resultado-resumo, auto-fit) já flui pra mais linhas
-// sozinho, sem precisar de nenhum ajuste de layout aqui.
+// Grade de 8 itens (não os 10 oficiais) — pedido do usuário: as 2 faixas
+// de 2 números (2N+2T/2N+1T) pagam muito pouco e só poluíam o resumo;
+// mostrar a partir de 3 números já cobre tudo que realmente importa
+// destacar. calcularPremiosMilionaria continua calculando as 10 faixas
+// certinho (nada muda nos valores) — só essas 2 somem da TELA.
 function gerarResumoPremiosMilionaria(premios) {
     const itens = [
         ['n6t2', '6N+2T', '#f59e0b'], ['n6t', '6N+1T/0T', '#eab308'],
         ['n5t2', '5N+2T', '#f97316'], ['n5t', '5N+1T/0T', '#a855f7'],
         ['n4t2', '4N+2T', '#8b5cf6'], ['n4t', '4N+1T/0T', '#3b82f6'],
         ['n3t2', '3N+2T', '#06b6d4'], ['n3t1', '3N+1T', '#10b981'],
-        ['n2t2', '2N+2T', '#64748b'], ['n2t1', '2N+1T', '#94a3b8'],
     ];
     return itens.map(([chave, rotulo, cor]) =>
         `<div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:${cor}">${premios[chave] || 0}</div><div class="resultado-resumo-label">${rotulo}</div></div>`

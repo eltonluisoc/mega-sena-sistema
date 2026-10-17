@@ -3599,6 +3599,66 @@ function _financeiroKpisAtualizar(participantesFormatados) {
     box.style.display = 'grid';
 }
 
+// Card de 1 bolão (visto de dentro de 1 participante) ou de 1 participante
+// (visto de dentro de 1 bolão) — mesmo layout, muda só o título e as 2
+// legendas da linha de baixo. Extraído daqui (era inline só em
+// carregarParticipantesAdmin) pra ser reaproveitado também por
+// FINANCEIRO POR PARTICIPANTE (Rodada 88), sem duplicar a lógica de
+// histórico de pagamentos.
+function _renderCardFinanceiroHtml({ idHist, titulo, statusClass, statusText, linha1Esq, linha1Dir, valorPago, totalEsperado, historico }) {
+    const hist = [...(historico || [])].sort(_compararDataBR);
+    const temHist = hist.length > 0;
+    const linhasHist = hist.map(h => `
+        <div style="display:flex; justify-content:space-between; font-size:11px; padding:4px 0; border-bottom:1px dashed #e2e8f0;">
+            <span>📅 ${escapeHtml(h.data || '—')}${h.mesReferencia ? ` <span style="color:#94a3b8;">(ref. ${escapeHtml(h.mesReferencia)})</span>` : ''}</span>
+            <strong style="color:#10b981;">R$ ${(h.valor || 0).toFixed(2)}</strong>
+        </div>`).join('');
+
+    return `
+        <div style="background: #ffffff; border-radius: 12px; padding: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0;">
+                <strong style="font-size: 14px;">${escapeHtml(titulo)}</strong>
+                <span style="background: ${statusClass === 'pago' ? '#10b981' : '#f59e0b'}; color: white; font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 30px;">${statusText}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 12px; color: #475569;">
+                <span>${linha1Esq}</span>
+                <span>${linha1Dir}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 12px; color: #475569; margin-top: 6px;">
+                <span>💵 Pago: <strong style="color: #10b981;">R$ ${valorPago.toFixed(2)}</strong></span>
+                <span>Total: R$ ${totalEsperado.toFixed(2)}</span>
+            </div>
+            ${temHist ? `
+            <button type="button" class="btn-ver-hist-pagamento" data-alvo="${idHist}" data-qtd="${hist.length}" style="margin-top:8px; width:100%; background:#f1f5f9; color:#334155; border:none; padding:6px; border-radius:8px; font-size:11px; font-weight:600; cursor:pointer;">
+                📋 Ver histórico (${hist.length} pagamento${hist.length > 1 ? 's' : ''})
+            </button>
+            <div id="${idHist}" style="display:none; margin-top:6px;">${linhasHist}</div>
+            ` : `<div style="margin-top:8px; font-size:11px; color:#94a3b8;">📋 Sem histórico detalhado (sincronize o bolão de novo pelo desktop)</div>`}
+        </div>
+    `;
+}
+
+// Liga os botões "Ver histórico" SÓ dentro de um container específico —
+// antes era document.querySelectorAll global, que (agora que existem 2
+// listas de cards na mesma página, uma por bolão e outra por
+// participante, usando a mesma classe de botão) ia religar listener
+// duplicado nos botões da lista que NÃO estava sendo recarregada daquela
+// vez, disparando o toggle 2x por clique depois de algumas trocas.
+function _ligarBotoesHistoricoPagamento(container) {
+    container.querySelectorAll('.btn-ver-hist-pagamento').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const alvo = document.getElementById(this.dataset.alvo);
+            if (!alvo) return;
+            const vaiAbrir = alvo.style.display === 'none';
+            alvo.style.display = vaiAbrir ? 'block' : 'none';
+            const qtd = this.dataset.qtd;
+            this.textContent = vaiAbrir
+                ? `🙈 Ocultar histórico (${qtd} pagamento${qtd > 1 ? 's' : ''})`
+                : `📋 Ver histórico (${qtd} pagamento${qtd > 1 ? 's' : ''})`;
+        });
+    });
+}
+
 async function carregarParticipantesAdmin(bolaoId) {
     const container = document.getElementById('listaParticipantesAdmin');
     const btnCopiar = document.getElementById('btnCopiarListaWhatsApp');
@@ -3679,54 +3739,22 @@ async function carregarParticipantesAdmin(bolaoId) {
 
         participantesFormatados.forEach((p, i) => {
             const totalEsperado = p.valorPorCota * p.quantidadeCotas;
-            const hist = [...p.historicoPagamentos].sort(_compararDataBR);
-            const idHist = `histPagAdmin${i}`;
-            const temHist = hist.length > 0;
-
-            const linhasHist = hist.map(h => `
-                <div style="display:flex; justify-content:space-between; font-size:11px; padding:4px 0; border-bottom:1px dashed #e2e8f0;">
-                    <span>📅 ${escapeHtml(h.data || '—')}${h.mesReferencia ? ` <span style="color:#94a3b8;">(ref. ${escapeHtml(h.mesReferencia)})</span>` : ''}</span>
-                    <strong style="color:#10b981;">R$ ${(h.valor || 0).toFixed(2)}</strong>
-                </div>`).join('');
-
-            html += `
-                <div style="background: #ffffff; border-radius: 12px; padding: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0;">
-                        <strong style="font-size: 14px;">${escapeHtml(p.nome)}</strong>
-                        <span style="background: ${p.statusClass === 'pago' ? '#10b981' : '#f59e0b'}; color: white; font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 30px;">${p.statusText}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; font-size: 12px; color: #475569;">
-                        <span>📞 ${p.telefone}</span>
-                        <span>🎟️ ${p.quantidadeCotas} cota${p.quantidadeCotas > 1 ? 's' : ''}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; font-size: 12px; color: #475569; margin-top: 6px;">
-                        <span>💵 Pago: <strong style="color: #10b981;">R$ ${p.valorPago.toFixed(2)}</strong></span>
-                        <span>Total: R$ ${totalEsperado.toFixed(2)}</span>
-                    </div>
-                    ${temHist ? `
-                    <button type="button" class="btn-ver-hist-pagamento" data-alvo="${idHist}" data-qtd="${hist.length}" style="margin-top:8px; width:100%; background:#f1f5f9; color:#334155; border:none; padding:6px; border-radius:8px; font-size:11px; font-weight:600; cursor:pointer;">
-                        📋 Ver histórico (${hist.length} pagamento${hist.length > 1 ? 's' : ''})
-                    </button>
-                    <div id="${idHist}" style="display:none; margin-top:6px;">${linhasHist}</div>
-                    ` : `<div style="margin-top:8px; font-size:11px; color:#94a3b8;">📋 Sem histórico detalhado (sincronize o bolão de novo pelo desktop)</div>`}
-                </div>
-            `;
+            html += _renderCardFinanceiroHtml({
+                idHist: `histPagAdmin${i}`,
+                titulo: p.nome,
+                statusClass: p.statusClass,
+                statusText: p.statusText,
+                linha1Esq: `📞 ${p.telefone}`,
+                linha1Dir: `🎟️ ${p.quantidadeCotas} cota${p.quantidadeCotas > 1 ? 's' : ''}`,
+                valorPago: p.valorPago,
+                totalEsperado,
+                historico: p.historicoPagamentos,
+            });
         });
         html += '</div>';
 
         container.innerHTML = html;
-        document.querySelectorAll('.btn-ver-hist-pagamento').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const alvo = document.getElementById(this.dataset.alvo);
-                if (!alvo) return;
-                const vaiAbrir = alvo.style.display === 'none';
-                alvo.style.display = vaiAbrir ? 'block' : 'none';
-                const qtd = this.dataset.qtd;
-                this.textContent = vaiAbrir
-                    ? `🙈 Ocultar histórico (${qtd} pagamento${qtd > 1 ? 's' : ''})`
-                    : `📋 Ver histórico (${qtd} pagamento${qtd > 1 ? 's' : ''})`;
-            });
-        });
+        _ligarBotoesHistoricoPagamento(container);
         _participantesAdminAtuais = participantesFormatados;
         _financeiroKpisAtualizar(participantesFormatados);
         if (btnCopiar) btnCopiar.disabled = false;
@@ -3767,6 +3795,126 @@ function copiarListaParticipantesWhatsApp() {
             console.error('Erro ao copiar lista:', error);
             showToast('❌ Não foi possível copiar automaticamente — copie manualmente.', 'error');
         });
+}
+
+// ============================================
+// FINANCEIRO POR PARTICIPANTE (Rodada 88)
+// ============================================
+// Pedido do usuário: o card "FINANCEIRO POR BOLÃO" já resolve "1 bolão →
+// todos os participantes"; este resolve o caminho inverso, "1
+// participante → todos os bolões dele, com situação de pagamento em
+// cada um". Não existe uma coleção "pessoas" no Firestore (só o SQLite
+// local do desktop tem isso) — a lista é montada escaneando TODOS os
+// docs de "participantes" (1 por bolão) e agrupando por telefone, mesma
+// chave que o desktop usa pra identificar a mesma pessoa entre bolões
+// diferentes (ver _calcular_grupos_duplicados no bolao_pro_v3.py). Cache
+// montado 1x e reaproveitado tanto pra popular o <select> quanto pra
+// responder à seleção, sem reconsultar o Firestore a cada troca.
+let _pessoasFinanceiroCache = {};
+
+function _chavePessoaFinanceiro(nome, telefone) {
+    const tel = (telefone || '').replace(/\D/g, '');
+    if (tel) return `tel:${tel}`;
+    return `nome:${(nome || '').trim().toLowerCase()}`;
+}
+
+async function carregarParticipantesSelectFinanceiro() {
+    const select = document.getElementById('participanteSelectFinanceiro');
+    if (!select) return;
+
+    try {
+        const snapshot = await db.collection('participantes').get();
+        _pessoasFinanceiroCache = {};
+
+        snapshot.forEach(doc => {
+            const bolao = doc.data();
+            const valorPorCota = bolao.valorPorCota || 0;
+            const participantes = bolao.participantes || [];
+            participantes.forEach(p => {
+                if (!p || !p.nome) return;
+                const chave = _chavePessoaFinanceiro(p.nome, p.telefone);
+                if (!_pessoasFinanceiroCache[chave]) {
+                    _pessoasFinanceiroCache[chave] = { nome: p.nome, telefone: p.telefone || '', boloes: [] };
+                }
+                _pessoasFinanceiroCache[chave].boloes.push({
+                    bolaoId: doc.id,
+                    bolaoTitulo: bolao.titulo || 'Bolão',
+                    loteria: bolao.loteria || '',
+                    valorPago: p.valorPago || 0,
+                    quantidadeCotas: p.quantidadeCotas || 1,
+                    totalEsperado: valorPorCota * (p.quantidadeCotas || 1),
+                    situacao: p.situacao,
+                    historicoPagamentos: p.historicoPagamentos || [],
+                });
+            });
+        });
+
+        const chaves = Object.keys(_pessoasFinanceiroCache)
+            .sort((a, b) => _pessoasFinanceiroCache[a].nome.localeCompare(_pessoasFinanceiroCache[b].nome, 'pt-BR'));
+
+        select.innerHTML = '<option value="">Selecione um participante</option>';
+        for (const chave of chaves) {
+            const pessoa = _pessoasFinanceiroCache[chave];
+            const option = document.createElement('option');
+            option.value = chave;
+            option.textContent = `${pessoa.nome} (${pessoa.boloes.length} bolão${pessoa.boloes.length > 1 ? 'ões' : ''})`;
+            select.appendChild(option);
+        }
+
+        select.removeEventListener('change', handleParticipanteFinanceiroChange);
+        select.addEventListener('change', handleParticipanteFinanceiroChange);
+
+        console.log(`✅ ${chaves.length} participante(s) distinto(s) carregado(s) no select de Financeiro por Participante`);
+    } catch (error) {
+        console.error('Erro ao carregar participantes pro select de Financeiro por Participante:', error);
+    }
+}
+
+function handleParticipanteFinanceiroChange(event) {
+    const chave = event.target.value;
+    const container = document.getElementById('listaBoloesPorParticipante');
+    if (!container) return;
+
+    if (!chave) {
+        container.innerHTML = '<div class="empty-state">Selecione um participante para ver em quais bolões ele está e a situação de pagamento em cada um</div>';
+        return;
+    }
+
+    const pessoa = _pessoasFinanceiroCache[chave];
+    if (!pessoa || pessoa.boloes.length === 0) {
+        container.innerHTML = '<div class="empty-state">Nenhum bolão encontrado pra esse participante</div>';
+        return;
+    }
+
+    const totalArrecadado = pessoa.boloes.reduce((s, b) => s + b.valorPago, 0);
+    const totalPendente = pessoa.boloes.reduce((s, b) => s + Math.max(0, b.totalEsperado - b.valorPago), 0);
+
+    let html = `<div style="margin-bottom: 15px; padding: 10px; background: #f1f5f9; border-radius: 12px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
+                    <span><strong>📞 ${pessoa.telefone || '—'}</strong></span>
+                    <span><strong>💰 Arrecadado:</strong> R$ ${totalArrecadado.toFixed(2)}</span>
+                    <span><strong>⏳ Pendente:</strong> R$ ${totalPendente.toFixed(2)}</span>
+                </div>`;
+    html += '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">';
+
+    pessoa.boloes.forEach((b, i) => {
+        const statusClass = (b.situacao === 'quitado' || b.situacao === 'pago') ? 'pago' : 'pendente';
+        const statusText = statusClass === 'pago' ? 'PAGO' : 'EM ANDAMENTO';
+        const loteriaLabel = { mega: 'Mega-Sena', lotofacil: 'Lotofácil', quina: 'Quina', maismilionaria: '+Milionária' }[b.loteria] || b.loteria || '—';
+        html += _renderCardFinanceiroHtml({
+            idHist: `histPagParticipante${i}`,
+            titulo: b.bolaoTitulo,
+            statusClass, statusText,
+            linha1Esq: `🎰 ${loteriaLabel}`,
+            linha1Dir: `🎟️ ${b.quantidadeCotas} cota${b.quantidadeCotas > 1 ? 's' : ''}`,
+            valorPago: b.valorPago,
+            totalEsperado: b.totalEsperado,
+            historico: b.historicoPagamentos,
+        });
+    });
+    html += '</div>';
+
+    container.innerHTML = html;
+    _ligarBotoesHistoricoPagamento(container);
 }
 
 // Mostra os movimentos de reserva já lançados aqui no site mas que o
@@ -4526,9 +4674,22 @@ function calcularEstatisticas(cartoes, resultados) {
     // tela de conferência, script.js, que já cruza os dois).
     const tiersPorTipo = { mega: [6,5,4,3,2], lotofacil: [15,14,13,12,11], quina: [5,4,3,2], maismilionaria: [6,5,4,3,2] };
 
+    // Cartões por loteria (card "Total de Cartões" do dashboard, linha de
+    // baixo) — achado real: atualizarDashboardEstatisticas calculava isso
+    // lendo a variável global `cartoes` (declarada lá em cima do arquivo
+    // pra seção "Cartões" do admin), não os cartões que ESTA função
+    // recebeu como parâmetro — mesmo nome, escopo errado. Resultado:
+    // o número de cima (stats.totalCartoes, certo) e o detalhamento por
+    // loteria de baixo (lido da global, desatualizada/vazia conforme o
+    // que a seção Cartões tinha carregado por último) raramente batiam.
+    // Movido pra dentro daqui, que já percorre `cartoes` (o parâmetro
+    // certo) por outro motivo — sem precisar de um 2º loop.
+    const cartoesPorLoteria = { mega: 0, lotofacil: 0, quina: 0, maismilionaria: 0 };
+
     for (const cartao of cartoes) {
         const tipo = cartao.tipo || 'mega';
         const concurso = cartao.concurso ? parseInt(cartao.concurso) : null;
+        if (cartoesPorLoteria[tipo] !== undefined) cartoesPorLoteria[tipo]++;
 
         // Buscar o resultado específico para este concurso
         let dezenasSorteadas = [];
@@ -4638,6 +4799,7 @@ function calcularEstatisticas(cartoes, resultados) {
         top3PorLoteria,
         maiorBolao,
         bilhetesPorLoteria,
+        cartoesPorLoteria,
         totalCartoes: cartoes.length,
         totalBoloes: totalBoloesDistintos
     };
@@ -4761,15 +4923,16 @@ function atualizarDashboardEstatisticas(stats) {
 
     // Detalhamento por loteria — vira a linha de baixo do card "Total de
     // Cartões" (o total geral já é o próprio dashboardTotalCartoes acima,
-    // sem repetir o mesmo número num card à parte)
-    const megaCount = cartoes.filter(c => c.tipo === 'mega').length;
-    const lotoCount = cartoes.filter(c => c.tipo === 'lotofacil').length;
-    const quinaCount = cartoes.filter(c => c.tipo === 'quina').length;
-    const milionariaCount = cartoes.filter(c => c.tipo === 'maismilionaria').length;
+    // sem repetir o mesmo número num card à parte). Achado real: isto
+    // lia a variável global `cartoes` (da seção "Cartões" do admin, outro
+    // escopo) em vez de stats.cartoesPorLoteria (calculado a partir dos
+    // MESMOS cartões que renderam o número de cima) — os dois números
+    // raramente batiam.
+    const cp = stats.cartoesPorLoteria || { mega: 0, lotofacil: 0, quina: 0, maismilionaria: 0 };
 
     const cartoesLoteriaDetEl = document.getElementById('dashboardCartoesLoteriaDetalhes');
     if (cartoesLoteriaDetEl) {
-        cartoesLoteriaDetEl.textContent = `Mega: ${megaCount} · Lotofácil: ${lotoCount} · Quina: ${quinaCount} · +Milionária: ${milionariaCount}`;
+        cartoesLoteriaDetEl.textContent = `Mega: ${cp.mega} · Lotofácil: ${cp.lotofacil} · Quina: ${cp.quina} · +Milionária: ${cp.maismilionaria}`;
     }
 
     // ============================================
@@ -4891,6 +5054,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('🔄 Carregando dados das abas...');
         carregarBoloesParaGerenciar();
         carregarBoloesSelectParticipantes();
+        carregarParticipantesSelectFinanceiro();
         carregarReservas();
         exibirCartoesAdmin();
         console.log('✅ Dados das abas carregados!');

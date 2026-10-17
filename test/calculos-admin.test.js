@@ -56,6 +56,34 @@ test('calcularEstatisticas - soma prêmios de vários cartões do mesmo concurso
   assert.equal(top3[0].quantidade, 2);
 });
 
+// Bug real reportado pelo usuário: "no início diz uma quantidade de
+// cartões e no meio tem outra somatória". Causa: atualizarDashboardEstatisticas
+// lia a variável GLOBAL `cartoes` (da seção "Cartões" do admin) pro
+// detalhamento por loteria, em vez dos cartões que calcularEstatisticas
+// de fato recebeu — por isso o card "Total de Cartões" (stats.totalCartoes)
+// e a linha "Mega: X · Lotofácil: Y..." logo abaixo dele raramente
+// batiam. Corrigido calculando cartoesPorLoteria aqui dentro, na mesma
+// passada que já soma stats.totalCartoes — mesma fonte de dado pros dois
+// números, nunca mais podem divergir.
+test('calcularEstatisticas - cartoesPorLoteria soma certo e bate com totalCartoes', () => {
+  const cartoes = [
+    { tipo: 'mega', concurso: '1', bolao: 'A', numeros: [1,2,3,4,5,6] },
+    { tipo: 'mega', concurso: '2', bolao: 'B', numeros: [1,2,3,4,5,7] },
+    { tipo: 'lotofacil', concurso: '1', bolao: 'C', numeros: Array.from({length:15}, (_,i)=>i+1) },
+    { tipo: 'maismilionaria', concurso: '1', bolao: 'D', numeros: [1,2,3,4,5,6] },
+  ];
+  const stats = sandbox.calcularEstatisticas(cartoes, { mega: {}, lotofacil: {}, quina: {}, maismilionaria: {} });
+  // Objeto devolvido pelo sandbox vm é de outro "realm" — deepEqual falha
+  // na checagem de protótipo mesmo com valores idênticos (mesmo achado
+  // documentado nos outros testes deste arquivo). Compara campo a campo.
+  assert.equal(stats.cartoesPorLoteria.mega, 2);
+  assert.equal(stats.cartoesPorLoteria.lotofacil, 1);
+  assert.equal(stats.cartoesPorLoteria.quina, 0);
+  assert.equal(stats.cartoesPorLoteria.maismilionaria, 1);
+  const somaLoterias = Object.values(stats.cartoesPorLoteria).reduce((a, b) => a + b, 0);
+  assert.equal(somaLoterias, stats.totalCartoes);
+});
+
 test('regrasLoteria - +Milionária tem as 2 dimensões (números e trevos)', () => {
   const regras = sandbox.regrasLoteria('maismilionaria');
   assert.equal(regras.minNumeros, 6);
@@ -132,4 +160,32 @@ test('_calcularKpisFinanceiro - lista vazia/indefinida não quebra', () => {
     assert.equal(r.totalArrecadado, 0);
     assert.equal(r.totalPendente, 0);
   }
+});
+
+// Rodada 88: "FINANCEIRO POR PARTICIPANTE" — pedido do usuário pra ver,
+// a partir de 1 participante, todos os bolões em que ele está. Não existe
+// coleção "pessoas" no Firestore, então a mesma pessoa em bolões
+// diferentes só é reconhecida como "a mesma" se _chavePessoaFinanceiro
+// devolver a MESMA chave pros dois registros — telefone é a chave
+// primária (mesmo critério já usado no desktop, _calcular_grupos_duplicados),
+// nome normalizado é só o fallback pra quando não tem telefone.
+test('_chavePessoaFinanceiro - mesma pessoa com telefone formatado diferente cai na mesma chave', () => {
+  const a = sandbox._chavePessoaFinanceiro('Ana Silva', '(11) 99999-0000');
+  const b = sandbox._chavePessoaFinanceiro('Ana Silva', '11999990000');
+  assert.equal(a, b);
+});
+
+test('_chavePessoaFinanceiro - sem telefone cai no nome normalizado (minúsculo, sem espaços nas pontas)', () => {
+  const a = sandbox._chavePessoaFinanceiro('  Bruno Costa  ', '');
+  const b = sandbox._chavePessoaFinanceiro('bruno costa', null);
+  assert.equal(a, b);
+  assert.notEqual(a, sandbox._chavePessoaFinanceiro('Outra Pessoa', ''));
+});
+
+test('_chavePessoaFinanceiro - telefone e nome nunca colidem na mesma chave (prefixo distinto)', () => {
+  // Nome que, coincidentemente, só tem dígitos — não pode virar igual à
+  // chave de alguém cujo TELEFONE seja esse mesmo dígitos.
+  const porNome = sandbox._chavePessoaFinanceiro('12345', '');
+  const porTelefone = sandbox._chavePessoaFinanceiro('Outra Pessoa', '12345');
+  assert.notEqual(porNome, porTelefone);
 });

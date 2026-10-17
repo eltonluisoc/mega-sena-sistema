@@ -257,3 +257,23 @@ test('calcularPremiosMilionaria - 3 números sem nenhum trevo não gera prêmio 
   const total = Object.values(premios).reduce((a, b) => a + b, 0);
   assert.equal(total, 0);
 });
+
+// Pedido do usuário: o resumo exibido ao conferir (tela pública) não
+// precisa mostrar as 2 faixas de 2 números — premiação muito baixa.
+// calcularPremiosMilionaria continua calculando as 10 faixas certinho
+// (nada muda no valor pago); só gerarResumoPremiosMilionaria, que decide
+// o que aparece NA TELA, corta as 2 de baixo.
+test('gerarResumoPremiosMilionaria - mostra a partir de 3 números, sem as faixas de 2 números', () => {
+  const premios = {
+    n6t2: 1, n6t: 2, n5t2: 3, n5t: 4, n4t2: 5, n4t: 6,
+    n3t2: 7, n3t1: 8, n2t2: 99, n2t1: 99,
+  };
+  const html = sandbox.gerarResumoPremiosMilionaria(premios);
+  assert.match(html, /3N\+2T/);
+  assert.match(html, /3N\+1T/);
+  assert.doesNotMatch(html, /2N\+2T/);
+  assert.doesNotMatch(html, /2N\+1T/);
+  // 8 faixas mostradas (6N+2T até 3N+1T), não as 10 oficiais.
+  const qtdCards = (html.match(/resultado-resumo-item/g) || []).length;
+  assert.equal(qtdCards, 8);
+});

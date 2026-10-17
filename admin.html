@@ -1672,6 +1672,26 @@
                         <div class="empty-state">Selecione um bolão para ver os participantes e pagamentos</div>
                     </div>
                 </div>
+
+                <!-- Pedido do usuário: "quero também aqui um [seletor de]
+                     participante e ele me mostra todos os bolões que ele
+                     está com situação de pagamento" — o card acima já
+                     resolve "1 bolão → todos os participantes"; este
+                     resolve o caminho inverso, "1 participante → todos os
+                     bolões dele". Não existe uma coleção "pessoas" no
+                     Firestore (só o SQLite local do desktop tem isso) —
+                     monta a lista escaneando todos os docs de
+                     "participantes" e agrupando por telefone (mesma chave
+                     usada no desktop pra identificar a mesma pessoa). -->
+                <div class="card">
+                    <div class="card-header">👤 FINANCEIRO POR PARTICIPANTE</div>
+                    <select id="participanteSelectFinanceiro" class="form-control" style="margin-bottom: 14px;">
+                        <option value="">Selecione um participante</option>
+                    </select>
+                    <div id="listaBoloesPorParticipante" style="max-height: 500px; overflow-y: auto;">
+                        <div class="empty-state">Selecione um participante para ver em quais bolões ele está e a situação de pagamento em cada um</div>
+                    </div>
+                </div>
             </section>
 
             <!-- ============================================ -->
