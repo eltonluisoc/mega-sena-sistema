@@ -1201,12 +1201,6 @@
             <button class="sidebar-item active" data-section="dashboard">
                 <span class="icon">📊</span> Dashboard
             </button>
-            <button class="sidebar-item" data-section="cadastro">
-                <span class="icon">📝</span> Cadastro
-            </button>
-            <button class="sidebar-item" data-section="importar">
-                <span class="icon">📄</span> Importar PDF
-            </button>
             <button class="sidebar-item" data-section="cartoes">
                 <span class="icon">📋</span> Cartões
             </button>
@@ -1303,9 +1297,24 @@
 </section>
 
             <!-- ============================================ -->
-            <!-- SEÇÃO: CADASTRO -->
+            <!-- SEÇÃO: CARTÕES (Rodada 89) -->
+            <!-- Pedido do usuário: "cadastro, importar pdf e cartões
+                 poderiam ser um só... o principal primeiro é a função de
+                 importar... depois cadastro e depois cartões". As 3
+                 telas continuam EXATAMENTE como eram por dentro (nenhum
+                 id/função mudou) — só viraram sub-seções de 1 só item de
+                 menu, com um seletor segmentado no topo (mesmo padrão já
+                 usado em Financeiro/Bolões) na ordem de uso pedida, em
+                 vez de 3 itens separados competindo no menu lateral. -->
             <!-- ============================================ -->
-            <section id="section-cadastro" class="section">
+            <section id="section-cartoes" class="section">
+                <div class="subsecao-seletor" style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
+                    <button type="button" class="subsecao-btn" data-subcartoes="importar" style="flex:1; min-width:140px; padding:12px; border:none; border-radius:12px; font-weight:700; cursor:pointer; background:#0071e3; color:white;">📄 Importar PDF</button>
+                    <button type="button" class="subsecao-btn" data-subcartoes="cadastro" style="flex:1; min-width:140px; padding:12px; border:none; border-radius:12px; font-weight:700; cursor:pointer; background:#e2e8f0; color:#334155;">📝 Cadastro</button>
+                    <button type="button" class="subsecao-btn" data-subcartoes="lista" style="flex:1; min-width:140px; padding:12px; border:none; border-radius:12px; font-weight:700; cursor:pointer; background:#e2e8f0; color:#334155;">📋 Cartões</button>
+                </div>
+
+                <div class="subsecao-cartoes" data-subcartoes="cadastro" style="display:none;">
 
                 <!-- SELETOR DE LOTERIA -->
                 <div class="card" style="background: #f8fafc; border: 1px solid #e2e8f0;">
@@ -1526,12 +1535,13 @@
                     </div>
                 </div>
 
-            </section>
+                </div>
+                <!-- /subsecao-cartoes="cadastro" -->
 
-            <!-- ============================================ -->
-            <!-- SEÇÃO: IMPORTAR PDF -->
-            <!-- ============================================ -->
-            <section id="section-importar" class="section">
+                <!-- ============================================ -->
+                <!-- SUB-SEÇÃO: IMPORTAR PDF (padrão, mais usada) -->
+                <!-- ============================================ -->
+                <div class="subsecao-cartoes" data-subcartoes="importar" style="display:block;">
                 <div class="card" style="border: 2px solid #0071e3;">
                     <div class="card-header">📄 IMPORTAR COMPROVANTE PDF DA CAIXA</div>
                     <div style="font-size: 13px; color: #64748b; margin-bottom: 14px;">
@@ -1576,12 +1586,13 @@
 
                 <div id="pdfImportResultados"></div>
                 <div id="pdfImportRodape" style="margin-top: 12px;"></div>
-            </section>
+                </div>
+                <!-- /subsecao-cartoes="importar" -->
 
-            <!-- ============================================ -->
-            <!-- SEÇÃO: CARTÕES -->
-            <!-- ============================================ -->
-            <section id="section-cartoes" class="section">
+                <!-- ============================================ -->
+                <!-- SUB-SEÇÃO: LISTA DE CARTÕES -->
+                <!-- ============================================ -->
+                <div class="subsecao-cartoes" data-subcartoes="lista" style="display:none;">
                 <div class="card" style="background: #f8fafc; border: 1px solid #e2e8f0;">
                     <div class="card-header" style="font-size: 15px;">🎯 LOTERIA</div>
                     <div style="font-size: 12px; color: #64748b; margin-bottom: 8px;">A lista, os filtros de concurso e o "Verificar Duplicados" abaixo são só desta loteria.</div>
@@ -1621,6 +1632,8 @@
                     </div>
                     <div id="duplicadosResultado" style="display: none; margin-top: 16px; border-top: 2px solid #e2e8f0; padding-top: 16px;"></div>
                 </div>
+                </div>
+                <!-- /subsecao-cartoes="lista" -->
             </section>
 
             <!-- ============================================ -->

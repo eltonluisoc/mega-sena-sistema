@@ -56,6 +56,31 @@ test('calcularEstatisticas - soma prêmios de vários cartões do mesmo concurso
   assert.equal(top3[0].quantidade, 2);
 });
 
+// Pedido do usuário: eram os 3 maiores concursos de cada loteria, agora
+// são os 5 maiores.
+test('calcularEstatisticas - ranking mostra até 5 concursos, não só 3', () => {
+  const resultados = { mega: {}, lotofacil: {}, quina: {}, maismilionaria: {} };
+  const cartoes = [];
+  // 6 concursos distintos da mega, cada um com 1 cartão de 4 acertos
+  // (quadra) — só pra gerar 6 entradas candidatas no ranking.
+  for (let c = 1; c <= 6; c++) {
+    cartoes.push({ tipo: 'mega', concurso: String(c), bolao: `B${c}`, numeros: [1, 2, 3, 4, 90 + c, 91 + c] });
+    resultados.mega[c] = [1, 2, 3, 4, 5, 6];
+  }
+  const stats = sandbox.calcularEstatisticas(cartoes, resultados);
+  assert.equal(stats.top3PorLoteria.mega.length, 5);
+});
+
+// Pedido do usuário: "3 13 pontos" (quantidade colada no nome da faixa,
+// que na Lotofácil também começa com número) é ambíguo — parece 1 número
+// só ou um erro de digitação. Separador deixa claro onde um termina e o
+// outro começa, em qualquer loteria.
+test('formatarTierAcerto - separador entre quantidade e nome da faixa', () => {
+  assert.equal(sandbox.formatarTierAcerto('lotofacil', 13, 3), '3 - 13 pontos');
+  assert.equal(sandbox.formatarTierAcerto('mega', 4, 2), '2 - quadras');
+  assert.equal(sandbox.formatarTierAcerto('mega', 6, 1), '1 - sena');
+});
+
 // Bug real reportado pelo usuário: "no início diz uma quantidade de
 // cartões e no meio tem outra somatória". Causa: atualizarDashboardEstatisticas
 // lia a variável GLOBAL `cartoes` (da seção "Cartões" do admin) pro

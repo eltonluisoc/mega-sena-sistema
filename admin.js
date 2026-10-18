@@ -1779,6 +1779,26 @@ function setLoteriaAdmin(loteria) {
 }
 
 // ============================================
+// SUB-SEÇÕES DE "CARTÕES" (Rodada 89)
+// ============================================
+// Pedido do usuário: Cadastro/Importar PDF/Cartões eram 3 itens
+// separados no menu lateral — viraram 1 só ("📋 Cartões"), com um
+// seletor segmentado no topo na ordem de uso que o usuário pediu
+// (Importar PDF é a mais usada, por isso é a padrão ao abrir). Mesma
+// técnica já usada pro seletor de loteria (setLoteriaAdmin) — troca só
+// o display dos 3 blocos, nenhum dos 3 perdeu nenhum id/função interna.
+function mostrarSubsecaoCartoes(nome) {
+    document.querySelectorAll('.subsecao-cartoes').forEach(div => {
+        div.style.display = div.dataset.subcartoes === nome ? 'block' : 'none';
+    });
+    document.querySelectorAll('.subsecao-btn').forEach(btn => {
+        const ativo = btn.dataset.subcartoes === nome;
+        btn.style.background = ativo ? '#0071e3' : '#e2e8f0';
+        btn.style.color = ativo ? 'white' : '#334155';
+    });
+}
+
+// ============================================
 // SALVAR CONFIG BOLÕES
 // ============================================
 async function salvarConfigBoloes() {
@@ -4749,6 +4769,11 @@ function calcularEstatisticas(cartoes, resultados) {
     // exibido é o MAIOR com prêmio real (> 0), e a quantidade é a soma de
     // prêmios reais nesse nível — não mais contagem de cartões.
     const limiarPremio = { mega: 2, lotofacil: 11, quina: 2, maismilionaria: 2 };
+    // Pedido do usuário: eram os 3 maiores, agora são os 5 — a chave
+    // `top3PorLoteria` ficou com nome desatualizado (renomear quebraria
+    // os testes e outros call sites sem ganho real, já que é só uma
+    // chave interna, não texto visível), mas o conteúdo agora tem até 5.
+    const QTD_TOP_CONCURSOS = 5;
     const top3PorLoteria = { mega: [], lotofacil: [], quina: [], maismilionaria: [] };
     for (const tipo of ['mega', 'lotofacil', 'quina', 'maismilionaria']) {
         const tiers = tiersPorTipo[tipo];
@@ -4764,7 +4789,7 @@ function calcularEstatisticas(cartoes, resultados) {
             // número do concurso: 2 quadras no mesmo concurso é mais
             // notável que 1 quadra em outro
             .sort((a, b) => b.maxAcertos - a.maxAcertos || b.quantidade - a.quantidade || Number(a.concurso) - Number(b.concurso))
-            .slice(0, 3);
+            .slice(0, QTD_TOP_CONCURSOS);
     }
 
     // 5. Bilhetes jogados por loteria: um cartão com mais números que o
@@ -4838,7 +4863,13 @@ function contarPremiosPorFaixaAdmin(qtdNumeros, acertos, k) {
     return porFaixa;
 }
 
-// Formata "2 ternos" / "1 quadra" / "3 pontos" para o ranking top-3
+// Formata "2 - ternos" / "1 - quadra" / "3 - 13 pontos" pro ranking do
+// Dashboard. Pedido do usuário: na Lotofácil, sem separador ficava
+// "3 13 pontos" — 2 números seguidos sem nada entre eles (quantidade de
+// prêmios "3" colado no nome da faixa "13 pontos", que também começa com
+// número) — ambíguo, parecia um erro de digitação. O "-" deixa claro
+// onde a quantidade termina e o nome da faixa começa, em qualquer
+// loteria (não só a Lotofácil, por consistência).
 function formatarTierAcerto(loteria, acertos, quantidade) {
     let nome;
     if (loteria === 'lotofacil') {
@@ -4849,7 +4880,7 @@ function formatarTierAcerto(loteria, acertos, quantidade) {
         if (!nome) return `${quantidade} cartão(ões) com ${acertos} acertos`;
         if (quantidade > 1) nome += 's';
     }
-    return `${quantidade} ${nome}`;
+    return `${quantidade} - ${nome}`;
 }
 
 function atualizarDashboardEstatisticas(stats) {
@@ -5027,6 +5058,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (cartoesBtnLotofacil) cartoesBtnLotofacil.onclick = () => setLoteriaAdmin('lotofacil');
     if (cartoesBtnQuina) cartoesBtnQuina.onclick = () => setLoteriaAdmin('quina');
     if (cartoesBtnMilionaria) cartoesBtnMilionaria.onclick = () => setLoteriaAdmin('maismilionaria');
+    document.querySelectorAll('.subsecao-btn').forEach(btn => {
+        btn.onclick = () => mostrarSubsecaoCartoes(btn.dataset.subcartoes);
+    });
     const btnRecarregarLista = document.getElementById('btnRecarregarLista');
     if (btnRecarregarLista) btnRecarregarLista.onclick = carregarDadosAdmin;
     if (btnExcluirSelecionados) btnExcluirSelecionados.onclick = excluirSelecionados;

@@ -1346,6 +1346,22 @@ Validado com 5 testes novos: `calcularEstatisticas` (cartoesPorLoteria bate com 
 
 sw.js `CACHE_NAME` v63 → **v64**.
 
+## Rodada 89 — Top 5 concursos, separador no ranking, e Cadastro+Importar+Cartões viram 1 item de menu
+
+Pedido do usuário, continuando a revisão do admin web: (1) confirmou que o bug do total de cartões (Rodada 88) está mesmo corrigido — os números batem (2353 Mega + 111 Lotofácil + 85 Quina + 108 +Milionária = 2657, conferido direto no Firestore); (2) "no botão de maiores prêmios das loterias mostram os três maiores... quero os 5 maiores de cada"; (3) "quero o separador dos números... 3 13 pontos... precisa ser 3 - 13 pontos"; (4) "os botões cadastro, importar pdf e cartões poderiam ser um somente... o principal primeiro é a função de importar... depois cadastro e depois cartões".
+
+**Investigado antes de codar (item do +Milionária "não aparecendo", mencionado de novo pelo usuário)**: consultei a coleção `resultados_conferidos` direto no Firestore (API REST pública — `allow read: if true` nas regras) filtrando por `loteria == 'maismilionaria'`: **zero documentos**. Confirma o que já tinha sido investigado na Rodada 88 — não é bug, é que nenhum concurso da +Milionária foi conferido ainda no site público (é esse clique que grava o resultado de onde o Dashboard lê). Nenhuma mudança de código feita aqui — é preciso conferir pelo menos 1 concurso dela no índex pra o card do Dashboard passar a mostrar.
+
+**1. Top 5 em vez de top 3**: `calcularEstatisticas` trocou `.slice(0, 3)` por `.slice(0, QTD_TOP_CONCURSOS)` (constante = 5). A chave de retorno continua `top3PorLoteria` (renomear quebraria testes/outros call sites sem ganho real, já que é só uma chave interna, não texto visível).
+
+**2. Separador no ranking**: `formatarTierAcerto` juntava quantidade e nome da faixa sem nada entre eles — na Lotofácil, cujo nome de faixa também começa com número ("13 pontos"), "3 13 pontos" ficava ambíguo (parecia um número só ou erro de digitação). Agora é "3 - 13 pontos" em todas as loterias, por consistência.
+
+**3. Cadastro + Importar PDF + Cartões viram 1 item de menu ("📋 Cartões")**: as 3 telas eram seções de topo separadas, competindo por espaço no menu lateral, com "Importar PDF" (a mais usada, segundo o usuário) enterrada no meio. Viraram sub-seções de UM item só, com um seletor segmentado no topo (mesmo padrão de Financeiro/Bolões) na ordem pedida: Importar PDF (padrão ao abrir) → Cadastro → Cartões. As 3 telas continuam EXATAMENTE como eram por dentro — nenhum id, função ou lógica interna mudou, só a tag externa (`<section>` virou `<div class="subsecao-cartoes" data-subcartoes="...">`) e a troca de visibilidade (`mostrarSubsecaoCartoes`, mesma técnica de `setLoteriaAdmin`). Risco baixo: nenhum JS fora dessas 2 funções novas precisou mudar, confirmado por grep que nada mais referenciava os ids de seção antigos (`section-cadastro`/`section-importar`) nem simulava clique neles.
+
+Validado com 2 testes novos (`calcularEstatisticas` mostra até 5 concursos, `formatarTierAcerto` com separador em 3 cenários) e checagem de balanceamento de tags (scanner de profundidade de `<div>`/`</div>` ao longo do bloco fundido, terminou em 0 — nenhuma tag órfã). 69/69 testes JS passando (67 antes + 2 novos).
+
+sw.js `CACHE_NAME` v64 → **v65**.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
