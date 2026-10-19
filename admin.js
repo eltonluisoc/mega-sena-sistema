@@ -4889,7 +4889,10 @@ function atualizarDashboardEstatisticas(stats) {
     // ============================================
     // 1. TOP 3 CONCURSOS POR LOTERIA
     // ============================================
-    const medalhas = ['🥇', '🥈', '🥉'];
+    // Rodada 90: lista estruturada (.rank-row) em vez de texto corrido
+    // com <br> — pedido do usuário ("design muito pobre... dez vezes
+    // melhor... padrão apple"). Mesmos dados de antes (stats.top3PorLoteria,
+    // formatarTierAcerto), só a marcação HTML mudou.
     const detalhesIdPorLoteria = {
         mega: 'dashboardMelhorMegaDetalhes',
         lotofacil: 'dashboardMelhorLotofacilDetalhes',
@@ -4903,14 +4906,20 @@ function atualizarDashboardEstatisticas(stats) {
 
         const top3 = stats.top3PorLoteria?.[loteria] || [];
         if (top3.length === 0) {
-            elDet.textContent = 'Nenhum resultado conferido ainda';
+            elDet.innerHTML = '<div class="rank-empty">Nenhum resultado conferido ainda</div>';
             continue;
         }
 
         elDet.innerHTML = top3.map((item, i) => {
             const texto = formatarTierAcerto(loteria, item.maxAcertos, item.quantidade);
-            return `${medalhas[i] || '•'} Concurso ${item.concurso} — ${texto}`;
-        }).join('<br>');
+            const classeBadge = i < 3 ? ` n${i + 1}` : '';
+            return `
+                <div class="rank-row">
+                    <span class="rank-badge${classeBadge}">${i + 1}</span>
+                    <span class="rank-label">Concurso ${escapeHtml(String(item.concurso))}</span>
+                    <span class="rank-value">${escapeHtml(texto)}</span>
+                </div>`;
+        }).join('');
     }
 
 

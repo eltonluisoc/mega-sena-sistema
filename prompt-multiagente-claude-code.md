@@ -1362,6 +1362,35 @@ Validado com 2 testes novos (`calcularEstatisticas` mostra até 5 concursos, `fo
 
 sw.js `CACHE_NAME` v64 → **v65**.
 
+## Rodada 90 — Causa raiz real do "+Milionária não aparece": regras do Firestore nunca foram publicadas
+
+Usuário insistiu: "já fiz duas correções no mais milionária pelo site... hoje mesmo fiz conferência e tem o resultado no site". Isso contradizia a conclusão da Rodada 88/89 ("não é bug, falta conferir") — se ele conferiu e viu o resultado na tela, deveria ter gravado. Investigação mais a fundo, sem mudar nada no código:
+
+**Achado**: `firestore.rules` no repositório já permite `loteria == 'maismilionaria'` em `resultados_conferidos` desde o commit de 10/10 — mas **"git push" só publica o site (GitHub Pages)**; as regras de segurança do Firestore são publicadas por um comando separado (`firebase deploy --only firestore:rules`), e não existe nenhuma automação (confirmado: sem GitHub Actions no projeto) fazendo isso sozinho. Testei gravando um documento de teste em `resultados_conferidos` com `loteria: 'maismilionaria'` via API REST do Firestore: **"Missing or insufficient permissions"** — mesmo com o arquivo local permitindo. O mesmo teste pra Mega/Lotofácil funcionou normal. Ou seja: as regras PUBLICADAS (as que valem de verdade) ainda eram as antigas, de antes da +Milionária ser liberada — só o arquivo no git já tinha sido atualizado, sem nunca ter sido implantado.
+
+Isso explica tudo: `salvarResultadoConferido` (script.js) grava o resultado DEPOIS de já ter mostrado tudo na tela pro usuário — a gravação falhava calada (só `console.error`, sem avisar ninguém) por causa das regras antigas, então "funcionava" visualmente mas nunca persistia.
+
+**Correção**: rodei `firebase deploy --only firestore:rules` (CLI já instalado e autenticado na máquina do usuário) — regras publicadas agora batem com o arquivo do repositório. Pra não depender de o usuário conferir tudo nas mãos de novo, busquei os 3 concursos da +Milionária que já tinham cartões cadastrados (397, 398, 399 — descobertos consultando a coleção `cartoes` direto) na API oficial da Caixa e gravei os 3 resultados reais em `resultados_conferidos` (mesmo formato que o site grava). Limpei os documentos de teste criados durante a investigação.
+
+**Nenhuma mudança de código nesta rodada** — nem commit, nem push. É puramente infraestrutura (deploy de regras + backfill de dado real). Fica registrado aqui como lição: mudanças em `firestore.rules` exigem lembrar de rodar o deploy manualmente — não acontece sozinho com o push pro GitHub Pages.
+
+## Rodada 91 — Redesenho do Dashboard (admin web): "padrão Apple", dez vezes melhor
+
+Pedido do usuário, com print em anexo: "o design do dashboard está muito simples, muito pobre... os números apresentados tem formatação básica, rústica, ruim... preciso que seja dez vezes melhor... com formatação de design padrão apple".
+
+**Achado ao investigar**: o admin.html já tinha um sistema de design "Apple" (tokens em `:root` — `--cor-texto`, `--cor-superficie`, `--raio-grande`, `--sombra`, fonte Inter, barra superior com blur) usado no resto do site (`.card`, `.card-header` etc.) — só o Dashboard nunca foi migrado pra ele. Cada card tinha fundo pastel e cor inline PRÓPRIOS (ex. `style="background: #fce7f3; border-color: #f9a8d4;"`), fora do sistema de design, por isso destoava do resto do admin e parecia "rústico" em comparação.
+
+**Redesenho** (`.dashboard-card` e novas classes em admin.html, renderização em admin.js):
+- Cards voltaram a usar a MESMA superfície neutra (`var(--cor-superficie)`, branco) de qualquer outro card do admin — a cor de cada categoria virou uma barra fina de 3px no topo do card (`--stat-accent`, custom property setada inline só com a cor, nada mais) em vez de pintar o cartão inteiro. Padrão "stat card" (Tela de Tempo de Uso, App Store Connect), não "card colorido de dashboard genérico".
+- Números maiores, peso 800, `letter-spacing` negativo, cor neutra escura; rótulos em caixa alta pequena com espaçamento de letra (`.dashboard-label`); linha de detalhamento por loteria com separador acima (`.dashboard-detail`).
+- Cards "TOP CONCURSOS" (4): texto corrido com `<br>` virou LISTA estruturada (`.rank-row`/`.rank-badge`/`.rank-label`/`.rank-value`) — selo circular de posição (ouro/prata/bronze pros 3 primeiros, neutro do 4º ao 5º), nome do concurso, valor em destaque na cor do card, alinhado à direita, com divisor fino entre linhas — mesmo padrão de lista de ranking que a Apple usa (Replay, App Store). Função `atualizarDashboardEstatisticas` (admin.js) recebeu a mesma lógica de dados de antes, só trocou `innerHTML` de texto por `.map(...)` de markup.
+- Paleta de 4 cores de sistema Apple (`#ff375f` rosa, `#5e5ce6` índigo, `#ff9500` laranja, `#30d158` verde) pras 4 loterias, substituindo os 4 tons pastel antigos (2 deles quase idênticos entre si — Lotofácil e +Milionária usavam o mesmo verde antes).
+- Grid dos cards virou `repeat(auto-fit, minmax(...))` em vez de `repeat(3, 1fr)` fixo — corrige também um problema de layout que já existia (a linha de 4 cards "Top Concursos" ficava forçada em 3 colunas, com o 4º quebrando sozinho numa linha nova desbalanceada).
+
+Validado com `py_compile`/`node --check` e suíte de testes (69/69 — nenhuma mudança de lógica de cálculo, só apresentação) e checagem de balanceamento de tags (scanner de profundidade de `<div>`, terminou em 0).
+
+sw.js `CACHE_NAME` v65 → **v66**.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
