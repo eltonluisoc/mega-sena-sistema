@@ -1468,6 +1468,22 @@ async function salvarPixConfig() {
     showToast('✅ Chave PIX salva!', 'success');
 }
 
+// Badge "X cartões" na barra superior (visível em TODAS as seções,
+// inclusive o Dashboard) — achado real (Rodada 92, usuário mandou
+// print): 3 lugares diferentes escreviam nele, todos com
+// `cartoes.filter(c => c.tipo === loteriaAdmin).length` (contagem só da
+// loteria selecionada no Cadastro/Cartões, que começa em 'mega'), não o
+// total de verdade. Por estar na barra GLOBAL, ao lado do botão Sair,
+// parecia "o total do sistema" mas na prática mudava sozinho conforme
+// qual loteria alguém tivesse clicado por último lá em Cadastro — e
+// nunca batia com o card "Total de Cartões" do Dashboard (esse sim
+// sempre foi o total real). Unificado numa função só, sempre com o
+// total verdadeiro — mesmo número em todo lugar do admin, sem exceção.
+function atualizarBadgeTotalCartoes() {
+    const el = document.getElementById('totalCartoes');
+    if (el) el.innerHTML = `📊 ${cartoes.length} cartões`;
+}
+
 // ============================================
 // CARREGAR DADOS ADMIN
 // ============================================
@@ -1494,10 +1510,7 @@ async function carregarDadosAdmin() {
         exibirCartoesAdmin();
         carregarConcursosAdmin();
         atualizarDashboardAdmin();
-        
-        const total = cartoes.filter(c => c.tipo === loteriaAdmin).length;
-        const totalDiv = document.getElementById('totalCartoes');
-        if (totalDiv) totalDiv.innerHTML = total + ' cartões';
+        atualizarBadgeTotalCartoes();
         showToast('✅ Dados carregados!', 'success');
         
     } catch (error) {
@@ -1624,9 +1637,7 @@ function exibirCartoesAdmin() {
 
     document.querySelectorAll('.checkbox-cartao').forEach(cb => cb.onchange = atualizarContadorSelecionados);
     atualizarContadorSelecionados();
-    
-    const totalDiv = document.getElementById('totalCartoes');
-    if (totalDiv) totalDiv.innerHTML = cartoesFiltrados.length + ' cartões';
+    atualizarBadgeTotalCartoes();
 }
 
 // ============================================
@@ -2738,12 +2749,10 @@ async function excluirSelecionados() {
     if (excluidos > 0) {
         showToast(`✅ ${excluidos} cartão(ões) excluído(s)! ${erros > 0 ? `⚠️ ${erros} erro(s)` : ''}`, 'success');
         cartoes = cartoes.filter(c => !idsExcluidos.includes(c.id));
+        // carregarDadosAdmin() já chama atualizarBadgeTotalCartoes() — não
+        // precisa repetir aqui (e repetir filtrando por loteriaAdmin era
+        // justamente o bug: ver comentário em atualizarBadgeTotalCartoes).
         await carregarDadosAdmin();
-        const totalDiv = document.getElementById('totalCartoes');
-        if (totalDiv) {
-            const total = cartoes.filter(c => c.tipo === loteriaAdmin).length;
-            totalDiv.innerHTML = total + ' cartões';
-        }
         atualizarContadorSelecionados();
     } else {
         showToast('❌ Nenhum cartão foi excluído', 'error');

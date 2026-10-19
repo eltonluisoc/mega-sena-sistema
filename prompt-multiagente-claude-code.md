@@ -1391,6 +1391,18 @@ Validado com `py_compile`/`node --check` e suíte de testes (69/69 — nenhuma m
 
 sw.js `CACHE_NAME` v65 → **v66**.
 
+## Rodada 92 — Bug real achado: badge "cartões" da barra superior nunca mostrava o total de verdade
+
+Usuário mandou print (com uma seta amarela ligando o badge "2353 cartões" da barra superior ao card "2657 — Total de Cartões" do Dashboard): "esses números não batem corrija". Confirma exatamente a suspeita da Rodada 88 ("no início diz uma quantidade... no meio tem outra"), só que apontando pro elemento certo desta vez — não era o card do Dashboard (já corrigido), era um badge diferente, na barra superior (`<div class="stat" id="totalCartoes">`), visível em TODAS as seções do admin, inclusive o próprio Dashboard.
+
+**Causa**: 3 pontos diferentes do código escreviam nesse mesmo badge, todos com `cartoes.filter(c => c.tipo === loteriaAdmin).length` — a contagem filtrada pela loteria selecionada no Cadastro/Cartões (`loteriaAdmin`, que começa em `'mega'`), não o total de verdade. Por estar na barra GLOBAL, ao lado do botão Sair, parecia "o total do sistema inteiro", mas na prática mudava sozinho conforme qual loteria alguém tivesse clicado por último — coincidência de ter ficado em "mega" (2353) bateu exatamente com o que o usuário via. Efeito colateral junto: o `innerHTML` escrito por esses 3 pontos nunca incluía o emoji 📊 do texto original, que sumia assim que a página terminava de carregar.
+
+**Correção**: unificados os 3 pontos numa função só, `atualizarBadgeTotalCartoes()`, sempre com `cartoes.length` (o total real, sem filtro de loteria) — a mesma fonte que já alimenta corretamente o card do Dashboard desde a Rodada 88. Removido o cálculo filtrado duplicado que existia em `excluirSelecionados()` (já virava redundante depois de `carregarDadosAdmin()`, que agora chama a função nova internamente).
+
+Validado com `node --check` + suíte de testes (69/69, sem mudança de lógica de cálculo testável — é fiação de DOM).
+
+sw.js `CACHE_NAME` v66 → **v67**.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
