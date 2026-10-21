@@ -122,5 +122,17 @@ service cloud.firestore {
     match /reservas_movimentos_pendentes/{document} {
       allow read, write: if isAdmin();
     }
+
+    // Gerações salvas do Otimizador de Cotas (app desktop separado,
+    // D:\PROJETOS\OTIMIZADOR_COTAS) — sincronizadas aqui só pra
+    // VISUALIZAÇÃO no admin.html (decisão explícita do usuário: gerar
+    // continua só no app desktop, 1 motor de cálculo só). Nenhuma página
+    // pública lê isso — é dado de planejamento interno do organizador do
+    // bolão, não de participantes — então leitura/escrita ficam
+    // restritas ao admin autenticado, mesmo padrão de
+    // reservas_movimentos_pendentes acima.
+    match /otimizador_cotas_geracoes/{document} {
+      allow read, write: if isAdmin();
+    }
   }
 }

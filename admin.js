@@ -16,6 +16,13 @@ let cartoesFiltrados = [];
 let boloes = [];
 let reservasCarregadas = []; // última lista carregada em carregarReservas() — usada pelo modal de registrar movimento
 
+// Otimizador de Cotas (app desktop separado) -- gerações sincronizadas
+// só pra VISUALIZAÇÃO (ver comentário na seção #section-otimizador do
+// admin.html). otimizadorGeracoes guarda a última leitura do Firestore;
+// otimizadorFiltroLoteria é só o filtro da TELA (não refaz a leitura).
+let otimizadorGeracoes = [];
+let otimizadorFiltroLoteria = 'Todas';
+
 // ============================================
 // VARIÁVEIS DO CADASTRO EM LOTE
 // ============================================
@@ -1511,6 +1518,7 @@ async function carregarDadosAdmin() {
         carregarConcursosAdmin();
         atualizarDashboardAdmin();
         atualizarBadgeTotalCartoes();
+        carregarOtimizadorCotas();
         showToast('✅ Dados carregados!', 'success');
         
     } catch (error) {
@@ -5016,6 +5024,128 @@ function atualizarDashboardEstatisticasVazio() {
 }
 
 // ============================================
+// OTIMIZADOR DE COTAS (só visualização)
+// ============================================
+// Lê a coleção otimizador_cotas_geracoes, sincronizada pelo app desktop
+// (D:\PROJETOS\OTIMIZADOR_COTAS, ver _sincronizar_geracao_nuvem). Este
+// módulo NUNCA decide o que é "melhor resultado" nem recalcula nada --
+// só ordena/filtra/exibe os campos já prontos que vieram de lá
+// (chave_ranking, melhor_faixa_texto, resumo_resultado_texto). Gerar
+// jogos novos continua existindo só no app desktop, de propósito (ver
+// comentário no HTML da seção) -- mantém 1 motor de otimização só, sem
+// risco de uma 2ª implementação em JS divergir da versão Python.
+async function carregarOtimizadorCotas() {
+    const container = document.getElementById('listaOtimizadorCotas');
+    try {
+        const snapshot = await db.collection('otimizador_cotas_geracoes').get();
+        otimizadorGeracoes = [];
+        snapshot.forEach(doc => {
+            otimizadorGeracoes.push({ id: doc.id, ...doc.data() });
+        });
+        exibirOtimizadorCotas();
+    } catch (error) {
+        console.error('Erro ao carregar gerações do Otimizador de Cotas:', error);
+        if (container) container.innerHTML = '<div class="empty-state">❌ Erro ao carregar -- veja o console</div>';
+    }
+}
+
+// Compara 2 chaves_ranking (listas de inteiros: [tem_algo, faixa_melhor,
+// faixa_meio, faixa_pior]) elemento a elemento, maior primeiro -- mesma
+// ordem que o "Ranking de Acertos" do app desktop usa, sem reimplementar
+// NENHUMA regra de negócio aqui (a lista já vem pronta do Firestore).
+function compararChaveRanking(a, b) {
+    const ca = a.chave_ranking || [0];
+    const cb = b.chave_ranking || [0];
+    const n = Math.max(ca.length, cb.length);
+    for (let i = 0; i < n; i++) {
+        const diff = (cb[i] || 0) - (ca[i] || 0);
+        if (diff !== 0) return diff;
+    }
+    return 0;
+}
+
+function exibirOtimizadorCotas() {
+    const container = document.getElementById('listaOtimizadorCotas');
+    if (!container) return;
+
+    const filtradas = otimizadorGeracoes.filter(g =>
+        otimizadorFiltroLoteria === 'Todas' || g.loteria === otimizadorFiltroLoteria);
+
+    if (filtradas.length === 0) {
+        container.innerHTML = '<div class="empty-state">📭 Nenhuma geração sincronizada ainda -- salve uma geração no app desktop.</div>';
+        return;
+    }
+
+    const ordenadas = [...filtradas].sort(compararChaveRanking);
+
+    const CORES_LOTERIA = { 'Mega-Sena': '#0071e3', 'Lotofácil': '#1b6b2e', 'Quina': '#5856d6' };
+
+    let html = '';
+    ordenadas.forEach((g, idx) => {
+        const cor = CORES_LOTERIA[g.loteria] || '#0071e3';
+        const temAlgo = g.chave_ranking && g.chave_ranking[0] === 1;
+        const headline = temAlgo
+            ? `🏆 ${escapeHtml(g.melhor_faixa_texto || '')}`
+            : '— Sem resultado ainda';
+        const medalha = (idx === 0 && temAlgo) ? '🥇 ' : `#${idx + 1} `;
+        const orcamentosTexto = g.orcamentos
+            ? Object.entries(g.orcamentos).map(([k, v]) => `${k === 'qualquer_premio' ? '🎲' : '⚖️'} R$ ${Number(v).toFixed(2)}`).join('  ')
+            : '';
+
+        html += `
+            <div class="reserva-card" style="background: #f8fafc; border-radius: 12px; padding: 14px; border: 1px solid #e2e8f0; border-left: 3px solid ${cor}; margin-bottom: 12px;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
+                    <div>
+                        <div style="font-size:12px; color:#64748b; font-weight:600;">${medalha}${escapeHtml(g.loteria || 'Mega-Sena')} · ${escapeHtml(g.data_legivel || '')}</div>
+                        <div style="font-weight:800; font-size:16px; color:${temAlgo ? '#9a7300' : '#64748b'}; margin-top:2px;">${headline}</div>
+                        ${g.resumo_resultado_texto ? `<div style="font-size:12.5px; color:#64748b; margin-top:2px;">${escapeHtml(g.resumo_resultado_texto)}</div>` : ''}
+                    </div>
+                    <div style="font-size:12.5px; color:#64748b; text-align:right;">${escapeHtml(orcamentosTexto)}</div>
+                </div>
+                <button class="btn-ver-itens-otimizador" data-id="${g.id}" style="background:#0071e3; color:white; border:none; padding:7px 14px; border-radius:8px; cursor:pointer; font-size:12.5px; margin-top:10px;">
+                    📋 Ver cotas sugeridas
+                </button>
+                <div id="itens-otimizador-${g.id}" style="display:none; margin-top:10px; background:white; border-radius:8px; padding:12px; font-size:13px; max-height:260px; overflow-y:auto; border:1px solid #e2e8f0;"></div>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+
+    document.querySelectorAll('.btn-ver-itens-otimizador').forEach(btn => {
+        btn.addEventListener('click', () => alternarItensOtimizador(btn.dataset.id, btn));
+    });
+}
+
+function alternarItensOtimizador(id, btn) {
+    const div = document.getElementById(`itens-otimizador-${id}`);
+    if (!div) return;
+    if (div.style.display === 'block') {
+        div.style.display = 'none';
+        btn.textContent = '📋 Ver cotas sugeridas';
+        return;
+    }
+    const geracao = otimizadorGeracoes.find(g => g.id === id);
+    const opcoes = (geracao && geracao.opcoes) || {};
+    const rotulos = { qualquer_premio: '🎲 Qualquer Prêmio', equilibrada: '⚖️ Equilibrada' };
+    let html = '';
+    for (const chave of ['qualquer_premio', 'equilibrada']) {
+        const itens = opcoes[chave];
+        if (!itens || itens.length === 0) continue;
+        html += `<div style="font-weight:700; margin-bottom:6px;">${rotulos[chave]}</div>`;
+        itens.forEach(item => {
+            const desc = item.cotas != null
+                ? `${item.qtd}x ${item.numeros} números · ${item.cartoes} cartões · ${item.cotas} cotas · R$ ${Number(item.preco).toFixed(2)}/cota`
+                : `${item.qtd}x aposta de ${item.numeros} números · R$ ${Number(item.preco).toFixed(2)}/aposta`;
+            const marcado = item.marcado ? '✅' : '⬜';
+            html += `<div style="padding:4px 0; border-bottom:1px solid #f1f5f9;">${marcado} ${escapeHtml(desc)}</div>`;
+        });
+    }
+    div.innerHTML = html || '<div style="color:#94a3b8;">Nenhuma cota nessa geração.</div>';
+    div.style.display = 'block';
+    btn.textContent = '📋 Esconder cotas sugeridas';
+}
+
+// ============================================
 // INICIALIZAÇÃO (DOMContentLoaded)
 // ============================================
 document.addEventListener('DOMContentLoaded', () => {
@@ -5095,6 +5225,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (ordenarPor) ordenarPor.onchange = exibirCartoesAdmin;
 
     if (btnAtualizarReservas) btnAtualizarReservas.onclick = () => carregarReservas();
+
+    const btnAtualizarOtimizador = document.getElementById('btnAtualizarOtimizador');
+    if (btnAtualizarOtimizador) btnAtualizarOtimizador.onclick = () => carregarOtimizadorCotas();
+    document.querySelectorAll('#filtroOtimizadorLoteria .otm-filtro').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#filtroOtimizadorLoteria .otm-filtro').forEach(b => b.classList.remove('ativo'));
+            btn.classList.add('ativo');
+            otimizadorFiltroLoteria = btn.dataset.loteria;
+            exibirOtimizadorCotas();
+        });
+    });
     const btnVerPendentesReserva = document.getElementById('btnVerPendentesReserva');
     if (btnVerPendentesReserva) btnVerPendentesReserva.onclick = verPendentesReserva;
     const btnRegistrarMovimentoReserva = document.getElementById('btnRegistrarMovimentoReserva');

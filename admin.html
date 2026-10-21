@@ -379,6 +379,15 @@
         .btn-sm { padding: 6px 16px; font-size: 13px; min-height: 36px; }
         .btn-block { width: 100%; }
 
+        /* Seletor de loteria do Otimizador de Cotas -- segmented control,
+           mesmo padrão visual (pill escura = ativa) já usado no app
+           desktop nessa mesma tela (Ranking de Acertos). */
+        .otm-filtro {
+            background: #fff; color: var(--cor-texto-sec);
+            border: 1px solid var(--cor-borda); font-weight: 600;
+        }
+        .otm-filtro.ativo { background: var(--cor-texto); color: #fff; border-color: var(--cor-texto); }
+
         .btn:hover {
             transform: translateY(-1px);
             filter: brightness(1.06);
@@ -1328,6 +1337,9 @@
             <button class="sidebar-item" data-section="reservas">
                 <span class="icon">💰</span> Reservas
             </button>
+            <button class="sidebar-item" data-section="otimizador">
+                <span class="icon">🧮</span> Otimizador de Cotas
+            </button>
             <button class="sidebar-item" data-section="config">
                 <span class="icon">⚙️</span> Config
             </button>
@@ -1849,6 +1861,36 @@
                     <div id="pendentesReservaResultado" style="display: none; margin-bottom: 16px;"></div>
                     <div id="listaReservas" style="max-height: 500px; overflow-y: auto;">
                         <div class="empty-state">Nenhuma reserva encontrada</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================================ -->
+            <!-- SEÇÃO: OTIMIZADOR DE COTAS (só visualização -- pedido do
+                 usuário: o site NUNCA gera jogos novos, isso continua só
+                 no app desktop D:\PROJETOS\OTIMIZADOR_COTAS. Esta seção
+                 só LÊ a coleção otimizador_cotas_geracoes, sincronizada
+                 de lá -- ver _sincronizar_geracao_nuvem no Python. Todo
+                 campo de ordenação/classificação (chave_ranking,
+                 melhor_faixa_texto) já vem PRONTO do Firestore, calculado
+                 no Python -- este JS só compara/exibe, nunca decide o que
+                 conta como "melhor resultado". -->
+            <!-- ============================================ -->
+            <section id="section-otimizador" class="section">
+                <div class="card">
+                    <div class="card-header">🧮 OTIMIZADOR DE COTAS — GERAÇÕES</div>
+                    <div style="display:flex; align-items:center; gap:8px; background: var(--cor-fundo); border:1px solid var(--cor-borda); border-radius: var(--raio); padding:10px 14px; margin-bottom:16px; font-size:12px; color: var(--cor-texto-sec);">
+                        👁️ <span>Só visualização — os jogos continuam sendo gerados no app desktop. Aqui dá pra ver o histórico e o ranking de acertos sincronizados de lá.</span>
+                    </div>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;" id="filtroOtimizadorLoteria">
+                        <button class="btn btn-sm otm-filtro ativo" data-loteria="Todas">Todas</button>
+                        <button class="btn btn-sm otm-filtro" data-loteria="Mega-Sena">Mega-Sena</button>
+                        <button class="btn btn-sm otm-filtro" data-loteria="Lotofácil">Lotofácil</button>
+                        <button class="btn btn-sm otm-filtro" data-loteria="Quina">Quina</button>
+                        <button id="btnAtualizarOtimizador" class="btn btn-primary btn-sm" style="margin-left:auto;">🔄 Atualizar</button>
+                    </div>
+                    <div id="listaOtimizadorCotas" style="max-height: 650px; overflow-y: auto;">
+                        <div class="empty-state">Carregando gerações...</div>
                     </div>
                 </div>
             </section>
