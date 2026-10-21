@@ -1403,6 +1403,16 @@ Validado com `node --check` + suíte de testes (69/69, sem mudança de lógica d
 
 sw.js `CACHE_NAME` v66 → **v67**.
 
+## Rodada 93 — Recibo do participante não mostra mais status de depósito (desktop)
+
+Pedido do usuário: "o recibo dos participantes tem um item que informa se o dinheiro já foi depositado. Não quero essa informação no recibo do participantes... Retire. E ajuste o recibo."
+
+Status de depósito é controle interno do organizador (fluxo próprio, aba Depósitos) — não tem nenhuma utilidade pro participante que recebe o recibo, só expõe um detalhe operacional que não é da conta dele. Removida a coluna inteira da tabela de histórico de pagamentos do recibo (`_emitir_recibo`, `bolao_pro_v3.py`), não só escondida com CSS — junto com as variáveis que só existiam pra montar aquela célula (`dep_ic`/`dep_cor`/`dep_txt`). "Observação" (a última coluna) ganhou o espaço que sobrou: truncamento de 40 → 60 caracteres, já que uma coluna a menos deixa mais largura disponível na tabela.
+
+Validado com teste isolado de Tk ao vivo: gera um recibo de verdade (participante com 2 pagamentos, 1 marcado como depositado e 1 não) e confirma por código — não só visualmente — que nenhuma referência a "depósito"/"depositado" sobra no HTML gerado, que os dados do participante e das observações continuam presentes, e que a tabela tem exatamente as 5 colunas esperadas (#, Data, Mês Ref., Valor, Observação). 35/35 testes Python continuam passando.
+
+Versão desktop v6.36 → **v6.37**. `dist/SistemaBoloes.exe` reconstruído.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

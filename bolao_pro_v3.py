@@ -1,7 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.36
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.37
+Correções v6.37 (recibo do participante não mostra mais status de
+depósito):
+ - Pedido do usuário: "o recibo dos participantes tem um item que
+   informa se o dinheiro já foi depositado. Não quero essa informação
+   no recibo do participantes... Retire. E ajuste o recibo."
+ - O status de depósito é controle INTERNO do organizador (fluxo
+   próprio, aba Depósitos) — não tem nenhuma utilidade pro participante
+   que recebe o recibo, só expõe um detalhe operacional que não é da
+   conta dele. Removida a coluna inteira da tabela de histórico de
+   pagamentos do recibo (`_emitir_recibo`), não só escondida — a coluna
+   "Observação" ganhou o espaço que sobrou (truncamento de 40 → 60
+   caracteres, já que uma coluna a menos deixa mais largura disponível).
+ - Validado com teste isolado: gera um recibo de verdade (2 pagamentos,
+   1 depositado e 1 não) e confirma que nenhuma referência a "depósito"
+   sobra no HTML gerado, e que a tabela tem exatamente as 5 colunas
+   esperadas (#, Data, Mês Ref., Valor, Observação).
 Correções v6.36 (aba renomeada pra "Financeiro" e redesenhada do zero —
 lista em acordeão com resumo financeiro):
  - Pedido do usuário, mesmo depois da fusão (Rodada 83) e do polimento
@@ -2087,7 +2103,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.36")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.37")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -2363,7 +2379,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.36",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.37",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -6362,20 +6378,22 @@ class BolaoApp:
             bd = dict(b)
             import tempfile, webbrowser
     
+            # Achado real do usuário: o recibo do participante mostrava se
+            # cada pagamento já tinha sido DEPOSITADO — informação interna
+            # de controle do organizador (fluxo próprio, aba Depósitos),
+            # sem nenhuma utilidade pro participante que recebe o recibo.
+            # Removida a coluna inteira (não só escondida) — Observação
+            # ganhou o espaço que sobrou (truncamento de 40 → 60 caracteres).
             rows_pag = ""
             for i, pg in enumerate([dict(x) for x in pgs]):
                 bg = "#f0fff8" if i%2==0 else "#ffffff"
-                dep_ic = "✓" if pg["depositado"] else "⏳"
-                dep_cor = "#1D9E75" if pg["depositado"] else "#e67e22"
-                dep_txt = "Depositado" if pg["depositado"] else "Pendente"
                 obs = pg.get("observacoes","") or ""
                 rows_pag += f"""<tr style="background:{bg}">
                   <td class="tc">{i+1}</td>
                   <td>{pg["data_pagamento"] or "-"}</td>
                   <td style="color:#555">{pg["mes_referencia"] or "-"}</td>
                   <td class="money" style="color:#1D9E75">{fmt_brl(float(pg["valor"] or 0))}</td>
-                  <td><span style="color:{dep_cor};font-weight:600">{dep_ic} {dep_txt}</span></td>
-                  <td style="color:#777;font-size:11px">{obs[:40] if obs else "-"}</td>
+                  <td style="color:#777;font-size:11px">{obs[:60] if obs else "-"}</td>
                 </tr>"""
     
             cor_st = "#1D9E75" if quitado else "#e74c3c"
@@ -6489,12 +6507,12 @@ class BolaoApp:
       <div class="sec">
         <div class="sec-title">Histórico de Pagamentos</div>
         <table>
-          <thead><tr><th>#</th><th>Data</th><th>Mês Ref.</th><th>Valor</th><th>Depósito</th><th>Observação</th></tr></thead>
+          <thead><tr><th>#</th><th>Data</th><th>Mês Ref.</th><th>Valor</th><th>Observação</th></tr></thead>
           <tbody>{rows_pag}</tbody>
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.36</span>
+        <span>Sistema de Gestão de Bolões v6.37</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -8826,7 +8844,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.36</span>
+        <span>Sistema de Gestão de Bolões v6.37</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
