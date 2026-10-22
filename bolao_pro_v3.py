@@ -1,7 +1,35 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.37
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.38
+Correções v6.38 (sincronização de reservas do site — apagar a fila em
+lote, não mais 1 por 1):
+ - Pedido do usuário: "não estou conseguindo atualizar as reservas... o
+   sistema fala que reservas do site está ocupado. Quero aprimorar esse
+   sistema de atualização para evitar problema... faça isso, aprimore."
+ - Causa raiz: ao importar os movimentos pendentes da fila do site
+   (`_concluir_import_pendentes`), cada item confirmado no SQLite local
+   disparava, na hora, 1 requisição DELETE individual pro Firestore,
+   numa rajada sem nenhum retry — diferente da busca (GET), que já tinha
+   espera crescente (2/5/10/20s) pra erro 429. Rajada de deletes
+   individuais numa coleção pequena/pouco usada
+   (`reservas_movimentos_pendentes`) é exatamente o padrão que o
+   Firestore rate-limita (429 "Too Many Requests"), e como o delete
+   falhava, o item continuava na fila e repetia o mesmo erro na próxima
+   sincronização.
+ - Corrigido: o loop de importação não apaga mais nada individualmente —
+   só acumula os ids dos itens já garantidos no SQLite
+   (`doc_ids_para_apagar`). Depois do loop, um novo método,
+   `_apagar_fila_reservas_em_lote`, apaga tudo de uma vez só, num único
+   commit em lote (endpoint `:commit` do Firestore, até 500 writes por
+   lote), com o mesmo retry/espera crescente (2/5/10/20/30s) pra 429, e
+   roda em background (thread separada) — não trava a UI nem depende do
+   que já foi importado no SQLite, que não muda em nada.
+ - Se mesmo assim algum lote falhar, o item fica na fila e sai na
+   próxima abertura do app — sem duplicar nada, pois a idempotência por
+   `origem_doc_id` já existia e continua garantindo isso.
+ - Validado: `py_compile`, varredura de método duplicado (nenhum
+   encontrado) e os 35 testes automatizados do desktop, todos passando.
 Correções v6.37 (recibo do participante não mostra mais status de
 depósito):
  - Pedido do usuário: "o recibo dos participantes tem um item que
@@ -2103,7 +2131,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.37")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.38")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -2237,14 +2265,12 @@ class BolaoApp:
     def _concluir_import_pendentes(self, dados, erro_final):
         """Roda na thread principal (agendada via root.after de dentro de
         _importar_movimentos_pendentes_web) — recebe o resultado da busca
-        feita em background e faz o resto: gravações no SQLite (não pode
-        rodar fora da thread principal) e as exclusões da fila no
-        Firestore, uma por item importado."""
-        import urllib.request, re as _re
+        feita em background e grava no SQLite (não pode rodar fora da
+        thread principal). A limpeza da fila no Firestore (apagar os
+        itens já garantidos no SQLite) roda à parte, em UM lote só, em
+        background — ver _apagar_fila_reservas_em_lote."""
+        import re as _re
         self._rsv_import_em_andamento = False
-
-        url = ("https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
-               "/databases/(default)/documents/reservas_movimentos_pendentes")
 
         if dados is None:
             self._status("❌ Erro ao verificar reservas do site: " + str(erro_final)[:90], cor="#ff6b6b")
@@ -2265,6 +2291,7 @@ class BolaoApp:
         importados = 0; erros = 0
         total_dep = 0.0; total_saq = 0.0
         erros_detalhe = []
+        doc_ids_para_apagar = []
 
         for doc in docs:
             nome_erro = "?"
@@ -2334,11 +2361,14 @@ class BolaoApp:
                         "VALUES (?,?,?,?,?,?,?,?)",
                         (pessoa_id, tipo_db, valor, data_mov, "", "", desc_final, doc_id))
 
-                # Só sai da fila depois de garantir que está no SQLite local
-                # (inserido agora, ou já tinha sido inserido antes)
-                del_req = urllib.request.Request(
-                    url + "/" + doc_id, method="DELETE", headers=_firebase_headers())
-                urllib.request.urlopen(del_req, timeout=10)
+                # Já está garantido no SQLite local (inserido agora, ou já
+                # tinha sido inserido antes) — só acumula o id aqui pra
+                # apagar da fila TUDO de uma vez, num lote só, depois do
+                # loop (achado real do usuário: apagar 1 item por vez, em
+                # rajada, é o padrão que o Firestore rate-limita numa
+                # coleção pequena — "reservas do site está ocupado", ver
+                # _apagar_fila_reservas_em_lote).
+                doc_ids_para_apagar.append(doc_id)
 
                 importados += 1
                 if tipo_db == "CRÉDITO": total_dep += valor
@@ -2349,6 +2379,9 @@ class BolaoApp:
 
         if importados == 0 and erros == 0:
             return
+
+        if doc_ids_para_apagar:
+            self._apagar_fila_reservas_em_lote(doc_ids_para_apagar)
 
         partes = []
         if importados > 0:
@@ -2375,11 +2408,54 @@ class BolaoApp:
             except Exception: pass
         self.root.after(8000, lambda: self._status(""))
 
+    def _apagar_fila_reservas_em_lote(self, doc_ids):
+        """Apaga da fila (reservas_movimentos_pendentes) todos os itens já
+        confirmados no SQLite local, num commit em lote só por grupo de
+        até 500 (limite do Firestore) — em vez de 1 DELETE por item.
+        Achado real do usuário ("reservas do site está ocupado" ao
+        atualizar): apagar em rajada, 1 request por item, é exatamente o
+        padrão que o Firestore rate-limita numa coleção pequena/pouco
+        usada como esta (erro 429) — a busca já tinha retry com espera
+        crescente (_importar_movimentos_pendentes_web), mas apagar não
+        tinha nenhum. Roda em background: o que já foi importado no
+        SQLite não depende disto terminar — se falhar mesmo com retry,
+        os itens ficam na fila e saem na próxima vez que o app abrir
+        (idempotência por origem_doc_id já garante que não duplica)."""
+        import threading
+
+        def _run():
+            import urllib.request, urllib.error, json, time as _time
+            url = ("https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
+                   "/databases/(default):commit")
+            base = ("projects/mega-sena-sistema/databases/(default)/documents"
+                    "/reservas_movimentos_pendentes/")
+            grupos = [doc_ids[i:i + 500] for i in range(0, len(doc_ids), 500)]
+            esperas = [2, 5, 10, 20, 30]
+            for grupo in grupos:
+                corpo = json.dumps({"writes": [
+                    {"delete": base + did} for did in grupo
+                ]}).encode("utf-8")
+                for tentativa in range(len(esperas) + 1):
+                    try:
+                        req = urllib.request.Request(
+                            url, data=corpo, method="POST", headers=_firebase_headers())
+                        urllib.request.urlopen(req, timeout=20)
+                        break
+                    except urllib.error.HTTPError as ex:
+                        if ex.code == 429 and tentativa < len(esperas):
+                            _time.sleep(esperas[tentativa])
+                            continue
+                        break
+                    except Exception:
+                        break
+
+        threading.Thread(target=_run, daemon=True).start()
+
     # ── HEADER ──────────────────────────────────────────────────
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.37",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.38",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -6512,7 +6588,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.37</span>
+        <span>Sistema de Gestão de Bolões v6.38</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -8844,7 +8920,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.37</span>
+        <span>Sistema de Gestão de Bolões v6.38</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>

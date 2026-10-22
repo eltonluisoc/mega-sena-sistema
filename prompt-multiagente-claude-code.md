@@ -1437,6 +1437,16 @@ Validado com `node --check` + suíte de testes (75/75 — é fiação de DOM/tim
 
 sw.js `CACHE_NAME` v68 → **v69**.
 
+## Rodada 96 — Sincronização de reservas do site: apagar a fila em lote, não mais 1 por 1 (desktop)
+
+Pedido do usuário: "não estou conseguindo atualizar as reservas... o sistema fala que reservas do site está ocupado. Quero aprimorar esse sistema de atualização para evitar problema... faça isso, aprimore."
+
+**Causa raiz real**: `_concluir_import_pendentes` (roda na thread principal, depois que `_importar_movimentos_pendentes_web` busca a fila `reservas_movimentos_pendentes` em background) grava cada movimento confirmado no SQLite local e, em seguida, dispara ALI MESMO, no meio do loop, uma requisição DELETE individual pro Firestore pra tirar o item da fila — uma rajada de N DELETEs seguidos, sem nenhum retry. A busca (GET) já tinha espera crescente (2/5/10/20s) pra erro 429 ("reservas do site está ocupado" é literalmente essa mensagem), mas o lado do delete não tinha nada. Rajada de requisições individuais numa coleção pequena/pouco usada é exatamente o padrão que o Firestore rate-limita (429), e como o delete falhava, o item ficava na fila e repetia o mesmo erro em toda sincronização seguinte — virando um problema permanente, não um erro passageiro.
+
+**Corrigido**: o loop de importação não apaga mais nada individualmente — só acumula os ids dos itens já garantidos no SQLite (`doc_ids_para_apagar`). Depois do loop, um novo método (`_apagar_fila_reservas_em_lote`) apaga tudo de uma vez só, num único commit em lote (endpoint `:commit` do Firestore, agrupado em blocos de até 500 writes — o limite da API), com o mesmo tipo de retry/espera crescente (2/5/10/20/30s) pra 429, rodando em background numa thread separada — não trava a UI, e não depende do que já foi importado no SQLite (que fica garantido de qualquer forma). Se mesmo assim algum lote de delete falhar, o item simplesmente continua na fila e sai na próxima abertura do app — sem duplicar nada, porque a idempotência por `origem_doc_id` (checada antes do INSERT) já existia e continua garantindo isso.
+
+Versão v6.37 → **v6.38** (4 locais). Validado com `py_compile`, varredura de método duplicado (nenhum encontrado) e os 35 testes automatizados do desktop (todos passando).
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
