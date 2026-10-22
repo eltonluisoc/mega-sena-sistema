@@ -4190,8 +4190,19 @@ function abrirModalRegistrarMovimento() {
         padding: 20px; overflow-y: auto;
     `;
 
-    const opcoesPessoas = reservasCarregadas.map(r =>
-        `<option value="${r.id}">${escapeHtml(r.nome)}${r.telefone ? ' — ' + escapeHtml(r.telefone) : ''}</option>`
+    // Achado real do usuário: a lista aqui vinha "bagunçada" (sem ordem
+    // aparente) e alguns nomes tinham telefone do lado, outros não.
+    // Causa: reservasCarregadas é ordenada por SALDO (maior primeiro, ver
+    // carregarReservas) — certo pra lista principal de Reservas, mas sem
+    // sentido nenhum pra escolher "qual pessoa" aqui; e o telefone só
+    // aparecia quando a pessoa tinha um cadastrado (inconsistente, e o
+    // usuário pediu pra tirar de vez — não precisa pra identificar
+    // ninguém, o nome já basta). Ordena uma CÓPIA por nome só pra este
+    // seletor, sem mexer na ordem por saldo que a lista principal usa.
+    const pessoasOrdenadas = [...reservasCarregadas].sort((a, b) =>
+        (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
+    const opcoesPessoas = pessoasOrdenadas.map(r =>
+        `<option value="${r.id}">${escapeHtml(r.nome)}</option>`
     ).join('');
 
     const hoje = new Date().toISOString().split('T')[0];
@@ -4349,7 +4360,12 @@ function abrirModalLancamentoLote() {
     `;
 
     const hoje = new Date().toISOString().split('T')[0];
-    const linhasPessoas = reservasCarregadas.map(r => {
+    // Mesmo achado do modal simples (abrirModalRegistrarMovimento) — essa
+    // lista vem de reservasCarregadas, ordenada por saldo pra tela
+    // principal de Reservas, sem sentido pra marcar nomes aqui.
+    const pessoasOrdenadas = [...reservasCarregadas].sort((a, b) =>
+        (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
+    const linhasPessoas = pessoasOrdenadas.map(r => {
         const saldo = (r.saldoReserva || 0).toFixed(2);
         return `
             <label class="lote-linha-pessoa" data-nome-busca="${escapeHtml(r.nome).toLowerCase()}"
