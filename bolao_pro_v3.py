@@ -1,7 +1,40 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.38
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.39
+Correções v6.39 (encerrar/reativar bolão — ação única, num só lugar):
+ - Pedido do usuário: "a dinâmica de encerramento do bolão é confusa...
+   vou em vários botões... e o botão encerrar e reativar ficam sempre
+   disponíveis... quero uma revisão completa do sistema para que o
+   encerramento do bolão seja feito de forma objetiva e em um único
+   lugar."
+ - Levantamento: a ação estava espalhada em 3 lugares com comportamentos
+   diferentes — botão "Reativar Encerrado" solto no cabeçalho da Visão
+   Geral; botões "Encerrar Bolão" E "Reativar Encerrado" juntos no
+   cabeçalho de "Bolão Selecionado" (os dois SEMPRE visíveis, mesmo
+   quando um deles não fazia sentido pro bolão atual); e dentro de
+   "Gerenciar Bolões" só existia "✅ Ativar" (que na verdade só troca
+   qual bolão é o selecionado por padrão — nada a ver com encerrar) e
+   "🗑 Excluir" (apaga tudo, irreversível, fácil de confundir com
+   "encerrar").
+ - Corrigido: toda a ação de encerrar/reativar passou a viver só dentro
+   de "⚙ Gerenciar Bolões" (botão fixo no topo, acessível de qualquer
+   tela). A lista agora mostra uma coluna "Situação" (🟢 Ativo / 🔴
+   Encerrado) objetiva por bolão, e existe um botão SÓ que troca de
+   nome e cor conforme o bolão selecionado na lista: "🔒 Encerrar"
+   quando está ativo, "🔓 Reativar" quando já está encerrado — nunca os
+   dois ao mesmo tempo. Os botões duplicados saíram da Visão Geral e do
+   cabeçalho de "Bolão Selecionado"; o antigo "✅ Ativar" foi renomeado
+   pra "🎯 Selecionar" pra não se confundir com "ativo/encerrado".
+ - `_adm_encerrar_bolao`/`_adm_reativar_bolao` (os métodos antigos, com
+   popup próprio pra reativar) foram removidos — a lógica de ambos virou
+   um único `alternar_encerrado()` dentro de `_gerenciar_boloes`.
+ - Validado com `py_compile`, varredura de método duplicado (nenhum
+   encontrado), os 35 testes automatizados e um teste isolado de Tk ao
+   vivo (abre a janela "Gerenciar Bolões" de verdade com 2 bolões, um
+   ativo e um encerrado, seleciona cada um e confirma que o botão troca
+   de texto certo, clica reativar/encerrar de verdade e confirma que o
+   banco e a lista atualizam).
 Correções v6.38 (sincronização de reservas do site — apagar a fila em
 lote, não mais 1 por 1):
  - Pedido do usuário: "não estou conseguindo atualizar as reservas... o
@@ -2131,7 +2164,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.38")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.39")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -2455,7 +2488,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.38",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.39",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -5612,12 +5645,6 @@ class BolaoApp:
                  bg="#1a2a3a", fg="#556677", font=("Arial",9))
         self._dash_hora_lbl.pack(side="right", padx=4)
         btn(hdr, "🔄", CORES["btn_azul"], self._recarregar_visao_geral, width=4).pack(side="right", padx=4)
-        # Reativar bolão precisa estar aqui, na Visão Geral — antes só
-        # existia dentro do detalhe de "Bolão Selecionado", mas um bolão
-        # encerrado não aparece nos seletores normais pra chegar até lá,
-        # então o botão ficava praticamente inalcançável.
-        btn(hdr, "Reativar Encerrado", CORES["btn_cinza"],
-            self._adm_reativar_bolao, width=16).pack(side="right", padx=4)
 
         # ── KPIs gerais — 8 cards, paleta própria (não repete nenhuma cor
         # dos KPIs do bolão selecionado, lá embaixo) ─────────────────────
@@ -5752,12 +5779,11 @@ class BolaoApp:
                  bg="#1a2a3a", fg="white", font=("Arial",13,"bold"))
         self._dash_bolao_lbl.pack(side="left")
         btn(hdr3, "🔄", CORES["btn_azul"], self._recarregar_visao_geral, width=4).pack(side="right")
-        # Vieram da antiga seção "Pendências deste Bolão" (fundida em
-        # "Situação dos Participantes" — ver comentário em sec_sit).
-        btn(hdr3, "Encerrar Bolão", CORES["btn_vermelho"],
-            self._adm_encerrar_bolao, width=14).pack(side="right", padx=4)
-        btn(hdr3, "Reativar Encerrado", CORES["btn_cinza"],
-            self._adm_reativar_bolao, width=16).pack(side="right", padx=4)
+        # Encerrar/Reativar saíram de aqui (Rodada 97) — viviam soltos em
+        # 2 cabeçalhos diferentes (este e a Visão Geral), sempre os dois
+        # visíveis juntos sem refletir o estado real do bolão. Agora é
+        # uma ação só, num único lugar: "⚙ Gerenciar Bolões" (botão fixo
+        # no topo, em qualquer tela) — ver _gerenciar_boloes.
 
         # ── Resumo — 6 cards compactos deste bolão ────────────────
         kpi_row = tk.Frame(p, bg="#1a2a3a")
@@ -6588,7 +6614,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.38</span>
+        <span>Sistema de Gestão de Bolões v6.39</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -7610,9 +7636,8 @@ class BolaoApp:
     # de _build_bolao_sel(), e depois foi fundida de vez em "Situação dos
     # Participantes" (mesma info por participante, duas tabelas e duas
     # consultas — ver comentário na criação de sec_sit). Os botões
-    # Encerrar/Reativar Bolão foram pro cabeçalho (hdr3). _adm_encerrar_
-    # bolao()/_adm_reativar_bolao() continuam existindo, operando no
-    # bolão selecionado (self.bid).
+    # Encerrar/Reativar Bolão, que moravam aqui no cabeçalho (hdr3),
+    # saíram na Rodada 97 pra um único lugar — ver _gerenciar_boloes.
 
     def _adm_registrar(self):
         tipo_full = self.adm_tipo.get()
@@ -7839,63 +7864,10 @@ class BolaoApp:
                 r["tipo"], r["descricao"] or "-", r["data_registro"] or "-"),
                 tags=(tag,))
 
-    def _adm_encerrar_bolao(self):
-        """Encerra o bolão atualmente selecionado nos cartões de
-        "Bolão Selecionado"."""
-        bid = self.bid.get()
-        if not bid:
-            messagebox.showwarning("Atenção",
-                "Nenhum bolão selecionado.\n"
-                "Escolha um bolão nos cartões de 'Bolão Selecionado' e tente novamente."); return
-        b = self.db.fetchone("SELECT nome FROM boloes WHERE id=?", (bid,))
-        if not b: return
-        if messagebox.askyesno("Encerrar Bolão",
-            "Encerrar o bolão '" + b["nome"] + "'?\n\n"
-            "Ele desaparecerá de todas as listas de seleção.\n"
-            "Você poderá reativá-lo a qualquer momento."):
-            self.db.execute("UPDATE boloes SET encerrado=1 WHERE id=?", (bid,))
-            messagebox.showinfo("Encerrado", "Bolão '" + b["nome"] + "' encerrado.")
-            self._refresh_all()
-
-    def _adm_reativar_bolao(self):
-        """Abre uma janela com os bolões encerrados pra escolher e
-        reativar um (antes era uma lista fixa dentro da aba de
-        pendências; virou popup pra não ocupar espaço o tempo todo)."""
-        encerrados = self.db.fetchall("SELECT * FROM boloes WHERE encerrado=1 ORDER BY nome")
-        if not encerrados:
-            messagebox.showinfo("Sem encerrados", "Nenhum bolão encerrado no momento.")
-            return
-        win = tk.Toplevel(self.root)
-        win.title("Reativar Bolão")
-        win.geometry("420x360")
-        win.configure(bg=CORES["bg_section"])
-        win.grab_set(); win.lift(); win.focus_force()
-        tk.Label(win, text="🔄 BOLÕES ENCERRADOS", bg=CORES["bg_section"],
-                 fg=CORES["fg_title"], font=("Arial",12,"bold")).pack(pady=(14,8))
-        fr = tk.Frame(win, bg=CORES["bg_section"], padx=16); fr.pack(fill="both", expand=True)
-        fr_t, tv_e = make_tree(fr, {"Bolão":260}, height=10)
-        fr_t.pack(fill="both", expand=True)
-        for bol in encerrados:
-            tv_e.insert("","end", iid=str(bol["id"]), values=(dict(bol)["nome"],))
-
-        def _confirmar_reativacao():
-            sel = tv_e.selection()
-            if not sel:
-                messagebox.showwarning("Atenção","Selecione um bolão na lista."); return
-            bid = int(sel[0])
-            b = self.db.fetchone("SELECT nome FROM boloes WHERE id=?", (bid,))
-            if not b: return
-            if messagebox.askyesno("Reativar Bolão",
-                "Reativar o bolão '" + b["nome"] + "'?\n\n"
-                "Ele voltará a aparecer em todas as listas."):
-                self.db.execute("UPDATE boloes SET encerrado=0 WHERE id=?", (bid,))
-                win.destroy()
-                messagebox.showinfo("Reativado", "Bolão '" + b["nome"] + "' reativado.")
-                self._refresh_all()
-
-        bf = tk.Frame(win, bg=CORES["bg_section"]); bf.pack(pady=12)
-        btn(bf, "Reativar Selecionado", CORES["btn_verde"], _confirmar_reativacao, width=20).pack(side="left", padx=6)
-        btn(bf, "Fechar", CORES["btn_cinza"], win.destroy, width=12).pack(side="left", padx=6)
+    # Encerrar/Reativar Bolão (ex-_adm_encerrar_bolao/_adm_reativar_bolao)
+    # saíram de aqui na Rodada 97 — a ação virou única, dentro de
+    # _gerenciar_boloes, com um botão só que troca de nome/cor conforme
+    # o bolão selecionado já está encerrado ou não.
 
     def _adm_editar(self):
         sel = self.adm_tree_hist.selection()
@@ -8920,7 +8892,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.38</span>
+        <span>Sistema de Gestão de Bolões v6.39</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -9839,44 +9811,63 @@ class BolaoApp:
     #  GERENCIAR BOLÕES  ← CORRIGIDO
     # ════════════════════════════════════════════════════════════
     def _gerenciar_boloes(self):
+        """Único lugar do sistema pra encerrar/reativar um bolão (Rodada
+        97) — antes esses botões viviam soltos em 2 cabeçalhos diferentes
+        (Visão Geral e Bolão Selecionado), sempre os dois visíveis juntos
+        sem refletir o estado real do bolão selecionado (achado real do
+        usuário: "vou em vários botões... encerrar e reativar ficam
+        sempre disponíveis"). Aqui a coluna "Situação" mostra o estado
+        de cada bolão objetivamente, e um botão SÓ troca de nome/cor
+        conforme a seleção: "🔒 Encerrar" quando o bolão está ativo,
+        "🔓 Reativar" quando já está encerrado — nunca os dois juntos."""
         win=tk.Toplevel(self.root)
         win.title("Gerenciar Bolões")
-        win.geometry("980x520")
+        win.geometry("1040x520")
         win.configure(bg=CORES["bg_section"])
         win.grab_set()
 
         tk.Label(win,text="GERENCIAMENTO DE BOLÕES",bg=CORES["bg_section"],
                  fg=CORES["fg_title"],font=("Arial",13,"bold")).pack(pady=10)
 
-        cols={"ID":50,"Nome":220,"Loteria":120,"Início":100,
-              "Part.":70,"Valor Total":120,"Parcela":110,"Status":80,"ADM":120}
+        cols={"ID":50,"Nome":200,"Loteria":110,"Início":90,
+              "Part.":60,"Valor Total":110,"Parcela":100,"Situação":100,
+              "Padrão":80,"ADM":110}
         fr,tree=make_tree(win,cols,height=14)
         fr.pack(fill="both",expand=True,padx=10,pady=4)
+        tree.tag_configure("encerrado", foreground="#b91c1c")
 
-        def carregar():
+        def carregar(manter_sel=None):
             tree.delete(*tree.get_children())
             rows=self.db.fetchall("SELECT * FROM boloes ORDER BY id")
             for b in rows:
                 bd=dict(b)
                 adm_info=(f"{bd.get('adm_nome','')} ({'Paga' if bd.get('adm_paga') else 'Não paga'})"
                           if bd.get("adm_nome") else "Não config.")
+                situacao = "🔴 Encerrado" if bd.get("encerrado") else "🟢 Ativo"
                 tree.insert("","end",iid=str(bd["id"]),values=(
                     bd["id"],bd["nome"],bd.get("loteria","Mega-Sena"),bd["data_inicio"],
                     bd["num_participantes"],fmt_brl(bd["valor_total"]),
-                    fmt_brl(bd["valor_parcela"]),bd["status"],adm_info))
-        carregar()
+                    fmt_brl(bd["valor_parcela"]),situacao,bd["status"],adm_info),
+                    tags=("encerrado",) if bd.get("encerrado") else ())
+            if manter_sel is not None and tree.exists(str(manter_sel)):
+                tree.selection_set(str(manter_sel))
+            _atualizar_botao_toggle()
 
         bf=tk.Frame(win,bg=CORES["bg_section"]); bf.pack(pady=10)
 
-        def ativar():
+        def selecionar():
             sel=tree.selection()
             if not sel: messagebox.showwarning("Atenção","Selecione um bolão!"); return
             bid=int(sel[0])
+            b=self.db.fetchone("SELECT encerrado FROM boloes WHERE id=?",(bid,))
+            if b and b["encerrado"]:
+                messagebox.showwarning("Bolão encerrado",
+                    "Este bolão está encerrado — reative-o primeiro\n"
+                    "(botão 🔓 Reativar aqui mesmo) pra poder selecioná-lo."); return
             self.db.execute("UPDATE boloes SET status='INATIVO'")
             self.db.execute("UPDATE boloes SET status='ATIVO' WHERE id=?",(bid,))
             self.bid.set(bid)
-            self._load_boloes_combo(); self._refresh_all(); carregar()
-            messagebox.showinfo("Ativo","Bolão ativado!")
+            self._load_boloes_combo(); self._refresh_all(); carregar(bid)
 
         def editar():
             sel=tree.selection()
@@ -9885,6 +9876,31 @@ class BolaoApp:
             b=self.db.fetchone("SELECT * FROM boloes WHERE id=?",(bid,))
             win.destroy()
             self._form_bolao(dict(b))
+
+        def alternar_encerrado():
+            sel=tree.selection()
+            if not sel: messagebox.showwarning("Atenção","Selecione um bolão!"); return
+            bid=int(sel[0])
+            b=self.db.fetchone("SELECT nome, encerrado FROM boloes WHERE id=?",(bid,))
+            if not b: return
+            vai_encerrar = not b["encerrado"]
+            if vai_encerrar:
+                ok = messagebox.askyesno("Encerrar Bolão",
+                    "Encerrar o bolão '" + b["nome"] + "'?\n\n"
+                    "Ele desaparecerá das listas de seleção.\n"
+                    "Você pode reativá-lo aqui mesmo, a qualquer momento.")
+            else:
+                ok = messagebox.askyesno("Reativar Bolão",
+                    "Reativar o bolão '" + b["nome"] + "'?\n\n"
+                    "Ele voltará a aparecer em todas as listas de seleção.")
+            if not ok: return
+            self.db.execute("UPDATE boloes SET encerrado=? WHERE id=?",
+                             (1 if vai_encerrar else 0, bid))
+            carregar(bid)
+            self._load_boloes_combo(); self._refresh_all()
+            messagebox.showinfo(
+                "Encerrado" if vai_encerrar else "Reativado",
+                "Bolão '" + b["nome"] + "' " + ("encerrado." if vai_encerrar else "reativado."))
 
         def excluir():
             sel=tree.selection()
@@ -9910,13 +9926,33 @@ class BolaoApp:
             bid=int(sel[0])
             b=self.db.fetchone("SELECT * FROM boloes WHERE id=?",(bid,))
             bd=dict(b)
-            self._config_adm_win(bid,bd,lambda: carregar())
+            self._config_adm_win(bid,bd,lambda: carregar(bid))
 
-        btn(bf,"✅ Ativar",CORES["btn_verde"],ativar,width=14).pack(side="left",padx=4)
+        btn(bf,"🎯 Selecionar",CORES["btn_verde"],selecionar,width=14).pack(side="left",padx=4)
         btn(bf,"✏ Editar",CORES["btn_laranja"],editar,width=14).pack(side="left",padx=4)
+        btn_toggle = btn(bf,"🔒 Encerrar",CORES["btn_vermelho"],alternar_encerrado,width=14)
+        btn_toggle.pack(side="left",padx=4)
         btn(bf,"🗑 Excluir",CORES["btn_vermelho"],excluir,width=14).pack(side="left",padx=4)
         btn(bf,"👤 Config. ADM",CORES["btn_roxo"],config_adm,width=16).pack(side="left",padx=4)
         btn(bf,"❌ Fechar",CORES["btn_cinza"],win.destroy,width=12).pack(side="left",padx=4)
+
+        def _atualizar_botao_toggle(event=None):
+            sel=tree.selection()
+            if not sel:
+                btn_toggle.configure(text="🔒 Encerrar", bg=CORES["btn_vermelho"],
+                                      activebackground=CORES["btn_vermelho"])
+                return
+            bid=int(sel[0])
+            b=self.db.fetchone("SELECT encerrado FROM boloes WHERE id=?",(bid,))
+            if not b: return
+            if b["encerrado"]:
+                btn_toggle.configure(text="🔓 Reativar", bg=CORES["btn_verde"],
+                                      activebackground=CORES["btn_verde"])
+            else:
+                btn_toggle.configure(text="🔒 Encerrar", bg=CORES["btn_vermelho"],
+                                      activebackground=CORES["btn_vermelho"])
+        tree.bind("<<TreeviewSelect>>", _atualizar_botao_toggle)
+        carregar()
 
     def _config_adm_win(self, bid, bd, on_save=None):
         """Configura o ADM do bolão: nome e se paga ou não."""
