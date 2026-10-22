@@ -1457,6 +1457,16 @@ Pedido do usuário: "a dinâmica de encerramento do bolão é confusa... vou em 
 
 Versão v6.38 → **v6.39** (4 locais). Validado com `py_compile`, varredura de método duplicado (nenhum encontrado), os 35 testes automatizados do desktop, e um teste isolado de Tk ao vivo (abre a janela "Gerenciar Bolões" de verdade com 2 bolões — um ativo, um encerrado —, seleciona cada um e confirma que o botão troca pro texto certo, clica em "Reativar" e depois em "Encerrar" de verdade no mesmo bolão e confirma que o banco e a lista atualizam a cada clique).
 
+## Rodada 98 — Reservas: cooldown pra não martelar o Firestore em toda abertura do app (desktop)
+
+Usuário mostrou print do erro "Erro ao verificar reservas do site: HTTP Error 429: Too Many Requests" e perguntou como resolver — mesmo já confirmando que estava rodando o .exe novo, já com a correção da Rodada 96 (apagar a fila em lote, não mais 1 por 1).
+
+**Diagnóstico**: esse 429 específico é da BUSCA (GET), não do delete — e a busca já tinha retry próprio desde antes (2/5/10/20s de espera, ~37s de fôlego total). O fato de as 5 tentativas falharem TODAS ao longo desses 37s, e não só a primeira, é sinal mais forte de limite DIÁRIO gratuito do Firestore (plano Spark) baixo ou esgotado — não dá pra saber a essa altura sem acesso ao console do Firebase, mas o padrão bate: antes da Rodada 96, cada abertura do app tentava apagar a fila item por item em rajada, o que plausivelmente consumiu bastante do limite diário em aberturas anteriores. Esse tipo de esgotamento só se resolve sozinho no reset diário do Firestore — não tem comando que force a liberar na hora, e por isso o pedido do usuário (manter o plano gratuito, sem Blaze) deixa só uma saída real: parar de piorar.
+
+**Corrigido**: antes, essa busca rodava automaticamente toda vez que o app abria, sem nenhuma memória de ter falhado por rate-limit pouco antes — reabrir o app várias vezes seguidas (reação natural quando algo não funciona) continuava consumindo do pouco que sobrasse do limite do dia. Agora, quando a busca falha especificamente com 429 (`_concluir_import_pendentes`), fica marcado um cooldown de 15 minutos num arquivo local ao lado do banco (`boloes.db.sync_cooldown`, via `_rsv_cooldown_marcar`/`_rsv_cooldown_ativo`/`_rsv_cooldown_limpar`, novos helpers no nível do módulo). Enquanto esse cooldown estiver ativo, a próxima abertura do app NÃO tenta de novo sozinha — só mostra na barra de status quantos minutos faltam, com o link manual "🔄 Tentar novamente" sempre disponível pra quem quiser insistir mesmo assim (ação explícita do usuário nunca é bloqueada). Uma busca bem-sucedida, mesmo sem nada novo pra importar, limpa o cooldown na hora.
+
+Versão v6.39 → **v6.40** (4 locais). Validado com teste isolado das novas funções de cooldown (marca, confirma ~15min restantes, expira sozinho depois de 15min mesmo sem chamar limpar, limpa, e tolera chamar limpar com o arquivo já inexistente), `py_compile`, varredura de método duplicado (nenhum encontrado) e os 35 testes automatizados do desktop.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

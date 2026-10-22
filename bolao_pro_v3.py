@@ -1,7 +1,36 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.39
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.40
+Correções v6.40 (reservas: cooldown pra não martelar o Firestore em toda
+abertura do app quando o limite diário do plano gratuito está baixo):
+ - Usuário mostrou print do erro "Erro ao verificar reservas do site:
+   HTTP Error 429: Too Many Requests" — mesmo já rodando o .exe com a
+   correção da Rodada 96 (apagar a fila em lote). Confirmado com o
+   usuário que já era o executável novo.
+ - Esse 429 é da BUSCA (GET), que já tentava de novo sozinha por ~37s
+   (2/5/10/20s de espera) antes de desistir — o fato de TODAS as 5
+   tentativas falharem ao longo de 37s (não só a 1ª) é sinal mais forte
+   de limite DIÁRIO gratuito do Firestore (plano Spark) baixo/esgotado
+   — provavelmente consumido pelas aberturas anteriores, de antes da
+   Rodada 96, quando cada abertura tentava apagar a fila item por item
+   em rajada. Isso não dá pra resolver na hora (o limite só libera de
+   novo no reset diário do Firestore) — mas dava pra parar de piorar.
+ - Corrigido: antes essa busca rodava automaticamente TODA vez que o
+   app abria, sem memória nenhuma de ter falhado por rate-limit pouco
+   antes — reabrir o app várias vezes seguidas (comum quando algo não
+   está funcionando) continuava consumindo do pouco que sobrava do
+   limite do dia. Agora, quando a busca falha especificamente com 429,
+   fica marcado um cooldown de 15 min (arquivo local
+   `boloes.db.sync_cooldown`, ao lado do banco); enquanto ele estiver
+   ativo, a próxima abertura do app NÃO tenta de novo sozinha — só
+   mostra na barra de status quanto falta e deixa o link manual
+   "Tentar novamente" disponível, pra quem quiser insistir mesmo assim.
+   Uma busca bem-sucedida (mesmo sem nada novo pra importar) limpa o
+   cooldown na hora.
+ - Validado com teste isolado das funções de cooldown (marca, expira
+   sozinho depois de 15 min, limpa, tolera arquivo inexistente), os 35
+   testes automatizados do desktop e `py_compile`.
 Correções v6.39 (encerrar/reativar bolão — ação única, num só lugar):
  - Pedido do usuário: "a dinâmica de encerramento do bolão é confusa...
    vou em vários botões... e o botão encerrar e reativar ficam sempre
@@ -1036,6 +1065,41 @@ import re
 # ─────────────────────────────────────────────
 DB_FILE    = "boloes.db"
 BACKUP_DIR = "backups"
+RSV_COOLDOWN_MINUTOS = 15
+
+def _rsv_cooldown_path():
+    return os.path.abspath(DB_FILE) + ".sync_cooldown"
+
+def _rsv_cooldown_ativo():
+    """Minutos restantes de cooldown se a última tentativa de sincronizar
+    reservas com o site falhou por rate-limit (429) recentemente, ou None
+    se já pode tentar de novo. Existe pra não martelar o Firestore
+    tentando de novo automaticamente em TODA abertura do app — achado
+    real: o 429 persistiu mesmo depois de ~37s de retry (sinal de limite
+    diário gratuito baixo/estourado do plano Spark, não só uma rajada
+    passageira), e reabrir o app repetidas vezes só consome mais do
+    pouco que sobrar do limite do dia. Um clique manual em "Tentar
+    novamente" sempre ignora este cooldown."""
+    try:
+        with open(_rsv_cooldown_path(), "r", encoding="utf-8") as f:
+            ts = datetime.fromisoformat(f.read().strip())
+        restante = RSV_COOLDOWN_MINUTOS - (datetime.now() - ts).total_seconds() / 60
+        return restante if restante > 0 else None
+    except Exception:
+        return None
+
+def _rsv_cooldown_marcar():
+    try:
+        with open(_rsv_cooldown_path(), "w", encoding="utf-8") as f:
+            f.write(datetime.now().isoformat())
+    except Exception:
+        pass
+
+def _rsv_cooldown_limpar():
+    try:
+        os.remove(_rsv_cooldown_path())
+    except Exception:
+        pass
 
 def _resource_path(nome_arquivo):
     """Acha um arquivo empacotado junto do app (ex.: ícone), funcionando
@@ -2164,7 +2228,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.39")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.40")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -2240,6 +2304,17 @@ class BolaoApp:
                 "\n\nVocê pode continuar usando o sistema normalmente; a "
                 "sincronização com o site vai pedir a senha novamente mais tarde.")
             return
+        restante = _rsv_cooldown_ativo()
+        if restante is not None:
+            # Última tentativa falhou por 429 recentemente — não tenta nesta
+            # abertura, só deixa o link manual disponível (ver
+            # _rsv_cooldown_ativo).
+            self._status(
+                f"⏸ Reservas do site: aguardando limite do Firestore liberar "
+                f"(~{restante:.0f} min) — clique em \"Tentar novamente\" se quiser já.",
+                cor="#f39c12")
+            self._set_status_retry_visivel(True)
+            return
         self._importar_movimentos_pendentes_web()
 
     def _importar_movimentos_pendentes_web(self):
@@ -2306,10 +2381,19 @@ class BolaoApp:
         self._rsv_import_em_andamento = False
 
         if dados is None:
+            # 429 especificamente liga o cooldown — evita que a PRÓXIMA
+            # abertura do app tente de novo na hora e continue consumindo
+            # do pouco que sobrar do limite diário gratuito do Firestore
+            # (ver _rsv_cooldown_ativo). Outros erros (sem internet, etc.)
+            # não ligam cooldown — não tem motivo pra adiar a próxima
+            # tentativa automática por causa deles.
+            if "429" in str(erro_final):
+                _rsv_cooldown_marcar()
             self._status("❌ Erro ao verificar reservas do site: " + str(erro_final)[:90], cor="#ff6b6b")
             self._set_status_retry_visivel(True)
             return
 
+        _rsv_cooldown_limpar()
         docs = dados.get("documents", [])
         if not docs:
             self._status("✅ Reservas em dia — nada novo do site.")
@@ -2488,7 +2572,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.39",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.40",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -6614,7 +6698,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.39</span>
+        <span>Sistema de Gestão de Bolões v6.40</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -8892,7 +8976,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.39</span>
+        <span>Sistema de Gestão de Bolões v6.40</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
