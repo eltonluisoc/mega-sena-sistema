@@ -114,6 +114,53 @@ function hideLoading() {
 }
 
 // ============================================
+// PROGRESSO DO CARREGAMENTO INICIAL (Rodada 95)
+// ============================================
+// Pedido do usuário: "preciso esperar um pouco pra carregar... poderia
+// ter um contador percentual... mas somente se não deixar o site mais
+// lento". _bootTrack() só ENVOLVE as chamadas que já disparavam sozinhas
+// no carregamento (mesma ordem, mesmos delays de antes — nada adiado nem
+// serializado) — ele não espera uma terminar pra começar a próxima, só
+// conta quantas das 7 já voltaram. Nenhuma requisição nova, nenhuma
+// espera extra: só visibilidade do que já estava acontecendo.
+const BOOT_TOTAL_CARREGAMENTOS = 7;
+let _bootConcluidos = 0;
+
+function _bootTrack(chamada) {
+    const resultado = chamada();
+    Promise.resolve(resultado).finally(_registrarBootConcluido);
+    return resultado;
+}
+
+function _registrarBootConcluido() {
+    _bootConcluidos++;
+    atualizarBootProgress();
+}
+
+function atualizarBootProgress() {
+    const pill = document.getElementById('bootProgress');
+    const barra = document.getElementById('bootProgressBar');
+    if (!pill && !barra) return;
+
+    const pct = Math.min(100, Math.round((_bootConcluidos / BOOT_TOTAL_CARREGAMENTOS) * 100));
+    if (pill) {
+        pill.style.display = '';
+        pill.textContent = pct < 100 ? `⏳ Carregando… ${pct}%` : '✅ Carregado';
+    }
+    if (barra) barra.style.width = pct + '%';
+
+    if (_bootConcluidos >= BOOT_TOTAL_CARREGAMENTOS) {
+        setTimeout(() => {
+            if (pill) pill.style.display = 'none';
+            if (barra) {
+                barra.style.opacity = '0';
+                setTimeout(() => { barra.style.width = '0%'; barra.style.opacity = '1'; }, 400);
+            }
+        }, 500);
+    }
+}
+
+// ============================================
 // AUTENTICAÇÃO
 // ============================================
 function verificarAutenticacao() {
@@ -129,8 +176,18 @@ function verificarAutenticacao() {
             console.log('✅ Usuário autenticado:', user.email);
             modal.classList.remove('show');
             modal.style.display = 'none';
-            carregarPixConfig();
-            carregarDadosAdmin();
+            // Sem reset do contador aqui de propósito: onAuthStateChanged
+            // pode disparar mais de 1 vez numa mesma sessão (ex.: usuário
+            // digita a senha alguns segundos depois de abrir a página,
+            // quando os outros 5 carregamentos do boot — que não dependem
+            // de login, as coleções lidas aqui já são de leitura pública —
+            // já terminaram). Resetar pra 0 aqui faria a barra "travar"
+            // num número menor que 100%, porque só os 2 desta função
+            // seriam recontados. _bootConcluidos nasce 0 (topo do arquivo)
+            // e só sobe — no fluxo normal (sessão já salva) chega em
+            // 7/7 do mesmo jeito.
+            _bootTrack(carregarPixConfig);
+            _bootTrack(carregarDadosAdmin);
         } else {
             if (user) {
                 console.warn('⛔ Conta sem permissão de acesso:', user.email);
@@ -5166,8 +5223,9 @@ function alternarItensOtimizador(id, btn) {
 // ============================================
 document.addEventListener('DOMContentLoaded', () => {
     console.log('📄 Admin inicializado');
+    atualizarBootProgress(); // mostra "0%" já na primeira pintura da página
     verificarAutenticacao();
-    
+
     const btnEntrarSenha = document.getElementById('btnEntrarSenha');
     const senhaAdminInput = document.getElementById('senhaAdmin');
     const btnSair = document.getElementById('btnSair');
@@ -5261,10 +5319,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     setTimeout(() => {
         console.log('🔄 Carregando dados das abas...');
-        carregarBoloesParaGerenciar();
-        carregarBoloesSelectParticipantes();
-        carregarParticipantesSelectFinanceiro();
-        carregarReservas();
+        _bootTrack(carregarBoloesParaGerenciar);
+        _bootTrack(carregarBoloesSelectParticipantes);
+        _bootTrack(carregarParticipantesSelectFinanceiro);
+        _bootTrack(carregarReservas);
         exibirCartoesAdmin();
         console.log('✅ Dados das abas carregados!');
     }, 300);
@@ -5315,8 +5373,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     setTimeout(() => {
-    carregarEstatisticasDashboard();
-}, 1500);
+        _bootTrack(carregarEstatisticasDashboard);
+    }, 1500);
     
     const qtdConcursos = document.getElementById('qtdConcursos');
     if (qtdConcursos) qtdConcursos.addEventListener('change', atualizarResumo);
@@ -5413,9 +5471,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
     inicializarGradeSelecaoIndividual();
     atualizarTotalCartoesSelecao();
-
-    // Carregar estatísticas avançadas
-setTimeout(() => {
-    carregarEstatisticasDashboard();
-}, 1000);
+    // Achado real investigando o pedido do usuário sobre lentidão no
+    // carregamento: carregarEstatisticasDashboard() (busca TODOS os
+    // cartões + resultados conferidos — uma das chamadas mais pesadas do
+    // boot) estava agendada 2x, aqui com 1000ms e de novo mais acima com
+    // 1500ms (ver _bootTrack(carregarEstatisticasDashboard)) — duplicação
+    // sem motivo, dobrando o custo dessa busca em TODO carregamento da
+    // página. Removida a cópia daqui; a de 1500ms (já contabilizada no
+    // contador de progresso) é a única que roda agora.
 });

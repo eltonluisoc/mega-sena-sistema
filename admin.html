@@ -1308,9 +1308,20 @@
     <div class="top-bar">
         <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">Administração</span></div>
         <div class="stats">
+            <div class="stat" id="bootProgress" style="display:none;">⏳ Carregando… 0%</div>
             <div class="stat" id="totalCartoes">📊 0 cartões</div>
             <button id="btnSair" class="btn-logout">🔒 SAIR</button>
         </div>
+        <!-- Barra fina de progresso do carregamento inicial (Rodada 95) —
+             pedido do usuário: "preciso esperar um pouco pra carregar a
+             reserva e os dados... poderia ter um contador percentual...
+             mas somente se não deixar o site mais lento". Só CSS (largura
+             animada por JS) sobre chamadas que já estavam acontecendo —
+             não adiciona nenhuma espera nem requisição nova, só mostra o
+             que já estava rolando em segundo plano. Some sozinha quando
+             os 7 carregamentos iniciais terminam (ver atualizarBootProgress
+             em admin.js). -->
+        <div id="bootProgressBar" style="position:absolute; bottom:0; left:0; height:2.5px; width:0%; background: var(--cor-primaria, #0071e3); transition: width .25s ease, opacity .4s ease; z-index: 101;"></div>
     </div>
 
     <!-- ============================================ -->

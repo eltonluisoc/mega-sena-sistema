@@ -1425,6 +1425,18 @@ Validado com `node --check` + suíte de testes (75/75, sem mudança de lógica d
 
 sw.js `CACHE_NAME` v67 → **v68**.
 
+## Rodada 95 — Contador percentual no carregamento inicial do admin web, e achado real: `carregarEstatisticasDashboard` rodava 2x sozinho
+
+Pedido do usuário: "quando abro o site preciso esperar um pouco para carregar a reserva e os dados... poderia ter um contador percentual mostrando para que eu saiba quando carregou, mas somente se não deixar o site mais lento."
+
+**Investigação antes de codar**: o carregamento inicial do admin dispara 7 buscas no Firestore em momentos diferentes — 2 logo que o login é confirmado (`carregarPixConfig`, `carregarDadosAdmin` — esta última busca TODA a coleção `cartoes`, a mais pesada), 4 depois de 300ms (`carregarBoloesParaGerenciar`, `carregarBoloesSelectParticipantes`, `carregarParticipantesSelectFinanceiro`, `carregarReservas`) e 1 depois de 1500ms (`carregarEstatisticasDashboard`, que busca `cartoes` de novo + `resultados_conferidos`). Enquanto rastreava essas 7 pra montar o contador, achei uma 8ª chamada: `carregarEstatisticasDashboard()` também estava agendada no FINAL do mesmo handler `DOMContentLoaded`, com 1000ms — uma duplicata sem motivo nenhum, rodando a busca mais pesada do Dashboard 2 VEZES em todo carregamento de página. Removida a cópia (ficou só a de 1500ms) — isso sozinho já reduz o trabalho real do carregamento, não só a percepção dele.
+
+**Contador percentual**: `_bootTrack()` (admin.js) ENVOLVE as 7 chamadas sem mudar quando elas disparam (mesmos delays de 300ms/1500ms de sempre, nenhuma espera nova, nenhuma serializada atrás da outra) — só conta quantas das 7 já voltaram via `.finally()` nas Promises que já existiam. Mostra: uma pill "⏳ Carregando… X%" na barra superior (ao lado do badge de cartões) e uma barrinha fina de progresso embaixo da barra superior inteira (CSS puro, só a largura anima) — ambos somem sozinhos uns 500ms depois de bater 7/7. Contador começa em 0 e só sobe (sem reset no meio) — importante porque `onAuthStateChanged` pode disparar de novo durante a sessão (ex.: login manual demorado) sem re-disparar as outras 5 chamadas, e resetar o contador nesse caso faria a barra "travar" num número menor que 100%.
+
+Validado com `node --check` + suíte de testes (75/75 — é fiação de DOM/timing, sem lógica de cálculo nova pra testar isoladamente).
+
+sw.js `CACHE_NAME` v68 → **v69**.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
