@@ -1489,6 +1489,28 @@ sw.js `CACHE_NAME` v69 → **v70**.
 
 **Nota pro usuário**: a trava só passa a valer de verdade depois que o admin.html recarregar a aba Cartões pelo menos 1 vez após este deploy (é isso que cria o doc `config_geral/conferencia_bloqueio` pela primeira vez) — confirmado por leitura direta no Firestore que esse doc ainda não existe na hora desta entrega.
 
+## Rodada 100 — Admin vê o "melhor resultado" direto no painel de conferência (web)
+
+Pedido do usuário, logo em seguida da Rodada 99: "e já vejo o melhor resultado da conferência no admin? caso não... desenvolva isso também... quero ver no admin ANTES."
+
+Não via — o painel novo (`atualizarPainelConferenciaPublica`) só confirmava que o concurso tinha sido conferido, sem mostrar nada do resultado em si. Corrigido: quando o concurso já foi conferido, o card "🔓 CONFERÊNCIA PÚBLICA" agora mostra também os números sorteados (e trevos, na +Milionária) e um resumo "🏆 Melhor resultado: N acertos — Nome do Bolão", usando os cartões já carregados em memória (`cartoes`, sem query nova no Firestore) pra calcular os acertos de cada um e achar o maior (nova função `melhorResultadoAdminHtml`). Não duplica o cálculo completo de faixas de prêmio em dinheiro (`calcularPremios`, bem mais complexo e específico por loteria, em `script.js`) — é só a contagem de acertos, suficiente pro admin já saber "quem ganhou" sem precisar abrir o site público.
+
+Validado com `node --check`.
+
+## Rodada 101 — Reservas: não avisa mais "atualizado" pra item que já tinha sido importado antes (desktop)
+
+Pedido do usuário: "quando abro o sistema ele está informando a atualização da reserva. Ocorre que já abri hoje 3 vezes e nas três ele informou a atualização... se já abri e atualizei não deveria informar novamente e isso é um problema grave pois pode alterar a reserva e me dar prejuízo."
+
+**Causa raiz real**: `_concluir_import_pendentes` contava TODO item vindo da fila do site como "importado" na mensagem/popup final — inclusive os que já tinham sido importados antes (a idempotência por `origem_doc_id` corretamente pulava o INSERT duplicado no SQLite, mas o CONTADOR da mensagem incrementava mesmo assim, ignorando esse pulo). Enquanto um item continuasse "preso" na fila do site (a limpeza em lote da Rodada 96 ainda sem ter tido tempo/sucesso de apagar), toda abertura seguinte do app recontava ele como novidade e repetia o popup "✅ N movimento(s) importado(s)" — o "já abri 3 vezes e nas 3 informou" relatado.
+
+**Pra tranquilizar**: a idempotência sempre protegeu o LANÇAMENTO de verdade — nenhum depósito/saque foi duplicado na reserva em nenhum momento (confirmado com teste isolado reproduzindo o cenário exato: 0 lançamentos duplicados). O problema era só a MENSAGEM mentindo sobre o que tinha acontecido de fato, não o dado em si.
+
+**Corrigido**: só conta/soma como "importado" quem é um INSERT novo de verdade; item repetido não aparece mais em nenhuma mensagem, só continua entrando silenciosamente no lote de limpeza da fila. Achado relacionado, também corrigido: antes, essa limpeza só rodava se a contagem (inflada) fosse maior que zero — com a contagem corrigida, isso faria a limpeza nem tentar rodar quando só havia itens repetidos; movida pra sempre rodar quando há algo acumulado pra apagar, reportando ou não.
+
+**Achado extra, robustez**: `_apagar_fila_reservas_em_lote` rodava numa thread "daemon" — se o usuário fechasse o app logo depois de abrir, a thread podia ser morta no meio de um retry sem nunca concluir o apagar, perpetuando o mesmo item preso (e, antes desta correção, o mesmo aviso falso) indefinidamente. Virou a única thread do arquivo que NÃO é daemon — a janela fecha na hora normalmente, só o processo em si leva uns instantes a mais pra encerrar de vez nos casos raros em que a limpeza precisa de retry.
+
+Versão v6.40 → **v6.41** (4 locais). Validado com 2 testes isolados de Tk ao vivo (um reproduzindo o bug relatado — item já conhecido voltando na fila → confirma 0 popups, limpeza ainda tentada, nada duplica no banco — e outro confirmando que item genuinamente novo continua avisando normalmente, com o valor certo), `py_compile`, varredura de método duplicado (nenhum encontrado) e os 35 testes automatizados do desktop.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

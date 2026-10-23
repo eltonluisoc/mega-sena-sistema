@@ -1666,10 +1666,12 @@ async function atualizarPainelConferenciaPublica() {
     }
 
     let jaConferido = false;
+    let dadosConferidos = null;
     try {
         const doc = await db.collection('resultados_conferidos')
             .doc(`${loteriaAdmin}_${concursoTravado}`).get();
         jaConferido = doc.exists && doc.data().conferido === true;
+        if (jaConferido) dadosConferidos = doc.data();
     } catch (e) {
         console.warn('Erro ao checar resultados_conferidos:', e);
     }
@@ -1679,9 +1681,10 @@ async function atualizarPainelConferenciaPublica() {
         container.innerHTML = `
             <div class="card" style="background:#ecfdf5; border:1px solid #6ee7b7;">
                 <div class="card-header" style="color:#065f46;">🔓 CONFERÊNCIA PÚBLICA</div>
-                <div style="font-size:13px; color:#065f46;">
+                <div style="font-size:13px; color:#065f46; margin-bottom:10px;">
                     ✅ Concurso ${concursoTravado} já conferido por você — liberado pro público.
                 </div>
+                ${melhorResultadoAdminHtml(loteriaAdmin, concursoTravado, dadosConferidos)}
             </div>`;
     } else {
         container.innerHTML = `
@@ -1699,6 +1702,49 @@ async function atualizarPainelConferenciaPublica() {
         const btn = document.getElementById('btnConferirComoAdmin');
         if (btn) btn.onclick = () => conferirComoAdmin(loteriaAdmin, concursoTravado);
     }
+}
+
+// Monta o resumo do "melhor resultado" (maior nº de acertos) pro painel
+// de conferência — pedido do usuário: ele quer ver isso no admin, não só
+// descobrir olhando o site público depois de já ter liberado. Usa o
+// array `cartoes` já carregado em memória (sem query nova no Firestore)
+// e só a contagem de acertos (não duplica o cálculo de faixas de prêmio
+// em dinheiro de calcularPremios/script.js, que é bem mais complexo e
+// loteria-específico — o admin já vê os valores reais no site/Dashboard
+// em seguida).
+function melhorResultadoAdminHtml(loteria, concurso, dadosConferidos) {
+    const numeros = (dadosConferidos && dadosConferidos.numeros) || [];
+    const trevos = (dadosConferidos && dadosConferidos.trevos) || null;
+    if (numeros.length === 0) return '';
+
+    const cartoesDoConcurso = cartoes.filter(c => c.tipo === loteria && c.concurso === concurso);
+    if (cartoesDoConcurso.length === 0) {
+        return `<div style="font-size:12px; color:#64748b;">Nenhum cartão cadastrado pra este concurso ainda.</div>`;
+    }
+
+    const comAcertos = cartoesDoConcurso.map(c => {
+        const acertos = (c.numeros || []).filter(n => numeros.includes(n)).length;
+        const acertosTrevo = trevos ? (c.trevos || []).filter(t => trevos.includes(t)).length : 0;
+        return { ...c, acertos, acertosTrevo };
+    }).sort((a, b) => (b.acertos - a.acertos) || (b.acertosTrevo - a.acertosTrevo));
+
+    const melhor = comAcertos[0];
+    const empatados = comAcertos.filter(c => c.acertos === melhor.acertos).length;
+
+    const numerosHtml = numeros.map(n => `<span class="numero-cartao-badge">${n.toString().padStart(2,'0')}</span>`).join('');
+    const trevosHtml = trevos ? trevos.map(t => `<span class="numero-cartao-badge" style="background:#dcfce7;color:#166534;border-radius:50%;">🍀${t.toString().padStart(2,'0')}</span>`).join('') : '';
+
+    return `
+        <div style="border-top:1px solid #6ee7b7; margin-top:4px; padding-top:10px;">
+            <div style="font-size:12px; font-weight:700; color:#065f46; margin-bottom:6px;">🔢 NÚMEROS SORTEADOS</div>
+            <div class="numeros-cartao-lista">${numerosHtml}</div>
+            ${trevosHtml ? `<div class="numeros-cartao-lista" style="margin-top:4px;">${trevosHtml}</div>` : ''}
+            <div style="font-size:13px; color:#065f46; margin-top:10px;">
+                🏆 <strong>Melhor resultado: ${melhor.acertos} acertos${trevos ? ` (+${melhor.acertosTrevo} trevo${melhor.acertosTrevo===1?'':'s'})` : ''}</strong>
+                — ${melhor.bolao || 'Sem Bolão'}
+                ${empatados > 1 ? `<span style="color:#64748b;"> (${empatados} cartões empatados nesse topo)</span>` : ''}
+            </div>
+        </div>`;
 }
 
 // Busca o resultado oficial na API da Caixa e grava em

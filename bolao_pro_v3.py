@@ -1,7 +1,49 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.40
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.41
+Correções v6.41 (reservas: não avisa mais "atualizado" pra item que já
+tinha sido importado antes):
+ - Pedido do usuário: "quando abro o sistema ele está informando a
+   atualização da reserva. Ocorre que já abri hoje 3 vezes e nas três
+   ele informou a atualização... se já abri e atualizei não deveria
+   informar novamente e isso é um problema grave pois pode alterar a
+   reserva e me dar prejuízo."
+ - Causa raiz real: `_concluir_import_pendentes` contava TODO item vindo
+   da fila do site como "importado" na mensagem/popup final — inclusive
+   os que já tinham sido importados antes (idempotência por
+   `origem_doc_id` corretamente pulava o INSERT duplicado, mas o
+   CONTADOR da mensagem incrementava mesmo assim). Enquanto o item
+   continuasse "preso" na fila do site (ex.: a limpeza em lote da Rodada
+   96 ainda não tinha tido tempo/sucesso de apagar), toda abertura do
+   app recontava ele como novidade e repetia o popup "✅ N movimento(s)
+   importado(s)" — exatamente o "já abri 3 vezes e nas 3 informou"
+   relatado.
+ - IMPORTANTE pra tranquilizar: a idempotência (`origem_doc_id`) sempre
+   protegeu o LANÇAMENTO de verdade — nenhum depósito/saque foi
+   duplicado na reserva em nenhum momento, só a MENSAGEM estava mentindo
+   sobre o que de fato aconteceu. Confirmado com teste isolado que
+   reproduz o cenário exato (item já importado voltando na fila): 0
+   lançamentos duplicados no banco em todos os casos testados.
+ - Corrigido: só conta/soma como "importado" quem é um INSERT novo de
+   verdade; item repetido não aparece mais em nenhuma mensagem — só
+   continua entrando silenciosamente no lote de limpeza da fila (que
+   agora roda mesmo quando não há nada novo pra reportar, bug relacionado
+   que também foi corrigido — antes só rodava se a contagem, inflada,
+   fosse maior que zero).
+ - Achado extra, robustez: a limpeza da fila (`_apagar_fila_reservas_em_lote`)
+   rodava numa thread "daemon" — se o usuário fechasse o app logo depois
+   de abrir, a thread podia ser morta no meio da tentativa, sem nunca
+   concluir o apagar, perpetuando o mesmo item preso (e, antes desta
+   correção, o mesmo aviso falso) indefinidamente. Virou a única thread
+   do arquivo que NÃO é daemon — a janela fecha na hora normalmente, só
+   o processo em si leva uns instantes a mais pra encerrar de vez nos
+   casos raros em que a limpeza precisa de retry.
+ - Validado com 2 testes isolados de Tk ao vivo: um reproduzindo o bug
+   relatado (item já conhecido voltando na fila → confirma 0 popups, a
+   limpeza ainda é tentada, e nada duplica no banco) e outro confirmando
+   que item genuinamente novo continua mostrando o aviso normalmente, com
+   o valor certo.
 Correções v6.40 (reservas: cooldown pra não martelar o Firestore em toda
 abertura do app quando o limite diário do plano gratuito está baixo):
  - Usuário mostrou print do erro "Erro ao verificar reservas do site:
@@ -2228,7 +2270,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.40")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.41")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -2477,6 +2519,17 @@ class BolaoApp:
                         "(pessoa_id, tipo, valor, data_mov, loteria, concurso, descricao, origem_doc_id) "
                         "VALUES (?,?,?,?,?,?,?,?)",
                         (pessoa_id, tipo_db, valor, data_mov, "", "", desc_final, doc_id))
+                    # Só conta/soma como "importado" quem é NOVO de verdade.
+                    # Achado real do usuário: "já abri 3 vezes e nas 3
+                    # informou a atualização" — o item continuava na fila do
+                    # site (o DELETE em lote não tinha tido tempo/sucesso de
+                    # limpar ainda) e cada reabertura contava ele nessa soma
+                    # de novo, mostrando popup "importado" pra algo que já
+                    # tinha sido importado antes. Item repetido só entra no
+                    # lote de apagar a fila (abaixo), não na contagem.
+                    importados += 1
+                    if tipo_db == "CRÉDITO": total_dep += valor
+                    else: total_saq += valor
 
                 # Já está garantido no SQLite local (inserido agora, ou já
                 # tinha sido inserido antes) — só acumula o id aqui pra
@@ -2486,19 +2539,24 @@ class BolaoApp:
                 # coleção pequena — "reservas do site está ocupado", ver
                 # _apagar_fila_reservas_em_lote).
                 doc_ids_para_apagar.append(doc_id)
-
-                importados += 1
-                if tipo_db == "CRÉDITO": total_dep += valor
-                else: total_saq += valor
             except Exception as ex:
                 erros += 1
                 erros_detalhe.append(f"  • {nome_erro}: {str(ex)[:100]}")
 
-        if importados == 0 and erros == 0:
-            return
-
+        # A limpeza da fila roda sempre que há algo pra apagar, mesmo
+        # quando nada é reportado ao usuário abaixo (ex.: fila só tinha
+        # itens repetidos, de uma tentativa de limpeza anterior que não
+        # terminou) — antes isso só rodava se "importados" fosse > 0, e
+        # como repetidos nunca incrementavam esse contador de verdade (ver
+        # acima), a fila podia nunca ser tentada de novo nesse caso.
         if doc_ids_para_apagar:
             self._apagar_fila_reservas_em_lote(doc_ids_para_apagar)
+
+        if importados == 0 and erros == 0:
+            # Nada NOVO pra reportar (tudo que veio da fila já tinha sido
+            # importado antes) — não interrompe o usuário com uma mensagem
+            # sobre algo que já aconteceu numa abertura anterior.
+            return
 
         partes = []
         if importados > 0:
@@ -2537,7 +2595,17 @@ class BolaoApp:
         tinha nenhum. Roda em background: o que já foi importado no
         SQLite não depende disto terminar — se falhar mesmo com retry,
         os itens ficam na fila e saem na próxima vez que o app abrir
-        (idempotência por origem_doc_id já garante que não duplica)."""
+        (idempotência por origem_doc_id já garante que não duplica).
+
+        NÃO é thread daemon de propósito (única exceção no arquivo —
+        todas as outras threads de fundo são daemon=True): se o usuário
+        fechar o app logo depois de abrir, uma thread daemon seria morta
+        no meio do retry sem terminar o apagar, deixando os MESMOS itens
+        na fila pra tentar de novo (e, por tabela, pra contar nos
+        "importados" de novo) na próxima abertura, indefinidamente.
+        Thread normal garante que o processo só encerra de vez depois
+        dela terminar (a janela já fecha na hora — só o processo em si
+        fica uns instantes a mais vivo em segundo plano)."""
         import threading
 
         def _run():
@@ -2566,13 +2634,13 @@ class BolaoApp:
                     except Exception:
                         break
 
-        threading.Thread(target=_run, daemon=True).start()
+        threading.Thread(target=_run, daemon=False).start()
 
     # ── HEADER ──────────────────────────────────────────────────
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.40",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.41",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -6698,7 +6766,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.40</span>
+        <span>Sistema de Gestão de Bolões v6.41</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -8976,7 +9044,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.40</span>
+        <span>Sistema de Gestão de Bolões v6.41</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
