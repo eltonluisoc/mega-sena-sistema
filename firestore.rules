@@ -10,6 +10,17 @@ service cloud.firestore {
     // pública necessária porque index.html, consulta.html, meus-boloes.html
     // e admin.html leem o Firestore direto do navegador, sem backend
     // intermediário. Escrita/exclusão exigem o admin autenticado.
+    //
+    // "cartoes" — App Check (request.app != null) foi TENTADO aqui na
+    // Rodada 106 e revertido na hora: assim que ativado, o site público
+    // de verdade parou de mostrar os cartões (usuário confirmou ao
+    // testar ao vivo) — bate com o risco já levantado antes de deployar
+    // (a chave "Fraud Defense"/reCAPTCHA Enterprise parece ter sido
+    // criada num projeto Google Cloud diferente de mega-sena-sistema,
+    // ?project=97295189433 vs messagingSenderId 134457862979 do
+    // firebase-config.js). Volta a ser leitura 100% aberta até a causa
+    // ser corrigida (recriar a chave garantindo o projeto certo) e
+    // validada de novo, com mais cuidado, antes de reativar a exigência.
     match /cartoes/{document} {
       allow read: if true;
       allow write, delete: if isAdmin();
