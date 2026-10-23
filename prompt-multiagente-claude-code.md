@@ -1521,6 +1521,18 @@ Validado com teste isolado de Tk ao vivo (3 lançamentos, 2 pessoas, 1 com horá
 
 Versão v6.41 → **v6.42** (4 locais).
 
+## Rodada 103 — Proteção dos cartões contra scraping: Firebase App Check (etapa 1 de 2, web)
+
+Pedido do usuário: "e possível garantir que ninguém faça scrapping dos cartões no index html? colocar proteção total..." — expliquei que "total" não existe (print/screenshot é impossível de bloquear, é limitação do SO; e a coleção `cartoes` é lida com `allow read: if true` no Firestore, então dava pra buscar os dados direto na API REST do Firestore, sem nem abrir o site). O usuário então confirmou que quer as proteções básicas mesmo sabendo que não é "total", e que especificamente não sabia que dava pra pegar direto no Firebase.
+
+**Ferramenta certa pra isso**: Firebase App Check (provider reCAPTCHA v3) — faz o Firestore só aceitar pedidos que carreguem um token de verdade emitido pelo App Check, que só o SDK do Firebase rodando num navegador real consegue obter (um `curl`/script direto, como os que eu mesmo usei a sessão inteira pra diagnosticar, passa a ser recusado). Confirmado por grep no código: a coleção `cartoes` só é tocada por `admin.js` e `script.js` (nunca pelo desktop, que não tem nenhuma referência a ela) — então dá pra proteger especificamente essa coleção sem nenhum risco pra sincronização do desktop.
+
+**Rollout em 2 etapas, de propósito, pra nunca arriscar derrubar o site**:
+- **Etapa 1 (feita agora, 100% segura, sem efeito nenhum ainda)**: SDK do App Check (`firebase-app-check-compat.js`) adicionado só em `index.html` e `admin.html` (as 2 únicas páginas que leem `cartoes`); novo arquivo `app-check-config.js` com a ativação (`ReCaptchaV3Provider`), guardada atrás de uma chave placeholder — enquanto a chave não for trocada pela de verdade, isso não ativa nada e não muda nenhum comportamento (confirmado servindo o site localmente e checando que as páginas carregam normal). `firestore.rules` **não foi tocado** nesta etapa — a exigência de token só vai entrar depois que a Etapa 2 (abaixo) estiver confirmada funcionando.
+- **Etapa 2 (pendente, precisa do usuário)**: 3 passos manuais só ele consegue fazer (ações de conta Google) — criar o site reCAPTCHA v3 em https://www.google.com/recaptcha/admin/create (domínio `eltonluisoc.github.io`), registrar a chave em Firebase Console → App Check → app Web, e colar essa mesma chave em `app-check-config.js` no lugar do placeholder. Só depois disso — e só depois de confirmar no Console que os pedidos reais do site estão saindo com token válido — é que `firestore.rules` muda pra exigir `request.app != null` na leitura de `cartoes` (deploy que eu faço, com `--dry-run` antes, igual sempre).
+
+`sw.js` `CACHE_NAME` v71 → **v72** (inclui `app-check-config.js` no precache). Validado com `node --check`, `npm test` (75/75, sem regressão) e teste manual servindo o site local (script tags na ordem certa, `app-check-config.js` responde 200, SDK do Firebase carrega 200 do CDN).
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
