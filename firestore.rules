@@ -52,6 +52,16 @@ service cloud.firestore {
       // 'trevos' é opcional (só +Milionária usa) — hasOnly só limita quais
       // chaves PODEM existir, não exige que todas estejam presentes, então
       // documentos das outras 3 loterias (sem trevos) continuam válidos.
+      //
+      // Pedido do usuário: ele quer ser sempre o PRIMEIRO a conferir o
+      // concurso mais recente de cada loteria — só depois disso o público
+      // pode conferir normalmente (igual já acontecia com todo mundo até
+      // aqui). O concurso "mais recente travado" de cada loteria fica em
+      // config_geral/conferencia_bloqueio (mantido pelo admin.js, ver
+      // atualizarConcursoMaisRecenteBloqueio) — se o concurso sendo criado
+      // aqui bater com o travado daquela loteria, só admin passa; qualquer
+      // outro concurso (incluindo esse mesmo depois que o admin já criou
+      // o doc, já que create não roda 2x no mesmo id) continua público.
       allow create: if request.resource.data.keys().hasOnly(
                         ['loteria','concurso','numeros','trevos','dataConferencia','dataSorteio','conferido','admin'])
                     && request.resource.data.loteria in ['mega','lotofacil','quina','maismilionaria']
@@ -59,7 +69,13 @@ service cloud.firestore {
                     && request.resource.data.numeros.size() > 0
                     && request.resource.data.numeros.size() <= 20
                     && (!('trevos' in request.resource.data) || (request.resource.data.trevos is list && request.resource.data.trevos.size() == 2))
-                    && request.resource.data.conferido == true;
+                    && request.resource.data.conferido == true
+                    && (
+                         isAdmin()
+                         || !exists(/databases/$(database)/documents/config_geral/conferencia_bloqueio)
+                         || get(/databases/$(database)/documents/config_geral/conferencia_bloqueio)
+                              .data.get(request.resource.data.loteria, '') != request.resource.data.concurso
+                       );
       allow update, delete: if isAdmin();
     }
 

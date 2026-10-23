@@ -1744,6 +1744,13 @@
                         <button id="cartoesBtnMilionaria" class="loteria-btn-admin maismilionaria" style="flex:1; padding: 10px; border: 2px solid #16a34a; border-radius: 30px; font-weight: bold; background: #dcfce7; color: #166534; cursor: pointer; transition: all 0.2s;">🍀 +MILIONÁRIA</button>
                     </div>
                 </div>
+                <!-- "Primeira conferência" do admin (Rodada 99) — pedido do
+                     usuário: ele quer ser sempre o primeiro a conferir o
+                     concurso mais recente de cada loteria; o público só
+                     pode conferir depois disso. Montado/atualizado por
+                     atualizarPainelConferenciaPublica() (admin.js); fica
+                     vazio/escondido quando não há concurso travado. -->
+                <div id="painelConferenciaPublica" style="display:none; margin-bottom: 14px;"></div>
                 <div class="card">
                     <div class="card-header">📋 CARTÕES CADASTRADOS</div>
                     <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">

@@ -245,8 +245,51 @@ async function carregarPixGeral() {
     } catch(e) { console.log('Erro ao carregar PIX:', e); }
 }
 
+// Concurso mais recente de cada loteria que o admin ainda não conferiu
+// primeiro (ver admin.js: atualizarConcursoMaisRecenteBloqueio e
+// firestore.rules: resultados_conferidos) — {loteria: "concurso"}.
+// Enquanto um concurso estiver aqui, o público não pode ser o primeiro a
+// confirmar o resultado dele (a regra do Firestore bloqueia o create);
+// o site só usa isso pra já avisar e desabilitar o botão em vez de deixar
+// o visitante tentar e esbarrar num erro de permissão.
+let concursosBloqueados = {};
+
+async function carregarConcursosBloqueados() {
+    try {
+        const doc = await db.collection('config_geral').doc('conferencia_bloqueio').get();
+        concursosBloqueados = doc.exists ? (doc.data() || {}) : {};
+    } catch(e) { console.log('Erro ao carregar conferencia_bloqueio:', e); }
+}
+
+function estaTravadoPraPublico(loteria, concurso) {
+    return String(concursosBloqueados[loteria] || '') === String(concurso || '');
+}
+
+// Desabilita visualmente o botão "Conferir Resultados" quando o concurso
+// selecionado no momento é o mais recente da loteria e ainda não foi
+// conferido pelo admin — chamado toda vez que a loteria ou o concurso
+// selecionado mudam (ver chamadores). Não esconde o botão, só avisa que
+// está indisponível, como pedido pelo usuário.
+function atualizarEstadoBotaoConferir() {
+    const btn = document.getElementById('btnConferir');
+    const select = document.getElementById('concursoSelect');
+    if (!btn || !select) return;
+
+    if (estaTravadoPraPublico(loteriaAtual, select.value)) {
+        btn.disabled = true;
+        btn.title = 'Aguardando o administrador liberar este resultado';
+        btn.style.opacity = '0.5';
+        btn.style.cursor = 'not-allowed';
+    } else {
+        btn.disabled = false;
+        btn.title = '';
+        btn.style.opacity = '';
+        btn.style.cursor = '';
+    }
+}
+
 async function carregarConfiguracoes() {
-    await carregarPixGeral();
+    await Promise.all([carregarPixGeral(), carregarConcursosBloqueados()]);
 }
 
 function compartilharSite() {
@@ -1238,8 +1281,9 @@ async function carregarDados() {
             if (concursos.length > 0) {
                 select.value = concursos[0];
             }
+            atualizarEstadoBotaoConferir();
         }
-        
+
         dadosCarregados = true;
         
         await atualizarSelectBoloesAsync();
@@ -1357,10 +1401,11 @@ function atualizarSelectConcursos() {
     }
     
     select.innerHTML = html;
-    
+
     if (concursos.length > 0) {
         select.value = concursos[0];
     }
+    atualizarEstadoBotaoConferir();
 }
 
 // ========== TROCAR LOTERIA ==========
@@ -1599,6 +1644,14 @@ async function conferirResultados() {
         if (conferidoDoc.exists && conferidoDoc.data().trevos) {
             trevosSorteados = conferidoDoc.data().trevos;
         }
+    } else if (estaTravadoPraPublico(loteriaAtual, concurso)) {
+        // Concurso mais recente desta loteria, ainda sem a 1ª conferência
+        // do admin (ver carregarConcursosBloqueados) — nem tenta buscar
+        // na API/gravar; a regra do Firestore ia recusar o create mesmo
+        // assim, então só mostra o aviso direto.
+        area.innerHTML = '<div class="empty-state">🔒 O resultado deste concurso ainda não foi liberado pelo administrador. Volte em breve!</div>';
+        showToast('🔒 Resultado ainda não liberado pelo administrador', 'warning');
+        return;
     } else {
         // Buscar da API
         const busca = await buscarResultadoInterno(concurso, loteriaAtual);
@@ -2287,6 +2340,11 @@ async function buscarResultadoAutomatico() {
         console.log('Resultado já conferido, não buscando automaticamente');
         return;
     }
+
+    if (estaTravadoPraPublico(loteriaAtual, concurso)) {
+        console.log('Concurso travado pro público (aguardando conferência do admin) — não busca automaticamente');
+        return;
+    }
     
     let resultados;
     let nomeLoteria;
@@ -2366,7 +2424,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('concursoSelect').addEventListener('change', async () => {
         console.log('🔄 Concurso alterado, limpando estado...');
         limparEstadoCompleto();
-        
+        atualizarEstadoBotaoConferir();
+
         const concurso = document.getElementById('concursoSelect').value;
         if (concurso) {
             await atualizarSelectBoloesAsync();

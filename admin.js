@@ -16,6 +16,12 @@ let cartoesFiltrados = [];
 let boloes = [];
 let reservasCarregadas = []; // última lista carregada em carregarReservas() — usada pelo modal de registrar movimento
 
+// Concurso mais recente de cada loteria que precisa da 1ª conferência do
+// admin antes do público poder conferir (ver atualizarConcursoMaisRecenteBloqueio
+// e o painel "🔒 Conferência Pública" na aba Cartões) — espelha
+// config_geral/conferencia_bloqueio, só pra não reler o doc a cada render.
+let conferenciaBloqueioCache = {};
+
 // Otimizador de Cotas (app desktop separado) -- gerações sincronizadas
 // só pra VISUALIZAÇÃO (ver comentário na seção #section-otimizador do
 // admin.html). otimizadorGeracoes guarda a última leitura do Firestore;
@@ -1576,8 +1582,9 @@ async function carregarDadosAdmin() {
         atualizarDashboardAdmin();
         atualizarBadgeTotalCartoes();
         carregarOtimizadorCotas();
+        atualizarConcursoMaisRecenteBloqueio();
         showToast('✅ Dados carregados!', 'success');
-        
+
     } catch (error) {
         console.error('Erro:', error);
         showToast('❌ Erro ao carregar: ' + error.message, 'error');
@@ -1596,6 +1603,158 @@ function atualizarUIComCartoesLocais() {
     exibirCartoesAdmin();
     carregarConcursosAdmin();
     atualizarDashboardAdmin();
+    atualizarConcursoMaisRecenteBloqueio();
+}
+
+// ============================================
+// CONFERÊNCIA PÚBLICA — só o admin confere primeiro
+// ============================================
+// Pedido do usuário: ele quer ser sempre o primeiro a conferir o
+// concurso MAIS RECENTE de cada loteria — só depois disso o botão
+// "Conferir Resultados" do site público libera pra todo mundo (como já
+// acontecia antes com todo concurso). Em vez de mexer em cada um dos
+// vários jeitos de cadastrar cartão (individual, lote, PDF, sync do
+// desktop) pra avisar "surgiu concurso novo", essa função recalcula o
+// maior concurso de cada loteria a partir do array `cartoes` já
+// carregado (sempre fresco quando ela é chamada, ver chamadores) e
+// mantém isso espelhado em config_geral/conferencia_bloqueio — é esse
+// doc que firestore.rules consulta pra travar o 1º `create` em
+// resultados_conferidos pro concurso mais recente de cada loteria.
+async function atualizarConcursoMaisRecenteBloqueio() {
+    const maisRecentes = {};
+    for (const loteria of ['mega', 'lotofacil', 'quina', 'maismilionaria']) {
+        let maior = 0;
+        for (const c of cartoes) {
+            if (c.tipo !== loteria) continue;
+            const n = parseInt(c.concurso, 10);
+            if (!isNaN(n) && n > maior) maior = n;
+        }
+        if (maior > 0) maisRecentes[loteria] = String(maior);
+    }
+    try {
+        const ref = db.collection('config_geral').doc('conferencia_bloqueio');
+        const doc = await ref.get();
+        const atual = doc.exists ? (doc.data() || {}) : {};
+        let precisaSalvar = false;
+        for (const lot of Object.keys(maisRecentes)) {
+            if (atual[lot] !== maisRecentes[lot]) { precisaSalvar = true; break; }
+        }
+        if (precisaSalvar) {
+            await ref.set(maisRecentes, { merge: true });
+            console.log('🔒 Concurso mais recente (trava de conferência) atualizado:', maisRecentes);
+        }
+        conferenciaBloqueioCache = { ...atual, ...maisRecentes };
+    } catch (e) {
+        console.warn('Erro ao atualizar conferencia_bloqueio:', e);
+    }
+    atualizarPainelConferenciaPublica();
+}
+
+// Redesenha o card "🔒 CONFERÊNCIA PÚBLICA" (aba Cartões) pra refletir o
+// estado da loteria selecionada no momento (loteriaAdmin) — chamado toda
+// vez que o cache de bloqueio é atualizado, e também ao trocar de
+// loteria na lista de cartões (ver setLoteriaAdmin).
+async function atualizarPainelConferenciaPublica() {
+    const container = document.getElementById('painelConferenciaPublica');
+    if (!container) return;
+
+    const concursoTravado = conferenciaBloqueioCache[loteriaAdmin];
+    if (!concursoTravado) {
+        container.style.display = 'none';
+        container.innerHTML = '';
+        return;
+    }
+
+    let jaConferido = false;
+    try {
+        const doc = await db.collection('resultados_conferidos')
+            .doc(`${loteriaAdmin}_${concursoTravado}`).get();
+        jaConferido = doc.exists && doc.data().conferido === true;
+    } catch (e) {
+        console.warn('Erro ao checar resultados_conferidos:', e);
+    }
+
+    container.style.display = 'block';
+    if (jaConferido) {
+        container.innerHTML = `
+            <div class="card" style="background:#ecfdf5; border:1px solid #6ee7b7;">
+                <div class="card-header" style="color:#065f46;">🔓 CONFERÊNCIA PÚBLICA</div>
+                <div style="font-size:13px; color:#065f46;">
+                    ✅ Concurso ${concursoTravado} já conferido por você — liberado pro público.
+                </div>
+            </div>`;
+    } else {
+        container.innerHTML = `
+            <div class="card" style="background:#fff7ed; border:1px solid #fdba74;">
+                <div class="card-header" style="color:#9a3412;">🔒 CONFERÊNCIA PÚBLICA</div>
+                <div style="font-size:13px; color:#9a3412; margin-bottom:10px;">
+                    Concurso ${concursoTravado} é o mais recente desta loteria — o botão
+                    "Conferir Resultados" fica indisponível pro público até você conferir
+                    primeiro aqui.
+                </div>
+                <button id="btnConferirComoAdmin" class="btn btn-warning btn-block">
+                    ✅ CONFERIR AGORA E LIBERAR PRO PÚBLICO
+                </button>
+            </div>`;
+        const btn = document.getElementById('btnConferirComoAdmin');
+        if (btn) btn.onclick = () => conferirComoAdmin(loteriaAdmin, concursoTravado);
+    }
+}
+
+// Busca o resultado oficial na API da Caixa e grava em
+// resultados_conferidos — autenticado como admin, então passa na regra
+// mesmo pro concurso travado (ver firestore.rules). Mesma URL/formato
+// que script.js usa em buscarResultadoInterno/salvarResultadoConferido;
+// duplicado aqui porque admin.html não carrega script.js (páginas
+// separadas, sem módulo compartilhado hoje).
+async function conferirComoAdmin(loteria, concurso) {
+    const btn = document.getElementById('btnConferirComoAdmin');
+    if (btn) { btn.disabled = true; btn.textContent = '🔍 Buscando na Caixa...'; }
+
+    try {
+        let url;
+        if (loteria === 'mega') url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/megasena/${concurso}`;
+        else if (loteria === 'lotofacil') url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/lotofacil/${concurso}`;
+        else if (loteria === 'maismilionaria') url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/maismilionaria/${concurso}`;
+        else url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/quina/${concurso}`;
+
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const dados = await resp.json();
+        const dezenas = dados.listaDezenas;
+        const minLength = { mega: 6, lotofacil: 15, quina: 5, maismilionaria: 6 }[loteria] || 5;
+
+        if (!dezenas || dezenas.length < minLength) {
+            showToast(`⏳ Resultado do concurso ${concurso} ainda não saiu na Caixa`, 'warning');
+            return;
+        }
+
+        const numeros = dezenas.map(n => parseInt(n)).sort((a, b) => a - b);
+        let trevos = null;
+        if (loteria === 'maismilionaria') {
+            const listaTrevos = dados.trevosSorteados || dados.listaTrevos || dados.dezenasTrevo || dados.trevos;
+            if (listaTrevos && listaTrevos.length >= 2) {
+                trevos = listaTrevos.map(t => parseInt(t)).sort((a, b) => a - b);
+            }
+        }
+
+        const doc = {
+            loteria, concurso, numeros,
+            dataConferencia: new Date().toISOString(),
+            dataSorteio: dados.dataApuracao || null,
+            conferido: true,
+            admin: true
+        };
+        if (trevos) doc.trevos = trevos;
+
+        await db.collection('resultados_conferidos').doc(`${loteria}_${concurso}`).set(doc);
+        showToast(`✅ Concurso ${concurso} conferido e liberado pro público!`, 'success');
+        await atualizarPainelConferenciaPublica();
+    } catch (error) {
+        console.error('Erro ao conferir como admin:', error);
+        showToast('❌ Erro ao conferir: ' + error.message, 'error');
+        if (btn) { btn.disabled = false; btn.textContent = '✅ CONFERIR AGORA E LIBERAR PRO PÚBLICO'; }
+    }
 }
 
 // ============================================
@@ -1703,6 +1862,7 @@ function exibirCartoesAdmin() {
     document.querySelectorAll('.checkbox-cartao').forEach(cb => cb.onchange = atualizarContadorSelecionados);
     atualizarContadorSelecionados();
     atualizarBadgeTotalCartoes();
+    atualizarPainelConferenciaPublica();
 }
 
 // ============================================

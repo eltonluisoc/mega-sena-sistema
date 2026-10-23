@@ -1467,6 +1467,28 @@ Usuário mostrou print do erro "Erro ao verificar reservas do site: HTTP Error 4
 
 Versão v6.39 → **v6.40** (4 locais). Validado com teste isolado das novas funções de cooldown (marca, confirma ~15min restantes, expira sozinho depois de 15min mesmo sem chamar limpar, limpa, e tolera chamar limpar com o arquivo já inexistente), `py_compile`, varredura de método duplicado (nenhum encontrado) e os 35 testes automatizados do desktop.
 
+## Rodada 99 — Admin sempre confere primeiro o concurso mais recente de cada loteria (web)
+
+Pedido do usuário: "quero que no index somente eu possa fazer a primeira conferência de um jogo.... após eu fazer ele fica disponível para que todos cliquem no botão de conferência... mas a primeira sempre seja eu.... analise como fazer isso, onde e vamos implementar. Me mostre o plano." — ou seja, pediu plano antes de codar, e delegou a mim decidir ONDE implementar.
+
+**Como funcionava antes**: no site público, `conferirResultados()` (`script.js`) é chamada por qualquer visitante que clica em "🎲 CONFERIR RESULTADOS" — se o concurso ainda não tinha sido conferido, ela buscava o resultado oficial direto na API da Caixa e GRAVAVA em `resultados_conferidos` como "conferido" (a regra do Firestore já permitia `create` público de propósito, já que o site não tem backend pra validar contra a Caixa antes). Ou seja: literalmente qualquer visitante podia ser o primeiro a "oficializar" um resultado.
+
+**Decisão de "onde" (pedida explicitamente pro Claude decidir)**: a ação de "conferir primeiro" foi implementada dentro do **admin.html**, não do `index.html` público — porque o admin.html já tem login real do Firebase Auth (`isAdmin()`), e criar autenticação nova só pro index só pra isso seria bem mais invasivo pro mesmo resultado. O efeito da trava (botão indisponível) é o que aparece no `index.html`, que é o que o usuário realmente pediu pra ver lá.
+
+**O que é "o concurso mais recente de uma loteria"**: o maior `concurso` entre os cartões já cadastrados daquela loteria. Guardado automaticamente em `config_geral/conferencia_bloqueio` (reaproveita a mesma coleção/regra já usada pelo doc `pix` — não precisou de regra nova pra esse doc), recalculado por uma nova função `atualizarConcursoMaisRecenteBloqueio()` (`admin.js`) toda vez que a lista de cartões é (re)carregada no admin — cobre cadastro individual, em lote, importação de PDF e sync do desktop, sem precisar mexer em nenhum desses fluxos.
+
+**Painel novo no admin** (`admin.html`/`admin.js`, aba Cartões, acima da grade de cartões): card "🔒 CONFERÊNCIA PÚBLICA" que mostra, pra loteria selecionada, se o concurso mais recente já foi conferido ou está "aguardando sua conferência", com um botão "✅ CONFERIR AGORA E LIBERAR PRO PÚBLICO" — clicar nele busca o resultado oficial na API da Caixa (mesma lógica de `buscarResultadoInterno`/`salvarResultadoConferido` do `script.js`, duplicada em `admin.js` porque `admin.html` não carrega `script.js`) e grava em `resultados_conferidos`, autenticado como admin.
+
+**Trava de verdade, em `firestore.rules`** (não só visual): `resultados_conferidos` → `allow create` continua público pra qualquer concurso, EXCETO quando o concurso sendo criado é exatamente o travado daquela loteria em `config_geral/conferencia_bloqueio` — nesse caso só `isAdmin()` passa. Usa `get()`/`exists()` com `.data.get(chave, default)` pra nunca quebrar o fluxo público existente se o doc de config ainda não existir ou não tiver aquela loteria ainda (ex.: logo após o deploy, antes do admin abrir a aba Cartões pela 1ª vez). **Deploy feito com `firebase deploy --only firestore:rules`** (não só `git push` — lição da Rodada 90 desta sessão) e validado com `--dry-run` antes (compilou OK).
+
+**Lado público** (`script.js`): `carregarConfiguracoes()` passou a ler também `config_geral/conferencia_bloqueio` (leitura já é pública) numa variável `concursosBloqueados`; `conferirResultados()` para antes de buscar/gravar se o concurso selecionado estiver travado, mostrando aviso em vez de deixar o visitante esbarrar num erro de permissão; `buscarResultadoAutomatico()` ganhou o mesmo corte (evita gastar chamada à API da Caixa à toa); e o botão `#btnConferir` fica visualmente desabilitado (cinza, `disabled`, tooltip) quando o concurso selecionado é o travado — atualizado a cada troca de loteria/concurso via nova `atualizarEstadoBotaoConferir()`. Não esconde o botão, só deixa indisponível, como pedido.
+
+Validado: `node --check` nos 2 arquivos JS, suíte `npm test` completa (75/75, sem regressão — nenhuma função testada foi tocada), `firebase deploy --only firestore:rules --dry-run` confirmando compilação antes do deploy real, e a lógica de "maior concurso por loteria" simulada em Node.js contra uma amostra real de 300 cartões de produção (via REST, leitura pública) pra confirmar que o cálculo bate com dados de verdade antes de depender dele em produção.
+
+sw.js `CACHE_NAME` v69 → **v70**.
+
+**Nota pro usuário**: a trava só passa a valer de verdade depois que o admin.html recarregar a aba Cartões pelo menos 1 vez após este deploy (é isso que cria o doc `config_geral/conferencia_bloqueio` pela primeira vez) — confirmado por leitura direta no Firestore que esse doc ainda não existe na hora desta entrega.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
