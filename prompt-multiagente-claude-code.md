@@ -1511,6 +1511,16 @@ Pedido do usuário: "quando abro o sistema ele está informando a atualização 
 
 Versão v6.40 → **v6.41** (4 locais). Validado com 2 testes isolados de Tk ao vivo (um reproduzindo o bug relatado — item já conhecido voltando na fila → confirma 0 popups, limpeza ainda tentada, nada duplica no banco — e outro confirmando que item genuinamente novo continua avisando normalmente, com o valor certo), `py_compile`, varredura de método duplicado (nenhum encontrado) e os 35 testes automatizados do desktop.
 
+## Rodada 102 — Reservas: resumo detalhado por pessoa e horário, ao abrir o desktop
+
+Pedido do usuário, logo em seguida da Rodada 101: "o resumo da reserva quando eu abro no desktop deve além de mostrar o total de depósito e saque, mostrar separadamente os lançamentos por usuário e o horário que registrei... se não tiver a informação do horário não tem problema... pode seguir sem... mas quero os detalhes ao abrir o desktop."
+
+O site admin já gravava um timestamp (`criadoEm`, ISO 8601 UTC) em todo lançamento de reserva, mas o desktop nunca lia esse campo — só usava os totais pra montar o popup de sincronização. Agora `_concluir_import_pendentes` também lê `criadoEm`, converte pra horário de Brasília (nova função `fmt_hora_web`, UTC-3 sem horário de verão) e guarda numa coluna nova (`reservas_movimentos.registrado_em`, migração `ALTER TABLE`). O popup que já aparecia ao abrir o desktop (quando há lançamento novo) ganhou uma seção "Detalhes por pessoa": cada pessoa com lançamento novo aparece com o saldo líquido da leva e a lista de cada depósito/saque, com horário ("às 14:32") quando disponível ou "(sem horário)" quando não — sem travar nada por falta dessa informação, como pedido.
+
+Validado com teste isolado de Tk ao vivo (3 lançamentos, 2 pessoas, 1 com horário e 1 sem — confirma mensagem agrupada certa, conversão UTC→Brasília correta, e gravação de `registrado_em` no banco) e reconfirmação dos 2 testes da Rodada 101 (sem regressão), além de `py_compile`, varredura de método duplicado e os 35 testes automatizados.
+
+Versão v6.41 → **v6.42** (4 locais).
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

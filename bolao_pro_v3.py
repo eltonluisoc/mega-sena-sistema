@@ -1,7 +1,32 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.41
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.42
+Correções v6.42 (reservas: resumo detalhado por pessoa e horário, ao
+abrir o desktop):
+ - Pedido do usuário: "o resumo da reserva quando eu abro no desktop
+   deve além de mostrar o total de depósito e saque, mostrar
+   separadamente os lançamentos por usuário e o horário que registrei...
+   se não tiver a informação do horário não tem problema... pode seguir
+   sem... mas quero os detalhes ao abrir o desktop."
+ - O site admin já gravava um timestamp (campo `criadoEm`, ISO 8601 UTC)
+   em todo lançamento de reserva registrado por lá, mas o desktop nunca
+   lia esse campo — só usava os totais pra montar o popup de
+   sincronização. Agora `_concluir_import_pendentes` também lê
+   `criadoEm`, converte pra horário de Brasília (`fmt_hora_web`, UTC-3)
+   e guarda numa coluna nova (`reservas_movimentos.registrado_em`).
+ - O popup que já aparecia ao abrir o desktop (quando há lançamento novo
+   da fila do site) ganhou uma seção "Detalhes por pessoa": cada pessoa
+   com lançamento novo aparece com o saldo líquido da leva e a lista de
+   cada depósito/saque, com o horário quando disponível
+   ("às 14:32") ou "(sem horário)" quando o lançamento for antigo/sem
+   esse campo — exatamente como pedido, sem travar nada por falta dessa
+   informação.
+ - Validado com teste isolado de Tk ao vivo: 3 lançamentos (2 pessoas,
+   1 com horário, 1 sem) geram a mensagem agrupada certa, convertem o
+   horário UTC→Brasília corretamente, e gravam `registrado_em` no banco
+   (vazio quando a fila não manda o campo). Reconfirmados os 2 testes
+   anteriores da Rodada 101 (sem regressão).
 Correções v6.41 (reservas: não avisa mais "atualizado" pra item que já
 tinha sido importado antes):
  - Pedido do usuário: "quando abro o sistema ele está informando a
@@ -1101,7 +1126,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import sqlite3
 import os, shutil, sys
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import re
 
 # ─────────────────────────────────────────────
@@ -1221,6 +1246,22 @@ def fmt_brl(v):
         return f"R$ {float(v):,.2f}".replace(",","X").replace(".",",").replace("X",".")
     except:
         return "R$ 0,00"
+
+def fmt_hora_web(iso_str):
+    """Converte o timestamp UTC ISO 8601 que o site grava (campo "criadoEm",
+    ex.: "2026-01-02T14:32:10.123Z") pra "HH:MM" em horário de Brasília
+    (UTC-3, sem horário de verão). Retorna "" se vier vazio/inválido — o
+    chamador decide o que mostrar nesse caso (pedido do usuário: "se não
+    tiver a informação do horário não tem problema, pode seguir sem")."""
+    if not iso_str:
+        return ""
+    try:
+        s = iso_str.replace("Z", "+00:00")
+        dt_utc = datetime.fromisoformat(s)
+        dt_local = dt_utc - timedelta(hours=3)
+        return dt_local.strftime("%H:%M")
+    except Exception:
+        return ""
 
 def btn(parent, text, color, cmd, width=22, **kw):
     b = tk.Button(parent, text=text, bg=color, fg="white",
@@ -1439,6 +1480,13 @@ class Database:
             # mudou nada desde a última vez — com bolões de 40+ pessoas,
             # isso sozinho respondia por minutos de espera ao fechar.
             "ALTER TABLE participantes ADD COLUMN busca_sync_hash TEXT",
+            # Horário (ISO 8601, UTC) em que o lançamento foi registrado no
+            # site admin (campo "criadoEm" da fila reservas_movimentos_
+            # pendentes) — pedido do usuário: ver quem registrou o quê e
+            # quando, não só os totais, ao abrir o desktop (ver resumo em
+            # _concluir_import_pendentes). Fica vazio pra lançamentos sem
+            # essa informação (ex.: registrados direto no desktop).
+            "ALTER TABLE reservas_movimentos ADD COLUMN registrado_em TEXT",
         ]
         for m in migs:
             try: c.execute(m)
@@ -2270,7 +2318,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.41")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.42")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -2451,6 +2499,10 @@ class BolaoApp:
         total_dep = 0.0; total_saq = 0.0
         erros_detalhe = []
         doc_ids_para_apagar = []
+        # Lançamentos novos agrupados por pessoa, pro resumo detalhado ao
+        # abrir o desktop (pedido do usuário: além do total, ver separado
+        # por usuário e o horário que foi registrado no site).
+        detalhes_por_pessoa = {}
 
         for doc in docs:
             nome_erro = "?"
@@ -2466,6 +2518,7 @@ class BolaoApp:
                                   or campo(fields, "valor", "integerValue") or 0)
                 data_web = campo(fields, "data", "stringValue", "") or ""
                 descricao= campo(fields, "descricao", "stringValue", "") or ""
+                criado_em_web = campo(fields, "criadoEm", "stringValue", "") or ""
 
                 if valor <= 0 or not nome:
                     raise ValueError(f"dados incompletos (valor={valor!r}, nome={nome!r})")
@@ -2516,9 +2569,9 @@ class BolaoApp:
                 if not ja_importado:
                     self.db.execute(
                         "INSERT INTO reservas_movimentos "
-                        "(pessoa_id, tipo, valor, data_mov, loteria, concurso, descricao, origem_doc_id) "
-                        "VALUES (?,?,?,?,?,?,?,?)",
-                        (pessoa_id, tipo_db, valor, data_mov, "", "", desc_final, doc_id))
+                        "(pessoa_id, tipo, valor, data_mov, loteria, concurso, descricao, origem_doc_id, registrado_em) "
+                        "VALUES (?,?,?,?,?,?,?,?,?)",
+                        (pessoa_id, tipo_db, valor, data_mov, "", "", desc_final, doc_id, criado_em_web))
                     # Só conta/soma como "importado" quem é NOVO de verdade.
                     # Achado real do usuário: "já abri 3 vezes e nas 3
                     # informou a atualização" — o item continuava na fila do
@@ -2530,6 +2583,8 @@ class BolaoApp:
                     importados += 1
                     if tipo_db == "CRÉDITO": total_dep += valor
                     else: total_saq += valor
+                    detalhes_por_pessoa.setdefault(nome, []).append(
+                        (tipo_db, valor, fmt_hora_web(criado_em_web)))
 
                 # Já está garantido no SQLite local (inserido agora, ou já
                 # tinha sido inserido antes) — só acumula o id aqui pra
@@ -2563,6 +2618,24 @@ class BolaoApp:
             partes.append(f"✅ {importados} movimento(s) de reserva importado(s) do site:")
             if total_dep > 0: partes.append(f"  💰 Depósitos: {fmt_brl(total_dep)}")
             if total_saq > 0: partes.append(f"  💸 Saques/uso: {fmt_brl(total_saq)}")
+            # Detalhe por pessoa + horário (pedido do usuário: "mostrar
+            # separadamente os lançamentos por usuário e o horário que
+            # registrei"). Horário vem do campo "criadoEm" gravado pelo
+            # site (admin.js); lançamentos feitos direto no desktop ou
+            # antigos (antes desta versão) não têm isso — mostra sem
+            # horário nesse caso, como pedido ("se não tiver a informação
+            # do horário não tem problema, pode seguir sem").
+            partes.append("")
+            partes.append("Detalhes por pessoa:")
+            for nome_pessoa in sorted(detalhes_por_pessoa.keys(), key=str.lower):
+                lancs = detalhes_por_pessoa[nome_pessoa]
+                subtotal = sum(v if t == "CRÉDITO" else -v for t, v, _h in lancs)
+                sinal = "+" if subtotal >= 0 else "-"
+                partes.append(f"  👤 {nome_pessoa} ({sinal}{fmt_brl(abs(subtotal))})")
+                for tipo_l, valor_l, hora_l in lancs:
+                    icone = "💰" if tipo_l == "CRÉDITO" else "💸"
+                    quando = f" às {hora_l}" if hora_l else " (sem horário)"
+                    partes.append(f"      {icone} {fmt_brl(valor_l)}{quando}")
         if erros:
             partes.append(f"⚠ {erros} item(ns) da fila NÃO foram importados:")
             partes.extend(erros_detalhe)
@@ -2640,7 +2713,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.41",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.42",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -6766,7 +6839,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.41</span>
+        <span>Sistema de Gestão de Bolões v6.42</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -9044,7 +9117,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.41</span>
+        <span>Sistema de Gestão de Bolões v6.42</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
