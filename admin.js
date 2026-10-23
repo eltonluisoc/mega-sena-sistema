@@ -1909,6 +1909,10 @@ function exibirCartoesAdmin() {
     atualizarContadorSelecionados();
     atualizarBadgeTotalCartoes();
     atualizarPainelConferenciaPublica();
+    // Mantém o dropdown de bolões da aba Premiações sempre em dia com os
+    // cartões mais recentes — evita qualquer corrida com o carregamento
+    // inicial (ver carregarBoloesSelectPremiacoes).
+    carregarBoloesSelectPremiacoes();
 }
 
 // ============================================
@@ -4269,27 +4273,38 @@ async function verPendentesReserva() {
 // tabela local `premiacoes` (ver _concluir_import_premiacoes, Python) —
 // o site nunca mantém o histórico de premiações, só relay.
 // ============================================
-async function carregarBoloesSelectPremiacoes() {
+// Pedido do usuário ("aparecem poucos bolões na lista... quero todos"):
+// a lista de "participantes" (bolões formalmente PUBLICADOS no site
+// pelo desktop) só tinha os poucos que o admin publicou manualmente —
+// a grande maioria dos bolões nunca passa por isso, só tem cartões
+// cadastrados. "A tabela que grava as importações dos cartões... ali
+// registros todos" — o array `cartoes` (já carregado em memória, campo
+// `bolao`) é a lista completa de verdade, já que todo cartão tem um
+// nome de bolão. Usa isso em vez de "participantes" — sem precisar de
+// nenhuma publicação prévia.
+function carregarBoloesSelectPremiacoes() {
     const select = document.getElementById('premBolaoSelect');
     if (!select) return;
 
-    try {
-        const snapshot = await db.collection('participantes').get();
-        const boloes = [];
-        snapshot.forEach(doc => boloes.push({ id: doc.id, ...doc.data() }));
-
-        select.innerHTML = '<option value="">Selecione um bolão</option>';
-        for (const bolao of boloes) {
-            const option = document.createElement('option');
-            option.value = bolao.id;
-            option.dataset.loteria = bolao.loteria || '';
-            option.textContent = `${bolao.titulo} (${ROTULO_LOTERIA[bolao.loteria] || bolao.loteria || '?'})`;
-            select.appendChild(option);
-        }
-        console.log(`✅ ${boloes.length} bolões carregados no select de premiações`);
-    } catch (error) {
-        console.error('Erro ao carregar bolões (premiações):', error);
+    // {nomeBolao: loteria} — loteria vem do primeiro cartão achado com
+    // esse nome (um bolão normalmente é de uma loteria só).
+    const boloesMap = {};
+    for (const c of cartoes) {
+        const nome = c.bolao || 'Sem Bolão';
+        if (!boloesMap[nome]) boloesMap[nome] = c.tipo || 'mega';
     }
+    const nomes = Object.keys(boloesMap).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+    select.innerHTML = '<option value="">Selecione um bolão</option>';
+    for (const nome of nomes) {
+        const loteria = boloesMap[nome];
+        const option = document.createElement('option');
+        option.value = nome;
+        option.dataset.loteria = loteria;
+        option.textContent = `${nome} (${ROTULO_LOTERIA[loteria] || loteria || '?'})`;
+        select.appendChild(option);
+    }
+    console.log(`✅ ${nomes.length} bolões carregados no select de premiações (a partir dos cartões)`);
 }
 
 function atualizarLoteriaDisplayPremiacao() {
@@ -4303,16 +4318,17 @@ function atualizarLoteriaDisplayPremiacao() {
 
 async function registrarPremiacao() {
     const select = document.getElementById('premBolaoSelect');
-    const bolaoId = select ? select.value : '';
+    // O valor da opção já É o nome do bolão (ver carregarBoloesSelectPremiacoes
+    // — lista vem dos cartões, não de um doc do Firestore com ID próprio).
+    const bolaoNome = select ? select.value : '';
     const opt = select ? select.selectedOptions[0] : null;
-    const bolaoNome = opt ? opt.textContent : '';
     const loteria = opt ? (opt.dataset.loteria || '') : '';
     const concurso = (document.getElementById('premConcurso') || {}).value?.trim() || '';
     const dataSorteio = (document.getElementById('premDataSorteio') || {}).value || '';
     const valor = parseFloat((document.getElementById('premValor') || {}).value);
     const descricao = (document.getElementById('premDescricao') || {}).value?.trim() || '';
 
-    if (!bolaoId) { showToast('⚠️ Selecione o bolão', 'warning'); return; }
+    if (!bolaoNome) { showToast('⚠️ Selecione o bolão', 'warning'); return; }
     if (!valor || valor <= 0) { showToast('⚠️ Informe o valor do prêmio', 'warning'); return; }
 
     const btn = document.getElementById('btnRegistrarPremiacao');
@@ -4320,7 +4336,7 @@ async function registrarPremiacao() {
 
     try {
         await db.collection('premiacoes_pendentes').add({
-            bolaoId, bolaoNome, loteria, concurso, dataSorteio,
+            bolaoNome, loteria, concurso, dataSorteio,
             valorPremio: valor, descricao,
             criadoEm: new Date().toISOString()
         });

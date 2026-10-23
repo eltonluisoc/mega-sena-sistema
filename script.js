@@ -1076,10 +1076,14 @@ function desenharSetasProximidade(numerosSorteados, numerosCartao) {
         const y2 = rDestino.top - areaRect.top;
 
         // Curva suave (não reta) pra ficar com a cara de "seta desenhada à
-        // mão", mais próxima do exemplo que o usuário mostrou.
-        const meioY = (y1 + y2) / 2;
+        // mão", mais próxima do exemplo que o usuário mostrou. Achado
+        // real do usuário ("a seta cobriu o número"): a ponta parava
+        // 10px DENTRO da bolinha (y2 + 10), cobrindo o número — agora
+        // para um pouco ANTES do topo da bolinha (y2 - 6), não em cima.
+        const y2Final = y2 - 6;
+        const meioY = (y1 + y2Final) / 2;
         const path = document.createElementNS(svgNS, 'path');
-        path.setAttribute('d', `M ${x1} ${y1} C ${x1} ${meioY}, ${x2} ${meioY}, ${x2} ${y2 + 10}`);
+        path.setAttribute('d', `M ${x1} ${y1} C ${x1} ${meioY}, ${x2} ${meioY}, ${x2} ${y2Final}`);
         path.setAttribute('stroke', '#991b1b');
         path.setAttribute('stroke-width', '3');
         path.setAttribute('fill', 'none');

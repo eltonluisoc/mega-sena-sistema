@@ -1,7 +1,36 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.43
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.44
+Correções v6.44 (premiações: casamento do bolão por nome, não mais por
+publicação no site):
+ - Pedido do usuário: "aparecem poucos bolões na lista.... não mostram
+   todos... quero todos.... dos bolões vc precisa recuperar de onde é a
+   tabela que grava as importações dos cartões.... pois ali registros
+   todos."
+ - Causa raiz: o dropdown "Bolão" da aba Premiações (admin web) listava
+   a coleção `participantes` — um doc por bolão FORMALMENTE PUBLICADO no
+   site pelo desktop (botão "🌐 PUBLICAR NO SITE") — mas a maioria dos
+   bolões nunca passa por essa publicação manual, só tem cartões
+   cadastrados. A lista de verdade e completa é o array `cartoes`
+   (campo `bolao`, texto livre, sempre presente em todo cartão) — já
+   carregado em memória no admin web pra outras telas.
+ - Corrigido do lado web (`admin.js`): `carregarBoloesSelectPremiacoes`
+   agora monta a lista a partir dos nomes únicos de `cartoes[].bolao`
+   (com a loteria do primeiro cartão achado com aquele nome), em vez de
+   consultar `participantes` — sem depender de nenhuma publicação
+   prévia. Também chamada no fim de `exibirCartoesAdmin()` (não só no
+   boot inicial), pra nunca ficar desatualizada em relação aos cartões
+   carregados.
+ - Corrigido do lado desktop: como a lista agora não tem mais nenhum ID
+   de documento do Firestore por trás (é só o nome), o casamento em
+   `_concluir_import_premiacoes` deixou de usar `boloes.firebase_doc_id`
+   e passou a casar por `LOWER(boloes.nome)=LOWER(?)` — mesmo princípio
+   já usado em `reservas_pessoas` pra casar por nome sem diferenciar
+   maiúscula/minúscula.
+ - Validado com teste isolado de Tk ao vivo (reconfirma que o bolão
+   certo é casado, idempotência, erro isolado — mais um caso novo:
+   nome do bolão com caixa diferente ainda casa certo).
 Correções v6.43 (premiações: admin web registra, desktop importa pra
 Gestão → Premiações automaticamente):
  - Pedido do usuário: "quando ganhar algum prêmio em um concurso quero
@@ -2375,7 +2404,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.43")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.44")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -2817,11 +2846,18 @@ class BolaoApp:
     def _concluir_import_premiacoes(self, dados, erro_final):
         """Roda na thread principal — grava premiações novas vindas da
         fila do site na tabela local `premiacoes`, casando com o bolão
-        certo por `boloes.firebase_doc_id` (a mesma ponte já usada pra
-        publicar bolões no site — ver enviar_bolao_para_site). Mesma
-        lógica de idempotência (origem_doc_id) e de só contar/avisar o
-        que é NOVO de verdade (achado real da Rodada 101, aplicado aqui
-        desde o início em vez de repetir o mesmo bug)."""
+        certo pelo NOME (boloes.nome). Achado real do usuário: a 1ª
+        versão casava por boloes.firebase_doc_id (só bolões formalmente
+        "Publicados no Site" pelo desktop) — mas a lista de bolões do
+        site mostrava "poucos bolões" porque a maioria nunca passa por
+        essa publicação manual, só tem cartões cadastrados. "A tabela
+        que grava as importações dos cartões... ali registros todos":
+        o admin web agora lista os bolões a partir dos CARTÕES (nome
+        livre, sempre presente), então o casamento aqui também precisa
+        ser por nome — sem depender de publicação nenhuma. Mesma lógica
+        de idempotência (origem_doc_id) e de só contar/avisar o que é
+        NOVO de verdade (achado real da Rodada 101, aplicado aqui desde
+        o início em vez de repetir o mesmo bug)."""
         self._prem_import_em_andamento = False
 
         if dados is None:
@@ -2848,7 +2884,6 @@ class BolaoApp:
             try:
                 fields = doc.get("fields", {})
                 doc_id = doc.get("name", "").split("/")[-1]
-                bolao_doc_id   = campo(fields, "bolaoId", "stringValue", "") or ""
                 bolao_nome_web = campo(fields, "bolaoNome", "stringValue", "") or ""
                 desc_erro = bolao_nome_web or doc_id
                 loteria_web    = campo(fields, "loteria", "stringValue", "mega") or "mega"
@@ -2859,15 +2894,18 @@ class BolaoApp:
                 descricao      = campo(fields, "descricao", "stringValue", "") or ""
                 criado_em_web  = campo(fields, "criadoEm", "stringValue", "") or ""
 
-                if valor <= 0 or not bolao_doc_id:
-                    raise ValueError(f"dados incompletos (valor={valor!r}, bolaoId={bolao_doc_id!r})")
+                if valor <= 0 or not bolao_nome_web:
+                    raise ValueError(f"dados incompletos (valor={valor!r}, bolaoNome={bolao_nome_web!r})")
 
+                # Casamento por nome — mesma lógica usada em
+                # reservas_pessoas (telefone indisponível aqui, então
+                # direto por nome, sem acento/maiúscula importando).
                 bolao = self.db.fetchone(
-                    "SELECT id, nome FROM boloes WHERE firebase_doc_id=?", (bolao_doc_id,))
+                    "SELECT id, nome FROM boloes WHERE LOWER(nome)=LOWER(?)", (bolao_nome_web,))
                 if not bolao:
                     raise ValueError(
-                        f"bolão '{bolao_nome_web or bolao_doc_id}' não encontrado no desktop "
-                        "(publique-o no site primeiro, pelo botão Publicar)")
+                        f"bolão '{bolao_nome_web}' não encontrado no desktop (o nome "
+                        "precisa ser igual ao cadastrado aqui)")
 
                 loteria = LOTERIA_WEB_PARA_DESKTOP.get(loteria_web, loteria_web.capitalize())
 
@@ -2934,7 +2972,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.43",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.44",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -7060,7 +7098,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.43</span>
+        <span>Sistema de Gestão de Bolões v6.44</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -9344,7 +9382,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.43</span>
+        <span>Sistema de Gestão de Bolões v6.44</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>

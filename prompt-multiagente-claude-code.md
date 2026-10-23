@@ -1594,6 +1594,22 @@ Validado com 5 testes isolados de `calcularParesProximidade` (exemplo real do us
 
 `sw.js` `CACHE_NAME` v77 → **v78**.
 
+**Ajuste em produção (ainda na Rodada 108)**: usuário testou ao vivo e reportou "quase perfeito... mas a seta cobriu o número" — a ponta da curva parava `y2 + 10` (10px DENTRO da bolinha de destino), cobrindo o número. Corrigido pra `y2 - 6` (parar um pouco ANTES do topo da bolinha, não em cima). `sw.js` v78 → **v79**.
+
+## Rodada 109 — Premiações: casamento do bolão por nome, não mais por publicação no site (desktop+web)
+
+Pedido do usuário, logo depois de testar a Rodada 107: "aparecem poucos bolões na lista.... não mostram todos... quero todos.... dos bolões vc precisa recuperar de onde é a tabela que grava as importações dos cartões.... pois ali registros todos."
+
+**Causa raiz**: o dropdown "Bolão" da aba Premiações listava a coleção `participantes` — um doc por bolão formalmente **publicado no site** pelo desktop (botão "🌐 PUBLICAR NO SITE") — mas a maioria dos bolões nunca passa por essa publicação manual, só tem cartões cadastrados. A pista certa veio do próprio usuário: a lista completa de verdade é o array `cartoes` (campo `bolao`, texto livre, sempre presente em todo cartão), já carregado em memória no admin web.
+
+**Corrigido**:
+- `admin.js`: `carregarBoloesSelectPremiacoes` agora monta a lista a partir dos nomes únicos de `cartoes[].bolao` (loteria do primeiro cartão achado com aquele nome), em vez de consultar `participantes` — sem depender de nenhuma publicação prévia. Também passou a ser chamada no fim de `exibirCartoesAdmin()` (não só no boot inicial), pra nunca ficar desatualizada e nunca correr risco de rodar antes dos cartões terminarem de carregar.
+- Desktop (`_concluir_import_premiacoes`): como a lista agora não tem mais nenhum ID de documento do Firestore por trás (é só o nome), o casamento deixou de usar `boloes.firebase_doc_id` e passou a casar por `LOWER(boloes.nome)=LOWER(?)` — mesmo princípio já usado em `reservas_pessoas` pra casar por nome sem diferenciar maiúscula/minúscula.
+
+Validado com teste isolado de Tk ao vivo (reconfirma bolão certo, idempotência, erro isolado — mais um caso novo: nome do bolão com caixa diferente ainda casa certo), `node --check`, `npm test` (81/81), `py_compile`, varredura de método duplicado e os 35 testes automatizados do desktop.
+
+Versão desktop v6.43 → **v6.44** (4 locais). `sw.js` `CACHE_NAME` v79 (nenhuma mudança extra no sw.js nesta rodada — já estava em v79 pelo ajuste da seta acima).
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
