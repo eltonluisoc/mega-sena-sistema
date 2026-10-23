@@ -1559,6 +1559,10 @@ Corrigido: nova classe `rank-cards-grid` (reaproveita `.dashboard-cards` pro esp
 
 `sw.js` `CACHE_NAME` v74 → **v75**. Validado com `npm test` (76/76, sem regressão — mudança só de CSS/HTML).
 
+**App Check, continuação**: usuário criou a chave "Fraud Defense" (reCAPTCHA Enterprise) de verdade — `app-check-config.js` atualizado com a nova Site Key e trocado de `ReCaptchaV3Provider` pra `ReCaptchaEnterpriseProvider` (classe diferente no SDK pra esse tipo de chave). `sw.js` v75 → **v76**.
+
+**Risco em aberto, não resolvido ainda**: a URL da chave criada mostra `?project=97295189433`, mas o `messagingSenderId` do `firebase-config.js` (= número do projeto `mega-sena-sistema` no Firebase) é `134457862979` — números diferentes, indício de que a chave foi criada num projeto Google Cloud diferente do projeto do Firebase (provavelmente o dropdown de projeto não deixou selecionar `mega-sena-sistema`, mesma dificuldade de antes). Isso pode fazer a verificação do App Check falhar silenciosamente mais pra frente (chave "Fraud Defense"/Enterprise fica presa ao projeto onde foi criada, diferente da chave clássica). Decisão: seguir mesmo assim por ora (o Console do Google Cloud está instável pro usuário — mesmo erro `ERR_HTTP2_FRAME_SIZE_ERROR` recorrente, parece ser do navegador/rede dele nas páginas mais pesadas do Cloud Console, não do Google em si) — registra a chave no Firebase e confere depois, no painel de métricas do App Check, se os pedidos estão realmente sendo verificados; se não estiverem, aí sim recriar a chave garantindo o projeto certo.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
