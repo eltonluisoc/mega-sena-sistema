@@ -1549,6 +1549,16 @@ Validado: `node --check` em `script.js`/`admin.js`, `npm test` (76/76 — 2 test
 
 `sw.js` `CACHE_NAME` v73 → **v74**.
 
+## Rodada 105 — Cards "Top Concursos" do dashboard: 2 loterias por linha, não auto-fit (web)
+
+Pedido do usuário, logo depois de ver o resultado da Rodada 104 (top-10 + data): "ficou ruim a formatação... melhor duas loterias por coluna... assim veremos todas as informações."
+
+Causa: os 4 cards "Top Mega/Lotofácil/Quina/+Milionária" usavam `grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))` — com 10 linhas por card (antes 5) e até 4 colunas numa tela cheia, cada card ficava estreito demais pro texto "Concurso XXXX · DD/MM/AAAA" caber sem cortar.
+
+Corrigido: nova classe `rank-cards-grid` (reaproveita `.dashboard-cards` pro espaçamento, só sobrescreve as colunas) fixando **2 colunas** sempre no desktop, com fallback pra 1 coluna só em telas bem pequenas (≤480px, mesmo padrão responsivo já usado no resto do admin.html).
+
+`sw.js` `CACHE_NAME` v74 → **v75**. Validado com `npm test` (76/76, sem regressão — mudança só de CSS/HTML).
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

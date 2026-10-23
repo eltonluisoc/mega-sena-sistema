@@ -481,6 +481,16 @@
             gap: 14px;
         }
 
+        /* Cards "Top Concursos" (4 loterias) — fixo em 2 colunas (2
+           loterias por linha), não auto-fit: com 10 concursos cada agora
+           (antes 5), auto-fit deixava os cards estreitos demais numa
+           tela cheia de 4 colunas, cortando "Concurso XXXX · DD/MM/AAAA".
+           Pedido do usuário: "ficou ruim a formatação... melhor duas
+           loterias por coluna... assim veremos todas as informações." */
+        .dashboard-cards.rank-cards-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
         .dashboard-card {
             position: relative;
             text-align: left;
@@ -1256,6 +1266,9 @@
             .dashboard-cards {
                 grid-template-columns: 1fr;
             }
+            .dashboard-cards.rank-cards-grid {
+                grid-template-columns: 1fr;
+            }
             .top-bar {
                 flex-direction: column;
                 text-align: center;
@@ -1412,7 +1425,7 @@
              listas estruturadas em vez de texto corrido — ver
              atualizarDashboardEstatisticas em admin.js, que agora monta
              .rank-row por posição em vez de um innerHTML só com <br>) -->
-        <div class="dashboard-cards" style="margin-top: 14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+        <div class="dashboard-cards rank-cards-grid" style="margin-top: 14px;">
             <div class="dashboard-card" style="--stat-accent:#ff375f;">
                 <div class="rank-card-title">🏆 Top Mega-Sena</div>
                 <div class="rank-list" id="dashboardMelhorMegaDetalhes"><div class="rank-empty">Nenhum resultado ainda</div></div>
