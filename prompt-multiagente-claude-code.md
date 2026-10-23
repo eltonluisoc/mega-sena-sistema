@@ -1580,6 +1580,20 @@ Validado com teste isolado de Tk ao vivo (premiação casa com o bolão certo vi
 
 Versão desktop v6.42 → **v6.43** (4 locais). `sw.js` `CACHE_NAME` v76 → **v77**.
 
+## Rodada 108 — Setas "quase acertou" na conferência da Mega (web)
+
+Pedido do usuário, com imagem de exemplo (seta desenhada à mão ligando um número sorteado não-acerto a um número próximo do cartão, também não-acerto): "na conferência da mega-sena sistema fizesse essas setas quando o número for próximo... focando no melhor cartão de todos e se o número ficar até 2 números de diferença... exemplo sorteou 5 e temos 7."
+
+**Onde**: só em `exibirResultadoSalvo` (script.js) — é o único lugar que ainda mostra números sorteados + acertos desde a Rodada 104 (o `mostrarCartoes()` sem argumentos, usado em todo o resto do site agora, nunca teve resultado pra comparar). Só no **melhor cartão** (`cartoesOrdenados[0]`, o primeiro da lista já ordenada por acertos) — os outros cartões da lista não ganham seta, pra não poluir a tela. Só na **Mega** por enquanto, como pedido explicitamente (`loteria === 'mega'`).
+
+**Lógica de pareamento** (`calcularParesProximidade`, função pura extraída pra ficar testável sem precisar de DOM/navegador): pra cada número sorteado que NÃO foi acerto, acha o número do cartão (também sem ser acerto — um acerto já tem destaque verde próprio, não precisa de seta) a até 2 de distância. Casamento guloso pelo PAR mais próximo primeiro, não pela ordem dos números — **achado real ao testar**: a primeira versão processava os sorteados em ordem crescente, e um sorteado mais distante podia "roubar" o número do cartão de um sorteado mais próximo que ainda nem tinha sido avaliado (ex.: sorteados [5,6] e cartão [7] — o 5 reivindicava o 7 antes do 6 ser considerado, mesmo o 6 estando mais perto). Corrigido ordenando todos os pares candidatos por distância crescente antes de casar. Cada sorteado e cada número do cartão só entram em 1 par (sem empilhar várias setas na mesma bolinha).
+
+**Desenho** (`desenharSetasProximidade`): `id` adicionado nos números sorteados (`sorteado-N`) e nos números do melhor cartão (`cartaonum-N`, só nesse cartão) durante a montagem do HTML; depois do `innerHTML`, um SVG é sobreposto em `#resultadosArea` (via `getBoundingClientRect` dos elementos de origem/destino) com uma curva (não reta, pra parecer desenhada à mão como no exemplo) e ponta de seta (`marker-end`), cor vermelho escuro. Redesenha no `resize` da janela (layout responsivo pode mover os números de lugar); roda depois de um `requestAnimationFrame` pro layout assentar antes de medir posições.
+
+Validado com 5 testes isolados de `calcularParesProximidade` (exemplo real do usuário vindo da imagem, distância exata 2 vs 3, número que já é acerto não vira "quase" de outro, um número do cartão não recebe 2 setas — pegou o bug do casamento guloso por ordem errada, nenhum próximo o bastante) — um deles pegou o bug real antes de ir pro ar. `npm test` (81/81, sem regressão) e `node --check`.
+
+`sw.js` `CACHE_NAME` v77 → **v78**.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

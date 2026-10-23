@@ -900,13 +900,15 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         // neste fluxo de "resultado já salvo") — por isso entram aqui
         // dentro, não no topo do resumo lá em cima.
         html += `<div class="numeros-sorteados-titulo">🎱 Números Sorteados</div>`;
-        html += `<div class="numeros-sorteados">${numerosSorteados.map(n => `<div class="numero-sorteado-card">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`;
+        html += `<div class="numeros-sorteados" id="numerosSorteadosLista">${numerosSorteados.map(n => `<div class="numero-sorteado-card" id="sorteado-${n}">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`;
         if (loteria === 'maismilionaria' && trevosSorteados) {
             html += `<div class="numeros-sorteados-titulo">🍀 Trevos Sorteados</div>`;
             html += `<div class="numeros-sorteados">${trevosSorteados.map(t => `<div class="numero-sorteado-card" style="background:#16a34a;">${t}</div>`).join('')}</div>`;
         }
 
+        let _indiceCartao = -1;
         for (const cartao of cartoesOrdenados) {
+            _indiceCartao++;
             const acertos = cartao.numeros.filter(n => numerosSorteados.includes(n)).length;
             const acertosTrevo = (loteria === 'maismilionaria' && trevosSorteados)
                 ? (cartao.trevos || []).filter(t => trevosSorteados.includes(t)).length : null;
@@ -930,7 +932,11 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
 
             const rotuloAcertos = acertosTrevo === null ? `${acertos} acertos` : `${acertos} núm + ${acertosTrevo} trevo${acertosTrevo === 1 ? '' : 's'}`;
 
-            html += `<div class="cartao-item-unificado">
+            // id no número só do MELHOR cartão (índice 0, o primeiro da
+            // lista já ordenada por acertos) — é nele que as setas de
+            // "quase acertou" apontam (ver desenharSetasProximidade);
+            // os outros cartões não precisam do id.
+            html += `<div class="cartao-item-unificado"${_indiceCartao === 0 ? ' id="melhorCartaoContainer"' : ''}>
                         <div class="cartao-header">
                             <span class="cartao-bolao">${cartao.bolao} - ${tipoParticipacao}</span>
                             <span class="cartao-acertos" style="background:${corAcertos};">${rotuloAcertos}</span>
@@ -938,7 +944,8 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
                         <div class="cartao-numeros">
                             ${cartao.numeros.map(n => {
                                 const acertou = numerosSorteados.includes(n);
-                                return `<span class="${acertou ? 'numero-acertado' : 'numero-normal'}">${n.toString().padStart(2,'0')}</span>`;
+                                const idAttr = _indiceCartao === 0 ? ` id="cartaonum-${n}"` : '';
+                                return `<span${idAttr} class="${acertou ? 'numero-acertado' : 'numero-normal'}">${n.toString().padStart(2,'0')}</span>`;
                             }).join('')}
                         </div>
                         ${cartao.trevos ? `<div class="cartao-numeros" style="margin-top:4px;">
@@ -951,12 +958,21 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         }
 
         area.innerHTML = html;
-        
+
         const btnWhats = document.getElementById('btnWhatsAppResultado');
         if (btnWhats) btnWhats.addEventListener('click', compartilharWhatsApp);
-        
+
         ultimoResultadoConcurso = concurso;
         ultimoResultadoDados = { numeros: numerosSorteados, trevos: trevosSorteados, premios };
+
+        // Setas "quase acertou" — pedido do usuário, só na Mega por
+        // enquanto ("na conferência da mega-sena... quando o número for
+        // próximo"), focando sempre no melhor cartão (cartoesOrdenados[0]
+        // — ver melhorCartaoSalvo acima). Espera o layout assentar
+        // (requestAnimationFrame) antes de medir posição dos números.
+        if (loteria === 'mega' && melhorCartaoSalvo) {
+            requestAnimationFrame(() => desenharSetasProximidade(numerosSorteados, melhorCartaoSalvo.numeros));
+        }
 
         console.log(`✅ Resultado exibido com ${cartoesOrdenados.length} cartões ordenados`);
     } catch (error) {
@@ -965,6 +981,124 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
     } finally {
         hideLoading();
     }
+}
+
+// ========== SETAS "QUASE ACERTOU" ==========
+// Pedido do usuário: "na conferência da mega-sena sistema fizesse essas
+// setas quando o número for próximo... focando no melhor cartão de
+// todos e se o número ficar até 2 números de diferença... exemplo
+// sorteou 5 e temos 7". Pra cada número sorteado que NÃO foi acerto, se
+// o melhor cartão tiver um número (também sem ser acerto) a até 2 de
+// distância, desenha uma seta ligando os dois — só no melhor cartão
+// (cartoesOrdenados[0]), não em todos, pra não poluir a tela.
+let _setasProximidadeResizeListener = null;
+
+// Função pura (sem DOM) — fácil de testar isolada. Pra cada número
+// sorteado que NÃO foi acerto, acha o número do cartão (também sem ser
+// acerto) mais próximo, até 2 de distância. Casamento guloso pelo PAR
+// mais próximo primeiro (não pela ordem dos números) — achado real ao
+// testar: processar os sorteados em ordem crescente deixava um sorteado
+// mais distante "roubar" um número do cartão de um sorteado mais
+// próximo que ainda nem tinha sido considerado (ex.: sorteados [5,6] e
+// cartão [7] — 5 reivindicava o 7 antes de 6 ser avaliado, mesmo o 6
+// estando mais perto). Cada sorteado e cada número do cartão só entram
+// em 1 par, pra não empilhar várias setas na mesma bolinha quando
+// desenhado. Retorna uma lista de [sorteado, doCartao].
+function calcularParesProximidade(numerosSorteados, numerosCartao) {
+    const naoAcertosCartao = numerosCartao.filter(n => !numerosSorteados.includes(n));
+    const naoAcertosSorteados = numerosSorteados.filter(n => !numerosCartao.includes(n));
+
+    const candidatos = [];
+    for (const sorteado of naoAcertosSorteados) {
+        for (const doCartao of naoAcertosCartao) {
+            const dist = Math.abs(sorteado - doCartao);
+            if (dist <= 2) candidatos.push({ sorteado, doCartao, dist });
+        }
+    }
+    // Mais próximos primeiro; desempate determinístico pelos próprios
+    // números, pra não depender da ordem de iteração do objeto/array.
+    candidatos.sort((a, b) => a.dist - b.dist || a.sorteado - b.sorteado || a.doCartao - b.doCartao);
+
+    const sorteadosUsados = new Set();
+    const cartaoUsados = new Set();
+    const pares = [];
+    for (const c of candidatos) {
+        if (sorteadosUsados.has(c.sorteado) || cartaoUsados.has(c.doCartao)) continue;
+        sorteadosUsados.add(c.sorteado);
+        cartaoUsados.add(c.doCartao);
+        pares.push([c.sorteado, c.doCartao]);
+    }
+    return pares;
+}
+
+function desenharSetasProximidade(numerosSorteados, numerosCartao) {
+    // Remove a seta antiga (se o usuário trocar de concurso/bolão e essa
+    // função rodar de novo) antes de desenhar a nova.
+    const svgAntigo = document.getElementById('svgSetasProximidade');
+    if (svgAntigo) svgAntigo.remove();
+
+    const area = document.getElementById('resultadosArea');
+    const container = document.getElementById('melhorCartaoContainer');
+    if (!area || !container) return;
+
+    const pares = calcularParesProximidade(numerosSorteados, numerosCartao);
+    if (pares.length === 0) return;
+
+    const areaRect = area.getBoundingClientRect();
+    area.style.position = area.style.position || 'relative';
+
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(svgNS, 'svg');
+    svg.setAttribute('id', 'svgSetasProximidade');
+    svg.setAttribute('width', areaRect.width);
+    svg.setAttribute('height', areaRect.height);
+    svg.style.cssText = 'position:absolute; top:0; left:0; pointer-events:none; z-index:5; overflow:visible;';
+
+    svg.innerHTML = `
+        <defs>
+            <marker id="setaProximidadePonta" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+                <path d="M0,0 L8,4 L0,8 Z" fill="#991b1b"></path>
+            </marker>
+        </defs>`;
+
+    let setasDesenhadas = 0;
+    for (const [sorteado, doCartao] of pares) {
+        const elOrigem = document.getElementById(`sorteado-${sorteado}`);
+        const elDestino = document.getElementById(`cartaonum-${doCartao}`);
+        if (!elOrigem || !elDestino) continue;
+
+        const rOrigem = elOrigem.getBoundingClientRect();
+        const rDestino = elDestino.getBoundingClientRect();
+
+        const x1 = rOrigem.left + rOrigem.width / 2 - areaRect.left;
+        const y1 = rOrigem.bottom - areaRect.top;
+        const x2 = rDestino.left + rDestino.width / 2 - areaRect.left;
+        const y2 = rDestino.top - areaRect.top;
+
+        // Curva suave (não reta) pra ficar com a cara de "seta desenhada à
+        // mão", mais próxima do exemplo que o usuário mostrou.
+        const meioY = (y1 + y2) / 2;
+        const path = document.createElementNS(svgNS, 'path');
+        path.setAttribute('d', `M ${x1} ${y1} C ${x1} ${meioY}, ${x2} ${meioY}, ${x2} ${y2 + 10}`);
+        path.setAttribute('stroke', '#991b1b');
+        path.setAttribute('stroke-width', '3');
+        path.setAttribute('fill', 'none');
+        path.setAttribute('marker-end', 'url(#setaProximidadePonta)');
+        svg.appendChild(path);
+        setasDesenhadas++;
+    }
+
+    if (setasDesenhadas > 0) {
+        area.appendChild(svg);
+    }
+
+    // Redesenha ao redimensionar (layout responsivo pode mover os
+    // números de lugar) — só 1 listener vivo por vez.
+    if (_setasProximidadeResizeListener) {
+        window.removeEventListener('resize', _setasProximidadeResizeListener);
+    }
+    _setasProximidadeResizeListener = () => desenharSetasProximidade(numerosSorteados, numerosCartao);
+    window.addEventListener('resize', _setasProximidadeResizeListener);
 }
 
 // ========== MOSTRAR CARTÕES COM FILTRO POR BOLÃO ==========

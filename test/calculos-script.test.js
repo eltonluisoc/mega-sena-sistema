@@ -277,3 +277,46 @@ test('gerarResumoPremiosMilionaria - mostra a partir de 3 números, sem as faixa
   const qtdCards = (html.match(/resultado-resumo-item/g) || []).length;
   assert.equal(qtdCards, 8);
 });
+
+// Pedido do usuário: "na conferência da mega-sena sistema fizesse essas
+// setas quando o número for próximo... exemplo sorteou 5 e temos 7...
+// até 2 números de diferença". calcularParesProximidade é a parte pura
+// (sem DOM) de desenharSetasProximidade — testável isolada.
+// Objeto devolvido pelo sandbox vm é de outro "realm" -- deepEqual
+// estrito falha na checagem de identidade do Array mesmo com valores
+// idênticos (mesmo achado documentado nos outros testes deste arquivo).
+// Compara via JSON.stringify, que não se importa com o "realm".
+function paresComoTexto(pares) {
+  return JSON.stringify(pares.map(p => [...p]).sort());
+}
+
+test('calcularParesProximidade - exemplo real do usuário (04/13 sorteados, 02/12 no cartão)', () => {
+  const sorteados = [4, 13, 23, 28, 41, 58];
+  const cartao = [2, 12, 16, 23, 27, 28, 33, 41, 58];
+  const pares = sandbox.calcularParesProximidade(sorteados, cartao);
+  // 23/28/41/58 são acerto (estão nos dois) -- não entram em par nenhum.
+  assert.equal(paresComoTexto(pares), paresComoTexto([[4, 2], [13, 12]]));
+});
+
+test('calcularParesProximidade - distância exatamente 2 conta, 3 não conta', () => {
+  assert.equal(paresComoTexto(sandbox.calcularParesProximidade([5], [7])), paresComoTexto([[5, 7]])); // dist 2
+  assert.equal(sandbox.calcularParesProximidade([5], [8]).length, 0); // dist 3, longe demais
+});
+
+test('calcularParesProximidade - número que é acerto não vira "quase" de outro sorteado', () => {
+  // 10 é acerto (está nos dois) -- não deve ser reaproveitado como par
+  // "próximo" de 11 (sorteado, não-acerto), mesmo estando a 1 de distância.
+  const pares = sandbox.calcularParesProximidade([10, 11], [10]);
+  assert.equal(pares.length, 0);
+});
+
+test('calcularParesProximidade - um número do cartão não recebe 2 setas (fica com o mais próximo)', () => {
+  // 7 (cartão) está a 1 de distância de 6 e a 2 de distância de 5 --
+  // só o mais próximo (6) deveria "reivindicar" o 7.
+  const pares = sandbox.calcularParesProximidade([5, 6], [7]);
+  assert.equal(paresComoTexto(pares), paresComoTexto([[6, 7]]));
+});
+
+test('calcularParesProximidade - nenhum próximo o bastante retorna lista vazia', () => {
+  assert.equal(sandbox.calcularParesProximidade([1], [50]).length, 0);
+});
