@@ -19,7 +19,6 @@ const LOTERIA_TREVOS = { maismilionaria: { k: 2, universo: 6 } };
 let ultimoResultadoConcurso = null;
 let ultimoResultadoDados = null;
 let pixGeral = '';
-let cacheResultadosBuscados = {};
 let dadosCarregados = false;
 let resultadoSalvo = null;
 let loadingActive = false;
@@ -245,51 +244,8 @@ async function carregarPixGeral() {
     } catch(e) { console.log('Erro ao carregar PIX:', e); }
 }
 
-// Concurso mais recente de cada loteria que o admin ainda não conferiu
-// primeiro (ver admin.js: atualizarConcursoMaisRecenteBloqueio e
-// firestore.rules: resultados_conferidos) — {loteria: "concurso"}.
-// Enquanto um concurso estiver aqui, o público não pode ser o primeiro a
-// confirmar o resultado dele (a regra do Firestore bloqueia o create);
-// o site só usa isso pra já avisar e desabilitar o botão em vez de deixar
-// o visitante tentar e esbarrar num erro de permissão.
-let concursosBloqueados = {};
-
-async function carregarConcursosBloqueados() {
-    try {
-        const doc = await db.collection('config_geral').doc('conferencia_bloqueio').get();
-        concursosBloqueados = doc.exists ? (doc.data() || {}) : {};
-    } catch(e) { console.log('Erro ao carregar conferencia_bloqueio:', e); }
-}
-
-function estaTravadoPraPublico(loteria, concurso) {
-    return String(concursosBloqueados[loteria] || '') === String(concurso || '');
-}
-
-// Desabilita visualmente o botão "Conferir Resultados" quando o concurso
-// selecionado no momento é o mais recente da loteria e ainda não foi
-// conferido pelo admin — chamado toda vez que a loteria ou o concurso
-// selecionado mudam (ver chamadores). Não esconde o botão, só avisa que
-// está indisponível, como pedido pelo usuário.
-function atualizarEstadoBotaoConferir() {
-    const btn = document.getElementById('btnConferir');
-    const select = document.getElementById('concursoSelect');
-    if (!btn || !select) return;
-
-    if (estaTravadoPraPublico(loteriaAtual, select.value)) {
-        btn.disabled = true;
-        btn.title = 'Aguardando o administrador liberar este resultado';
-        btn.style.opacity = '0.5';
-        btn.style.cursor = 'not-allowed';
-    } else {
-        btn.disabled = false;
-        btn.title = '';
-        btn.style.opacity = '';
-        btn.style.cursor = '';
-    }
-}
-
 async function carregarConfiguracoes() {
-    await Promise.all([carregarPixGeral(), carregarConcursosBloqueados()]);
+    await carregarPixGeral();
 }
 
 function compartilharSite() {
@@ -825,12 +781,9 @@ function limparEstadoCompleto() {
     
     const resultadosArea = document.getElementById('resultadosArea');
     if (resultadosArea) {
-        resultadosArea.innerHTML = '<div class="empty-state">🔍 Clique em "Conferir Resultados" para ver os acertos</div>';
+        resultadosArea.innerHTML = '<div class="empty-state">⏳ Aguardando o resultado deste concurso</div>';
     }
-    
-    const statusDiv = document.getElementById('statusBusca');
-    if (statusDiv) statusDiv.innerHTML = '';
-    
+
     const cartoesArea = document.getElementById('cartoesArea');
     if (cartoesArea && !cartoesArea.innerHTML.includes('Carregando')) {
         if (!cartoesArea.innerHTML.includes('Carregando')) {
@@ -1149,7 +1102,7 @@ async function mostrarCartoes(numerosSorteados = null, trevosSorteados = null) {
             const totalCartoes = filtrados.length;
             const loteriaNome = loteriaAtual === 'mega' ? 'MEGA' : loteriaAtual === 'lotofacil' ? 'LOTOFÁCIL'
                 : loteriaAtual === 'maismilionaria' ? '+MILIONÁRIA' : 'QUINA';
-            cardHeader.innerHTML = `🎯 CONFERIR RESULTADOS - ${loteriaNome} (${totalCartoes} cartões)`;
+            cardHeader.innerHTML = `🎯 RESULTADO - ${loteriaNome} (${totalCartoes} cartões)`;
         }
         
     } catch (error) {
@@ -1281,7 +1234,6 @@ async function carregarDados() {
             if (concursos.length > 0) {
                 select.value = concursos[0];
             }
-            atualizarEstadoBotaoConferir();
         }
 
         dadosCarregados = true;
@@ -1320,18 +1272,7 @@ async function carregarDados() {
                 carregarBolaoAberto().catch(e => console.warn(e));
             }, 500);
         }
-        
-        setTimeout(async () => {
-            const selectAtual = document.getElementById('concursoSelect');
-            const concurso = selectAtual ? selectAtual.value : null;
-            if (concurso) {
-                const jaConferido = await verificarResultadoConferido(loteriaAtual, concurso);
-                if (!jaConferido) {
-                    buscarResultadoAutomatico();
-                }
-            }
-        }, 300);
-        
+
     } catch (error) {
         console.error('Erro ao carregar dados:', error);
         showToast('❌ Erro ao carregar dados. Recarregue a página.', 'error');
@@ -1405,7 +1346,6 @@ function atualizarSelectConcursos() {
     if (concursos.length > 0) {
         select.value = concursos[0];
     }
-    atualizarEstadoBotaoConferir();
 }
 
 // ========== TROCAR LOTERIA ==========
@@ -1427,16 +1367,16 @@ async function setLoteria(loteria) {
 
     if (loteria === 'mega') {
         btnMega.classList.add('active');
-        document.getElementById('cardHeaderConferencia').innerHTML = '🎯 CONFERIR RESULTADOS - MEGA';
+        document.getElementById('cardHeaderConferencia').innerHTML = '🎯 RESULTADO - MEGA';
     } else if (loteria === 'lotofacil') {
         btnLoto.classList.add('active');
-        document.getElementById('cardHeaderConferencia').innerHTML = '🎯 CONFERIR RESULTADOS - LOTOFÁCIL';
+        document.getElementById('cardHeaderConferencia').innerHTML = '🎯 RESULTADO - LOTOFÁCIL';
     } else if (loteria === 'maismilionaria') {
         if (btnMilionaria) btnMilionaria.classList.add('active');
-        document.getElementById('cardHeaderConferencia').innerHTML = '🎯 CONFERIR RESULTADOS - +MILIONÁRIA';
+        document.getElementById('cardHeaderConferencia').innerHTML = '🎯 RESULTADO - +MILIONÁRIA';
     } else {
         btnQuina.classList.add('active');
-        document.getElementById('cardHeaderConferencia').innerHTML = '🎯 CONFERIR RESULTADOS - QUINA';
+        document.getElementById('cardHeaderConferencia').innerHTML = '🎯 RESULTADO - QUINA';
     }
     
     limparEstadoCompleto();
@@ -1529,261 +1469,13 @@ async function aplicarSelecaoDaUrl() {
     }
 }
 
-async function buscarResultadoInterno(concurso, loteria) {
-    let numeros = null, data = null, trevos = null;
-    try {
-        let url;
-        if (loteria === 'mega') url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/megasena/${concurso}`;
-        else if (loteria === 'lotofacil') url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/lotofacil/${concurso}`;
-        else if (loteria === 'maismilionaria') url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/maismilionaria/${concurso}`;
-        else url = `https://servicebus2.caixa.gov.br/portaldeloterias/api/quina/${concurso}`;
-        const resp = await fetch(url);
-        if (resp.ok) {
-            const dados = await resp.json();
-            const dezenas = dados.listaDezenas;
-            let minLength = LOTERIA_K[loteria] || 5;
-            if (dezenas && dezenas.length >= minLength) {
-                numeros = dezenas.map(n => parseInt(n));
-                data = dados.dataApuracao;
-            }
-            if (loteria === 'maismilionaria') {
-                // Achado real: não consegui confirmar o nome exato do campo
-                // de trevos na API da Caixa sem um concurso real pra testar
-                // (API privada, sem documentação pública) — tenta os nomes
-                // mais prováveis e avisa claramente no console se nenhum
-                // bater, em vez de falhar calado. Se isso aparecer nos logs
-                // quando a +Milionária tiver sorteio de verdade, inspecione
-                // a resposta da API (aba Network do navegador) e ajuste aqui.
-                const listaTrevos = dados.trevosSorteados || dados.listaTrevos || dados.dezenasTrevo || dados.trevos;
-                if (listaTrevos && listaTrevos.length >= 2) {
-                    trevos = listaTrevos.map(t => parseInt(t)).sort((a,b) => a-b);
-                } else {
-                    console.warn('⚠️ +Milionária: não achei o campo de trevos na resposta da API. Resposta completa:', dados);
-                }
-            }
-        }
-    } catch(e) { console.log('Erro na busca:', e); }
-    if (numeros) { numeros.sort((a,b)=>a-b); return { numeros, dataSorteio: data, trevos }; }
-    return null;
-}
-
-// ========== CONFERIR RESULTADOS ==========
-// ========== CONFERIR RESULTADOS (SEM DUPLICAÇÃO) ==========
-async function conferirResultados() {
-    const concurso = document.getElementById('concursoSelect').value;
-    const area = document.getElementById('resultadosArea');
-    
-    if (!concurso) {
-        showToast('⚠️ Selecione um concurso', 'warning');
-        return;
-    }
-    
-    area.innerHTML = '<div class="loading">🔍 Processando...</div>';
-    
-    // Buscar cartões do concurso
-    const snapshot = await db.collection('cartoes')
-        .where('tipo', '==', loteriaAtual)
-        .where('concurso', '==', concurso)
-        .get();
-    
-    const cartoesConcurso = [];
-    snapshot.forEach(doc => {
-        const d = doc.data();
-        if (d && d.numeros) {
-            cartoesConcurso.push({
-                id: doc.id,
-                concurso: d.concurso,
-                bolao: d.bolao || 'Sem Bolão',
-                numeros: d.numeros,
-                trevos: d.trevos || null,
-                tipo: d.tipo,
-                tipoParticipacao: d.tipoParticipacao || 'exclusivo'
-            });
-        }
-    });
-    
-    if (cartoesConcurso.length === 0) {
-        area.innerHTML = `<div class="empty-state">⚠️ Nenhum cartão da ${loteriaAtual.toUpperCase()} para o concurso ${concurso}</div>`;
-        showToast(`⚠️ Nenhum cartão da ${loteriaAtual.toUpperCase()}`, 'warning');
-        return;
-    }
-    
-    // ATUALIZAR CARTÕES GLOBAIS (SEM DUPLICAR)
-    const novosCartoes = cartoes.filter(c => !(c.tipo === loteriaAtual && c.concurso == concurso));
-    novosCartoes.push(...cartoesConcurso);
-    cartoes.length = 0;
-    cartoes.push(...novosCartoes);
-
-    // Estatísticas (potencial do bolão, sena/quina/quadra/terno/duque) devem
-    // respeitar o bolão selecionado no filtro, assim como exibirResultadoSalvo
-    // já faz — antes usavam cartoesConcurso (todos os bolões do concurso
-    // misturados), dando números diferentes conforme o concurso já tivesse
-    // sido conferido antes ou não.
-    const bolaoSelectEl = document.getElementById('bolaoSelect');
-    const bolaoFiltroConferir = bolaoSelectEl ? bolaoSelectEl.value : 'todos';
-    const cartoesParaEstatisticas = bolaoFiltroConferir !== 'todos'
-        ? cartoesConcurso.filter(c => c.bolao === bolaoFiltroConferir)
-        : cartoesConcurso;
-
-    // BUSCAR RESULTADO
-    let numerosSorteados = null;
-    let trevosSorteados = null;
-    let dataSorteio = null;
-
-    // Verificar se já foi conferido
-    const resultadoConferido = await verificarResultadoConferido(loteriaAtual, concurso);
-
-    if (resultadoConferido) {
-        numerosSorteados = resultadoConferido;
-        console.log(`📋 Resultado já conferido anteriormente para ${loteriaAtual} concurso ${concurso}`);
-
-        const conferidoDoc = await db.collection('resultados_conferidos').doc(`${loteriaAtual}_${concurso}`).get();
-        if (conferidoDoc.exists && conferidoDoc.data().dataSorteio) {
-            dataSorteio = conferidoDoc.data().dataSorteio;
-        }
-        if (conferidoDoc.exists && conferidoDoc.data().trevos) {
-            trevosSorteados = conferidoDoc.data().trevos;
-        }
-    } else if (estaTravadoPraPublico(loteriaAtual, concurso)) {
-        // Concurso mais recente desta loteria, ainda sem a 1ª conferência
-        // do admin (ver carregarConcursosBloqueados) — nem tenta buscar
-        // na API/gravar; a regra do Firestore ia recusar o create mesmo
-        // assim, então só mostra o aviso direto.
-        area.innerHTML = '<div class="empty-state">🔒 O resultado deste concurso ainda não foi liberado pelo administrador. Volte em breve!</div>';
-        showToast('🔒 Resultado ainda não liberado pelo administrador', 'warning');
-        return;
-    } else {
-        // Buscar da API
-        const busca = await buscarResultadoInterno(concurso, loteriaAtual);
-        if (busca && busca.numeros) {
-            numerosSorteados = busca.numeros;
-            dataSorteio = busca.dataSorteio;
-            trevosSorteados = busca.trevos || null;
-
-            // Salvar no cache
-            if (loteriaAtual === 'mega') resultadosMega[concurso] = numerosSorteados;
-            else if (loteriaAtual === 'lotofacil') resultadosLotofacil[concurso] = numerosSorteados;
-            else if (loteriaAtual === 'maismilionaria') resultadosMaisMilionaria[concurso] = numerosSorteados;
-            else resultadosQuina[concurso] = numerosSorteados;
-            console.log(`📋 Resultado buscado da API para ${loteriaAtual} concurso ${concurso}`);
-        } else {
-            area.innerHTML = `<div class="empty-state">❌ Resultado não encontrado para ${loteriaAtual.toUpperCase()} concurso ${concurso}.</div>`;
-            showToast('❌ Resultado não encontrado', 'error');
-            return;
-        }
-    }
-    
-    if (!numerosSorteados) {
-        area.innerHTML = `<div class="empty-state">❌ Resultado não encontrado para ${loteriaAtual.toUpperCase()} concurso ${concurso}.</div>`;
-        showToast('❌ Resultado não encontrado', 'error');
-        return;
-    }
-    
-    // ============================================================
-    // EXIBIR CARTÕES NA ÁREA DE CARTÕES (APENAS UMA VEZ)
-    // ============================================================
-    // Chama mostrarCartoes com os números sorteados para exibir os cartões marcados
-    await mostrarCartoes(numerosSorteados, trevosSorteados);
-
-    // ============================================================
-    // CALCULAR ESTATÍSTICAS
-    // ============================================================
-    const cartoesComAcertos = cartoesParaEstatisticas.map(cartao => {
-        const acertos = cartao.numeros.filter(n => numerosSorteados.includes(n)).length;
-        const acertosTrevo = trevosSorteados ? (cartao.trevos || []).filter(t => trevosSorteados.includes(t)).length : 0;
-        return { ...cartao, acertos, acertosTrevo };
-    }).sort((a, b) => (b.acertos - a.acertos) || (b.acertosTrevo - a.acertosTrevo));
-
-    const premios = calcularPremios(cartoesComAcertos, numerosSorteados, loteriaAtual, trevosSorteados);
-
-    ultimoResultadoConcurso = concurso;
-    ultimoResultadoDados = { numeros: numerosSorteados, trevos: trevosSorteados, dataSorteio, premios };
-
-    // Salvar no Firebase se não foi conferido
-    if (!resultadoConferido) {
-        await salvarResultadoConferido(loteriaAtual, concurso, numerosSorteados, dataSorteio, trevosSorteados);
-    }
-
-    // ============================================================
-    // MONTAR RESUMO (TROFÉU + POTENCIAL DO BOLÃO + ESTATÍSTICAS, SEM CARTÕES)
-    // ============================================================
-    const melhorCartaoConferir = cartoesComAcertos[0];
-    // Números sorteados NÃO aparecem neste resumo — o cartão de verdade
-    // (grade completa, ordenada por acertos) é renderizado à parte em
-    // #cartoesArea por mostrarCartoes() (ver chamada logo acima, e o
-    // comentário "SEM CARTÕES" nesta seção). Pedido do usuário é ver os
-    // números bem PERTO do primeiro cartão que mais acertou — por isso o
-    // bloco de números é injetado direto no topo de #cartoesArea, logo
-    // acima do primeiro cartão da lista, não aqui no resumo.
-    let html = gerarBannerTrofeu(melhorCartaoConferir, melhorCartaoConferir ? melhorCartaoConferir.acertos : 0, loteriaAtual, numerosSorteados, trevosSorteados, melhorCartaoConferir ? melhorCartaoConferir.acertosTrevo : 0);
-    html += calcularChancesBolao(cartoesParaEstatisticas, loteriaAtual);
-
-    html += `<div class="resultado-resumo">`;
-    if (loteriaAtual === 'mega') {
-        html += `
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#f59e0b">${premios.sena}</div><div class="resultado-resumo-label">SENA</div></div>
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#eab308">${premios.quina}</div><div class="resultado-resumo-label">QUINA</div></div>
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#a855f7">${premios.quadra}</div><div class="resultado-resumo-label">QUADRA</div></div>
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#3b82f6">${premios.terno}</div><div class="resultado-resumo-label">TERNO</div></div>
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#64748b">${premios.duque}</div><div class="resultado-resumo-label">DUQUE</div></div>`;
-    } else if (loteriaAtual === 'lotofacil') {
-        html += `
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#f59e0b">${premios.pontos15}</div><div class="resultado-resumo-label">15 PTS</div></div>
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#eab308">${premios.pontos14}</div><div class="resultado-resumo-label">14 PTS</div></div>
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#a855f7">${premios.pontos13}</div><div class="resultado-resumo-label">13 PTS</div></div>
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#3b82f6">${premios.pontos12}</div><div class="resultado-resumo-label">12 PTS</div></div>
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#64748b">${premios.pontos11}</div><div class="resultado-resumo-label">11 PTS</div></div>`;
-    } else if (loteriaAtual === 'maismilionaria') {
-        html += gerarResumoPremiosMilionaria(premios);
-    } else {
-        html += `
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#f59e0b">${premios.quina}</div><div class="resultado-resumo-label">QUINA</div></div>
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#eab308">${premios.quadra}</div><div class="resultado-resumo-label">QUADRA</div></div>
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#a855f7">${premios.terno}</div><div class="resultado-resumo-label">TERNO</div></div>
-            <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#64748b">${premios.duque}</div><div class="resultado-resumo-label">DUQUE</div></div>`;
-    }
-    html += `<div class="resultado-resumo-item"><div class="resultado-resumo-numero">${cartoesComAcertos.length}</div><div class="resultado-resumo-label">CARTÕES</div></div>`;
-    html += `</div>`;
-    html += notaApostaMultiplaHtml(cartoesComAcertos, loteriaAtual);
-
-    if (dataSorteio) {
-        let dataFormatada = '';
-        try {
-            if (typeof dataSorteio === 'string' && dataSorteio.includes('/')) {
-                const partes = dataSorteio.split('/');
-                if (partes.length === 3) {
-                    dataFormatada = `${partes[0]}/${partes[1]}/${partes[2]}`;
-                }
-            } else {
-                const data = new Date(dataSorteio);
-                if (!isNaN(data.getTime())) {
-                    dataFormatada = data.toLocaleDateString('pt-BR');
-                } else {
-                    dataFormatada = dataSorteio;
-                }
-            }
-        } catch(e) {
-            dataFormatada = dataSorteio;
-        }
-        html += `<div style="text-align:center; margin-bottom:15px; font-size:12px;">📅 Sorteio: ${dataFormatada}</div>`;
-    }
-    
-    if (resultadoConferido) {
-        html += `<div class="aviso-conferido" style="background: #d1fae5; padding: 8px; border-radius: 12px; text-align: center; font-size: 12px; color: #065f46; margin-top: 10px;">
-                    ✅ Resultado já conferido anteriormente
-                </div>`;
-    }
-    
-    html += `<button id="btnWhatsAppResultado" style="background:#25D366; width:100%; padding:12px; border-radius:30px; margin-bottom:20px; font-weight:bold;">📱 COMPARTILHAR RESULTADO NO WHATSAPP</button>`;
-    
-    area.innerHTML = html;
-    
-    const btnWhats = document.getElementById('btnWhatsAppResultado');
-    if (btnWhats) btnWhats.addEventListener('click', compartilharWhatsApp);
-    
-    showToast('🏆 Conferência concluída!', 'success');
-}
-
+// buscarResultadoInterno()/conferirResultados() foram removidas (pedido
+// do usuário: "eu que confiro no admin... então não tem que ter botão
+// de conferência no index"). A busca na API da Caixa + gravação em
+// resultados_conferidos agora só acontece no admin.html
+// (conferirComoAdmin, admin.js) — o site público só LÊ o que já foi
+// conferido (verificarResultadoConferido/exibirResultadoSalvo), nunca
+// grava nada. Ver firestore.rules: resultados_conferidos (create).
 function compartilharWhatsApp() {
     if (!ultimoResultadoConcurso || !ultimoResultadoDados) {
         showToast('⚠️ Nenhum resultado para compartilhar', 'warning');
@@ -2069,29 +1761,9 @@ async function carregarBolaoAtivo() {
     }
 }
 
-// trevos só é usado (e só existe) pra +Milionária.
-async function salvarResultadoConferido(loteria, concurso, numeros, dataSorteio = null, trevos = null) {
-    try {
-        const docId = `${loteria}_${concurso}`;
-        const doc = {
-            loteria: loteria,
-            concurso: concurso,
-            numeros: numeros,
-            dataConferencia: new Date().toISOString(),
-            dataSorteio: dataSorteio,
-            conferido: true,
-            admin: true
-        };
-        // Só grava o campo se existir — firestore.rules faz hasOnly() na
-        // lista de campos permitidos, mas não quer dizer que todo doc
-        // precisa ter todos eles; as outras loterias continuam sem 'trevos'.
-        if (trevos) doc.trevos = trevos;
-        await db.collection('resultados_conferidos').doc(docId).set(doc);
-        console.log(`✅ Resultado do ${loteria} concurso ${concurso} salvo no Firebase como conferido`);
-    } catch (error) {
-        console.error('Erro ao salvar resultado conferido:', error);
-    }
-}
+// salvarResultadoConferido() foi removida junto com conferirResultados()
+// (ver comentário acima de compartilharWhatsApp) — só o admin.html grava
+// em resultados_conferidos agora (conferirComoAdmin, admin.js).
 
 async function verificarResultadoConferido(loteria, concurso) {
     try {
@@ -2327,76 +1999,9 @@ function mostrarModalParticipacao(bolao) {
     })();
 }
 
-async function buscarResultadoAutomatico() {
-    const concurso = document.getElementById('concursoSelect').value;
-    const statusDiv = document.getElementById('statusBusca');
-    
-    if (!concurso || concurso === '1' || concurso === '0' || concurso === '') {
-        return;
-    }
-    
-    const jaConferido = await verificarResultadoConferido(loteriaAtual, concurso);
-    if (jaConferido) {
-        console.log('Resultado já conferido, não buscando automaticamente');
-        return;
-    }
-
-    if (estaTravadoPraPublico(loteriaAtual, concurso)) {
-        console.log('Concurso travado pro público (aguardando conferência do admin) — não busca automaticamente');
-        return;
-    }
-    
-    let resultados;
-    let nomeLoteria;
-    if (loteriaAtual === 'mega') {
-        resultados = resultadosMega;
-        nomeLoteria = 'MEGA-SENA';
-    } else if (loteriaAtual === 'lotofacil') {
-        resultados = resultadosLotofacil;
-        nomeLoteria = 'LOTOFÁCIL';
-    } else if (loteriaAtual === 'maismilionaria') {
-        resultados = resultadosMaisMilionaria;
-        nomeLoteria = '+MILIONÁRIA';
-    } else {
-        resultados = resultadosQuina;
-        nomeLoteria = 'QUINA';
-    }
-    
-    if (resultados[concurso]) {
-        console.log(`📋 Resultado do ${nomeLoteria} concurso ${concurso} já está salvo`);
-        return;
-    }
-    
-    const cacheKey = `${loteriaAtual}_${concurso}`;
-    if (cacheResultadosBuscados[cacheKey]) {
-        console.log(`⏳ Resultado do ${nomeLoteria} concurso ${concurso} já foi buscado`);
-        return;
-    }
-    
-    cacheResultadosBuscados[cacheKey] = true;
-    
-    if (statusDiv) {
-        statusDiv.innerHTML = `<div class="status-info">🔍 Buscando resultado do ${nomeLoteria} concurso ${concurso}...</div>`;
-    }
-    
-    const busca = await buscarResultadoInterno(concurso, loteriaAtual);
-    
-    if (busca && busca.numeros && busca.numeros.length > 0) {
-        if (loteriaAtual === 'mega') resultadosMega[concurso] = busca.numeros;
-        else if (loteriaAtual === 'lotofacil') resultadosLotofacil[concurso] = busca.numeros;
-        else if (loteriaAtual === 'maismilionaria') resultadosMaisMilionaria[concurso] = busca.numeros;
-        else resultadosQuina[concurso] = busca.numeros;
-        
-        if (statusDiv) {
-            statusDiv.innerHTML = `<div class="status-success">✅ RESULTADO DO CONCURSO ${concurso} (${nomeLoteria}) ENCONTRADO! Clique em CONFERIR RESULTADOS.</div>`;
-        }
-        showToast(`🎉 Resultado do concurso ${concurso} (${nomeLoteria}) encontrado!`, 'success');
-    } else {
-        if (statusDiv) {
-            statusDiv.innerHTML = `<div class="status-info">📢 RESULTADO DO CONCURSO ${concurso} (${nomeLoteria}) AINDA NÃO DISPONÍVEL</div>`;
-        }
-    }
-}
+// buscarResultadoAutomatico() foi removida (só pré-buscava pra sugerir
+// clicar num botão "Conferir" que não existe mais — ver comentário
+// acima de compartilharWhatsApp).
 
 // ========== EVENT LISTENERS ==========
 document.addEventListener('DOMContentLoaded', async () => {
@@ -2424,7 +2029,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('concursoSelect').addEventListener('change', async () => {
         console.log('🔄 Concurso alterado, limpando estado...');
         limparEstadoCompleto();
-        atualizarEstadoBotaoConferir();
 
         const concurso = document.getElementById('concursoSelect').value;
         if (concurso) {
@@ -2453,7 +2057,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (potencialArea) potencialArea.innerHTML = '';
             const resultadosArea = document.getElementById('resultadosArea');
             if (resultadosArea) {
-                resultadosArea.innerHTML = '<div class="empty-state">🔍 Clique em "Conferir Resultados" para ver os acertos</div>';
+                resultadosArea.innerHTML = '<div class="empty-state">📋 Selecione um concurso para ver o resultado</div>';
             }
             const bolaoSelect = document.getElementById('bolaoSelect');
             if (bolaoSelect) {
@@ -2475,7 +2079,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
     
-    document.getElementById('btnConferir').addEventListener('click', conferirResultados);
     document.getElementById('btnCompartilhar').addEventListener('click', compartilharSite);
     document.getElementById('btnWhatsappGrupo').addEventListener('click', entrarGrupoWhatsApp);
     document.getElementById('btnSugestao').addEventListener('click', enviarSugestao);

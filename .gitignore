@@ -13,3 +13,7 @@ backups/
 
 # Config local do Claude Code
 .claude/
+
+# Capturas de tela com credenciais/segredos (ex.: chave secreta do
+# reCAPTCHA) — nunca pode ir pro repositório público (GitHub Pages).
+credenciais-nao-versionar/

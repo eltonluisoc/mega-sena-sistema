@@ -247,9 +247,14 @@
             </div>
         </div>
 
-        <!-- Card ÚNICO: Seleção e Conferência -->
+        <!-- Card ÚNICO: Seleção e Resultado — sem botão de conferir
+             (Rodada 104): pedido do usuário: "eu que confiro no admin...
+             então não tem que ter botão de conferência no index". O
+             resultado só aparece aqui depois que o admin confere em
+             admin.html (ver conferirComoAdmin); o site público só lê,
+             nunca grava nada em resultados_conferidos. -->
 <div class="card">
-    <div class="card-header bg-blue" id="cardHeaderConferencia">🎯 CONFERIR RESULTADOS - MEGA</div>
+    <div class="card-header bg-blue" id="cardHeaderConferencia">🎯 RESULTADO - MEGA</div>
     <div class="card-body">
         <div class="form-group">
             <label>📌 CONCURSO:</label>
@@ -265,23 +270,18 @@
             </select>
         </div>
 
-        <!-- Potencial do bolão (chance/estrelas) — separado de cartoesArea
-             de propósito: pedido do usuário pra o botão Conferir aparecer
-             logo aqui embaixo, não só depois da lista inteira de cartões. -->
         <div id="potencialArea"></div>
-
-        <button id="btnConferir" style="margin-bottom: 15px;">🎲 CONFERIR RESULTADOS</button>
 
         <!-- resultadosArea ANTES de cartoesArea de propósito — pedido do
              usuário: os números sorteados precisam aparecer bem acima do
              primeiro cartão (o que mais acertou), não depois da lista
              inteira. O resumo (troféu/potencial/prêmios) vem aqui, e os
              números ficam logo antes da grade de cartões em si — em
-             #cartoesArea quando acabou de conferir, ou dentro deste mesmo
-             bloco quando o resultado já estava salvo (ver script.js:
-             mostrarCartoes/exibirResultadoSalvo). -->
+             #cartoesArea, ou dentro deste mesmo bloco quando o resultado
+             já estava salvo (ver script.js: mostrarCartoes/
+             exibirResultadoSalvo). -->
         <div id="resultadosArea">
-            <div class="empty-state">🔍 Clique em "Conferir Resultados" para ver os acertos</div>
+            <div class="empty-state">⏳ Aguardando o resultado deste concurso</div>
         </div>
 
         <!-- Área de cartões -->

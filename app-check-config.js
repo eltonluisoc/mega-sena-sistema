@@ -11,21 +11,15 @@
 // (consulta.html, meus-boloes.html, participantes.html) não precisam
 // disso agora.
 //
-// PASSO MANUAL NECESSÁRIO (só o dono da conta Google consegue fazer):
-// 1. Criar um site reCAPTCHA v3 em https://www.google.com/recaptcha/admin/create
-//    — domínio: eltonluisoc.github.io (ou o domínio real do site, se
-//    tiver um domínio próprio configurado).
-// 2. Copiar a "Site Key" gerada.
-// 3. No Firebase Console → Configurações do Projeto → App Check → app
-//    Web → Registrar → escolher "reCAPTCHA v3" → colar a Site Key.
-// 4. Colar essa MESMA Site Key na constante abaixo, no lugar do
-//    placeholder.
-//
-// Enquanto a chave continuar sendo o placeholder, isto não faz nada
-// (nem quebra nada) — o App Check só passa a ser EXIGIDO de verdade
-// numa etapa separada, depois, mudando firestore.rules (não acontece
-// sozinho só por este arquivo existir).
-const APP_CHECK_SITE_KEY = "COLOQUE_AQUI_A_CHAVE_RECAPTCHA_V3";
+// Site reCAPTCHA v3 já criado (etiqueta "Bolao_Amigos", domínio
+// eltonluisoc.github.io). FALTA: registrar essa MESMA chave em Firebase
+// Console → Configurações do Projeto → App Check → app Web → Registrar
+// → reCAPTCHA v3 — só depois disso o token emitido aqui é aceito pelo
+// Firebase de verdade. Enquanto isso não for feito, isto não quebra
+// nada (o token só não é validado do outro lado ainda) — o App Check só
+// passa a ser EXIGIDO pra valer numa etapa separada, depois, mudando
+// firestore.rules (não acontece sozinho só por este arquivo existir).
+const APP_CHECK_SITE_KEY = "6Ld7sP0tAAAAAHuR42LsnQJO-48LS066tzEF4CTf";
 
 try {
     if (APP_CHECK_SITE_KEY && !APP_CHECK_SITE_KEY.startsWith("COLOQUE_AQUI") && firebase.appCheck) {

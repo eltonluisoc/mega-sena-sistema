@@ -30,7 +30,7 @@ test('calcularEstatisticas - ranking top-3 soma prêmios reais de um cartão de 
   const cartoes = [
     { tipo: 'mega', concurso: '3054', bolao: 'Bolão 10,00', numeros: [1, 2, 3, 4, 20, 21, 22, 23] }, // 8 números, 4 acertos -> 6 quadras
   ];
-  const resultados = { mega: { 3054: numerosSorteados }, lotofacil: {}, quina: {} };
+  const resultados = { mega: { 3054: { numeros: numerosSorteados } }, lotofacil: {}, quina: {} };
 
   const stats = sandbox.calcularEstatisticas(cartoes, resultados);
   const top3 = stats.top3PorLoteria.mega;
@@ -47,7 +47,7 @@ test('calcularEstatisticas - soma prêmios de vários cartões do mesmo concurso
     { tipo: 'mega', concurso: '3054', bolao: 'A', numeros: [1, 2, 3, 4, 5, 40] }, // mínimo, 5 acertos -> 1 quina
     { tipo: 'mega', concurso: '3054', bolao: 'B', numeros: [1, 2, 3, 4, 5, 41] }, // mínimo, 5 acertos -> 1 quina
   ];
-  const resultados = { mega: { 3054: numerosSorteados }, lotofacil: {}, quina: {} };
+  const resultados = { mega: { 3054: { numeros: numerosSorteados } }, lotofacil: {}, quina: {} };
 
   const stats = sandbox.calcularEstatisticas(cartoes, resultados);
   const top3 = stats.top3PorLoteria.mega;
@@ -56,19 +56,34 @@ test('calcularEstatisticas - soma prêmios de vários cartões do mesmo concurso
   assert.equal(top3[0].quantidade, 2);
 });
 
-// Pedido do usuário: eram os 3 maiores concursos de cada loteria, agora
-// são os 5 maiores.
-test('calcularEstatisticas - ranking mostra até 5 concursos, não só 3', () => {
+// Pedido do usuário: eram os 3 maiores concursos de cada loteria, depois
+// os 5 maiores, agora os 10 maiores ("isso é muito importante").
+test('calcularEstatisticas - ranking mostra até 10 concursos, não só 5', () => {
   const resultados = { mega: {}, lotofacil: {}, quina: {}, maismilionaria: {} };
   const cartoes = [];
-  // 6 concursos distintos da mega, cada um com 1 cartão de 4 acertos
-  // (quadra) — só pra gerar 6 entradas candidatas no ranking.
-  for (let c = 1; c <= 6; c++) {
+  // 12 concursos distintos da mega, cada um com 1 cartão de 4 acertos
+  // (quadra) — gera 12 entradas candidatas, mais que o teto de 10.
+  for (let c = 1; c <= 12; c++) {
     cartoes.push({ tipo: 'mega', concurso: String(c), bolao: `B${c}`, numeros: [1, 2, 3, 4, 90 + c, 91 + c] });
-    resultados.mega[c] = [1, 2, 3, 4, 5, 6];
+    resultados.mega[c] = { numeros: [1, 2, 3, 4, 5, 6] };
   }
   const stats = sandbox.calcularEstatisticas(cartoes, resultados);
-  assert.equal(stats.top3PorLoteria.mega.length, 5);
+  assert.equal(stats.top3PorLoteria.mega.length, 10);
+});
+
+// Pedido do usuário: "coloque a data ao lado do concurso" no ranking Top
+// Concursos do dashboard — dataSorteio (API da Caixa) vem junto do
+// resultado conferido e precisa chegar até o item do ranking.
+test('calcularEstatisticas - ranking carrega a data do sorteio junto do concurso', () => {
+  const cartoes = [
+    { tipo: 'mega', concurso: '3054', bolao: 'A', numeros: [1, 2, 3, 4, 5, 6] },
+  ];
+  const resultados = {
+    mega: { 3054: { numeros: [1, 2, 3, 4, 5, 6], data: '25/12/2026' } },
+    lotofacil: {}, quina: {}, maismilionaria: {}
+  };
+  const stats = sandbox.calcularEstatisticas(cartoes, resultados);
+  assert.equal(stats.top3PorLoteria.mega[0].data, '25/12/2026');
 });
 
 // Pedido do usuário: "3 13 pontos" (quantidade colada no nome da faixa,

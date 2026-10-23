@@ -4962,7 +4962,15 @@ async function buscarResultadosFirestore() {
             snapshot.forEach(doc => {
                 const data = doc.data();
                 if (data.numeros && data.numeros.length > 0 && data.concurso) {
-                    resultados[loteria][data.concurso] = data.numeros;
+                    // dataSorteio é a data do sorteio em si (API da Caixa);
+                    // dataConferencia é só quando ALGUÉM clicou conferir —
+                    // preferimos a do sorteio, que é a que importa pro
+                    // ranking "Top Concursos" do dashboard (pedido do
+                    // usuário: "coloque a data ao lado do concurso").
+                    resultados[loteria][data.concurso] = {
+                        numeros: data.numeros,
+                        data: data.dataSorteio || data.dataConferencia || null
+                    };
                 }
             });
 
@@ -4981,6 +4989,9 @@ function calcularEstatisticas(cartoes, resultados) {
 
     // 2. Melhor resultado por CONCURSO (para o ranking top-3 por loteria)
     const porConcursoPorLoteria = { mega: {}, lotofacil: {}, quina: {}, maismilionaria: {} };
+    // Data do sorteio de cada concurso (pedido do usuário: "coloque a
+    // data ao lado do concurso" no ranking "Top Concursos" do dashboard).
+    const dataPorConcursoPorLoteria = { mega: {}, lotofacil: {}, quina: {}, maismilionaria: {} };
 
     const minPicksPorTipo = { mega: 6, lotofacil: 15, quina: 5, maismilionaria: 6 };
     // Do maior pro menor — usado pra achar a MELHOR faixa batida num
@@ -5010,7 +5021,10 @@ function calcularEstatisticas(cartoes, resultados) {
         // Buscar o resultado específico para este concurso
         let dezenasSorteadas = [];
         if (concurso && resultados[tipo] && resultados[tipo][concurso]) {
-            dezenasSorteadas = resultados[tipo][concurso] || [];
+            dezenasSorteadas = resultados[tipo][concurso].numeros || [];
+            if (resultados[tipo][concurso].data) {
+                dataPorConcursoPorLoteria[tipo][concurso] = resultados[tipo][concurso].data;
+            }
         }
 
         const acertos = dezenasSorteadas.length > 0 ?
@@ -5065,11 +5079,12 @@ function calcularEstatisticas(cartoes, resultados) {
     // exibido é o MAIOR com prêmio real (> 0), e a quantidade é a soma de
     // prêmios reais nesse nível — não mais contagem de cartões.
     const limiarPremio = { mega: 2, lotofacil: 11, quina: 2, maismilionaria: 2 };
-    // Pedido do usuário: eram os 3 maiores, agora são os 5 — a chave
-    // `top3PorLoteria` ficou com nome desatualizado (renomear quebraria
-    // os testes e outros call sites sem ganho real, já que é só uma
-    // chave interna, não texto visível), mas o conteúdo agora tem até 5.
-    const QTD_TOP_CONCURSOS = 5;
+    // Pedido do usuário: eram os 3 maiores, depois os 5, agora são os 10
+    // — a chave `top3PorLoteria` ficou com nome desatualizado (renomear
+    // quebraria os testes e outros call sites sem ganho real, já que é
+    // só uma chave interna, não texto visível), mas o conteúdo agora tem
+    // até 10 ("isso é muito importante").
+    const QTD_TOP_CONCURSOS = 10;
     const top3PorLoteria = { mega: [], lotofacil: [], quina: [], maismilionaria: [] };
     for (const tipo of ['mega', 'lotofacil', 'quina', 'maismilionaria']) {
         const tiers = tiersPorTipo[tipo];
@@ -5078,7 +5093,10 @@ function calcularEstatisticas(cartoes, resultados) {
                 const porFaixa = porConcursoPorLoteria[tipo][concurso];
                 const melhorTier = tiers.find(t => porFaixa[t] > 0);
                 if (melhorTier === undefined) return null;
-                return { concurso, maxAcertos: melhorTier, quantidade: porFaixa[melhorTier] };
+                return {
+                    concurso, maxAcertos: melhorTier, quantidade: porFaixa[melhorTier],
+                    data: dataPorConcursoPorLoteria[tipo][concurso] || null
+                };
             })
             .filter(item => item && item.maxAcertos >= limiarPremio[tipo])
             // desempate por quantidade de prêmios no nível, não só pelo
@@ -5209,10 +5227,17 @@ function atualizarDashboardEstatisticas(stats) {
         elDet.innerHTML = top3.map((item, i) => {
             const texto = formatarTierAcerto(loteria, item.maxAcertos, item.quantidade);
             const classeBadge = i < 3 ? ` n${i + 1}` : '';
+            // Data do sorteio ao lado do concurso (pedido do usuário) — a
+            // API da Caixa já manda em "DD/MM/AAAA", então mostra direto,
+            // sem reformatar (evita o risco clássico de new Date() ler
+            // "DD/MM" como mês/dia invertido). Concurso sem data salva
+            // (registros antigos, antes de guardarmos dataSorteio aqui)
+            // simplesmente não mostra nada extra.
+            const dataLabel = item.data ? ` · ${escapeHtml(String(item.data))}` : '';
             return `
                 <div class="rank-row">
                     <span class="rank-badge${classeBadge}">${i + 1}</span>
-                    <span class="rank-label">Concurso ${escapeHtml(String(item.concurso))}</span>
+                    <span class="rank-label">Concurso ${escapeHtml(String(item.concurso))}${dataLabel}</span>
                     <span class="rank-value">${escapeHtml(texto)}</span>
                 </div>`;
         }).join('');
