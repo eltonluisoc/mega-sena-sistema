@@ -1,7 +1,45 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.42
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.43
+Correções v6.43 (premiações: admin web registra, desktop importa pra
+Gestão → Premiações automaticamente):
+ - Pedido do usuário: "quando ganhar algum prêmio em um concurso quero
+   informar no admin... e quero também que por meio do admin o sistema
+   desktop atualize a premiação na aba gestão premiações... faça uma
+   análise de como podemos fazer isso e integrar os sistemas."
+ - Reaproveitado o mesmo padrão já usado (e testado) pras reservas: o
+   admin web grava numa fila no Firestore (`premiacoes_pendentes`,
+   admin-only), o desktop busca essa fila ao abrir (e por um botão novo
+   "🔄 Verificar Prêmios do Site" dentro da própria aba Gestão →
+   Premiações) e grava na tabela local `premiacoes` — a mesma que o
+   formulário manual da aba sempre usou.
+ - Ponte bolão-web ↔ bolão-desktop: reaproveita `boloes.firebase_doc_id`
+   (já existia, usado pra publicar bolões no site) — o admin escolhe o
+   bolão por nome no site, e o desktop casa automaticamente com o bolão
+   certo localmente por esse ID, sem precisar de nenhum mapeamento novo.
+ - Novo dicionário `LOTERIA_WEB_PARA_DESKTOP` traduz a chave interna do
+   site ("mega","lotofacil",...) pro nome que o resto do desktop usa
+   ("Mega-Sena","Lotofácil",...), pra não quebrar a cor/agrupamento por
+   loteria que a aba Gestão → Premiações já tinha.
+ - `_apagar_fila_reservas_em_lote` virou `_apagar_fila_em_lote(colecao,
+   doc_ids)`, genérica — a mesma função agora serve tanto pra reservas
+   quanto pra premiações (e qualquer fila futura do mesmo tipo), em vez
+   de duplicar a lógica de apagar em lote/com retry de novo.
+ - Novas `_importar_premiacoes_pendentes_web`/`_concluir_import_
+   premiacoes` já nascem com as lições da Rodada 101 aplicadas desde o
+   início (só conta/avisa o que é NOVO de verdade; limpeza da fila
+   sempre tenta rodar, mesmo sem nada novo pra reportar) — não repetem o
+   mesmo bug que as reservas tiveram antes de serem corrigidas.
+ - Nova coluna `premiacoes.origem_doc_id` (migração) garante idempotência
+   — item preso na fila nunca duplica a premiação se reimportado.
+ - Validado com teste isolado de Tk ao vivo: premiação nova casa com o
+   bolão certo (por firebase_doc_id), mensagem de resumo mostra bolão +
+   loteria + valor + horário; reimportar o mesmo item não duplica nem
+   avisa de novo; bolão não encontrado localmente vira erro isolado (não
+   quebra os outros itens da mesma leva, nem entra no lote de apagar).
+   Reconfirmados os 3 testes de reservas já existentes (sem regressão
+   depois de generalizar _apagar_fila_em_lote).
 Correções v6.42 (reservas: resumo detalhado por pessoa e horário, ao
 abrir o desktop):
  - Pedido do usuário: "o resumo da reserva quando eu abro no desktop
@@ -1197,6 +1235,19 @@ MESES    = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","D
 LOTERIAS = ["Mega-Sena","Lotofácil","Quina","+Milionária","Lotomania","Loteca","Timemania",
             "Dia de Sorte","Super Sete","Dupla Sena","Federal","Outros"]
 
+# O site (admin web) guarda a loteria de cada bolão com a chave interna
+# minúscula (campo "loteria" em participantes/{doc}, ver
+# enviar_bolao_para_site) — o desktop usa os nomes completos acima em
+# tudo (LOTERIAS, coluna boloes.loteria, premiacoes.loteria etc.). Usado
+# só na importação de premiações da fila do site (ver
+# _concluir_import_premiacoes), pra gravar a premiação com o mesmo nome
+# de loteria que o resto do desktop já usa.
+LOTERIA_WEB_PARA_DESKTOP = {
+    "mega": "Mega-Sena", "lotofacil": "Lotofácil",
+    "quina": "Quina", "maismilionaria": "+Milionária",
+    "lotomania": "Lotomania",
+}
+
 # ─────────────────────────────────────────────
 def to_float(s):
     """
@@ -1487,6 +1538,12 @@ class Database:
             # _concluir_import_pendentes). Fica vazio pra lançamentos sem
             # essa informação (ex.: registrados direto no desktop).
             "ALTER TABLE reservas_movimentos ADD COLUMN registrado_em TEXT",
+            # Mesma ideia de reservas_movimentos.origem_doc_id, agora pra
+            # premiações registradas pelo admin no site (fila
+            # premiacoes_pendentes) — evita duplicar a premiação se o
+            # INSERT local funcionar mas o apagar da fila falhar logo
+            # depois. Ver _concluir_import_premiacoes.
+            "ALTER TABLE premiacoes ADD COLUMN origem_doc_id TEXT",
         ]
         for m in migs:
             try: c.execute(m)
@@ -2318,7 +2375,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.42")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.43")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -2394,6 +2451,10 @@ class BolaoApp:
                 "\n\nVocê pode continuar usando o sistema normalmente; a "
                 "sincronização com o site vai pedir a senha novamente mais tarde.")
             return
+        # Premiações roda independente do cooldown de reservas (filas
+        # separadas, sem relação entre si — ver _importar_premiacoes_
+        # pendentes_web, nunca teve histórico de rate-limit).
+        self._importar_premiacoes_pendentes_web()
         restante = _rsv_cooldown_ativo()
         if restante is not None:
             # Última tentativa falhou por 429 recentemente — não tenta nesta
@@ -2466,7 +2527,7 @@ class BolaoApp:
         feita em background e grava no SQLite (não pode rodar fora da
         thread principal). A limpeza da fila no Firestore (apagar os
         itens já garantidos no SQLite) roda à parte, em UM lote só, em
-        background — ver _apagar_fila_reservas_em_lote."""
+        background — ver _apagar_fila_em_lote."""
         import re as _re
         self._rsv_import_em_andamento = False
 
@@ -2592,7 +2653,7 @@ class BolaoApp:
                 # loop (achado real do usuário: apagar 1 item por vez, em
                 # rajada, é o padrão que o Firestore rate-limita numa
                 # coleção pequena — "reservas do site está ocupado", ver
-                # _apagar_fila_reservas_em_lote).
+                # _apagar_fila_em_lote).
                 doc_ids_para_apagar.append(doc_id)
             except Exception as ex:
                 erros += 1
@@ -2605,7 +2666,7 @@ class BolaoApp:
         # como repetidos nunca incrementavam esse contador de verdade (ver
         # acima), a fila podia nunca ser tentada de novo nesse caso.
         if doc_ids_para_apagar:
-            self._apagar_fila_reservas_em_lote(doc_ids_para_apagar)
+            self._apagar_fila_em_lote("reservas_movimentos_pendentes", doc_ids_para_apagar)
 
         if importados == 0 and erros == 0:
             # Nada NOVO pra reportar (tudo que veio da fila já tinha sido
@@ -2656,19 +2717,20 @@ class BolaoApp:
             except Exception: pass
         self.root.after(8000, lambda: self._status(""))
 
-    def _apagar_fila_reservas_em_lote(self, doc_ids):
-        """Apaga da fila (reservas_movimentos_pendentes) todos os itens já
-        confirmados no SQLite local, num commit em lote só por grupo de
-        até 500 (limite do Firestore) — em vez de 1 DELETE por item.
-        Achado real do usuário ("reservas do site está ocupado" ao
-        atualizar): apagar em rajada, 1 request por item, é exatamente o
-        padrão que o Firestore rate-limita numa coleção pequena/pouco
-        usada como esta (erro 429) — a busca já tinha retry com espera
-        crescente (_importar_movimentos_pendentes_web), mas apagar não
-        tinha nenhum. Roda em background: o que já foi importado no
-        SQLite não depende disto terminar — se falhar mesmo com retry,
-        os itens ficam na fila e saem na próxima vez que o app abrir
-        (idempotência por origem_doc_id já garante que não duplica).
+    def _apagar_fila_em_lote(self, colecao, doc_ids):
+        """Apaga de uma fila de pendências (ex.: reservas_movimentos_
+        pendentes, premiacoes_pendentes) todos os itens já confirmados no
+        SQLite local, num commit em lote só por grupo de até 500 (limite
+        do Firestore) — em vez de 1 DELETE por item. Generalizada a
+        partir de _apagar_fila_reservas_em_lote (achado real do usuário,
+        "reservas do site está ocupado" ao atualizar: apagar em rajada, 1
+        request por item, é exatamente o padrão que o Firestore
+        rate-limita numa coleção pequena/pouco usada) — mesma lógica
+        serve pra qualquer fila desse tipo, só muda o nome da coleção.
+        Roda em background: o que já foi importado no SQLite não depende
+        disto terminar — se falhar mesmo com retry, os itens ficam na
+        fila e saem na próxima vez que o app abrir (idempotência por
+        origem_doc_id já garante que não duplica).
 
         NÃO é thread daemon de propósito (única exceção no arquivo —
         todas as outras threads de fundo são daemon=True): se o usuário
@@ -2685,8 +2747,8 @@ class BolaoApp:
             import urllib.request, urllib.error, json, time as _time
             url = ("https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
                    "/databases/(default):commit")
-            base = ("projects/mega-sena-sistema/databases/(default)/documents"
-                    "/reservas_movimentos_pendentes/")
+            base = (f"projects/mega-sena-sistema/databases/(default)/documents"
+                    f"/{colecao}/")
             grupos = [doc_ids[i:i + 500] for i in range(0, len(doc_ids), 500)]
             esperas = [2, 5, 10, 20, 30]
             for grupo in grupos:
@@ -2709,11 +2771,170 @@ class BolaoApp:
 
         threading.Thread(target=_run, daemon=False).start()
 
+    def _importar_premiacoes_pendentes_web(self):
+        """Importa premiações registradas no admin do site (fila
+        premiacoes_pendentes) pra tabela local `premiacoes` — mesmo
+        padrão de _importar_movimentos_pendentes_web (reservas), só que
+        pra prêmios ganhos. Pedido do usuário: "quando ganhar algum
+        prêmio em um concurso quero informar no admin... e quero também
+        que por meio do admin o sistema desktop atualize a premiação na
+        aba gestão premiações".
+
+        Fila de volume bem mais baixo que a de reservas (só quando o
+        bolão ganha algo, não a cada depósito) — retry mais curto é
+        suficiente, nenhum histórico de rate-limit nela até aqui."""
+        import threading
+        if getattr(self, "_prem_import_em_andamento", False):
+            return
+        self._prem_import_em_andamento = True
+
+        def _run():
+            import urllib.request, urllib.error, json, time as _time
+            url = ("https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
+                   "/databases/(default)/documents/premiacoes_pendentes")
+            dados = None
+            erro_final = None
+            esperas = [2, 5, 10]
+            for tentativa in range(len(esperas) + 1):
+                try:
+                    req = urllib.request.Request(url, method="GET", headers=_firebase_headers())
+                    with urllib.request.urlopen(req, timeout=15) as r:
+                        dados = json.loads(r.read().decode("utf-8"))
+                    break
+                except urllib.error.HTTPError as ex:
+                    erro_final = ex
+                    if ex.code == 429 and tentativa < len(esperas):
+                        _time.sleep(esperas[tentativa])
+                        continue
+                    break
+                except Exception as ex:
+                    erro_final = ex
+                    break
+            self.root.after(0, lambda: self._concluir_import_premiacoes(dados, erro_final))
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _concluir_import_premiacoes(self, dados, erro_final):
+        """Roda na thread principal — grava premiações novas vindas da
+        fila do site na tabela local `premiacoes`, casando com o bolão
+        certo por `boloes.firebase_doc_id` (a mesma ponte já usada pra
+        publicar bolões no site — ver enviar_bolao_para_site). Mesma
+        lógica de idempotência (origem_doc_id) e de só contar/avisar o
+        que é NOVO de verdade (achado real da Rodada 101, aplicado aqui
+        desde o início em vez de repetir o mesmo bug)."""
+        self._prem_import_em_andamento = False
+
+        if dados is None:
+            # Fila rara e de baixo volume — um erro aqui não merece
+            # incomodar o usuário com popup; ele vê no "🔄 Verificar
+            # prêmios do site" (Gestão → Premiações) se quiser conferir.
+            print("Erro ao verificar premiações do site:", erro_final)
+            return
+
+        docs = dados.get("documents", [])
+        if not docs:
+            return
+
+        def campo(fields, nome, tipo, default=None):
+            return fields.get(nome, {}).get(tipo, default)
+
+        importados = 0; erros = 0
+        erros_detalhe = []
+        doc_ids_para_apagar = []
+        detalhes = []
+
+        for doc in docs:
+            desc_erro = "?"
+            try:
+                fields = doc.get("fields", {})
+                doc_id = doc.get("name", "").split("/")[-1]
+                bolao_doc_id   = campo(fields, "bolaoId", "stringValue", "") or ""
+                bolao_nome_web = campo(fields, "bolaoNome", "stringValue", "") or ""
+                desc_erro = bolao_nome_web or doc_id
+                loteria_web    = campo(fields, "loteria", "stringValue", "mega") or "mega"
+                concurso       = campo(fields, "concurso", "stringValue", "") or ""
+                data_web       = campo(fields, "dataSorteio", "stringValue", "") or ""
+                valor = float(campo(fields, "valorPremio", "doubleValue")
+                               or campo(fields, "valorPremio", "integerValue") or 0)
+                descricao      = campo(fields, "descricao", "stringValue", "") or ""
+                criado_em_web  = campo(fields, "criadoEm", "stringValue", "") or ""
+
+                if valor <= 0 or not bolao_doc_id:
+                    raise ValueError(f"dados incompletos (valor={valor!r}, bolaoId={bolao_doc_id!r})")
+
+                bolao = self.db.fetchone(
+                    "SELECT id, nome FROM boloes WHERE firebase_doc_id=?", (bolao_doc_id,))
+                if not bolao:
+                    raise ValueError(
+                        f"bolão '{bolao_nome_web or bolao_doc_id}' não encontrado no desktop "
+                        "(publique-o no site primeiro, pelo botão Publicar)")
+
+                loteria = LOTERIA_WEB_PARA_DESKTOP.get(loteria_web, loteria_web.capitalize())
+
+                # "AAAA-MM-DD" (input date do site) -> "DD/MM/AAAA"
+                data_sorteio = data_web
+                if len(data_web) == 10 and data_web[4:5] == "-":
+                    a, m, d = data_web.split("-")
+                    data_sorteio = f"{d}/{m}/{a}"
+
+                desc_final = (descricao + " (via site)").strip() if descricao else "Via site"
+
+                # Idempotência — mesmo princípio de reservas_movimentos.
+                ja_importado = self.db.fetchone(
+                    "SELECT id FROM premiacoes WHERE origem_doc_id=?", (doc_id,))
+                if not ja_importado:
+                    self.db.execute(
+                        "INSERT INTO premiacoes "
+                        "(bolao_id, loteria, concurso, data_sorteio, valor_premio, descricao, data_registro, origem_doc_id) "
+                        "VALUES (?,?,?,?,?,?,?,?)",
+                        (bolao["id"], loteria, concurso, data_sorteio, valor, desc_final,
+                         datetime.now().strftime("%d/%m/%Y %H:%M"), doc_id))
+                    # Só conta/avisa quem é NOVO de verdade (ver
+                    # _concluir_import_pendentes — não repete o bug da
+                    # Rodada 101 aqui desde o início).
+                    importados += 1
+                    detalhes.append((bolao["nome"], loteria, concurso, valor, fmt_hora_web(criado_em_web)))
+
+                doc_ids_para_apagar.append(doc_id)
+            except Exception as ex:
+                erros += 1
+                erros_detalhe.append(f"  • {desc_erro}: {str(ex)[:100]}")
+
+        if doc_ids_para_apagar:
+            self._apagar_fila_em_lote("premiacoes_pendentes", doc_ids_para_apagar)
+
+        if importados == 0 and erros == 0:
+            return
+
+        partes = []
+        if importados > 0:
+            total = sum(v for _b, _l, _c, v, _h in detalhes)
+            partes.append(f"🏆 {importados} premiação(ões) importada(s) do site (total {fmt_brl(total)}):")
+            for nome_b, lot, conc, v, hora in detalhes:
+                quando = f" — registrado às {hora}" if hora else ""
+                conc_txt = f" concurso {conc}" if conc else ""
+                partes.append(f"  • {nome_b} — {lot}{conc_txt}: {fmt_brl(v)}{quando}")
+        if erros:
+            partes.append(f"⚠ {erros} premiação(ões) da fila NÃO foram importadas:")
+            partes.extend(erros_detalhe)
+            partes.append("\nEsses itens continuam na fila — corrija e tente de novo.")
+
+        if erros and importados == 0:
+            messagebox.showerror("Erro ao sincronizar premiações", "\n".join(partes))
+        elif erros:
+            messagebox.showwarning("Premiações sincronizadas com pendências", "\n".join(partes))
+        else:
+            messagebox.showinfo("Premiações sincronizadas", "\n".join(partes))
+
+        if importados > 0:
+            try: self._load_prem()
+            except Exception: pass
+
     # ── HEADER ──────────────────────────────────────────────────
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.42",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.43",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -6839,7 +7060,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.42</span>
+        <span>Sistema de Gestão de Bolões v6.43</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -7328,6 +7549,12 @@ class BolaoApp:
 
         bf=tk.Frame(sec,bg=CORES["bg_section"]); bf.pack(fill="x",pady=8)
         btn(bf,"🏆 Registrar Premiação",CORES["btn_dourado"],self._reg_prem,width=22).pack(side="left",padx=4)
+        # Verificação manual, sem precisar fechar/abrir o app — pedido
+        # do usuário: registrar no admin web e o desktop buscar daqui
+        # (ver _importar_premiacoes_pendentes_web, que também roda
+        # automático ao abrir o programa).
+        btn(bf,"🔄 Verificar Prêmios do Site",CORES["btn_azul"],
+            self._importar_premiacoes_pendentes_web,width=24).pack(side="left",padx=4)
 
         sh=section(p,"RESUMO POR LOTERIA"); sh.pack(fill="x",padx=20,pady=(0,6))
 
@@ -9117,7 +9344,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.42</span>
+        <span>Sistema de Gestão de Bolões v6.43</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>

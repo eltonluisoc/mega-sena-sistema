@@ -127,9 +127,9 @@ function hideLoading() {
 // lento". _bootTrack() só ENVOLVE as chamadas que já disparavam sozinhas
 // no carregamento (mesma ordem, mesmos delays de antes — nada adiado nem
 // serializado) — ele não espera uma terminar pra começar a próxima, só
-// conta quantas das 7 já voltaram. Nenhuma requisição nova, nenhuma
-// espera extra: só visibilidade do que já estava acontecendo.
-const BOOT_TOTAL_CARREGAMENTOS = 7;
+// conta quantas das chamadas já voltaram. Nenhuma requisição nova,
+// nenhuma espera extra: só visibilidade do que já estava acontecendo.
+const BOOT_TOTAL_CARREGAMENTOS = 9;
 let _bootConcluidos = 0;
 
 function _bootTrack(chamada) {
@@ -4262,6 +4262,136 @@ async function verPendentesReserva() {
 }
 
 // ============================================
+// PREMIAÇÕES — pedido do usuário: "quando ganhar algum prêmio... quero
+// informar no admin... e quero que o sistema desktop atualize a
+// premiação na aba gestão premiações". Mesmo padrão de reservas: grava
+// numa fila (premiacoes_pendentes) que o desktop busca e importa pra
+// tabela local `premiacoes` (ver _concluir_import_premiacoes, Python) —
+// o site nunca mantém o histórico de premiações, só relay.
+// ============================================
+async function carregarBoloesSelectPremiacoes() {
+    const select = document.getElementById('premBolaoSelect');
+    if (!select) return;
+
+    try {
+        const snapshot = await db.collection('participantes').get();
+        const boloes = [];
+        snapshot.forEach(doc => boloes.push({ id: doc.id, ...doc.data() }));
+
+        select.innerHTML = '<option value="">Selecione um bolão</option>';
+        for (const bolao of boloes) {
+            const option = document.createElement('option');
+            option.value = bolao.id;
+            option.dataset.loteria = bolao.loteria || '';
+            option.textContent = `${bolao.titulo} (${ROTULO_LOTERIA[bolao.loteria] || bolao.loteria || '?'})`;
+            select.appendChild(option);
+        }
+        console.log(`✅ ${boloes.length} bolões carregados no select de premiações`);
+    } catch (error) {
+        console.error('Erro ao carregar bolões (premiações):', error);
+    }
+}
+
+function atualizarLoteriaDisplayPremiacao() {
+    const select = document.getElementById('premBolaoSelect');
+    const display = document.getElementById('premLoteriaDisplay');
+    if (!select || !display) return;
+    const opt = select.selectedOptions[0];
+    const loteria = opt ? opt.dataset.loteria : '';
+    display.value = loteria ? (ROTULO_LOTERIA[loteria] || loteria) : '';
+}
+
+async function registrarPremiacao() {
+    const select = document.getElementById('premBolaoSelect');
+    const bolaoId = select ? select.value : '';
+    const opt = select ? select.selectedOptions[0] : null;
+    const bolaoNome = opt ? opt.textContent : '';
+    const loteria = opt ? (opt.dataset.loteria || '') : '';
+    const concurso = (document.getElementById('premConcurso') || {}).value?.trim() || '';
+    const dataSorteio = (document.getElementById('premDataSorteio') || {}).value || '';
+    const valor = parseFloat((document.getElementById('premValor') || {}).value);
+    const descricao = (document.getElementById('premDescricao') || {}).value?.trim() || '';
+
+    if (!bolaoId) { showToast('⚠️ Selecione o bolão', 'warning'); return; }
+    if (!valor || valor <= 0) { showToast('⚠️ Informe o valor do prêmio', 'warning'); return; }
+
+    const btn = document.getElementById('btnRegistrarPremiacao');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Registrando...'; }
+
+    try {
+        await db.collection('premiacoes_pendentes').add({
+            bolaoId, bolaoNome, loteria, concurso, dataSorteio,
+            valorPremio: valor, descricao,
+            criadoEm: new Date().toISOString()
+        });
+        showToast('✅ Premiação registrada! Vai aparecer na Gestão de Premiações quando o desktop abrir e sincronizar.', 'success');
+
+        document.getElementById('premConcurso').value = '';
+        document.getElementById('premValor').value = '';
+        document.getElementById('premDescricao').value = '';
+
+        carregarPremiacoesPendentes();
+    } catch (error) {
+        console.error('Erro ao registrar premiação:', error);
+        showToast('❌ Erro ao registrar premiação: ' + error.message, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '🏆 REGISTRAR PREMIAÇÃO'; }
+    }
+}
+
+// Lista o que já foi registrado no site mas o desktop ainda não buscou —
+// mesmo espírito de verPendentesReserva, pra não deixar o admin
+// registrando "no escuro" sem saber se o item anterior já saiu da fila.
+async function carregarPremiacoesPendentes() {
+    const container = document.getElementById('listaPremiacoesPendentes');
+    if (!container) return;
+
+    try {
+        const snapshot = await db.collection('premiacoes_pendentes').get();
+        if (snapshot.empty) {
+            container.innerHTML = '<div class="empty-state">Nenhuma premiação pendente</div>';
+            return;
+        }
+
+        const itens = [];
+        snapshot.forEach(doc => itens.push({ id: doc.id, ...doc.data() }));
+        itens.sort((a, b) => String(b.criadoEm || '').localeCompare(String(a.criadoEm || '')));
+
+        let html = '';
+        itens.forEach(p => {
+            const lotLabel = ROTULO_LOTERIA[p.loteria] || p.loteria || '?';
+            html += `
+                <div style="background:#fff7ed;border:1px solid #fdba74;border-radius:10px;padding:10px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+                    <div>
+                        <strong>${escapeHtml(p.bolaoNome || '?')}</strong> — ${escapeHtml(lotLabel)}${p.concurso ? ' · Concurso ' + escapeHtml(String(p.concurso)) : ''}
+                        <div style="font-size:12px;color:#9a3412;">💰 R$ ${Number(p.valorPremio || 0).toFixed(2)}${p.descricao ? ' · ' + escapeHtml(p.descricao) : ''}</div>
+                    </div>
+                    <button class="btn btn-danger btn-sm" data-id="${p.id}" onclick="cancelarPremiacaoPendente('${p.id}')">🗑️ Cancelar</button>
+                </div>`;
+        });
+        container.innerHTML = html;
+    } catch (error) {
+        console.error('Erro ao carregar premiações pendentes:', error);
+        container.innerHTML = '<div class="empty-state">❌ Erro ao carregar pendentes</div>';
+    }
+}
+
+// Cancela um registro feito por engano ANTES do desktop buscar — depois
+// que o desktop importa, o item já some da fila sozinho (não tem mais
+// nada aqui pra cancelar nesse ponto).
+async function cancelarPremiacaoPendente(id) {
+    if (!confirm('Cancelar esta premiação pendente? Ela ainda não foi buscada pelo desktop.')) return;
+    try {
+        await db.collection('premiacoes_pendentes').doc(id).delete();
+        showToast('✅ Premiação pendente cancelada', 'success');
+        carregarPremiacoesPendentes();
+    } catch (error) {
+        console.error('Erro ao cancelar premiação pendente:', error);
+        showToast('❌ Erro ao cancelar: ' + error.message, 'error');
+    }
+}
+
+// ============================================
 // RESERVAS
 // ============================================
 async function carregarReservas() {
@@ -5548,12 +5678,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnLancamentoLoteReserva = document.getElementById('btnLancamentoLoteReserva');
     if (btnLancamentoLoteReserva) btnLancamentoLoteReserva.onclick = abrirModalLancamentoLote;
 
+    const premBolaoSelect = document.getElementById('premBolaoSelect');
+    if (premBolaoSelect) premBolaoSelect.onchange = atualizarLoteriaDisplayPremiacao;
+    const btnRegistrarPremiacao = document.getElementById('btnRegistrarPremiacao');
+    if (btnRegistrarPremiacao) btnRegistrarPremiacao.onclick = registrarPremiacao;
+
     setTimeout(() => {
         console.log('🔄 Carregando dados das abas...');
         _bootTrack(carregarBoloesParaGerenciar);
         _bootTrack(carregarBoloesSelectParticipantes);
         _bootTrack(carregarParticipantesSelectFinanceiro);
         _bootTrack(carregarReservas);
+        _bootTrack(carregarBoloesSelectPremiacoes);
+        _bootTrack(carregarPremiacoesPendentes);
         exibirCartoesAdmin();
         console.log('✅ Dados das abas carregados!');
     }, 300);

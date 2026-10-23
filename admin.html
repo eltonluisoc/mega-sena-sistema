@@ -1361,6 +1361,9 @@
             <button class="sidebar-item" data-section="reservas">
                 <span class="icon">💰</span> Reservas
             </button>
+            <button class="sidebar-item" data-section="premiacoes">
+                <span class="icon">🏆</span> Premiações
+            </button>
             <button class="sidebar-item" data-section="otimizador">
                 <span class="icon">🧮</span> Otimizador de Cotas
             </button>
@@ -1892,6 +1895,62 @@
                     <div id="pendentesReservaResultado" style="display: none; margin-bottom: 16px;"></div>
                     <div id="listaReservas" style="max-height: 500px; overflow-y: auto;">
                         <div class="empty-state">Nenhuma reserva encontrada</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================================ -->
+            <!-- SEÇÃO: PREMIAÇÕES — registrar aqui um prêmio ganho; o
+                 desktop busca e atualiza a aba "Gestão → Premiações"
+                 sozinho (fila premiacoes_pendentes, mesmo padrão de
+                 reservas_movimentos_pendentes). Pedido do usuário:
+                 "quando ganhar algum prêmio... quero informar no
+                 admin... e quero que o sistema desktop atualize a
+                 premiação na aba gestão premiações". -->
+            <!-- ============================================ -->
+            <section id="section-premiacoes" class="section">
+                <div class="card">
+                    <div class="card-header">🏆 PREMIAÇÕES</div>
+                    <div style="font-size: 12px; color: var(--cor-texto-sec); margin-bottom: 16px;">
+                        Registre aqui quando o bolão ganhar algum prêmio. O desktop busca e
+                        atualiza a aba "Gestão → Premiações" sozinho (ao abrir, ou pelo botão
+                        "🔄 Verificar Prêmios do Site" de lá).
+                    </div>
+                    <div class="form-group">
+                        <label>👥 Bolão:</label>
+                        <select id="premBolaoSelect" class="form-control">
+                            <option value="">Selecione um bolão</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>🎯 Loteria:</label>
+                        <input type="text" id="premLoteriaDisplay" class="form-control" disabled placeholder="Selecione o bolão acima">
+                    </div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <div class="form-group" style="flex:1; min-width:110px;">
+                            <label>📌 Concurso:</label>
+                            <input type="text" id="premConcurso" class="form-control" placeholder="Ex: 2900">
+                        </div>
+                        <div class="form-group" style="flex:1; min-width:150px;">
+                            <label>📅 Data do Sorteio:</label>
+                            <input type="date" id="premDataSorteio" class="form-control">
+                        </div>
+                        <div class="form-group" style="flex:1; min-width:150px;">
+                            <label>💰 Valor do Prêmio (R$):</label>
+                            <input type="number" id="premValor" class="form-control" step="0.01" min="0" placeholder="0,00">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>📝 Descrição:</label>
+                        <input type="text" id="premDescricao" class="form-control" placeholder="Ex: Quadra, Quina...">
+                    </div>
+                    <button id="btnRegistrarPremiacao" class="btn btn-success btn-block">🏆 REGISTRAR PREMIAÇÃO</button>
+
+                    <div style="margin-top: 20px; border-top: 1px solid var(--cor-borda); padding-top: 14px;">
+                        <div style="font-weight:700; font-size:13px; color: var(--cor-texto); margin-bottom:8px;">⏳ Aguardando o desktop buscar</div>
+                        <div id="listaPremiacoesPendentes">
+                            <div class="empty-state">Nenhuma premiação pendente</div>
+                        </div>
                     </div>
                 </div>
             </section>

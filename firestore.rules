@@ -150,6 +150,17 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // Fila de premiações registradas pelo admin no site, aguardando o
+    // app desktop abrir e importar pra tabela local `premiacoes` (é o
+    // desktop que mantém o histórico completo de premiações — o site só
+    // empilha aqui até ser importado, depois o documento é apagado).
+    // Mesmo padrão/mesmo motivo de reservas_movimentos_pendentes acima —
+    // pedido do usuário: "quero informar no admin... e quero que o
+    // sistema desktop atualize a premiação na aba gestão premiações".
+    match /premiacoes_pendentes/{document} {
+      allow read, write: if isAdmin();
+    }
+
     // Gerações salvas do Otimizador de Cotas (app desktop separado,
     // D:\PROJETOS\OTIMIZADOR_COTAS) — sincronizadas aqui só pra
     // VISUALIZAÇÃO no admin.html (decisão explícita do usuário: gerar
