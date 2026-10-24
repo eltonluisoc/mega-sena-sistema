@@ -4307,13 +4307,56 @@ function carregarBoloesSelectPremiacoes() {
     console.log(`✅ ${nomes.length} bolões carregados no select de premiações (a partir dos cartões)`);
 }
 
-function atualizarLoteriaDisplayPremiacao() {
+// Pedido do usuário: "a partir da seleção do bolão vc deve já preencher
+// concurso, data sorteio... eu preencherei o valor do prêmio e
+// descrição." Loteria + concurso vêm dos próprios cartões (o concurso
+// mais recente entre os cartões daquele bolão — um bolão normalmente
+// tem 1 concurso só, mas se tiver mais de um, assume o mais novo). Data
+// do sorteio só dá pra preencher se esse concurso já foi CONFERIDO
+// (resultados_conferidos) — senão fica em branco, sem travar nada; o
+// admin preenche na mão se quiser.
+async function atualizarCamposPremiacaoPorBolao() {
     const select = document.getElementById('premBolaoSelect');
     const display = document.getElementById('premLoteriaDisplay');
+    const concursoInput = document.getElementById('premConcurso');
+    const dataInput = document.getElementById('premDataSorteio');
     if (!select || !display) return;
+
     const opt = select.selectedOptions[0];
-    const loteria = opt ? opt.dataset.loteria : '';
+    const loteria = opt ? (opt.dataset.loteria || '') : '';
     display.value = loteria ? (ROTULO_LOTERIA[loteria] || loteria) : '';
+    if (dataInput) dataInput.value = '';
+
+    const bolaoNome = select.value;
+    if (!bolaoNome || !concursoInput) { if (concursoInput) concursoInput.value = ''; return; }
+
+    let maiorConcurso = null;
+    for (const c of cartoes) {
+        if (c.bolao !== bolaoNome) continue;
+        const n = parseInt(c.concurso, 10);
+        if (!isNaN(n) && (maiorConcurso === null || n > maiorConcurso)) maiorConcurso = n;
+    }
+    concursoInput.value = maiorConcurso !== null ? String(maiorConcurso) : '';
+    if (maiorConcurso === null || !loteria || !dataInput) return;
+
+    try {
+        const doc = await db.collection('resultados_conferidos').doc(`${loteria}_${maiorConcurso}`).get();
+        if (doc.exists && doc.data().dataSorteio) {
+            dataInput.value = converterDataParaInputDate(doc.data().dataSorteio);
+        }
+    } catch (e) {
+        console.warn('Erro ao buscar data do sorteio pra pré-preencher:', e);
+    }
+}
+
+// "DD/MM/AAAA" (como a API da Caixa manda) -> "AAAA-MM-DD" (formato que
+// <input type="date"> exige). Se já vier em outro formato, devolve vazio
+// em vez de preencher errado.
+function converterDataParaInputDate(data) {
+    if (!data || typeof data !== 'string') return '';
+    const m = data.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!m) return '';
+    return `${m[3]}-${m[2]}-${m[1]}`;
 }
 
 async function registrarPremiacao() {
@@ -5695,7 +5738,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnLancamentoLoteReserva) btnLancamentoLoteReserva.onclick = abrirModalLancamentoLote;
 
     const premBolaoSelect = document.getElementById('premBolaoSelect');
-    if (premBolaoSelect) premBolaoSelect.onchange = atualizarLoteriaDisplayPremiacao;
+    if (premBolaoSelect) premBolaoSelect.onchange = atualizarCamposPremiacaoPorBolao;
     const btnRegistrarPremiacao = document.getElementById('btnRegistrarPremiacao');
     if (btnRegistrarPremiacao) btnRegistrarPremiacao.onclick = registrarPremiacao;
 

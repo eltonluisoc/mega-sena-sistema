@@ -1610,6 +1610,16 @@ Validado com teste isolado de Tk ao vivo (reconfirma bolão certo, idempotência
 
 Versão desktop v6.43 → **v6.44** (4 locais). `sw.js` `CACHE_NAME` v79 (nenhuma mudança extra no sw.js nesta rodada — já estava em v79 pelo ajuste da seta acima).
 
+## Rodada 110 — Premiações: concurso e data do sorteio pré-preenchidos ao escolher o bolão (web)
+
+Pedido do usuário, logo em seguida da Rodada 109: "a lista corrigiu... mas a partir da seleção do bolão vc deve já preenche concurso, data sorteio... eu preencherei o valor do prêmio e descrição."
+
+`atualizarLoteriaDisplayPremiacao` virou `atualizarCamposPremiacaoPorBolao`, chamada no `onchange` do select de bolão: além da loteria (já existia), agora também preenche **Concurso** (o maior número de concurso entre os cartões daquele nome de bolão — um bolão normalmente tem 1 concurso só, mas se tiver mais de um, assume o mais recente) e, se esse concurso já tiver sido **conferido** (`resultados_conferidos`), a **Data do Sorteio** também (campo `dataSorteio`, convertido de "DD/MM/AAAA" pra "AAAA-MM-DD" via nova função pura `converterDataParaInputDate`, formato que `<input type="date">` exige). Se o concurso ainda não foi conferido, a data fica em branco — não trava nada, o admin preenche na mão se quiser. Os dois campos continuam editáveis manualmente depois do preenchimento automático, caso precise ajustar. Valor do prêmio e descrição continuam sempre manuais, como pedido.
+
+Validado com 2 testes isolados de `converterDataParaInputDate` (conversão correta, e formato inesperado/vazio devolve string vazia em vez de preencher errado) e `npm test` (83/83, sem regressão).
+
+`sw.js` `CACHE_NAME` v79 → **v80**.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

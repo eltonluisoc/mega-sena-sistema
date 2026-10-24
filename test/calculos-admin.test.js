@@ -229,3 +229,19 @@ test('_chavePessoaFinanceiro - telefone e nome nunca colidem na mesma chave (pre
   const porTelefone = sandbox._chavePessoaFinanceiro('Outra Pessoa', '12345');
   assert.notEqual(porNome, porTelefone);
 });
+
+// Pedido do usuário: "a partir da seleção do bolão vc deve já preencher
+// concurso, data sorteio" — converterDataParaInputDate traduz a data do
+// sorteio (formato "DD/MM/AAAA", como a API da Caixa manda) pro formato
+// que <input type="date"> exige ("AAAA-MM-DD").
+test('converterDataParaInputDate - converte DD/MM/AAAA para AAAA-MM-DD', () => {
+  assert.equal(sandbox.converterDataParaInputDate('25/12/2026'), '2026-12-25');
+  assert.equal(sandbox.converterDataParaInputDate('01/01/2026'), '2026-01-01');
+});
+
+test('converterDataParaInputDate - formato inesperado ou vazio devolve string vazia', () => {
+  assert.equal(sandbox.converterDataParaInputDate(''), '');
+  assert.equal(sandbox.converterDataParaInputDate(null), '');
+  assert.equal(sandbox.converterDataParaInputDate('2026-12-25'), ''); // já no formato errado de entrada
+  assert.equal(sandbox.converterDataParaInputDate('lixo'), '');
+});
