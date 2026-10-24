@@ -1620,6 +1620,18 @@ Validado com 2 testes isolados de `converterDataParaInputDate` (conversão corre
 
 `sw.js` `CACHE_NAME` v79 → **v80**.
 
+## Rodada 111 — Premiações do site: não exige mais um bolão cadastrado, só a loteria importa (desktop)
+
+Pedido do usuário: "lancei a premiação no site vinculada a um bolão 25,00... ao abrir o desktop deu erro pois esse bolão não está cadastrado... mas não quero que no desktop fique vinculado a um bolão específico... na premiação, no cadastro desktop a premiação deve ser incluída no tipo de loteria... isso que é importante... pois quero saber quanto ganhamos em cada loteria... quando vier do site não precisa registrar a informação de qual bolão."
+
+**Causa raiz de verdade, depois de 2 rodadas tentando resolver o sintoma errado**: as Rodadas 107 e 109 tentaram casar a premiação importada com um bolão local — primeiro por `firebase_doc_id`, depois por nome — mas o problema nunca foi *como* casar, e sim que o site não deveria exigir achar um bolão igual no desktop pra começo de conversa. Uma premiação pode ser de um "Bolão 25,00" que nunca existiu, foi renomeado ou apagado no desktop — isso não pode impedir o registro do prêmio.
+
+**Corrigido**: `_concluir_import_premiacoes` não tenta mais achar/casar nenhum bolão — toda premiação vinda da fila do site entra com `bolao_id = NULL`, só com loteria (já convertida por `LOTERIA_WEB_PARA_DESKTOP`), concurso, data e valor. `_load_prem()` já usava `LEFT JOIN` com `boloes` e já mostrava "-" quando não achava (nenhuma mudança necessária ali), e o "RESUMO POR LOTERIA" da aba Gestão → Premiações já soma por `loteria`, não por bolão — "quanto ganhamos em cada loteria" já funciona direto, sem mais nada a fazer. O cadastro manual direto no desktop (`_reg_prem`, vinculado ao bolão ativo) continua exatamente como sempre — essa correção é só no caminho que vem da fila do site.
+
+Validado com teste isolado de Tk ao vivo (premiação importada SEM nenhum bolão cadastrado no banco local, mesmo com `bolaoNome` ainda vindo no payload do site — é ignorado; resumo mostra só loteria/concurso/valor, sem mencionar bolão nenhum; valor inválido continua gerando erro isolado sem quebrar os outros itens da leva), `py_compile`, varredura de método duplicado e os 35 testes automatizados do desktop.
+
+Versão desktop v6.44 → **v6.45** (4 locais).
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

@@ -1,7 +1,39 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.44
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.45
+Correções v6.45 (premiações do site: não exige mais um bolão cadastrado
+— só a loteria importa):
+ - Pedido do usuário: "lancei a premiação no site vinculada a um bolão
+   25,00... ao abrir o desktop deu erro pois esse bolão não está
+   cadastrado... mas não quero que no desktop fique vinculado a um
+   bolão específico... na premiação, no cadastro desktop a premiação
+   deve ser incluída no tipo de loteria... isso que é importante...
+   pois quero saber quanto ganhamos em cada loteria... quando vier do
+   site não precisa registrar a informação de qual bolão."
+ - Causa raiz de verdade: duas rodadas anteriores (109) já tinham
+   tentado casar a premiação importada com um bolão local — primeiro
+   por `firebase_doc_id`, depois por nome — mas o problema nunca foi
+   COMO casar, e sim que o site não deveria exigir achar um bolão igual
+   no desktop pra começo de conversa. Uma premiação pode muito bem ser
+   de um "Bolão 25,00" que nunca existiu (ou foi renomeado/apagado) no
+   desktop — isso não pode impedir o registro do prêmio.
+ - Corrigido: `_concluir_import_premiacoes` não tenta mais achar/casar
+   nenhum bolão — toda premiação vinda da fila do site entra com
+   `bolao_id = NULL`, só com a loteria (já convertida pelo
+   `LOTERIA_WEB_PARA_DESKTOP`), concurso, data e valor. `_load_prem()`
+   já usava `LEFT JOIN` com `boloes` e mostrava "-" quando não achava
+   (nenhuma mudança necessária ali) — o "RESUMO POR LOTERIA" da aba
+   Gestão → Premiações já soma por `loteria`, não por bolão, então
+   "quanto ganhamos em cada loteria" já funciona direto. O cadastro
+   manual direto no desktop (`_reg_prem`, vinculado ao bolão ativo)
+   continua exatamente como sempre — essa correção é só no caminho que
+   vem da fila do site.
+ - Validado com teste isolado de Tk ao vivo (premiação importada SEM
+   nenhum bolão cadastrado no banco local, mesmo com `bolaoNome` ainda
+   vindo no payload — é ignorado; resumo mostra só loteria/concurso/
+   valor, sem mencionar bolão; valor inválido continua gerando erro
+   isolado sem quebrar os outros itens da leva).
 Correções v6.44 (premiações: casamento do bolão por nome, não mais por
 publicação no site):
  - Pedido do usuário: "aparecem poucos bolões na lista.... não mostram
@@ -2404,7 +2436,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.44")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.45")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -2845,19 +2877,23 @@ class BolaoApp:
 
     def _concluir_import_premiacoes(self, dados, erro_final):
         """Roda na thread principal — grava premiações novas vindas da
-        fila do site na tabela local `premiacoes`, casando com o bolão
-        certo pelo NOME (boloes.nome). Achado real do usuário: a 1ª
-        versão casava por boloes.firebase_doc_id (só bolões formalmente
-        "Publicados no Site" pelo desktop) — mas a lista de bolões do
-        site mostrava "poucos bolões" porque a maioria nunca passa por
-        essa publicação manual, só tem cartões cadastrados. "A tabela
-        que grava as importações dos cartões... ali registros todos":
-        o admin web agora lista os bolões a partir dos CARTÕES (nome
-        livre, sempre presente), então o casamento aqui também precisa
-        ser por nome — sem depender de publicação nenhuma. Mesma lógica
-        de idempotência (origem_doc_id) e de só contar/avisar o que é
-        NOVO de verdade (achado real da Rodada 101, aplicado aqui desde
-        o início em vez de repetir o mesmo bug)."""
+        fila do site na tabela local `premiacoes`. NÃO tenta mais casar
+        com nenhum bolão local (bolao_id fica NULL pra toda premiação
+        vinda do site) — achado real do usuário: "lancei a premiação no
+        site vinculada a um bolão 25,00... ao abrir o desktop deu erro
+        pois esse bolão não está cadastrado... não quero que no desktop
+        fique vinculado a um bolão específico... a premiação deve ser
+        incluída no tipo de loteria... quero saber quanto ganhamos em
+        cada loteria... quando vier do site não precisa registrar a
+        informação de qual bolão." Duas versões anteriores já tinham
+        tentado casar por firebase_doc_id e depois por nome — essa era a
+        causa raiz de verdade: o site nunca deveria depender de achar um
+        bolão igual no desktop pra começo de conversa. O cadastro manual
+        direto no desktop (_reg_prem, vinculado ao bolão ativo) continua
+        funcionando exatamente como sempre — essa mudança é só no
+        caminho que vem da fila do site. Mesma lógica de idempotência
+        (origem_doc_id) e de só contar/avisar o que é NOVO de verdade
+        (achado real da Rodada 101, aplicado aqui desde o início)."""
         self._prem_import_em_andamento = False
 
         if dados is None:
@@ -2884,9 +2920,8 @@ class BolaoApp:
             try:
                 fields = doc.get("fields", {})
                 doc_id = doc.get("name", "").split("/")[-1]
-                bolao_nome_web = campo(fields, "bolaoNome", "stringValue", "") or ""
-                desc_erro = bolao_nome_web or doc_id
                 loteria_web    = campo(fields, "loteria", "stringValue", "mega") or "mega"
+                desc_erro = LOTERIA_WEB_PARA_DESKTOP.get(loteria_web, loteria_web)
                 concurso       = campo(fields, "concurso", "stringValue", "") or ""
                 data_web       = campo(fields, "dataSorteio", "stringValue", "") or ""
                 valor = float(campo(fields, "valorPremio", "doubleValue")
@@ -2894,18 +2929,8 @@ class BolaoApp:
                 descricao      = campo(fields, "descricao", "stringValue", "") or ""
                 criado_em_web  = campo(fields, "criadoEm", "stringValue", "") or ""
 
-                if valor <= 0 or not bolao_nome_web:
-                    raise ValueError(f"dados incompletos (valor={valor!r}, bolaoNome={bolao_nome_web!r})")
-
-                # Casamento por nome — mesma lógica usada em
-                # reservas_pessoas (telefone indisponível aqui, então
-                # direto por nome, sem acento/maiúscula importando).
-                bolao = self.db.fetchone(
-                    "SELECT id, nome FROM boloes WHERE LOWER(nome)=LOWER(?)", (bolao_nome_web,))
-                if not bolao:
-                    raise ValueError(
-                        f"bolão '{bolao_nome_web}' não encontrado no desktop (o nome "
-                        "precisa ser igual ao cadastrado aqui)")
+                if valor <= 0:
+                    raise ValueError(f"valor inválido (valor={valor!r})")
 
                 loteria = LOTERIA_WEB_PARA_DESKTOP.get(loteria_web, loteria_web.capitalize())
 
@@ -2921,17 +2946,21 @@ class BolaoApp:
                 ja_importado = self.db.fetchone(
                     "SELECT id FROM premiacoes WHERE origem_doc_id=?", (doc_id,))
                 if not ja_importado:
+                    # bolao_id NULL de propósito — premiação vinda do site
+                    # entra só por loteria, sem vínculo com nenhum bolão
+                    # local (ver docstring da função). _load_prem() já
+                    # trata bolao_id NULL com LEFT JOIN, mostra "-".
                     self.db.execute(
                         "INSERT INTO premiacoes "
                         "(bolao_id, loteria, concurso, data_sorteio, valor_premio, descricao, data_registro, origem_doc_id) "
-                        "VALUES (?,?,?,?,?,?,?,?)",
-                        (bolao["id"], loteria, concurso, data_sorteio, valor, desc_final,
+                        "VALUES (NULL,?,?,?,?,?,?,?)",
+                        (loteria, concurso, data_sorteio, valor, desc_final,
                          datetime.now().strftime("%d/%m/%Y %H:%M"), doc_id))
                     # Só conta/avisa quem é NOVO de verdade (ver
                     # _concluir_import_pendentes — não repete o bug da
                     # Rodada 101 aqui desde o início).
                     importados += 1
-                    detalhes.append((bolao["nome"], loteria, concurso, valor, fmt_hora_web(criado_em_web)))
+                    detalhes.append((loteria, concurso, valor, fmt_hora_web(criado_em_web)))
 
                 doc_ids_para_apagar.append(doc_id)
             except Exception as ex:
@@ -2946,12 +2975,12 @@ class BolaoApp:
 
         partes = []
         if importados > 0:
-            total = sum(v for _b, _l, _c, v, _h in detalhes)
+            total = sum(v for _l, _c, v, _h in detalhes)
             partes.append(f"🏆 {importados} premiação(ões) importada(s) do site (total {fmt_brl(total)}):")
-            for nome_b, lot, conc, v, hora in detalhes:
+            for lot, conc, v, hora in detalhes:
                 quando = f" — registrado às {hora}" if hora else ""
                 conc_txt = f" concurso {conc}" if conc else ""
-                partes.append(f"  • {nome_b} — {lot}{conc_txt}: {fmt_brl(v)}{quando}")
+                partes.append(f"  • {lot}{conc_txt}: {fmt_brl(v)}{quando}")
         if erros:
             partes.append(f"⚠ {erros} premiação(ões) da fila NÃO foram importadas:")
             partes.extend(erros_detalhe)
@@ -2972,7 +3001,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.44",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.45",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -7098,7 +7127,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.44</span>
+        <span>Sistema de Gestão de Bolões v6.45</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -9382,7 +9411,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.44</span>
+        <span>Sistema de Gestão de Bolões v6.45</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
