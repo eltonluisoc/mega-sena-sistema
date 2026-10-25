@@ -5078,13 +5078,13 @@ async function copiarHistoricoWhatsApp(id, nome, completo = false) {
         const rotuloResumo = completo ? 'completo' : 'a partir do último depósito';
         mensagem += `${linha}\n`;
         mensagem += `📊 *RESUMO (${rotuloResumo}):*\n`;
+        if (temJanelaParcial) {
+            mensagem += `   📂 *Saldo anterior: R$ ${saldoAnterior.toFixed(2)}*\n`;
+        }
         mensagem += `   💰 Total de depósitos: R$ ${totalDepositos.toFixed(2)}\n`;
         mensagem += `   💸 Total de saques: R$ ${totalSaques.toFixed(2)}\n`;
         mensagem += `   🎯 Total de uso: R$ ${totalUso.toFixed(2)}\n`;
         mensagem += `   ──────────────────\n`;
-        if (temJanelaParcial) {
-            mensagem += `   📂 *Saldo anterior: R$ ${saldoAnterior.toFixed(2)}*\n`;
-        }
         mensagem += `   💵 *Saldo atual: R$ ${saldoAtual.toFixed(2)}*\n`;
         mensagem += `   ──────────────────\n`;
         mensagem += `   📊 *${historicoFiltrado.length} movimentações* (${rotuloResumo})\n\n`;
