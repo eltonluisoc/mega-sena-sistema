@@ -5038,12 +5038,10 @@ async function copiarHistoricoWhatsApp(id, nome, completo = false) {
         
         let totalDepositos = 0;
         let totalSaques = 0;
-        let totalUso = 0;
 
         for (const item of historicoFiltrado) {
             if (item.tipo === 'deposito') totalDepositos += item.valor || 0;
             else if (item.tipo === 'saque') totalSaques += item.valor || 0;
-            else if (item.tipo === 'uso') totalUso += item.valor || 0;
         }
 
         // Quando o filtro corta no último depósito, os totais acima só
@@ -5083,8 +5081,6 @@ async function copiarHistoricoWhatsApp(id, nome, completo = false) {
         }
         mensagem += `   💰 Total de depósitos: R$ ${totalDepositos.toFixed(2)}\n`;
         mensagem += `   💸 Total de saques: R$ ${totalSaques.toFixed(2)}\n`;
-        mensagem += `   🎯 Total de uso: R$ ${totalUso.toFixed(2)}\n`;
-        mensagem += `   ──────────────────\n`;
         mensagem += `   💵 *Saldo atual: R$ ${saldoAtual.toFixed(2)}*\n`;
         mensagem += `   ──────────────────\n`;
         mensagem += `   📊 *${historicoFiltrado.length} movimentações* (${rotuloResumo})\n\n`;
