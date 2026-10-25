@@ -1632,6 +1632,16 @@ Validado com teste isolado de Tk ao vivo (premiação importada SEM nenhum bolã
 
 Versão desktop v6.44 → **v6.45** (4 locais).
 
+## Rodada 112 — Extrato de reservas pro WhatsApp: resumo não batia com o saldo (web)
+
+Pedido do usuário, a partir de um print do extrato: "o saldo é negativo, mesmo, mas a totalização está incorreta" — depósitos R$250, saques R$222, uso R$0 (28,00 de saldo "implícito" pela soma), mas o saldo atual mostrado era -R$125,75.
+
+**Causa raiz**: `copiarHistoricoWhatsApp` (`admin.js`) soma depósitos/saques/uso só da janela filtrada "a partir do último depósito", mas mostra o `saldoAtual` da reserva inteira (`data.saldoReserva`, histórico completo). Se já existia saldo — inclusive negativo — **antes** desse último depósito, a soma da janela nunca bate sozinha com o saldo total: faltava mostrar o saldo que já existia antes da janela.
+
+**Corrigido**: quando o extrato filtra "a partir do último depósito" (não no modo `completo`), calcula o `saldoAnterior` (o `saldoNovo` do item do histórico imediatamente anterior ao depósito, em ordem cronológica) e acrescenta uma linha "📂 Saldo anterior" no resumo, antes dos totais — agora "Saldo anterior + Depósitos − Saques − Uso = Saldo atual" fecha a conta e a inconsistência fica evidenciada, não escondida.
+
+`sw.js` `CACHE_NAME` v80 → **v81**.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

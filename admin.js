@@ -5039,12 +5039,21 @@ async function copiarHistoricoWhatsApp(id, nome, completo = false) {
         let totalDepositos = 0;
         let totalSaques = 0;
         let totalUso = 0;
-        
+
         for (const item of historicoFiltrado) {
             if (item.tipo === 'deposito') totalDepositos += item.valor || 0;
             else if (item.tipo === 'saque') totalSaques += item.valor || 0;
             else if (item.tipo === 'uso') totalUso += item.valor || 0;
         }
+
+        // Quando o filtro corta no último depósito, os totais acima só
+        // cobrem essa janela — se já existia saldo (inclusive negativo)
+        // ANTES desse depósito, "depósitos - saques - uso" dessa janela
+        // nunca vai bater sozinho com o saldo atual. Resgata o saldo que
+        // já existia logo antes da janela (saldoNovo do item imediatamente
+        // anterior, em ordem cronológica) pra fechar a conta certinho.
+        const temJanelaParcial = ultimoDepositoIndex !== -1 && (ultimoDepositoIndex + 1) < historicoOrdenado.length;
+        const saldoAnterior = temJanelaParcial ? (historicoOrdenado[ultimoDepositoIndex + 1].saldoNovo || 0) : 0;
         
         mensagem += `📋 *MOVIMENTAÇÕES:*\n\n`;
         
@@ -5069,6 +5078,9 @@ async function copiarHistoricoWhatsApp(id, nome, completo = false) {
         const rotuloResumo = completo ? 'completo' : 'a partir do último depósito';
         mensagem += `${linha}\n`;
         mensagem += `📊 *RESUMO (${rotuloResumo}):*\n`;
+        if (temJanelaParcial) {
+            mensagem += `   📂 Saldo anterior: R$ ${saldoAnterior.toFixed(2)}\n`;
+        }
         mensagem += `   💰 Total de depósitos: R$ ${totalDepositos.toFixed(2)}\n`;
         mensagem += `   💸 Total de saques: R$ ${totalSaques.toFixed(2)}\n`;
         mensagem += `   🎯 Total de uso: R$ ${totalUso.toFixed(2)}\n`;
