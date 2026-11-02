@@ -1,7 +1,27 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.51
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.52
+Correções v6.52 (blindagem: falha na limpeza automática não pode mais
+travar o resto do login):
+- Depois da v6.51, usuário reportou "abri e não apareceu nada,
+  nenhuma mensagem" — nem a limpeza, nem a importação principal.
+  Hipótese de risco real: se _limpar_pendencias_ja_importadas falhar
+  logo no início (antes de abrir a thread, ex.: erro lendo
+  reservas_fila_decisoes), a exceção non-tratada dentro de
+  _login_inicial abortaria o resto da função silenciosamente —
+  cooldown e importação principal nunca seriam alcançados nessa
+  abertura, sem nenhum aviso em lugar nenhum.
+- Corrigido: a chamada em _login_inicial agora está dentro de um
+  try/except — qualquer falha aqui vira uma linha em log_auditoria,
+  mas NUNCA impede o resto do login de continuar.
+- Ainda sem confirmação de qual é a causa raiz de verdade do que o
+  usuário está vendo — pedido feito: clicar direto no botão "🧹 Limpar
+  Pendências Já Importadas" (silencioso=False, sempre mostra popup) e
+  colar o texto exato que aparecer, pra investigar com evidência real
+  em vez de mais hipótese.
+- 35 testes automatizados + py_compile, todos OK.
+
 Correções v6.51 (limpeza automática da v6.50 nunca rodava quando
 havia cooldown ativo — causa raiz real de "nada mudou"):
 - Achado real do usuário, depois de abrir a v6.50 e nada ter sido
@@ -2567,7 +2587,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.51")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.52")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -2660,7 +2680,17 @@ class BolaoApp:
         # abre, mesmo que a busca da fila principal esteja em cooldown —
         # é uma leitura independente, bem mais leve que o backlog
         # completo, então não faz sentido ficar presa no mesmo cooldown.
-        self._limpar_pendencias_ja_importadas(silencioso=True)
+        #
+        # try/except aqui de propósito: qualquer erro nesta chamada NÃO
+        # pode impedir o resto de _login_inicial de rodar (cooldown,
+        # importação principal) — sem isso, uma falha nesta função
+        # sozinha travaria silenciosamente TODA a sincronização de
+        # reservas desta abertura, exatamente o tipo de "nada aconteceu,
+        # nenhuma mensagem" que já causou confusão antes.
+        try:
+            self._limpar_pendencias_ja_importadas(silencioso=True)
+        except Exception as ex:
+            self._log("Falha ao iniciar limpeza automática", str(ex)[:300])
 
         restante = _rsv_cooldown_ativo()
         if restante is not None:
@@ -3521,7 +3551,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.51",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.52",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -7647,7 +7677,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.51</span>
+        <span>Sistema de Gestão de Bolões v6.52</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -9937,7 +9967,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.51</span>
+        <span>Sistema de Gestão de Bolões v6.52</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
