@@ -1884,15 +1884,9 @@
                         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                             <button id="btnRegistrarMovimentoReserva" class="btn btn-success btn-sm">➕ Registrar</button>
                             <button id="btnLancamentoLoteReserva" class="btn btn-purple btn-sm">📦 Lote</button>
-                            <button id="btnVerPendentesReserva" class="btn btn-warning btn-sm">🔍 Ver Pendentes</button>
                             <button id="btnAtualizarReservas" class="btn btn-primary btn-sm">🔄 Atualizar</button>
                         </div>
                     </div>
-                    <!-- Movimentos já registrados aqui mas que o desktop ainda não
-                         importou pro SQLite local — sem isso, dá pra registrar o
-                         mesmo lançamento 2x sem perceber que o primeiro ainda
-                         está "no ar". -->
-                    <div id="pendentesReservaResultado" style="display: none; margin-bottom: 16px;"></div>
                     <div id="listaReservas" style="max-height: 500px; overflow-y: auto;">
                         <div class="empty-state">Nenhuma reserva encontrada</div>
                     </div>

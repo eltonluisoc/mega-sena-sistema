@@ -1,7 +1,36 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.53
+SISTEMA DE GESTÃO DE BOLÕES PRO v7.0
+Correções v7.0 (reservas: solução definitiva — sincronização ao vivo,
+sem fila de pendências):
+- Pedido explícito do usuário: "quero uma solução definitiva... quando
+  eu lançar depósito ou saque pela web, o sistema imediatamente
+  atualiza o banco de dados e mostra na web... quando eu abrir o
+  desktop o sistema atualiza o movimento de acordo com o que estiver
+  no banco de dados... não quero interação para atualização... não
+  deixe pendências." Investigado com 5 agentes, plano aprovado,
+  implementado por completo — ver Rodadas 118-121 no changelog
+  (prompt-multiagente-claude-code.md) pra todos os detalhes técnicos
+  e os 3 bugs reais encontrados e corrigidos durante a migração dos
+  dados de produção (URL de commit errada desde sempre, combinar 2
+  tipos de transform na mesma gravação, campo "historico" antigo
+  bloqueando pessoas já sincronizadas).
+- A fila reservas_movimentos_pendentes deixa de existir. Cada
+  depósito/saque (web ou desktop) agora é 1 commit atômico só —
+  ledger só-de-inserção + incremento de saldo + aviso global — e a
+  UI só mostra sucesso depois da confirmação real do Firestore, nunca
+  antes.
+- Novo laço em segundo plano verifica automaticamente a cada poucos
+  segundos (mais na hora de qualquer gravação local e ao focar a
+  janela) — sem precisar clicar em nada. SQLite local vira espelho,
+  nunca mais a fonte de verdade.
+- "✏ Editar Selecionado"/"🗑 Excluir Selecionado" viraram
+  "↩ Estornar Selecionado" — o ledger não permite mais editar/apagar
+  histórico (um engano vira um lançamento reverso novo).
+- Dados de produção já migrados com sucesso (31 pessoas, saldos
+  conferidos um a um, batendo exatamente).
+
 Correções v6.53 (botão "Limpar Pendências" travava em "Verificando..."
 pra sempre, sem erro nenhum):
 - Achado real do usuário, clicando no botão manual direto: "aparece
@@ -1396,41 +1425,6 @@ import re
 # ─────────────────────────────────────────────
 DB_FILE    = "boloes.db"
 BACKUP_DIR = "backups"
-RSV_COOLDOWN_MINUTOS = 15
-
-def _rsv_cooldown_path():
-    return os.path.abspath(DB_FILE) + ".sync_cooldown"
-
-def _rsv_cooldown_ativo():
-    """Minutos restantes de cooldown se a última tentativa de sincronizar
-    reservas com o site falhou por rate-limit (429) recentemente, ou None
-    se já pode tentar de novo. Existe pra não martelar o Firestore
-    tentando de novo automaticamente em TODA abertura do app — achado
-    real: o 429 persistiu mesmo depois de ~37s de retry (sinal de limite
-    diário gratuito baixo/estourado do plano Spark, não só uma rajada
-    passageira), e reabrir o app repetidas vezes só consome mais do
-    pouco que sobrar do limite do dia. Um clique manual em "Tentar
-    novamente" sempre ignora este cooldown."""
-    try:
-        with open(_rsv_cooldown_path(), "r", encoding="utf-8") as f:
-            ts = datetime.fromisoformat(f.read().strip())
-        restante = RSV_COOLDOWN_MINUTOS - (datetime.now() - ts).total_seconds() / 60
-        return restante if restante > 0 else None
-    except Exception:
-        return None
-
-def _rsv_cooldown_marcar():
-    try:
-        with open(_rsv_cooldown_path(), "w", encoding="utf-8") as f:
-            f.write(datetime.now().isoformat())
-    except Exception:
-        pass
-
-def _rsv_cooldown_limpar():
-    try:
-        os.remove(_rsv_cooldown_path())
-    except Exception:
-        pass
 
 def _resource_path(nome_arquivo):
     """Acha um arquivo empacotado junto do app (ex.: ícone), funcionando
@@ -1775,10 +1769,24 @@ class Database:
             # INSERT local funcionar mas o apagar da fila falhar logo
             # depois. Ver _concluir_import_premiacoes.
             "ALTER TABLE premiacoes ADD COLUMN origem_doc_id TEXT",
+            # Reservas — sincronização ao vivo (Rodada 118): SQLite local
+            # vira um ESPELHO do Firestore (nunca mais o lugar que uma
+            # gravação do usuário muda direto), reconciliado por inteiro
+            # a cada vez que o contador meta/reservas_version mudar.
+            # firebase_doc_id é a chave de ligação com o documento real.
+            "ALTER TABLE reservas_pessoas ADD COLUMN firebase_doc_id TEXT",
+            "ALTER TABLE reservas_movimentos ADD COLUMN firebase_doc_id TEXT",
         ]
         for m in migs:
             try: c.execute(m)
             except: pass
+        # reservas_fila_decisoes só existia pra sustentar o modelo de
+        # fila antigo (idempotência de importação) — sem objeto nenhum
+        # sob o modelo novo (o próprio movId gerado no Firestore já é a
+        # chave de idempotência). DROP seguro mesmo que a tabela já não
+        # exista (IF EXISTS).
+        try: c.execute("DROP TABLE IF EXISTS reservas_fila_decisoes")
+        except: pass
         self.conn.commit()
         # Migração: popular tabela pessoas a partir de participantes existentes
         self._migrar_pessoas(c)
@@ -2151,6 +2159,288 @@ def _make_part_id(nome, telefone):
     return (id_nome+"_"+tel) if tel else id_nome
 
 # ─────────────────────────────────────────────
+#  RESERVAS — sincronização ao vivo (Rodada 118), sem fila de
+#  pendências. Substitui o modelo antigo (reservas_movimentos_
+#  pendentes + revisão manual + reconciliação) por gravação atômica
+#  direta: todo depósito/saque é 1 commit só no Firestore, confirmado
+#  antes de dizer "sucesso" — nunca mais um "disparei e torci" (causa
+#  raiz real encontrada na investigação: _apagar_fila_em_lote nunca
+#  checava se a exclusão da fila realmente funcionou).
+# ─────────────────────────────────────────────
+FIREBASE_RESERVAS_BASE = "projects/mega-sena-sistema/databases/(default)/documents"
+
+def _rsv_commit_atomico(writes, timeout=20):
+    """POST genérico pro endpoint :commit do Firestore com uma lista de
+    writes (create/transform) — tudo atômico, tudo ou nada. Síncrono:
+    levanta exceção com o status e corpo reais se a resposta não vier
+    OK, nunca engole o erro (ver achado real: _apagar_fila_em_lote
+    nunca fazia isso, e pendências ficavam presas pra sempre sem
+    nenhum aviso)."""
+    import urllib.request, urllib.error, json
+    # Achado real (causa raiz de TODO o problema de pendências presas,
+    # desde sempre): faltava "/documents" antes de ":commit" — a URL
+    # oficial do endpoint Commit é .../databases/{db}/documents:commit,
+    # não .../databases/{db}:commit. A versão errada batia no 404
+    # genérico do Google (página "Error 404 (Not Found)!!1", nem chega
+    # a ser um erro da API do Firestore) — por isso todo GET sempre
+    # funcionou (usa /documents/{colecao}, caminho diferente) e todo
+    # POST de commit/delete sempre falhou, silenciosamente, desde a
+    # primeira vez que esse código existiu.
+    url = ("https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
+           "/databases/(default)/documents:commit")
+    corpo = json.dumps({"writes": writes}).encode("utf-8")
+    req = urllib.request.Request(url, data=corpo, method="POST", headers=_firebase_headers())
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as ex:
+        corpo_erro = ex.read().decode("utf-8", "replace")[:500] if ex.fp else ""
+        raise RuntimeError(f"HTTP {ex.code}: {corpo_erro}") from ex
+
+def _rsv_registrar_movimento_firestore(pessoa_doc_id, pessoa_nova, nome, telefone, chave_pix,
+                                        tipo, valor, data_mov, descricao, loteria, concurso,
+                                        origem="desktop"):
+    """Grava um depósito/saque de reserva de forma atômica e IMEDIATA no
+    Firestore — um commit só com o lançamento no ledger (reservas_
+    participantes/{id}/movimentos/{movId}, append-only, nunca editado
+    nem apagado), o incremento do saldo da pessoa, e o aviso do contador
+    global (meta/reservas_version, que o laço de verificação em segundo
+    plano fica de olho) — tudo ou nada. `movId` (UUID gerado aqui) serve
+    de chave de idempotência: se esta chamada for repetida depois de uma
+    falha de rede ambígua, a precondição "não pode existir ainda" faz a
+    tentativa repetida não duplicar nada.
+
+    IMPORTANTE: pressupõe que meta/reservas_version já existe (seedado
+    uma vez na migração) — um 'transform' sozinho falha se o documento
+    alvo não existir ainda; só a primeiríssima gravação de todas corre
+    esse risco, e ela já foi coberta pela migração antes do corte.
+
+    Síncrono — levanta exceção se a gravação não for confirmada; quem
+    chama só pode dizer "sucesso" depois que isto retornar sem erro,
+    nunca antes. Retorna o movId gravado."""
+    import uuid
+    pessoa_path = f"{FIREBASE_RESERVAS_BASE}/reservas_participantes/{pessoa_doc_id}"
+    mov_id = uuid.uuid4().hex
+    mov_path = f"{pessoa_path}/movimentos/{mov_id}"
+    sentinel_path = f"{FIREBASE_RESERVAS_BASE}/meta/reservas_version"
+    delta = valor if tipo == "deposito" else -valor
+
+    writes = []
+    if pessoa_nova:
+        writes.append({
+            "update": {
+                "name": pessoa_path,
+                "fields": {
+                    "participanteId": {"stringValue": pessoa_doc_id},
+                    "nome": {"stringValue": nome},
+                    "telefone": {"stringValue": telefone or ""},
+                    "chavePix": {"stringValue": chave_pix or ""},
+                    "observacoes": {"stringValue": ""},
+                    "ativo": {"booleanValue": True},
+                    "saldoReserva": {"doubleValue": 0},
+                    "admin": {"booleanValue": True},
+                }
+            },
+            "updateTransforms": [{"fieldPath": "dataAtualizacao", "setToServerValue": "REQUEST_TIME"}],
+            "currentDocument": {"exists": False},
+        })
+
+    writes.append({
+        "update": {
+            "name": mov_path,
+            "fields": {
+                "tipo": {"stringValue": tipo},
+                "valor": {"doubleValue": valor},
+                "data": {"stringValue": data_mov},
+                "descricao": {"stringValue": descricao or ""},
+                "loteria": {"stringValue": loteria or ""},
+                "concurso": {"stringValue": concurso or ""},
+                "origem": {"stringValue": origem},
+            }
+        },
+        "updateTransforms": [{"fieldPath": "criadoEm", "setToServerValue": "REQUEST_TIME"}],
+        "currentDocument": {"exists": False},
+    })
+    # Achado real (2º bug crítico pego durante a migração, antes de
+    # qualquer dado real passar por aqui): um write "transform" sozinho
+    # (sem "update" junto) NÃO é avaliado pelas regras de segurança do
+    # Firestore do jeito esperado — sempre volta PERMISSION_DENIED,
+    # mesmo com uma regra que deveria permitir. O padrão que REALMENTE
+    # funciona (confirmado testando ao vivo) é "update" com fields/
+    # updateMask vazios + "updateTransforms" junto no mesmo write —
+    # exatamente o que o SDK oficial gera por baixo dos panos pra
+    # FieldValue.increment(). Nunca mais usar "transform" sozinho nesse
+    # arquivo.
+    # Separado em 2 writes por documento (um só com "increment", outro só
+    # com "setToServerValue") em vez de misturar os dois tipos de
+    # transform numa updateTransforms só — achado real: combinar os dois
+    # tipos na mesma lista voltava PERMISSION_DENIED num caso real
+    # (sozinhos, cada um passava no diagnóstico). Mais writes no mesmo
+    # commit não tem custo/risco — ainda é tudo atômico, tudo ou nada.
+    writes.append({
+        "update": {"name": pessoa_path, "fields": {}},
+        "updateMask": {"fieldPaths": []},
+        "updateTransforms": [
+            {"fieldPath": "saldoReserva", "increment": {"doubleValue": delta}},
+        ],
+    })
+    writes.append({
+        "update": {"name": pessoa_path, "fields": {}},
+        "updateMask": {"fieldPaths": []},
+        "updateTransforms": [
+            {"fieldPath": "dataAtualizacao", "setToServerValue": "REQUEST_TIME"},
+        ],
+    })
+    writes.append({
+        "update": {"name": sentinel_path, "fields": {}},
+        "updateMask": {"fieldPaths": []},
+        "updateTransforms": [
+            {"fieldPath": "versao", "increment": {"integerValue": "1"}},
+        ],
+    })
+    writes.append({
+        "update": {"name": sentinel_path, "fields": {}},
+        "updateMask": {"fieldPaths": []},
+        "updateTransforms": [
+            {"fieldPath": "atualizadoEm", "setToServerValue": "REQUEST_TIME"},
+        ],
+    })
+
+    _rsv_commit_atomico(writes)
+    return mov_id
+
+def _rsv_buscar_versao_sentinela():
+    """Busca só o contador global meta/reservas_version (1 leitura,
+    barata) — usado pelo laço de verificação em segundo plano pra saber
+    SE vale a pena buscar o resto (bem mais caro: todas as pessoas +
+    todo o ledger de cada uma, ver _rsv_buscar_estado_atual)."""
+    import urllib.request, json
+    url = f"https://firestore.googleapis.com/v1/{FIREBASE_RESERVAS_BASE}/meta/reservas_version"
+    req = urllib.request.Request(url, method="GET", headers=_firebase_headers())
+    with urllib.request.urlopen(req, timeout=10) as r:
+        dados = json.loads(r.read().decode("utf-8"))
+    campo = dados.get("fields", {}).get("versao", {})
+    return int(campo.get("integerValue", "0"))
+
+def _rsv_buscar_estado_atual():
+    """Busca o estado completo de reservas no Firestore (todas as
+    pessoas + o ledger de movimentos de cada uma) — usado tanto pela
+    sincronização em segundo plano (reconciliação completa, barata
+    nesta escala) quanto pela migração. Síncrono, roda em thread de
+    fundo. Retorna (pessoas: list[dict], movimentos_por_pessoa:
+    dict[doc_id, list[dict]], versao_sentinela: int|None)."""
+    import urllib.request, json
+
+    def _get(path):
+        url = f"https://firestore.googleapis.com/v1/{FIREBASE_RESERVAS_BASE}/{path}"
+        req = urllib.request.Request(url, method="GET", headers=_firebase_headers())
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return json.loads(r.read().decode("utf-8"))
+
+    def campo(fields, nome, tipo, default=None):
+        return fields.get(nome, {}).get(tipo, default)
+
+    pessoas = []
+    dados_pessoas = _get("reservas_participantes")
+    for doc in dados_pessoas.get("documents", []):
+        fields = doc.get("fields", {})
+        doc_id = doc.get("name", "").split("/")[-1]
+        pessoas.append({
+            "doc_id": doc_id,
+            "nome": campo(fields, "nome", "stringValue", ""),
+            "telefone": campo(fields, "telefone", "stringValue", ""),
+            "chave_pix": campo(fields, "chavePix", "stringValue", ""),
+            "observacoes": campo(fields, "observacoes", "stringValue", ""),
+            "ativo": campo(fields, "ativo", "booleanValue", True),
+            "saldo": float(campo(fields, "saldoReserva", "doubleValue")
+                           or campo(fields, "saldoReserva", "integerValue") or 0),
+        })
+
+    movimentos_por_pessoa = {}
+    for p in pessoas:
+        dados_mov = _get(f"reservas_participantes/{p['doc_id']}/movimentos")
+        movs = []
+        for doc in dados_mov.get("documents", []):
+            fields = doc.get("fields", {})
+            mov_id = doc.get("name", "").split("/")[-1]
+            movs.append({
+                "mov_id": mov_id,
+                "tipo": campo(fields, "tipo", "stringValue", "deposito"),
+                "valor": float(campo(fields, "valor", "doubleValue")
+                               or campo(fields, "valor", "integerValue") or 0),
+                "data": campo(fields, "data", "stringValue", ""),
+                "descricao": campo(fields, "descricao", "stringValue", ""),
+                "loteria": campo(fields, "loteria", "stringValue", ""),
+                "concurso": campo(fields, "concurso", "stringValue", ""),
+                "criado_em": campo(fields, "criadoEm", "timestampValue", ""),
+            })
+        movs.sort(key=lambda m: m["criado_em"])
+        movimentos_por_pessoa[p["doc_id"]] = movs
+
+    versao = None
+    try:
+        dados_sentinela = _get("meta/reservas_version")
+        versao = int(campo(dados_sentinela.get("fields", {}), "versao", "integerValue", "0"))
+    except Exception:
+        pass
+
+    return pessoas, movimentos_por_pessoa, versao
+
+def _rsv_criar_pessoa_firestore(doc_id, nome, telefone, chave_pix, observacoes):
+    """Cria uma pessoa nova em reservas_participantes, saldo inicial
+    zero — síncrono, levanta exceção se não confirmar. Create-only
+    (currentDocument.exists=false): nunca sobrescreve uma pessoa que já
+    exista com o mesmo doc_id (ex.: mesmo nome+telefone já cadastrados
+    do outro lado)."""
+    pessoa_path = f"{FIREBASE_RESERVAS_BASE}/reservas_participantes/{doc_id}"
+    writes = [{
+        "update": {
+            "name": pessoa_path,
+            "fields": {
+                "participanteId": {"stringValue": doc_id},
+                "nome": {"stringValue": nome},
+                "telefone": {"stringValue": telefone or ""},
+                "chavePix": {"stringValue": chave_pix or ""},
+                "observacoes": {"stringValue": observacoes or ""},
+                "ativo": {"booleanValue": True},
+                "saldoReserva": {"doubleValue": 0},
+                "admin": {"booleanValue": True},
+            }
+        },
+        "updateTransforms": [{"fieldPath": "dataAtualizacao", "setToServerValue": "REQUEST_TIME"}],
+        "currentDocument": {"exists": False},
+    }]
+    _rsv_commit_atomico(writes)
+
+def _rsv_atualizar_pessoa_firestore(doc_id, nome, telefone, chave_pix, observacoes):
+    """Atualiza os dados cadastrais (não-financeiros) de uma pessoa já
+    existente — PATCH parcial (updateMask), exige que o documento já
+    exista (currentDocument.exists=true — nunca recria do zero por
+    engano se o doc_id não bater mais). Síncrono, levanta exceção se
+    não confirmar."""
+    import urllib.request, urllib.error, json
+    from datetime import datetime as _dt
+    doc_url = (f"https://firestore.googleapis.com/v1/{FIREBASE_RESERVAS_BASE}"
+               f"/reservas_participantes/{doc_id}")
+    url = _firestore_patch_url(doc_url, ["nome", "telefone", "chavePix", "observacoes", "dataAtualizacao"],
+                                exigir_existente=True)
+    ts = _dt.utcnow().strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    corpo = json.dumps({"fields": {
+        "nome": {"stringValue": nome},
+        "telefone": {"stringValue": telefone or ""},
+        "chavePix": {"stringValue": chave_pix or ""},
+        "observacoes": {"stringValue": observacoes or ""},
+        "dataAtualizacao": {"timestampValue": ts},
+    }}).encode("utf-8")
+    req = urllib.request.Request(url, data=corpo, method="PATCH", headers=_firebase_headers())
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            resp.read()
+    except urllib.error.HTTPError as ex:
+        corpo_erro = ex.read().decode("utf-8", "replace")[:500] if ex.fp else ""
+        raise RuntimeError(f"HTTP {ex.code}: {corpo_erro}") from ex
+
+# ─────────────────────────────────────────────
 #  [IMPORTAR EXTRATO — REMOVIDA DE NOVO NA RODADA 59]
 #  Reconstruída na Rodada 57 (extração position-aware, validada contra
 #  um PDF real do Nubank, funcionava) — usuário decidiu que não quer
@@ -2188,6 +2478,25 @@ def _tipo_fb(tipo_db):
     if t in ("DEBITO","DÉBITO","USO"): return "uso"
     return "saque"
 
+def _data_br_para_iso(dt_br):
+    """'DD/MM/AAAA' (padrão de entrada do desktop) -> 'AAAA-MM-DD'
+    (formato do campo `data` do ledger no Firestore, igual ao que o
+    site já usa via dataLocalISO()). Se não bater o formato esperado,
+    devolve a string original sem tentar adivinhar — mais seguro que
+    inventar uma data errada."""
+    m = re.match(r"^(\d{2})/(\d{2})/(\d{4})$", (dt_br or "").strip())
+    if not m: return dt_br
+    d, mth, a = m.groups()
+    return f"{a}-{mth}-{d}"
+
+def _data_iso_para_br(dt_iso):
+    """Inverso de _data_br_para_iso — usado ao puxar o ledger do
+    Firestore de volta pro SQLite local (padrão DD/MM/AAAA)."""
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", (dt_iso or "").strip())
+    if not m: return dt_iso
+    a, mth, d = m.groups()
+    return f"{d}/{mth}/{a}"
+
 # Mapeamento explícito: nome do bolão → ID fixo no Firebase
 # Edite aqui se precisar adicionar novos bolões
 FIREBASE_BOLAO_IDS = {
@@ -2221,64 +2530,6 @@ def _bolao_doc_id(titulo):
     s = _re.sub(r"[^a-zA-Z0-9]+", "_", s).strip("_").lower()
     return "bolao_" + s
 
-
-def enviar_reservas_para_site(db_file):
-    import sqlite3 as _sq, urllib.request, urllib.error, json
-    from datetime import datetime as _dt
-    conn = _sq.connect(db_file); conn.row_factory = _sq.Row
-    headers = _firebase_headers()
-    ts = _dt.utcnow().strftime("%Y-%m-%dT%H:%M:%S.000Z")
-    pessoas = conn.execute("SELECT * FROM reservas_pessoas WHERE ativo=1 ORDER BY nome").fetchall()
-    enviados = 0; erros = []
-    for ps in pessoas:
-        ps   = dict(ps)
-        pid  = ps["id"]; nome = ps["nome"] or ""; tel = ps["telefone"] or ""
-        doc_id = _make_part_id(nome, tel)
-        ent = conn.execute(
-            "SELECT COALESCE(SUM(valor),0) as t FROM reservas_movimentos "
-            "WHERE pessoa_id=? AND UPPER(tipo) IN " + _sql_in_tipos(TIPOS_CREDITO_RESERVA),
-            (pid,)).fetchone()
-        sai = conn.execute(
-            "SELECT COALESCE(SUM(valor),0) as t FROM reservas_movimentos "
-            "WHERE pessoa_id=? AND UPPER(tipo) IN " + _sql_in_tipos(TIPOS_DEBITO_RESERVA),
-            (pid,)).fetchone()
-        saldo = float(ent["t"] if ent else 0) - float(sai["t"] if sai else 0)
-        movs = conn.execute(
-            "SELECT * FROM reservas_movimentos WHERE pessoa_id=? ORDER BY id ASC",(pid,)).fetchall()
-        hist = []; sa = 0.0
-        for m in movs:
-            v = float(m["valor"] or 0); tp = _tipo_fb(m["tipo"]); ant = sa
-            sa = sa-v if tp in ("saque","uso") else sa+v
-            dm = m["data_mov"] or ts
-            try:
-                from datetime import datetime as _dt2
-                if len(dm)==10 and "/" in dm:
-                    dm = _dt2.strptime(dm,"%d/%m/%Y").strftime("%Y-%m-%dT00:00:00.000Z")
-            except: pass
-            hist.append({"mapValue":{"fields":{
-                "data":{"stringValue":dm},"tipo":{"stringValue":tp},
-                "valor":{"doubleValue":v},"saldoAnterior":{"doubleValue":round(ant,2)},
-                "saldoNovo":{"doubleValue":round(sa,2)},
-                "descricao":{"stringValue":str(dict(m).get("descricao") or dict(m).get("loteria") or tp)},
-            }}})
-        doc = {"fields":{
-            "participanteId":{"stringValue":doc_id},"nome":{"stringValue":nome},
-            "telefone":{"stringValue":tel},"saldoReserva":{"doubleValue":round(saldo,2)},
-            "dataAtualizacao":{"stringValue":ts},"admin":{"booleanValue":True},
-            "historico":{"arrayValue":{"values":hist}},
-        }}
-        corpo = json.dumps(doc,ensure_ascii=False).encode("utf-8")
-        url = _firestore_patch_url(FIREBASE_RESERVAS+"/"+doc_id,
-              ["participanteId","nome","telefone","saldoReserva","dataAtualizacao","admin","historico"])
-        try:
-            req = urllib.request.Request(url,data=corpo,method="PATCH",headers=headers)
-            with urllib.request.urlopen(req,timeout=15) as resp:
-                if resp.status==200: enviados+=1
-                else: erros.append(nome+": status "+str(resp.status))
-        except urllib.error.HTTPError as e: erros.append(nome+": HTTP "+str(e.code))
-        except Exception as ex: erros.append(nome+": "+str(ex)[:40])
-    conn.close()
-    return enviados, erros
 
 def _firebase_listar_docs():
     """Lista todos os documentos da coleção participantes."""
@@ -2606,7 +2857,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.53")
+        self.root.title("Sistema de Gestão de Bolões PRO v7.0")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -2645,16 +2896,6 @@ class BolaoApp:
         except Exception:
             pass
 
-    def _set_status_retry_visivel(self, visivel):
-        """Mostra/esconde o link "Tentar novamente" da barra de status."""
-        try:
-            if visivel:
-                self._status_retry_btn.pack(side="right", padx=(0,10))
-            else:
-                self._status_retry_btn.pack_forget()
-        except Exception:
-            pass
-
     def _log(self, acao, detalhes):
         """Registra uma ação destrutiva/irreversível no log de auditoria
         (excluir, unificar) — antes não existia nenhum rastro depois da
@@ -2682,538 +2923,143 @@ class BolaoApp:
                 "\n\nVocê pode continuar usando o sistema normalmente; a "
                 "sincronização com o site vai pedir a senha novamente mais tarde.")
             return
-        # Premiações roda independente do cooldown de reservas (filas
-        # separadas, sem relação entre si — ver _importar_premiacoes_
-        # pendentes_web, nunca teve histórico de rate-limit).
+        # Premiações continua no modelo de fila (fora do escopo da
+        # sincronização ao vivo — ver _importar_premiacoes_pendentes_web).
         self._importar_premiacoes_pendentes_web()
+        # Reservas: sincronização ao vivo (Rodada 118) — sem fila, sem
+        # cooldown, sem botão manual. O laço em segundo plano cuida de
+        # tudo sozinho a partir daqui.
+        self._rsv_sync_loop_iniciar()
 
-        # Achado real do usuário: o cooldown de 15min (quando uma
-        # tentativa recente levou 429) fazia _login_inicial retornar
-        # ANTES de chegar em _importar_movimentos_pendentes_web — e era
-        # justamente DENTRO desse caminho que a limpeza automática da
-        # v6.50 rodava (dentro de _concluir_import_pendentes). Resultado:
-        # toda vez que o cooldown estava ativo, a limpeza automática
-        # nunca rodava nenhuma vez — silenciosamente, só um texto
-        # discreto na barra de status, sem tela nem popup. Chamando aqui,
-        # ANTES do cooldown, a limpeza passa a rodar sempre que o app
-        # abre, mesmo que a busca da fila principal esteja em cooldown —
-        # é uma leitura independente, bem mais leve que o backlog
-        # completo, então não faz sentido ficar presa no mesmo cooldown.
-        #
-        # try/except aqui de propósito: qualquer erro nesta chamada NÃO
-        # pode impedir o resto de _login_inicial de rodar (cooldown,
-        # importação principal) — sem isso, uma falha nesta função
-        # sozinha travaria silenciosamente TODA a sincronização de
-        # reservas desta abertura, exatamente o tipo de "nada aconteceu,
-        # nenhuma mensagem" que já causou confusão antes.
-        try:
-            self._limpar_pendencias_ja_importadas(silencioso=True)
-        except Exception as ex:
-            self._log("Falha ao iniciar limpeza automática", str(ex)[:300])
-
-        restante = _rsv_cooldown_ativo()
-        if restante is not None:
-            # Última tentativa falhou por 429 recentemente — não tenta nesta
-            # abertura, só deixa o link manual disponível (ver
-            # _rsv_cooldown_ativo).
-            self._status(
-                f"⏸ Reservas do site: aguardando limite do Firestore liberar "
-                f"(~{restante:.0f} min) — clique em \"Tentar novamente\" se quiser já.",
-                cor="#f39c12")
-            self._set_status_retry_visivel(True)
-            return
-        self._importar_movimentos_pendentes_web()
-
-    def _importar_movimentos_pendentes_web(self):
-        """Importa depósitos/saques de reserva registrados no admin do site
-        (fila reservas_movimentos_pendentes) pro SQLite local, e some com o
-        item da fila depois de importar com sucesso. Antes disso só existia
-        sincronização desktop→site; isso fecha o caminho contrário.
-
-        A busca (GET com retry) roda numa thread separada — antes rodava
-        na thread da UI, então só dava pra tentar 3 vezes com espera
-        curta (1s/2s) sem travar a janela. Achado real: usuário relatou
-        5 aberturas seguidas do app batendo "429 Too Many Requests" — 3
-        segundos de retry não davam tempo da rajada de rate-limit do
-        Firestore passar. Em background dá pra esperar bem mais (até
-        ~37s no total) sem deixar o app parecendo travado. O que mexe no
-        SQLite (_concluir_import_pendentes) continua rodando na thread
-        principal — sqlite3 não permite usar a mesma conexão fora da
-        thread onde foi criada."""
+    def _rsv_sync_loop_iniciar(self):
+        """Inicia o laço de verificação em segundo plano das reservas —
+        roda sozinho enquanto o app estiver aberto, sem precisar clicar
+        em nada. Acorda a cada ~7s (e também na hora de qualquer
+        gravação local bem-sucedida, e ao focar a janela de novo),
+        confere só o contador global (meta/reservas_version — leitura
+        barata) e, se mudou desde a última vez, busca o estado completo
+        (todas as pessoas + o ledger de cada uma) e reconcilia o SQLite
+        local, que agora é só um espelho, nunca mais a fonte de
+        verdade. Pedido do usuário: "atualize automaticamente... não
+        quero interação pra atualização"."""
         import threading
-        if getattr(self, "_rsv_import_em_andamento", False):
-            return
-        self._rsv_import_em_andamento = True
-        self._status("🔄 Verificando reservas lançadas no site...")
-        self._set_status_retry_visivel(False)
+        self._rsv_sync_stop = threading.Event()
+        self._rsv_sync_poke = threading.Event()
+        self._rsv_sync_ultima_versao = None
 
-        def _run():
-            import urllib.request, urllib.error, json, time as _time
-            url = ("https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
-                   "/databases/(default)/documents/reservas_movimentos_pendentes")
-            dados = None
-            erro_final = None
-            esperas = [2, 5, 10, 20]  # backoff crescente, ~37s de fôlego total
-            for tentativa in range(len(esperas) + 1):
+        def _loop():
+            while not self._rsv_sync_stop.is_set():
+                self._rsv_sync_poke.wait(timeout=7)
+                self._rsv_sync_poke.clear()
+                if self._rsv_sync_stop.is_set():
+                    break
                 try:
-                    req = urllib.request.Request(url, method="GET", headers=_firebase_headers())
-                    with urllib.request.urlopen(req, timeout=15) as r:
-                        dados = json.loads(r.read().decode("utf-8"))
-                    break
-                except urllib.error.HTTPError as ex:
-                    erro_final = ex
-                    if ex.code == 429 and tentativa < len(esperas):
-                        espera = esperas[tentativa]
-                        n, total = tentativa + 1, len(esperas)
-                        self.root.after(0, lambda e=espera, n=n, t=total: self._status(
-                            f"🔄 Reservas do site ocupado, tentando de novo em {e}s ({n}/{t})..."))
-                        _time.sleep(espera)
-                        continue
-                    break
+                    self._rsv_sync_verificar_e_puxar()
                 except Exception as ex:
-                    erro_final = ex
-                    break
-            self.root.after(0, lambda: self._concluir_import_pendentes(dados, erro_final))
+                    erro_txt = str(ex)[:300]
+                    self.root.after(0, lambda e=erro_txt: (
+                        self._log("Falha no laço de sincronização de reservas", e),
+                        self._rsv_status_erro()))
 
-        threading.Thread(target=_run, daemon=True).start()
+        threading.Thread(target=_loop, daemon=True).start()
+        self._rsv_sync_poke.set()  # primeira checagem imediata, sem esperar os 7s
+        self.root.bind("<FocusIn>", lambda e: self._rsv_sync_poke_agora())
 
-    def _rsv_saldo_pessoa(self, pessoa_id):
-        """Saldo atual de uma pessoa (créditos - débitos), já considerando
-        as variantes de tipo unificadas em TIPOS_CREDITO_RESERVA/
-        TIPOS_DEBITO_RESERVA."""
-        cred = self.db.fetchone(
-            "SELECT SUM(valor) as t FROM reservas_movimentos WHERE pessoa_id=? AND UPPER(tipo) IN "
-            + _sql_in_tipos(TIPOS_CREDITO_RESERVA), (pessoa_id,))["t"] or 0
-        deb = self.db.fetchone(
-            "SELECT SUM(valor) as t FROM reservas_movimentos WHERE pessoa_id=? AND UPPER(tipo) IN "
-            + _sql_in_tipos(TIPOS_DEBITO_RESERVA), (pessoa_id,))["t"] or 0
-        return float(cred) - float(deb)
+    def _rsv_sync_poke_agora(self):
+        """Acorda o laço de sincronização na hora — chamado depois de
+        qualquer gravação local bem-sucedida (ou ao focar a janela de
+        novo), pra não esperar até 7 segundos pra refletir o que acabou
+        de mudar."""
+        try:
+            self._rsv_sync_poke.set()
+        except Exception:
+            pass
 
-    def _analisar_pendentes_reserva(self, docs):
-        """Lê os docs crus da fila reservas_movimentos_pendentes e NÃO
-        grava nada — só analisa e devolve 3 grupos:
-        - itens: lançamentos novos, prontos pra revisão, já com os
-          avisos de possível problema calculados (nome parecido, possível
-          duplicata, saldo que ficaria negativo, valor fora do padrão da
-          pessoa, data suspeita);
-        - ja_importados_doc_ids: doc_ids que já tinham sido gravados antes
-          (idempotência — só precisam sumir da fila, sem perguntar nada);
-        - erros_bloqueantes: itens com dado faltando/inválido, que ficam
-          na fila pro usuário corrigir no site.
-
-        Pedido do usuário, depois de uma semana sem abrir o desktop pra
-        sincronizar: "quero que ele avalie com inteligência para evitar
-        que eu cadastre com erro, tente identificar possíveis problemas e
-        me mostrar para confirmar" — antes, _concluir_import_pendentes
-        gravava tudo direto no SQLite e só avisava depois; agora isso vira
-        responsabilidade de quem chama (_concluir_import_pendentes abre
-        _abrir_revisao_import_reserva com o resultado daqui, e só grava o
-        que for confirmado na tela).
-
-        Achado real do usuário: confirmou a importação de um lançamento
-        que a revisão tinha avisado como "parece repetido", e DEPOIS
-        decidiu apagar esse lançamento direto na aba Reservas (achou que
-        era mesmo duplicado). Como a checagem de "já importado" olhava só
-        a linha viva em reservas_movimentos, apagar essa linha apagava
-        junto a única lembrança de que aquele doc_id já tinha sido
-        decidido — reabrir o app voltava a perguntar a mesma coisa de
-        novo, como se nada tivesse acontecido. reservas_fila_decisoes
-        guarda a decisão separada da tabela financeira: sobrevive a
-        qualquer exclusão posterior do lançamento em si."""
-        import re as _re, difflib
-        from datetime import datetime as _dt, date as _date
-
-        def campo(fields, nome, tipo, default=None):
-            return fields.get(nome, {}).get(tipo, default)
-
-        pessoas_existentes = self.db.fetchall(
-            "SELECT id, nome, telefone FROM reservas_pessoas WHERE ativo=1")
-
-        itens = []
-        ja_importados_doc_ids = []
-        erros_bloqueantes = []
-        vistos_na_leva = []
-
-        for doc in docs:
-            nome_erro = "?"
-            try:
-                fields   = doc.get("fields", {})
-                doc_id   = doc.get("name", "").split("/")[-1]
-                nome     = (campo(fields, "nome", "stringValue", "") or "").strip()
-                nome_erro = nome or doc_id
-                telefone = campo(fields, "telefone", "stringValue", "") or ""
-                chavePix = campo(fields, "chavePix", "stringValue", "") or ""
-                tipo_web = campo(fields, "tipo", "stringValue", "deposito")
-                valor    = float(campo(fields, "valor", "doubleValue")
-                                  or campo(fields, "valor", "integerValue") or 0)
-                data_web = campo(fields, "data", "stringValue", "") or ""
-                descricao= campo(fields, "descricao", "stringValue", "") or ""
-                criado_em_web = campo(fields, "criadoEm", "stringValue", "") or ""
-
-                if valor <= 0 or not nome:
-                    raise ValueError(f"dados incompletos (valor={valor!r}, nome={nome!r})")
-
-                ja_importado = self.db.fetchone(
-                    "SELECT id FROM reservas_movimentos WHERE origem_doc_id=?", (doc_id,))
-                ja_decidido = self.db.fetchone(
-                    "SELECT origem_doc_id FROM reservas_fila_decisoes WHERE origem_doc_id=?", (doc_id,))
-                if ja_importado or ja_decidido:
-                    ja_importados_doc_ids.append(doc_id)
-                    continue
-
-                tel_digits = _re.sub(r"\D", "", telefone)
-                pessoa_match = None
-                for p in pessoas_existentes:
-                    if tel_digits and (p["telefone"] or "") == tel_digits:
-                        pessoa_match = p; break
-                if not pessoa_match:
-                    for p in pessoas_existentes:
-                        if (p["nome"] or "").strip().lower() == nome.lower():
-                            pessoa_match = p; break
-
-                tipo_db = "CRÉDITO" if tipo_web == "deposito" else "DÉBITO"
-
-                data_mov = data_web
-                if len(data_web) == 10 and data_web[4:5] == "-":
-                    a, m, d = data_web.split("-")
-                    data_mov = f"{d}/{m}/{a}"
-
-                desc_final = (descricao + " (via site)").strip() if descricao else "Via site"
-
-                avisos = []
-
-                if not pessoa_match:
-                    for p in pessoas_existentes:
-                        outro = (p["nome"] or "").strip()
-                        if not outro:
-                            continue
-                        ratio = difflib.SequenceMatcher(None, nome.lower(), outro.lower()).ratio()
-                        if ratio > 0.82:
-                            avisos.append(
-                                f'nome parecido com "{outro}", já cadastrado — confirme se não é '
-                                f"a mesma pessoa (um cadastro novo será criado se importar assim)")
-                            break
-
-                if pessoa_match:
-                    dup = self.db.fetchone(
-                        "SELECT id FROM reservas_movimentos WHERE pessoa_id=? AND tipo=? "
-                        "AND valor=? AND data_mov=?",
-                        (pessoa_match["id"], tipo_db, valor, data_mov))
-                    if dup:
-                        avisos.append("parece repetido: já existe um lançamento idêntico "
-                                       "(mesma pessoa, tipo, valor e data) no histórico")
-
-                chave_leva = (nome.lower(), tipo_db, valor, data_mov)
-                if chave_leva in vistos_na_leva:
-                    avisos.append("idêntico a outro item desta mesma leva — pode ser duplicado")
-                vistos_na_leva.append(chave_leva)
-
-                if tipo_db == "DÉBITO" and pessoa_match:
-                    saldo_atual = self._rsv_saldo_pessoa(pessoa_match["id"])
-                    if valor > saldo_atual:
-                        avisos.append(f"saldo ficaria negativo: R$ {saldo_atual - valor:.2f}")
-
-                if tipo_db == "CRÉDITO" and pessoa_match:
-                    historico_valores = self.db.fetchall(
-                        "SELECT valor FROM reservas_movimentos WHERE pessoa_id=? AND tipo=?",
-                        (pessoa_match["id"], "CRÉDITO"))
-                    if len(historico_valores) >= 2:
-                        media = sum(h["valor"] for h in historico_valores) / len(historico_valores)
-                        if media > 0 and valor > media * 3:
-                            avisos.append("valor bem acima do habitual dessa pessoa "
-                                          f"(média de R$ {media:.2f})")
-
-                try:
-                    d_mov = _dt.strptime(data_mov, "%d/%m/%Y").date()
-                    hoje = _date.today()
-                    if d_mov > hoje:
-                        avisos.append("data está no futuro")
-                    elif (hoje - d_mov).days > 90:
-                        avisos.append("data tem mais de 90 dias — confira se não é engano")
-                except Exception:
-                    pass
-
-                itens.append({
-                    "doc_id": doc_id, "nome": nome,
-                    "pessoa_id": pessoa_match["id"] if pessoa_match else None,
-                    "pessoa_nova": pessoa_match is None,
-                    "telefone": tel_digits, "chavePix": chavePix,
-                    "tipo_db": tipo_db, "valor": valor, "data_mov": data_mov,
-                    "desc_final": desc_final, "criado_em_web": criado_em_web,
-                    "avisos": avisos,
-                })
-            except Exception as ex:
-                erros_bloqueantes.append((doc.get("name", "").split("/")[-1], nome_erro, str(ex)[:100]))
-
-        return itens, ja_importados_doc_ids, erros_bloqueantes
-
-    def _abrir_revisao_import_reserva(self, itens, erros_bloqueantes):
-        """Mostra os lançamentos de reserva pendentes do site ANTES de
-        gravar no banco, com os avisos de possível problema já
-        destacados — nada é gravado até clicar em "Confirmar e
-        Importar"; fechar/cancelar deixa tudo intacto na fila (seguro
-        pra revisar com calma e tentar de novo depois). Mesmo padrão
-        visual de lista rolável com checkbox já usado em
-        _abrir_popup_lote_reserva."""
-        win = tk.Toplevel(self.root)
-        win.title(f"Revisar Importação de Reservas do Site ({len(itens)} pendente(s))")
-        win.geometry("760x680")
-        win.configure(bg=CORES["bg_frame"])
-        win.grab_set(); win.lift(); win.focus_force()
-
-        n_avisos = sum(1 for it in itens if it["avisos"])
-        topo = tk.Frame(win, bg="#1a3a5a", padx=14, pady=10)
-        topo.pack(fill="x")
-        tk.Label(topo, text=f"📥 {len(itens)} lançamento(s) de reserva aguardando confirmação",
-                 bg="#1a3a5a", fg="white", font=("Arial", 11, "bold")).pack(anchor="w")
-        if n_avisos:
-            tk.Label(topo, text=f"⚠ {n_avisos} com possível problema — revise antes de confirmar",
-                     bg="#1a3a5a", fg="#f5a623", font=("Arial", 9, "bold")).pack(anchor="w", pady=(2, 0))
-        if erros_bloqueantes:
-            tk.Label(topo, text=f"❌ {len(erros_bloqueantes)} item(ns) com erro ficaram de fora "
-                                 f"(continuam na fila — corrija no site)",
-                     bg="#1a3a5a", fg="#ff8080", font=("Arial", 9, "bold")).pack(anchor="w", pady=(2, 0))
-
-        rodape = tk.Frame(win, bg=CORES["bg_frame"])
-        rodape.pack(side="bottom", fill="x", padx=16, pady=12)
-        contador_lbl = tk.Label(rodape, text="", bg=CORES["bg_frame"], fg="#aad4f5",
-                                 font=("Arial", 9, "bold"))
-        contador_lbl.pack(anchor="w", pady=(0, 6))
-        bf_rodape = tk.Frame(rodape, bg=CORES["bg_frame"]); bf_rodape.pack(fill="x")
-        btn(bf_rodape, "✅ Confirmar e Importar", CORES["btn_verde"],
-            lambda: _confirmar(), width=22).pack(side="left", padx=4)
-        btn(bf_rodape, "Marcar todos", CORES["btn_azul"],
-            lambda: _marcar(True), width=14).pack(side="left", padx=4)
-        btn(bf_rodape, "Desmarcar todos", CORES["btn_cinza"],
-            lambda: _marcar(False), width=14).pack(side="left", padx=4)
-        btn(bf_rodape, "Cancelar (não importa nada agora)", CORES["btn_vermelho"],
-            win.destroy, width=28).pack(side="left", padx=4)
-
-        sec_lista = tk.LabelFrame(win, text="  LANÇAMENTOS  ", bg="#243447", fg="white",
-                                   font=("Arial", 9, "bold"), bd=1, padx=8, pady=6)
-        sec_lista.pack(fill="both", expand=True, padx=16, pady=(8, 0))
-
-        canvas = tk.Canvas(sec_lista, bg="#1a2a3a", highlightthickness=0)
-        sb = ttk.Scrollbar(sec_lista, orient="vertical", command=canvas.yview)
-        canvas.configure(yscrollcommand=sb.set)
-        sb.pack(side="right", fill="y")
-        canvas.pack(side="left", fill="both", expand=True)
-        lista_frame = tk.Frame(canvas, bg="#1a2a3a")
-        canvas_window = canvas.create_window((0, 0), window=lista_frame, anchor="nw")
-        canvas.bind("<Configure>", lambda e: canvas.itemconfig(canvas_window, width=e.width))
-        lista_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-
-        def _scroll(e): canvas.yview_scroll(int(-1 * (e.delta / 120)), "units")
-        canvas.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", _scroll))
-        canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
-
-        vars_checkbox = {it["doc_id"]: tk.IntVar(value=1) for it in itens}
-
-        def _atualizar_contador():
-            n = sum(1 for v in vars_checkbox.values() if v.get())
-            contador_lbl.configure(text=f"{n} de {len(itens)} marcado(s) pra importar")
-
-        for it in itens:
-            cor_fundo = "#3a2a1a" if it["avisos"] else "#1a2a3a"
-            row = tk.Frame(lista_frame, bg=cor_fundo, padx=8, pady=6)
-            row.pack(fill="x", padx=4, pady=3)
-
-            icone = "💰" if it["tipo_db"] == "CRÉDITO" else "💸"
-            sinal = "+" if it["tipo_db"] == "CRÉDITO" else "-"
-            cab = f"{icone} {it['nome']}  {sinal} R$ {it['valor']:.2f}  —  {it['data_mov']}"
-            if it["pessoa_nova"]:
-                cab += "  🆕(pessoa nova)"
-            hora = fmt_hora_web(it["criado_em_web"]) if it["criado_em_web"] else ""
-            if hora:
-                cab += f"  às {hora}"
-
-            tk.Checkbutton(
-                row, text=cab, variable=vars_checkbox[it["doc_id"]],
-                bg=cor_fundo, fg="white", selectcolor="#243447",
-                activebackground=cor_fundo, font=("Arial", 9, "bold"),
-                command=_atualizar_contador
-            ).pack(anchor="w")
-
-            if it["desc_final"] and it["desc_final"] != "Via site":
-                tk.Label(row, text=f"    📝 {it['desc_final']}", bg=cor_fundo, fg="#aad4f5",
-                         font=("Arial", 8)).pack(anchor="w")
-
-            for aviso in it["avisos"]:
-                tk.Label(row, text=f"    ⚠ {aviso}", bg=cor_fundo, fg="#ffb347",
-                         font=("Arial", 8, "bold"), wraplength=680, justify="left").pack(anchor="w")
-
-        _atualizar_contador()
-
-        def _marcar(valor):
-            for v in vars_checkbox.values():
-                v.set(1 if valor else 0)
-            _atualizar_contador()
-
-        def _confirmar():
-            selecionados = [it for it in itens if vars_checkbox[it["doc_id"]].get()]
-            if not selecionados:
-                if not messagebox.askyesno("Nada selecionado",
-                        "Nenhum item marcado — fechar sem importar nada agora?"):
-                    return
-                win.destroy()
-                return
-
-            importados = 0
-            total_dep = 0.0; total_saq = 0.0
-            erros_confirmar = []
-            doc_ids_para_apagar = []
-            detalhes_por_pessoa = {}
-
-            for it in selecionados:
-                try:
-                    pessoa_id = it["pessoa_id"]
-                    if pessoa_id is None:
-                        self.db.execute(
-                            "INSERT INTO reservas_pessoas (nome,telefone,chave_pix,observacoes) "
-                            "VALUES (?,?,?,?)",
-                            (it["nome"], it["telefone"], it["chavePix"],
-                             "Criado a partir de movimento do site"))
-                        pessoa_id = self.db.fetchone("SELECT last_insert_rowid() as id")["id"]
-
-                    self.db.execute(
-                        "INSERT INTO reservas_movimentos "
-                        "(pessoa_id, tipo, valor, data_mov, loteria, concurso, descricao, origem_doc_id, registrado_em) "
-                        "VALUES (?,?,?,?,?,?,?,?,?)",
-                        (pessoa_id, it["tipo_db"], it["valor"], it["data_mov"], "", "",
-                         it["desc_final"], it["doc_id"], it["criado_em_web"]))
-                    # Grava a decisão separada da linha financeira acima —
-                    # se o lançamento for apagado depois (ex.: usuário
-                    # percebeu que era duplicado e removeu na aba
-                    # Reservas), a decisão "já importei isso" continua
-                    # valendo e o item não volta a pedir revisão de novo.
-                    self.db.execute(
-                        "INSERT OR REPLACE INTO reservas_fila_decisoes "
-                        "(origem_doc_id, decisao, decidido_em) VALUES (?,?,?)",
-                        (it["doc_id"], "importado", datetime.now().isoformat()))
-
-                    importados += 1
-                    if it["tipo_db"] == "CRÉDITO": total_dep += it["valor"]
-                    else: total_saq += it["valor"]
-                    detalhes_por_pessoa.setdefault(it["nome"], []).append(
-                        (it["tipo_db"], it["valor"], fmt_hora_web(it["criado_em_web"])))
-                    doc_ids_para_apagar.append(it["doc_id"])
-                except Exception as ex:
-                    erros_confirmar.append(f"  • {it['nome']}: {str(ex)[:100]}")
-
-            if doc_ids_para_apagar:
-                self._apagar_fila_em_lote("reservas_movimentos_pendentes", doc_ids_para_apagar)
-
-            partes = []
-            if importados > 0:
-                partes.append(f"✅ {importados} movimento(s) de reserva importado(s) do site:")
-                if total_dep > 0: partes.append(f"  💰 Depósitos: {fmt_brl(total_dep)}")
-                if total_saq > 0: partes.append(f"  💸 Saques/uso: {fmt_brl(total_saq)}")
-                partes.append("")
-                partes.append("Detalhes por pessoa:")
-                for nome_pessoa in sorted(detalhes_por_pessoa.keys(), key=str.lower):
-                    lancs = detalhes_por_pessoa[nome_pessoa]
-                    subtotal = sum(v if t == "CRÉDITO" else -v for t, v, _h in lancs)
-                    sinal = "+" if subtotal >= 0 else "-"
-                    partes.append(f"  👤 {nome_pessoa} ({sinal}{fmt_brl(abs(subtotal))})")
-                    for tipo_l, valor_l, hora_l in lancs:
-                        icone = "💰" if tipo_l == "CRÉDITO" else "💸"
-                        quando = f" às {hora_l}" if hora_l else " (sem horário)"
-                        partes.append(f"      {icone} {fmt_brl(valor_l)}{quando}")
-            if len(selecionados) < len(itens):
-                restantes = len(itens) - len(selecionados)
-                partes.append(f"\n📋 {restantes} item(ns) não marcado(s) continuam na fila pra depois.")
-            if erros_confirmar:
-                partes.append(f"\n⚠ {len(erros_confirmar)} item(ns) falharam ao gravar:")
-                partes.extend(erros_confirmar)
-
-            if importados > 0:
-                # Achado real do usuário logo depois desta mesma feature:
-                # importar do site deixava o SQLite local correto, mas o
-                # site continuava mostrando o saldo ANTIGO — porque
-                # importar (site→desktop) e sincronizar (desktop→site)
-                # sempre foram 2 ações manuais separadas, e só a primeira
-                # rodava sozinha. Fechar esse ciclo automaticamente aqui
-                # evita esse descompasso se repetir toda vez que alguém
-                # confirmar uma importação.
-                partes.append("\n📤 Enviando saldo atualizado pro site...")
-            win.destroy()
-            self._rsv_load()
-            messagebox.showinfo("Reservas sincronizadas", "\n".join(partes) if partes else "Nada importado.")
-            if importados > 0:
-                self._pub_sincronizar_reservas()
-
-    def _concluir_import_pendentes(self, dados, erro_final):
-        """Roda na thread principal (agendada via root.after de dentro de
-        _importar_movimentos_pendentes_web) — recebe o resultado da busca
-        feita em background e, em vez de gravar direto no SQLite, chama
-        _analisar_pendentes_reserva (só leitura/análise) e abre
-        _abrir_revisao_import_reserva pra eu confirmar antes de qualquer
-        gravação. A limpeza da fila no Firestore dos itens já confirmados
-        (ou já importados antes, idempotência) roda à parte, em lote —
-        ver _apagar_fila_em_lote.
-
-        Toda vez que este ciclo roda (abrir o app, ou clicar em
-        "Verificar Reservas do Site"), também dispara sozinha uma
-        varredura completa (_limpar_pendencias_ja_importadas, modo
-        silencioso) pra pegar qualquer item antigo que tenha ficado
-        preso na fila do site por uma falha de exclusão anterior —
-        pedido do usuário: "não tenho que clicar em nada disso... o
-        sistema deve atualizar automaticamente... quero um sistema
-        inteligente." Faz sua própria busca independente, então roda
-        mesmo que esta sincronização em particular não tenha achado
-        nada novo."""
-        self._rsv_import_em_andamento = False
-        self._limpar_pendencias_ja_importadas(silencioso=True)
-
-        if dados is None:
-            # 429 especificamente liga o cooldown — evita que a PRÓXIMA
-            # abertura do app tente de novo na hora e continue consumindo
-            # do pouco que sobrar do limite diário gratuito do Firestore
-            # (ver _rsv_cooldown_ativo). Outros erros (sem internet, etc.)
-            # não ligam cooldown — não tem motivo pra adiar a próxima
-            # tentativa automática por causa deles.
-            if "429" in str(erro_final):
-                _rsv_cooldown_marcar()
-            self._status("❌ Erro ao verificar reservas do site: " + str(erro_final)[:90], cor="#ff6b6b")
-            self._set_status_retry_visivel(True)
+    def _rsv_sync_verificar_e_puxar(self):
+        """Roda na thread de fundo. Primeiro só o contador (1 leitura
+        barata); se não mudou desde a última vez, não gasta mais nada.
+        Se mudou, busca o estado completo e manda reconciliar na thread
+        principal (sqlite3/Tkinter só podem ser mexidos lá)."""
+        versao = _rsv_buscar_versao_sentinela()
+        if versao == self._rsv_sync_ultima_versao:
+            self.root.after(0, self._rsv_status_sincronizado)
             return
+        pessoas, movimentos_por_pessoa, _ = _rsv_buscar_estado_atual()
+        self._rsv_sync_ultima_versao = versao
+        self.root.after(0, lambda: self._rsv_reconciliar(pessoas, movimentos_por_pessoa))
 
-        _rsv_cooldown_limpar()
-        docs = dados.get("documents", [])
-        if not docs:
-            self._status("✅ Reservas em dia — nada novo do site.")
-            self.root.after(5000, lambda: self._status(""))
-            return
+    def _rsv_reconciliar(self, pessoas, movimentos_por_pessoa):
+        """Roda na thread principal — reconcilia o SQLite local (espelho)
+        com o que o Firestore devolveu agora. Nunca mexe numa linha
+        local que ainda não tem firebase_doc_id (lançamento local recém
+        confirmado que este ciclo específico pode não ter pego ainda —
+        evita apagar/sobrescrever algo que acabou de ser gravado)."""
+        doc_ids_pessoas_remotas = set()
+        for p in pessoas:
+            doc_ids_pessoas_remotas.add(p["doc_id"])
+            existente = self.db.fetchone(
+                "SELECT id FROM reservas_pessoas WHERE firebase_doc_id=?", (p["doc_id"],))
+            if existente:
+                self.db.execute(
+                    "UPDATE reservas_pessoas SET nome=?,telefone=?,chave_pix=?,observacoes=?,ativo=? "
+                    "WHERE id=?",
+                    (p["nome"], p["telefone"], p["chave_pix"], p["observacoes"],
+                     1 if p["ativo"] else 0, existente["id"]))
+                pid_local = existente["id"]
+            else:
+                self.db.execute(
+                    "INSERT INTO reservas_pessoas (nome,telefone,chave_pix,observacoes,ativo,firebase_doc_id) "
+                    "VALUES (?,?,?,?,?,?)",
+                    (p["nome"], p["telefone"], p["chave_pix"], p["observacoes"],
+                     1 if p["ativo"] else 0, p["doc_id"]))
+                pid_local = self.db.fetchone("SELECT last_insert_rowid() as id")["id"]
 
-        self._status(f"🔎 Analisando {len(docs)} movimento(s) de reserva do site...")
+            movs_remotos = movimentos_por_pessoa.get(p["doc_id"], [])
+            mov_ids_remotos = set()
+            for m in movs_remotos:
+                mov_ids_remotos.add(m["mov_id"])
+                ja_tem = self.db.fetchone(
+                    "SELECT id FROM reservas_movimentos WHERE firebase_doc_id=?", (m["mov_id"],))
+                if ja_tem:
+                    continue  # ledger é imutável — só falta inserir o que ainda não tem
+                tipo_db = "CRÉDITO" if m["tipo"] == "deposito" else "DÉBITO"
+                self.db.execute(
+                    "INSERT INTO reservas_movimentos "
+                    "(pessoa_id, tipo, valor, data_mov, loteria, concurso, descricao, firebase_doc_id) "
+                    "VALUES (?,?,?,?,?,?,?,?)",
+                    (pid_local, tipo_db, m["valor"], _data_iso_para_br(m["data"]),
+                     m["loteria"], m["concurso"], m["descricao"], m["mov_id"]))
 
-        itens, ja_importados_doc_ids, erros_bloqueantes = self._analisar_pendentes_reserva(docs)
+            # Raríssimo (edição manual direta no Firestore/console): um
+            # movimento local que tinha firebase_doc_id e já não existe
+            # mais remoto.
+            locais_com_doc = self.db.fetchall(
+                "SELECT id, firebase_doc_id FROM reservas_movimentos "
+                "WHERE pessoa_id=? AND firebase_doc_id IS NOT NULL", (pid_local,))
+            for row in locais_com_doc:
+                if row["firebase_doc_id"] not in mov_ids_remotos:
+                    self.db.execute("DELETE FROM reservas_movimentos WHERE id=?", (row["id"],))
 
-        # Itens que já tinham sido gravados antes (idempotência — ver
-        # comentário em _analisar_pendentes_reserva) não precisam de
-        # confirmação nenhuma, só sumir da fila.
-        if ja_importados_doc_ids:
-            self._apagar_fila_em_lote("reservas_movimentos_pendentes", ja_importados_doc_ids)
+        locais_pessoas = self.db.fetchall(
+            "SELECT id, firebase_doc_id FROM reservas_pessoas WHERE firebase_doc_id IS NOT NULL")
+        for row in locais_pessoas:
+            if row["firebase_doc_id"] not in doc_ids_pessoas_remotas:
+                self.db.execute("UPDATE reservas_pessoas SET ativo=0 WHERE id=?", (row["id"],))
 
-        if not itens:
-            if not erros_bloqueantes:
-                # Nada NOVO pra reportar (tudo que veio da fila já tinha
-                # sido importado antes) — não interrompe o usuário com uma
-                # mensagem sobre algo que já aconteceu numa abertura
-                # anterior.
-                self._status("✅ Reservas em dia — nada novo do site.")
-                self.root.after(5000, lambda: self._status(""))
-                return
-            partes = [f"⚠ {len(erros_bloqueantes)} item(ns) da fila NÃO puderam ser importados:"]
-            for _doc_id, nome_erro, msg in erros_bloqueantes:
-                partes.append(f"  • {nome_erro}: {msg}")
-            partes.append("\nEsses itens continuam na fila — corrija no site e feche/abra o app de novo.")
-            self._status(f"❌ {len(erros_bloqueantes)} movimento(s) de reserva com erro", cor="#ff6b6b")
-            messagebox.showerror("Erro ao sincronizar reservas", "\n".join(partes))
-            return
+        self._rsv_load()
+        self._rsv_status_sincronizado()
 
-        self._status(f"📥 {len(itens)} movimento(s) de reserva aguardando sua revisão...")
-        self._abrir_revisao_import_reserva(itens, erros_bloqueantes)
+    def _rsv_status_sincronizado(self):
+        try:
+            self._pub_status_rsv.configure(text="🟢 Sincronizado", fg="#1D9E75")
+        except Exception:
+            pass
+
+    def _rsv_status_erro(self):
+        try:
+            self._pub_status_rsv.configure(text="🔴 Sem conexão com o site", fg="#ff6b6b")
+        except Exception:
+            pass
 
     def _apagar_fila_em_lote(self, colecao, doc_ids):
         """Apaga de uma fila de pendências (ex.: reservas_movimentos_
@@ -3247,14 +3093,18 @@ class BolaoApp:
         nenhum. Sem isso, não dava pra saber SE estava falhando, nem
         por quê. Agora grava o erro real (status HTTP + corpo da
         resposta) em log_auditoria, pra investigar com evidência em vez
-        de palpite — ver também _limpar_pendencias_ja_importadas, a
-        ferramenta manual que reusa esse mesmo diagnóstico."""
+        de palpite. Só segue usada por premiacoes_pendentes agora — a
+        fila de reservas foi substituída pela sincronização ao vivo
+        (Rodada 118, ver _rsv_sync_loop_iniciar)."""
         import threading
 
         def _run():
             import urllib.request, urllib.error, json, time as _time
+            # Causa raiz real de TODO o problema de pendências presas:
+            # faltava "/documents" antes de ":commit" — ver comentário
+            # completo em _rsv_commit_atomico, que tem o mesmo achado.
             url = ("https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
-                   "/databases/(default):commit")
+                   "/databases/(default)/documents:commit")
             base = (f"projects/mega-sena-sistema/databases/(default)/documents"
                     f"/{colecao}/")
             grupos = [doc_ids[i:i + 500] for i in range(0, len(doc_ids), 500)]
@@ -3286,180 +3136,6 @@ class BolaoApp:
                 self.root.after(0, lambda: self._log("Falha ao limpar fila do site", msg))
 
         threading.Thread(target=_run, daemon=False).start()
-
-    def _limpar_pendencias_ja_importadas(self, silencioso=False):
-        """Varre a fila reservas_movimentos_pendentes do site, acha quem
-        já está resolvido localmente (importado em reservas_movimentos
-        OU com decisão em reservas_fila_decisoes) mas continua preso lá,
-        tenta apagar de novo e mostra o resultado real — incluindo o
-        erro exato, se houver, em vez do silêncio de sempre (ver
-        _apagar_fila_em_lote). Apagar um doc que já não existe mais não
-        dá erro no Firestore, então rodar isso à toa não tem risco.
-
-        Achado real do usuário: "NÃO TENHO QUE CLICAR EM NADA DISSO...
-        O SISTEMA DEVE ATUALIZAR AUTOMATICAMENTE... QUERO UM SISTEMA
-        INTELIGENTE." — com razão: isso nasceu como botão manual de
-        diagnóstico, mas a expectativa certa é essa varredura rodar
-        sozinha. Agora roda automaticamente ao abrir o app
-        (_login_inicial) e depois de cada importação confirmada, com
-        silencioso=True — só incomoda com um popup quando sobra erro de
-        verdade pra resolver; sucesso/"nada pra limpar" só atualiza o
-        status de rodapé, sem interromper. O botão manual (ver
-        _build_reservas) continua existindo pra rodar sob demanda,
-        silencioso=False, com popup sempre."""
-        import threading
-        self._status("🔎 Verificando pendências já resolvidas no site...")
-
-        # Achado real do usuário: a tela travava em "Verificando..." pra
-        # sempre, sem erro nenhum. Causa provável — um .exe "windowed"
-        # (sem console) não mostra NADA quando uma thread de fundo
-        # levanta uma exceção não tratada: o Python só imprime no
-        # stderr, que não existe nessa build, e a thread morre em
-        # silêncio. Daqui pra baixo, TUDO (inclusive a leitura do SQLite
-        # e o próprio início da thread) está envolvido num try/except
-        # que SEMPRE termina em algo visível — popup de erro com o
-        # texto completo da exceção, nunca mais silêncio puro.
-        #
-        # "Vigia" final: se depois de 25s nada tiver respondido (nem
-        # sucesso nem erro — ex.: um travamento de rede que não dispara
-        # nenhuma exceção do Python, bem mais raro, mas possível), avisa
-        # isso explicitamente em vez de ficar preso pra sempre sem
-        # nenhum aviso. concluido[0] vira True assim que QUALQUER
-        # caminho de saída rodar (sucesso, erro, ou o próprio vigia).
-        concluido = [False]
-
-        def _vigia():
-            if not concluido[0]:
-                concluido[0] = True
-                self._status("")
-                if not silencioso:
-                    messagebox.showwarning("Limpar Pendências",
-                        "A verificação está demorando demais (mais de 25s) e não "
-                        "respondeu nem com sucesso nem com erro — provavelmente a "
-                        "internet caiu ou travou no meio do caminho. Tente de novo "
-                        "em instantes.")
-        self.root.after(25000, _vigia)
-
-        try:
-            # Leitura do SQLite na thread principal — sqlite3 não permite
-            # usar a mesma conexão fora da thread onde foi criada.
-            resolvidos_local = set()
-            for r in self.db.fetchall(
-                    "SELECT DISTINCT origem_doc_id FROM reservas_movimentos "
-                    "WHERE origem_doc_id IS NOT NULL"):
-                resolvidos_local.add(r["origem_doc_id"])
-            for r in self.db.fetchall("SELECT origem_doc_id FROM reservas_fila_decisoes"):
-                resolvidos_local.add(r["origem_doc_id"])
-        except Exception as ex:
-            concluido[0] = True
-            self._status("")
-            messagebox.showerror("Limpar Pendências",
-                f"Erro lendo o banco local antes de verificar o site:\n\n{type(ex).__name__}: {ex}")
-            return
-
-        def _run():
-            try:
-                import urllib.request, urllib.error, json
-                url = ("https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
-                       "/databases/(default)/documents/reservas_movimentos_pendentes")
-                try:
-                    req = urllib.request.Request(url, method="GET", headers=_firebase_headers())
-                    with urllib.request.urlopen(req, timeout=15) as r:
-                        dados = json.loads(r.read().decode("utf-8"))
-                except Exception as ex:
-                    concluido[0] = True
-                    if silencioso:
-                        # Falha ao buscar (sem internet, etc.) não é um
-                        # erro que precisa de popup no fluxo automático —
-                        # a importação normal já lida/avisa sobre isso.
-                        self.root.after(0, lambda: self._status(""))
-                    else:
-                        self.root.after(0, lambda: (
-                            self._status(""),
-                            messagebox.showerror("Limpar Pendências",
-                                f"Não consegui buscar a fila do site:\n\n"
-                                f"{type(ex).__name__}: {ex}")))
-                    return
-
-                docs = dados.get("documents", [])
-                doc_ids_na_fila = [d.get("name", "").split("/")[-1] for d in docs]
-                presos = [did for did in doc_ids_na_fila if did in resolvidos_local]
-
-                if not presos:
-                    concluido[0] = True
-                    total = len(doc_ids_na_fila)
-                    if silencioso:
-                        self.root.after(0, lambda: self._status(""))
-                    else:
-                        self.root.after(0, lambda: (
-                            self._status(""),
-                            messagebox.showinfo("Limpar Pendências",
-                                f"A fila do site tem {total} item(ns), mas nenhum já resolvido "
-                                f"localmente — nada preso pra limpar agora."
-                                if total else "A fila do site já está vazia — nada pra limpar.")))
-                    return
-
-                base = ("projects/mega-sena-sistema/databases/(default)/documents"
-                        "/reservas_movimentos_pendentes/")
-                commit_url = ("https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
-                              "/databases/(default):commit")
-                apagados = 0
-                erro_detalhe = None
-                grupos = [presos[i:i + 500] for i in range(0, len(presos), 500)]
-                for grupo in grupos:
-                    corpo = json.dumps({"writes": [{"delete": base + did} for did in grupo]}).encode("utf-8")
-                    try:
-                        req = urllib.request.Request(commit_url, data=corpo, method="POST",
-                                                      headers=_firebase_headers())
-                        with urllib.request.urlopen(req, timeout=20) as resp:
-                            resp.read()
-                        apagados += len(grupo)
-                    except urllib.error.HTTPError as ex:
-                        corpo_erro = ex.read().decode("utf-8", "replace")[:400] if ex.fp else ""
-                        erro_detalhe = f"HTTP {ex.code}: {corpo_erro}"
-                    except Exception as ex:
-                        erro_detalhe = f"{type(ex).__name__}: {str(ex)[:400]}"
-
-                def _ui():
-                    concluido[0] = True
-                    self._status("")
-                    msg = (f"🔍 {len(doc_ids_na_fila)} item(ns) na fila do site.\n"
-                           f"📌 {len(presos)} já estavam resolvidos localmente e presos lá.\n"
-                           f"✅ {apagados} removido(s) agora.")
-                    if erro_detalhe:
-                        # Erro de verdade merece popup SEMPRE, mesmo no modo
-                        # silencioso automático — é exatamente o tipo de
-                        # problema que não pode continuar invisível (ver
-                        # achado real do usuário, docstring acima).
-                        msg += f"\n\n❌ Erro ao apagar o restante (mande isto pra análise):\n{erro_detalhe}"
-                        self._log("Limpar Pendências — erro", erro_detalhe)
-                        messagebox.showwarning("Limpar Pendências", msg)
-                    elif not silencioso:
-                        messagebox.showinfo("Limpar Pendências", msg)
-                    elif apagados:
-                        self._status(f"🧹 {apagados} pendência(s) presa(s) no site foram limpas sozinhas")
-                        self.root.after(6000, lambda: self._status(""))
-                self.root.after(0, _ui)
-            except Exception as ex:
-                # Rede de segurança final: NENHUMA exceção pode morrer
-                # calada dentro desta thread — sempre vira um popup. O
-                # _log (grava no SQLite) precisa rodar na thread
-                # principal também — daí dentro do lambda, não aqui.
-                concluido[0] = True
-                erro_txt = f"{type(ex).__name__}: {ex}"
-                self.root.after(0, lambda: (
-                    self._status(""),
-                    self._log("Limpar Pendências — falha inesperada", erro_txt),
-                    messagebox.showerror("Limpar Pendências",
-                        f"Erro inesperado (mande isto pra análise):\n\n{erro_txt}")))
-
-        try:
-            threading.Thread(target=_run, daemon=True).start()
-        except Exception as ex:
-            concluido[0] = True
-            self._status("")
-            messagebox.showerror("Limpar Pendências",
-                f"Não consegui iniciar a verificação:\n\n{type(ex).__name__}: {ex}")
 
     def _importar_premiacoes_pendentes_web(self):
         """Importa premiações registradas no admin do site (fila
@@ -3630,7 +3306,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.53",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v7.0",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -3655,14 +3331,6 @@ class BolaoApp:
         self._status_lbl = tk.Label(barra, text="", bg="#0d1b2a", fg="#90caf9",
                                      font=("Arial",8), anchor="w")
         self._status_lbl.pack(side="left", fill="both", expand=True, padx=10)
-        # Só aparece quando a verificação de reservas do site falha —
-        # antes disso acontecer, o único jeito de tentar de novo era
-        # fechar e reabrir o app inteiro (achado real: usuário relatou
-        # 5 tentativas assim seguidas).
-        self._status_retry_btn = tk.Label(barra, text="🔄 Tentar novamente",
-            bg="#0d1b2a", fg="#5dade2", font=("Arial",8,"underline"), cursor="hand2")
-        self._status_retry_btn.bind("<Button-1>",
-            lambda e: self._importar_movimentos_pendentes_web())
 
     # ── TABS ────────────────────────────────────────────────────
     def _build_tabs(self):
@@ -7756,7 +7424,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.53</span>
+        <span>Sistema de Gestão de Bolões v7.0</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -9110,48 +8778,19 @@ class BolaoApp:
     # ════════════════════════════════════════════════════════════
     #  ABA RESERVAS PESSOAIS
     # ════════════════════════════════════════════════════════════
-    def _pub_sincronizar_reservas(self):
-        """Botão manual — sincroniza reservas com Firebase."""
-        self._pub_status_rsv.configure(text="⏳ Sincronizando reservas...", fg="#aad4f5")
-        self.root.update_idletasks()
-        import threading
-        def _run():
-            try:
-                env, err = enviar_reservas_para_site(DB_FILE)
-                def _ui():
-                    if err:
-                        self._pub_status_rsv.configure(
-                            text="⚠ "+str(env)+" ok, "+str(len(err))+" erro(s): "+err[0],
-                            fg="#e67e22")
-                    else:
-                        self._pub_status_rsv.configure(
-                            text="✅ "+str(env)+" reserva(s) sincronizadas com sucesso!",
-                            fg="#1D9E75")
-                self.root.after(0, _ui)
-            except Exception as ex:
-                def _ui_err():
-                    self._pub_status_rsv.configure(text="❌ Erro: "+str(ex)[:80], fg="#e74c3c")
-                self.root.after(0, _ui_err)
-        threading.Thread(target=_run, daemon=True).start()
-
     def _build_reservas(self):
         p = self.tab_rsv
-        # Barra de sincronização Firebase no topo
+        # Barra de status no topo — modelo novo (Rodada 118):
+        # sincronização ao vivo, sem fila nem botão manual nenhum. Todo
+        # lançamento (web ou desktop) já grava direto no Firestore;
+        # este indicador só mostra se o laço de verificação em segundo
+        # plano está em dia ou não (ver _rsv_sync_loop_iniciar).
         bsf = tk.Frame(p, bg="#1a3a5a", padx=12, pady=6)
         bsf.pack(fill="x")
         from tkinter import ttk as _ttk2
-        btn(bsf, "📤 Sincronizar Reservas com Site",
-            CORES["btn_verde"], self._pub_sincronizar_reservas,
-            width=30).pack(side="left", padx=4)
-        btn(bsf, "📥 Verificar Reservas do Site",
-            CORES["btn_azul"], self._importar_movimentos_pendentes_web,
-            width=26).pack(side="left", padx=4)
-        btn(bsf, "🧹 Limpar Pendências Já Importadas",
-            CORES["btn_laranja"], self._limpar_pendencias_ja_importadas,
-            width=28).pack(side="left", padx=4)
-        self._pub_status_rsv = tk.Label(bsf, text="", bg="#1a3a5a",
-            fg="#1D9E75", font=("Arial",9,"bold"))
-        self._pub_status_rsv.pack(side="left", padx=12)
+        self._pub_status_rsv = tk.Label(bsf, text="🔄 Sincronizando...", bg="#1a3a5a",
+            fg="#aad4f5", font=("Arial",9,"bold"))
+        self._pub_status_rsv.pack(side="left", padx=4)
 
         # ── Cards de totais ──────────────────────────────────────
         krow = tk.Frame(p, bg=CORES["bg_frame"]); krow.pack(fill="x", padx=20, pady=(14,6))
@@ -9287,10 +8926,12 @@ class BolaoApp:
             self._rsv_registrar, width=18).pack(side="left", padx=4)
         btn(bf_f, "📦 Lançamento em Lote", CORES["btn_roxo"],
             self._abrir_popup_lote_reserva, width=20).pack(side="left", padx=4)
-        btn(bf_f, "✏ Editar Selecionado", CORES["btn_laranja"],
-            self._rsv_editar_mov, width=20).pack(side="left", padx=4)
-        btn(bf_f, "🗑 Excluir Selecionado", CORES["btn_vermelho"],
-            self._rsv_excluir_mov, width=22).pack(side="left", padx=4)
+        # Modelo novo (sincronização ao vivo): um lançamento já gravado
+        # no Firestore não pode mais ser editado nem apagado (ledger
+        # append-only, por desenho — ver _rsv_estornar_mov). "Editar
+        # Selecionado" saiu; "Excluir" virou "Estornar".
+        btn(bf_f, "↩ Estornar Selecionado", CORES["btn_vermelho"],
+            self._rsv_estornar_mov, width=22).pack(side="left", padx=4)
 
         # Tabela de histórico da pessoa selecionada
         sec_hist = tk.LabelFrame(col2, text="  📋 HISTÓRICO DA PESSOA SELECIONADA  ",
@@ -9427,6 +9068,58 @@ class BolaoApp:
                  f"Créditos: {fmt_brl(cred)}  |  Débitos: {fmt_brl(deb)}",
             fg=cor_s)
 
+    def _rsv_push_movimento(self, pessoa_doc_id, pessoa_local_id, pessoa_nova,
+                             nome, telefone, chave_pix, tipo, valor, data_mov,
+                             descricao, loteria, concurso, on_sucesso=None):
+        """Helper compartilhado por todo lançamento de reserva feito no
+        desktop (registrar, lote, estorno) — grava no Firestore de
+        forma atômica e SÓ DEPOIS mostra sucesso (nunca antes, nunca
+        "torcendo"). Roda em thread de fundo (chamada de rede), volta
+        pra thread principal via root.after pra mexer no SQLite/Tkinter.
+        `tipo` aqui já deve estar no vocabulário do Firestore
+        ("deposito"/"saque"), não "CRÉDITO"/"DÉBITO"."""
+        import threading
+        self._status(f"⏳ Gravando lançamento de {nome}...")
+
+        def _run():
+            try:
+                mov_id = _rsv_registrar_movimento_firestore(
+                    pessoa_doc_id=pessoa_doc_id, pessoa_nova=pessoa_nova,
+                    nome=nome, telefone=telefone, chave_pix=chave_pix,
+                    tipo=tipo, valor=valor, data_mov=data_mov,
+                    descricao=descricao, loteria=loteria, concurso=concurso,
+                    origem="desktop")
+            except Exception as ex:
+                erro_txt = f"{type(ex).__name__}: {ex}"
+                self.root.after(0, lambda: (
+                    self._status(""),
+                    messagebox.showerror("Não gravou",
+                        f"O lançamento NÃO foi gravado — nada mudou no saldo:\n\n{erro_txt}")))
+                return
+
+            def _ok():
+                self._status("")
+                pid_local = pessoa_local_id
+                if pessoa_nova:
+                    self.db.execute(
+                        "INSERT INTO reservas_pessoas (nome,telefone,chave_pix,observacoes,firebase_doc_id) "
+                        "VALUES (?,?,?,?,?)", (nome, telefone, chave_pix, "", pessoa_doc_id))
+                    pid_local = self.db.fetchone("SELECT last_insert_rowid() as id")["id"]
+                tipo_db = "CRÉDITO" if tipo == "deposito" else "DÉBITO"
+                self.db.execute(
+                    "INSERT INTO reservas_movimentos "
+                    "(pessoa_id, tipo, valor, data_mov, loteria, concurso, descricao, firebase_doc_id) "
+                    "VALUES (?,?,?,?,?,?,?,?)",
+                    (pid_local, tipo_db, valor, data_mov, loteria, concurso, descricao, mov_id))
+                self._rsv_load()
+                self._rsv_sync_poke_agora()
+                if on_sucesso:
+                    on_sucesso()
+                messagebox.showinfo("Gravado", "Lançamento registrado — já está valendo no saldo!")
+            self.root.after(0, _ok)
+
+        threading.Thread(target=_run, daemon=True).start()
+
     def _rsv_registrar(self):
         sel_p = self._rsv_cb_pessoa.get()
         if not sel_p:
@@ -9435,16 +9128,23 @@ class BolaoApp:
         if not m:
             messagebox.showwarning("Atenção","Selecione uma pessoa válida!"); return
         pid = int(m.group(1))
+        ps = self.db.fetchone("SELECT * FROM reservas_pessoas WHERE id=?", (pid,))
+        if not ps:
+            messagebox.showerror("Erro", "Pessoa não encontrada."); return
+        if not ps["firebase_doc_id"]:
+            messagebox.showwarning("Atenção",
+                "Esta pessoa ainda não tem vínculo com o site (aguarde a "
+                "sincronização automática terminar e tente de novo)."); return
 
         v = to_float(self._rsv_val.get())
         if v <= 0:
             messagebox.showwarning("Atenção","Informe um valor válido!"); return
 
         tipo_full = self._rsv_tipo.get()
-        tipo = "CRÉDITO" if "CRÉDITO" in tipo_full else "DÉBITO"
+        tipo_db = "CRÉDITO" if "CRÉDITO" in tipo_full else "DÉBITO"
+        tipo_fs = "deposito" if tipo_db == "CRÉDITO" else "saque"
 
-        # Valida saldo para débito
-        if tipo == "DÉBITO":
+        if tipo_db == "DÉBITO":
             cred = self.db.fetchone(
                 "SELECT SUM(valor) as t FROM reservas_movimentos "
                 "WHERE pessoa_id=? AND UPPER(tipo) IN " + _sql_in_tipos(TIPOS_CREDITO_RESERVA),
@@ -9461,38 +9161,26 @@ class BolaoApp:
                     f"Saldo ficará negativo. Deseja continuar?"):
                     return
 
-        dt   = self._rsv_dt.get().strip() or date.today().strftime("%d/%m/%Y")
-        # Loteria/concurso/desc só se aplica a DÉBITO
-        lot  = self._rsv_lot.get()  if tipo == "DÉBITO" else ""
-        conc = self._rsv_conc.get().strip() if tipo == "DÉBITO" else ""
-        desc = self._rsv_desc.get().strip() if tipo == "DÉBITO" else ""
+        dt_br = self._rsv_dt.get().strip() or date.today().strftime("%d/%m/%Y")
+        dt_iso = _data_br_para_iso(dt_br)
+        lot  = self._rsv_lot.get()  if tipo_db == "DÉBITO" else ""
+        conc = self._rsv_conc.get().strip() if tipo_db == "DÉBITO" else ""
+        desc = self._rsv_desc.get().strip() if tipo_db == "DÉBITO" else ""
 
-        self.db.execute(
-            "INSERT INTO reservas_movimentos "
-            "(pessoa_id, tipo, valor, data_mov, loteria, concurso, descricao) "
-            "VALUES (?,?,?,?,?,?,?)",
-            (pid, tipo, v, dt, lot, conc, desc))
+        def _depois():
+            self._rsv_val.delete(0,"end")
+            self._rsv_dt.delete(0,"end")
+            self._rsv_dt.insert(0, date.today().strftime("%d/%m/%Y"))
+            self._rsv_conc.delete(0,"end")
+            self._rsv_desc.delete(0,"end")
+            self._rsv_tree_sal.selection_set(str(pid))
+            self._rsv_sel_pessoa()
 
-        # Sincronização com o site é manual — botão "📤 Sincronizar
-        # Reservas com Site" (_pub_sincronizar_reservas), que reenvia o
-        # saldo atual de todo mundo. Havia uma tentativa de sincronizar
-        # cada lançamento na hora (sincronizar_reserva(...)) que nunca
-        # funcionou — a função nem existia neste arquivo, então todo
-        # registro aqui sempre lançava NameError, silenciado por um
-        # except genérico. Removida.
-
-        # Limpa campos após registrar
-        self._rsv_val.delete(0,"end")
-        self._rsv_dt.delete(0,"end")
-        self._rsv_dt.insert(0, date.today().strftime("%d/%m/%Y"))
-        # Limpa campos de débito sempre após registrar
-        self._rsv_conc.delete(0,"end")
-        self._rsv_desc.delete(0,"end")
-
-        self._rsv_load()
-        # Reseleciona a pessoa para atualizar histórico
-        self._rsv_tree_sal.selection_set(str(pid))
-        self._rsv_sel_pessoa()
+        self._rsv_push_movimento(
+            pessoa_doc_id=ps["firebase_doc_id"], pessoa_local_id=pid, pessoa_nova=False,
+            nome=ps["nome"], telefone=ps["telefone"], chave_pix=ps["chave_pix"],
+            tipo=tipo_fs, valor=v, data_mov=dt_iso, descricao=desc,
+            loteria=lot, concurso=conc, on_sucesso=_depois)
 
     def _abrir_popup_lote_reserva(self):
         """Lançamento em lote de reserva — mesmo Tipo/Valor/Data (e, se
@@ -9572,8 +9260,9 @@ class BolaoApp:
         contador_lbl.pack(anchor="w", pady=(0,6))
         bf_rodape = tk.Frame(rodape, bg=CORES["bg_frame"])
         bf_rodape.pack(fill="x")
-        btn(bf_rodape, "💳 Registrar para os marcados", CORES["btn_verde"],
-            lambda: _confirmar(), width=26).pack(side="left", padx=4)
+        btnConfirmar = btn(bf_rodape, "💳 Registrar para os marcados", CORES["btn_verde"],
+            lambda: _confirmar(), width=26)
+        btnConfirmar.pack(side="left", padx=4)
         btn(bf_rodape, "Fechar", CORES["btn_cinza"], win.destroy, width=10).pack(side="left", padx=4)
 
         # ── Lista de pessoas (meio, rolável) ─────────────────────
@@ -9620,7 +9309,10 @@ class BolaoApp:
             deb = self.db.fetchone(
                 "SELECT SUM(valor) as t FROM reservas_movimentos WHERE pessoa_id=? AND UPPER(tipo) IN "
                 + _sql_in_tipos(TIPOS_DEBITO_RESERVA), (pid_,))["t"] or 0
-            dados_pessoas.append({"pid": pid_, "nome": ps["nome"], "saldo": float(cred) - float(deb)})
+            dados_pessoas.append({
+                "pid": pid_, "nome": ps["nome"], "telefone": ps["telefone"],
+                "chave_pix": ps["chave_pix"], "firebase_doc_id": ps["firebase_doc_id"],
+                "saldo": float(cred) - float(deb)})
 
         vars_checkbox = {d["pid"]: tk.IntVar(value=0) for d in dados_pessoas}
         linhas_visiveis = []  # pids atualmente filtrados (pra "marcar visíveis")
@@ -9659,7 +9351,8 @@ class BolaoApp:
 
         def _confirmar():
             tipo_full = tipo_cb.get()
-            tipo = "CRÉDITO" if "CRÉDITO" in tipo_full else "DÉBITO"
+            tipo_db = "CRÉDITO" if "CRÉDITO" in tipo_full else "DÉBITO"
+            tipo_fs = "deposito" if tipo_db == "CRÉDITO" else "saque"
 
             v = to_float(val_entry.get())
             if v <= 0:
@@ -9669,13 +9362,13 @@ class BolaoApp:
             if not selecionados:
                 messagebox.showwarning("Atenção", "Marque ao menos uma pessoa!"); return
 
-            dt = dt_entry.get().strip() or date.today().strftime("%d/%m/%Y")
-            lot = lot_cb.get() if tipo == "DÉBITO" else ""
-            conc = conc_entry.get().strip() if tipo == "DÉBITO" else ""
-            desc = desc_entry.get().strip() if tipo == "DÉBITO" else ""
+            dt_iso = _data_br_para_iso(dt_entry.get().strip() or date.today().strftime("%d/%m/%Y"))
+            lot = lot_cb.get() if tipo_db == "DÉBITO" else ""
+            conc = conc_entry.get().strip() if tipo_db == "DÉBITO" else ""
+            desc = desc_entry.get().strip() if tipo_db == "DÉBITO" else ""
 
-            if tipo == "DÉBITO":
-                por_pid = {d["pid"]: d for d in dados_pessoas}
+            por_pid = {d["pid"]: d for d in dados_pessoas}
+            if tipo_db == "DÉBITO":
                 insuficientes = [
                     f"{por_pid[pid_]['nome']} (saldo {fmt_brl(por_pid[pid_]['saldo'])})"
                     for pid_ in selecionados if v > por_pid[pid_]["saldo"]
@@ -9689,162 +9382,95 @@ class BolaoApp:
                         f"{texto}\n\nContinuar mesmo assim (pra todo mundo do lote)?"):
                         return
 
-            for pid_ in selecionados:
-                self.db.execute(
-                    "INSERT INTO reservas_movimentos "
-                    "(pessoa_id, tipo, valor, data_mov, loteria, concurso, descricao) "
-                    "VALUES (?,?,?,?,?,?,?)",
-                    (pid_, tipo, v, dt, lot, conc, desc))
+            sem_vinculo = [por_pid[pid_]["nome"] for pid_ in selecionados if not por_pid[pid_]["firebase_doc_id"]]
+            if sem_vinculo:
+                messagebox.showwarning("Atenção",
+                    "Estas pessoas ainda não têm vínculo com o site (aguarde a "
+                    "sincronização terminar): " + ", ".join(sem_vinculo))
+                return
 
-            self._rsv_load()
-            messagebox.showinfo("Lançamento em Lote",
-                f"{len(selecionados)} lançamento(s) de {fmt_brl(v)} registrado(s) com sucesso!")
-            win.destroy()
+            btnConfirmar.config(state="disabled")
+            import threading
 
-    def _rsv_excluir_mov(self):
+            def _run():
+                sucesso = []
+                falhas = []
+                for i, pid_ in enumerate(selecionados):
+                    d = por_pid[pid_]
+                    self.root.after(0, lambda i=i: self._status(
+                        f"⏳ Gravando {i+1}/{len(selecionados)}..."))
+                    try:
+                        mov_id = _rsv_registrar_movimento_firestore(
+                            pessoa_doc_id=d["firebase_doc_id"], pessoa_nova=False,
+                            nome=d["nome"], telefone=d["telefone"], chave_pix=d["chave_pix"],
+                            tipo=tipo_fs, valor=v, data_mov=dt_iso, descricao=desc,
+                            loteria=lot, concurso=conc, origem="desktop")
+                        sucesso.append((pid_, mov_id))
+                    except Exception as ex:
+                        falhas.append(f"{d['nome']}: {type(ex).__name__}: {ex}")
+
+                def _ui():
+                    self._status("")
+                    for pid_, mov_id in sucesso:
+                        self.db.execute(
+                            "INSERT INTO reservas_movimentos "
+                            "(pessoa_id, tipo, valor, data_mov, loteria, concurso, descricao, firebase_doc_id) "
+                            "VALUES (?,?,?,?,?,?,?,?)",
+                            (pid_, tipo_db, v, dt_iso, lot, conc, desc, mov_id))
+                    if sucesso:
+                        self._rsv_load()
+                        self._rsv_sync_poke_agora()
+                    msg = f"✅ {len(sucesso)} de {len(selecionados)} lançamento(s) de {fmt_brl(v)} gravado(s)."
+                    if falhas:
+                        msg += "\n\n❌ Falharam (NADA foi gravado pra estes):\n" + "\n".join(falhas)
+                        messagebox.showwarning("Lançamento em Lote", msg)
+                    else:
+                        messagebox.showinfo("Lançamento em Lote", msg)
+                    btnConfirmar.config(state="normal")
+                    if not falhas:
+                        win.destroy()
+                self.root.after(0, _ui)
+
+            threading.Thread(target=_run, daemon=True).start()
+
+    def _rsv_estornar_mov(self):
+        """Substitui a antiga exclusão/edição de lançamento. No modelo
+        novo (ledger ao vivo), um movimento já gravado no Firestore
+        NUNCA pode ser editado nem apagado — nem pelo admin (regra do
+        Firestore: allow update, delete: if false) — pra não editar o
+        passado silenciosamente. Um engano vira um ESTORNO: um
+        lançamento novo, do tipo oposto, mesmo valor, deixando rastro
+        claro de que algo foi corrigido (em vez de desaparecer)."""
         sel = self._rsv_tree_hist.selection()
         if not sel:
             messagebox.showwarning("Atenção","Selecione um lançamento!"); return
         mid = int(sel[0])
         m   = self.db.fetchone("SELECT * FROM reservas_movimentos WHERE id=?", (mid,))
-        if messagebox.askyesno("Confirmar",
-            f"Excluir lançamento {m['tipo']} de {fmt_brl(m['valor'])} em {m['data_mov']}?"):
-            ps_m = self.db.fetchone("SELECT nome FROM reservas_pessoas WHERE id=?", (m["pessoa_id"],))
-            self.db.execute("DELETE FROM reservas_movimentos WHERE id=?", (mid,))
-            self._log("Excluir movimento de reserva pessoal",
-                f"{ps_m['nome'] if ps_m else '?'} — {m['tipo']} — {fmt_brl(m['valor'])} ({m['data_mov']})")
-            self._rsv_load()
-            # Reatualiza histórico da pessoa
-            sel_p = self._rsv_cb_pessoa.get()
-            mp = re.search(r"\(ID: (\d+)\)", sel_p)
-            if mp:
-                pid = int(mp.group(1))
-                self._rsv_tree_sal.selection_set(str(pid))
-                self._rsv_sel_pessoa()
-
-    def _rsv_editar_mov(self):
-        """Corrige um lançamento já salvo (ex.: Concurso digitado errado)
-        sem precisar excluir e recadastrar — pedido depois de um
-        lançamento ter salvo "3057-942,25" no Concurso antes do campo
-        virar numérico (entry_numerico não valida o que já estava
-        digitado antes dela existir, só impede digitar coisa nova)."""
-        sel = self._rsv_tree_hist.selection()
-        if not sel:
-            messagebox.showwarning("Atenção", "Selecione um lançamento no histórico!"); return
-        mid = int(sel[0])
-        m = self.db.fetchone("SELECT * FROM reservas_movimentos WHERE id=?", (mid,))
         if not m:
             messagebox.showerror("Erro", "Lançamento não encontrado."); return
+        if not m["firebase_doc_id"]:
+            messagebox.showwarning("Atenção",
+                "Este lançamento ainda não foi sincronizado com o site — "
+                "aguarde a sincronização automática antes de estornar."); return
 
-        win = tk.Toplevel(self.root)
-        win.title(f"Editar Lançamento #{mid}")
-        win.geometry("420x400")
-        win.configure(bg=CORES["bg_section"])
-        win.grab_set(); win.lift(); win.focus_force()
+        ps_m = self.db.fetchone("SELECT * FROM reservas_pessoas WHERE id=?", (m["pessoa_id"],))
+        if not ps_m or not ps_m["firebase_doc_id"]:
+            messagebox.showerror("Erro", "Pessoa sem vínculo com o site — não dá pra estornar."); return
 
-        tk.Label(win, text=f"EDITAR LANÇAMENTO #{mid}", bg=CORES["bg_section"],
-                 fg=CORES["fg_title"], font=("Arial",11,"bold")).pack(pady=12)
+        tipo_oposto = "saque" if (m["tipo"] or "").upper() in TIPOS_CREDITO_RESERVA else "deposito"
+        if not messagebox.askyesno("Confirmar estorno",
+            f"Lançar um estorno de {fmt_brl(m['valor'])} para {ps_m['nome']} "
+            f"(desfaz o lançamento de {m['data_mov']})?"):
+            return
 
-        form = tk.Frame(win, bg=CORES["bg_section"], padx=24); form.pack(fill="x")
-
-        tk.Label(form, text="Tipo:", bg=CORES["bg_section"], fg=CORES["fg_label"],
-                 font=("Arial",9,"bold")).grid(row=0, column=0, sticky="w", pady=6)
-        tipo_cb = ttk.Combobox(form, width=16, state="readonly", font=("Arial",9),
-                                values=["CRÉDITO (entrada)", "DÉBITO (uso)"])
-        tipo_cb.set("CRÉDITO (entrada)" if m["tipo"] == "CRÉDITO" else "DÉBITO (uso)")
-        tipo_cb.grid(row=0, column=1, sticky="w", pady=6)
-
-        tk.Label(form, text="Valor (R$):", bg=CORES["bg_section"], fg=CORES["fg_label"],
-                 font=("Arial",9,"bold")).grid(row=1, column=0, sticky="w", pady=6)
-        val_e = entry(form, width=16)
-        val_e.insert(0, fmt_brl(m["valor"]).replace("R$", "").strip())
-        val_e.grid(row=1, column=1, sticky="w", pady=6)
-
-        tk.Label(form, text="Data:", bg=CORES["bg_section"], fg=CORES["fg_label"],
-                 font=("Arial",9,"bold")).grid(row=2, column=0, sticky="w", pady=6)
-        dt_e = entry(form, width=16)
-        dt_e.insert(0, m["data_mov"] or "")
-        dt_e.grid(row=2, column=1, sticky="w", pady=6)
-
-        debito_frame = tk.Frame(form, bg=CORES["bg_section"])
-        debito_frame.grid(row=3, column=0, columnspan=2, sticky="w", pady=(2,4))
-        tk.Label(debito_frame, text="Loteria:", bg=CORES["bg_section"], fg=CORES["fg_label"],
-                 font=("Arial",9,"bold")).grid(row=0, column=0, sticky="w", pady=4)
-        lot_cb = ttk.Combobox(debito_frame, values=LOTERIAS, width=14,
-                               state="readonly", font=("Arial",9))
-        lot_cb.set(m["loteria"] or "Mega-Sena")
-        lot_cb.grid(row=0, column=1, sticky="w", padx=8, pady=4)
-        tk.Label(debito_frame, text="Concurso:", bg=CORES["bg_section"], fg=CORES["fg_label"],
-                 font=("Arial",9,"bold")).grid(row=1, column=0, sticky="w", pady=4)
-        conc_e = entry_numerico(debito_frame, width=10)
-        # Registros antigos podem ter salvo lixo além do número (o motivo
-        # desta tela existir) — mantém só os dígitos ao carregar, já
-        # corrigindo na exibição.
-        conc_e.insert(0, re.sub(r"\D", "", m["concurso"] or ""))
-        conc_e.grid(row=1, column=1, sticky="w", padx=8, pady=4)
-        tk.Label(debito_frame, text="Descrição:", bg=CORES["bg_section"], fg=CORES["fg_label"],
-                 font=("Arial",9,"bold")).grid(row=2, column=0, sticky="w", pady=4)
-        desc_e = entry(debito_frame, width=22)
-        desc_e.insert(0, m["descricao"] or "")
-        desc_e.grid(row=2, column=1, sticky="w", padx=8, pady=4)
-
-        def _toggle(e=None):
-            if "DÉBITO" in tipo_cb.get():
-                debito_frame.grid()
-            else:
-                debito_frame.grid_remove()
-        tipo_cb.bind("<<ComboboxSelected>>", _toggle)
-        _toggle()
-
-        def _salvar():
-            tipo = "CRÉDITO" if "CRÉDITO" in tipo_cb.get() else "DÉBITO"
-            v = to_float(val_e.get())
-            if v <= 0:
-                messagebox.showwarning("Atenção", "Informe um valor válido!"); return
-
-            # Recalcula o saldo da pessoa SEM este lançamento e projeta o
-            # saldo COM os novos tipo/valor — igual ao aviso que já existe
-            # no cadastro normal e no lote, que faltava aqui (dava pra
-            # editar um crédito pra débito, ou aumentar um valor, e zerar
-            # ou negativar o saldo sem nenhum aviso).
-            pid_m = m["pessoa_id"]
-            outros_cred = self.db.fetchone(
-                "SELECT COALESCE(SUM(valor),0) as t FROM reservas_movimentos "
-                "WHERE pessoa_id=? AND UPPER(tipo) IN " + _sql_in_tipos(TIPOS_CREDITO_RESERVA) +
-                " AND id!=?", (pid_m, mid))["t"] or 0
-            outros_deb = self.db.fetchone(
-                "SELECT COALESCE(SUM(valor),0) as t FROM reservas_movimentos "
-                "WHERE pessoa_id=? AND UPPER(tipo) IN " + _sql_in_tipos(TIPOS_DEBITO_RESERVA) +
-                " AND id!=?", (pid_m, mid))["t"] or 0
-            saldo_sem_este = float(outros_cred) - float(outros_deb)
-            saldo_projetado = saldo_sem_este + v if tipo == "CRÉDITO" else saldo_sem_este - v
-            if saldo_projetado < 0:
-                ps_m = self.db.fetchone("SELECT nome FROM reservas_pessoas WHERE id=?", (pid_m,))
-                nome_m = ps_m["nome"] if ps_m else "esta pessoa"
-                if not messagebox.askyesno("Saldo Insuficiente",
-                    f"Com esta edição, o saldo de {nome_m} ficará negativo: "
-                    f"{fmt_brl(saldo_projetado)}\n\nDeseja continuar mesmo assim?"):
-                    return
-
-            dt = dt_e.get().strip()
-            lot = lot_cb.get() if tipo == "DÉBITO" else ""
-            conc = conc_e.get().strip() if tipo == "DÉBITO" else ""
-            desc = desc_e.get().strip() if tipo == "DÉBITO" else ""
-            self.db.execute(
-                "UPDATE reservas_movimentos SET tipo=?, valor=?, data_mov=?, "
-                "loteria=?, concurso=?, descricao=? WHERE id=?",
-                (tipo, v, dt, lot, conc, desc, mid))
-            win.destroy()
-            self._rsv_load()
-            sel_p = self._rsv_cb_pessoa.get()
-            mp = re.search(r"\(ID: (\d+)\)", sel_p)
-            if mp:
-                pid_ = int(mp.group(1))
-                self._rsv_tree_sal.selection_set(str(pid_))
-                self._rsv_sel_pessoa()
-            messagebox.showinfo("Salvo", "Lançamento atualizado!")
-
-        btn(win, "💾 Salvar", CORES["btn_verde"], _salvar, width=16).pack(pady=14)
+        self._rsv_push_movimento(
+            pessoa_doc_id=ps_m["firebase_doc_id"], pessoa_local_id=ps_m["id"], pessoa_nova=False,
+            nome=ps_m["nome"], telefone=ps_m["telefone"], chave_pix=ps_m["chave_pix"],
+            tipo=tipo_oposto, valor=m["valor"], data_mov=date.today().strftime("%Y-%m-%d"),
+            descricao=f"Estorno do lançamento #{mid} ({m['data_mov']})",
+            loteria="", concurso="",
+            on_sucesso=lambda: self._log("Estorno de reserva pessoal",
+                f"{ps_m['nome']} — estorno de {fmt_brl(m['valor'])} do lançamento #{mid}"))
 
     def _rsv_nova_pessoa(self):
         win = tk.Toplevel(self.root); win.title("Nova Pessoa — Reservas")
@@ -9862,18 +9488,40 @@ class BolaoApp:
             w = entry(form, width=44); w.grid(row=i*2+1, column=0, sticky="ew")
             vars_[key] = w
         form.columnconfigure(0, weight=1)
+        btn_salvar = btn(form, "💾 SALVAR", CORES["btn_verde"], lambda: salvar(), width=18)
         def salvar():
             nome = vars_["nome"].get().strip()
             if not nome:
                 messagebox.showwarning("Atenção","Nome é obrigatório!"); return
-            self.db.execute(
-                "INSERT INTO reservas_pessoas (nome,telefone,chave_pix,observacoes) "
-                "VALUES (?,?,?,?)",
-                (nome, vars_["tel"].get(), vars_["pix"].get(), vars_["obs"].get()))
-            messagebox.showinfo("Cadastrado",f"'{nome}' cadastrado!")
-            win.destroy(); self._rsv_load()
-        btn(form, "💾 SALVAR", CORES["btn_verde"], salvar, width=18).grid(
-            row=10, column=0, pady=14, sticky="e")
+            telefone = re.sub(r"\D", "", vars_["tel"].get() or "")
+            chave_pix = vars_["pix"].get().strip()
+            observacoes = vars_["obs"].get().strip()
+            doc_id = _make_part_id(nome, telefone)
+
+            btn_salvar.config(state="disabled")
+            import threading
+
+            def _run():
+                try:
+                    _rsv_criar_pessoa_firestore(doc_id, nome, telefone, chave_pix, observacoes)
+                except Exception as ex:
+                    erro_txt = f"{type(ex).__name__}: {ex}"
+                    self.root.after(0, lambda: (
+                        btn_salvar.config(state="normal"),
+                        messagebox.showerror("Não gravou",
+                            f"'{nome}' NÃO foi cadastrado:\n\n{erro_txt}")))
+                    return
+
+                def _ok():
+                    self.db.execute(
+                        "INSERT INTO reservas_pessoas (nome,telefone,chave_pix,observacoes,firebase_doc_id) "
+                        "VALUES (?,?,?,?,?)", (nome, telefone, chave_pix, observacoes, doc_id))
+                    messagebox.showinfo("Cadastrado", f"'{nome}' cadastrado!")
+                    win.destroy(); self._rsv_load(); self._rsv_sync_poke_agora()
+                self.root.after(0, _ok)
+
+            threading.Thread(target=_run, daemon=True).start()
+        btn_salvar.grid(row=10, column=0, pady=14, sticky="e")
 
     def _rsv_editar_pessoa(self):
         sel = self._rsv_tree_sal.selection()
@@ -9898,17 +9546,40 @@ class BolaoApp:
             w.grid(row=i*2+1, column=0, sticky="ew")
             vars_[key] = w
         form.columnconfigure(0, weight=1)
+        btn_salvar = btn(form, "💾 SALVAR", CORES["btn_verde"], lambda: salvar(), width=18)
         def salvar():
             nome = vars_["nome"].get().strip()
             if not nome:
                 messagebox.showwarning("Atenção","Nome é obrigatório!"); return
-            self.db.execute(
-                "UPDATE reservas_pessoas SET nome=?,telefone=?,chave_pix=?,observacoes=? WHERE id=?",
-                (nome, vars_["telefone"].get(), vars_["chave_pix"].get(),
-                 vars_["observacoes"].get(), pid))
-            win.destroy(); self._rsv_load()
-        btn(form, "💾 SALVAR", CORES["btn_verde"], salvar, width=18).grid(
-            row=10, column=0, pady=14, sticky="e")
+            telefone = re.sub(r"\D", "", vars_["telefone"].get() or "")
+            chave_pix = vars_["chave_pix"].get().strip()
+            observacoes = vars_["observacoes"].get().strip()
+            doc_id = ps["firebase_doc_id"] or _make_part_id(nome, telefone)
+
+            btn_salvar.config(state="disabled")
+            import threading
+
+            def _run():
+                try:
+                    _rsv_atualizar_pessoa_firestore(doc_id, nome, telefone, chave_pix, observacoes)
+                except Exception as ex:
+                    erro_txt = f"{type(ex).__name__}: {ex}"
+                    self.root.after(0, lambda: (
+                        btn_salvar.config(state="normal"),
+                        messagebox.showerror("Não gravou",
+                            f"A edição de '{nome}' NÃO foi gravada:\n\n{erro_txt}")))
+                    return
+
+                def _ok():
+                    self.db.execute(
+                        "UPDATE reservas_pessoas SET nome=?,telefone=?,chave_pix=?,observacoes=?,"
+                        "firebase_doc_id=? WHERE id=?",
+                        (nome, telefone, chave_pix, observacoes, doc_id, pid))
+                    win.destroy(); self._rsv_load(); self._rsv_sync_poke_agora()
+                self.root.after(0, _ok)
+
+            threading.Thread(target=_run, daemon=True).start()
+        btn_salvar.grid(row=10, column=0, pady=14, sticky="e")
     def _rsv_emitir_recibo(self):
         try:
             sel = self._rsv_tree_sal.selection()
@@ -10046,7 +9717,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.53</span>
+        <span>Sistema de Gestão de Bolões v7.0</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>

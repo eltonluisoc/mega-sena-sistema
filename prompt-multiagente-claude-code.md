@@ -1700,6 +1700,50 @@ Pedido do usuário, depois de abrir a v6.50 e nada mudar: "revise o sistema e me
 
 35 testes automatizados + `py_compile`, todos OK. Versão desktop v6.50 → **v6.51** (4 locais) + rebuild do `.exe`.
 
+## Rodada 118 — Reservas: solução definitiva — sincronização ao vivo, sem fila de pendências (desktop+web+rules)
+
+Pedido explícito do usuário, depois de uma sequência de bugs reais no modelo de fila (Rodadas 113-117): "Quero uma solução definitiva... quando eu lançar depósito ou saque pela web, o sistema imediatamente atualiza o banco de dados e mostra na web... quando eu abrir o desktop o sistema atualiza o movimento de acordo com o que estiver no banco de dados... não quero interação para atualização... atualize automaticamente... não deixe pendências." Investigado com 5 agentes (mapeamento da arquitetura atual, pesquisa técnica de sincronização em tempo real pra app desktop Python respeitando o plano gratuito, diagnóstico forense do bug de pendências, desenho do modelo de dados, desenho da implementação no desktop) — plano aprovado e implementado.
+
+**Modelo novo**: a fila `reservas_movimentos_pendentes` é eliminada. Cada depósito/saque (web ou desktop) vira **1 commit atômico só** no Firestore: cria o lançamento num ledger só-de-inserção (`reservas_participantes/{id}/movimentos/{movId}`, nunca editado nem apagado — um engano vira um estorno novo), incrementa `saldoReserva` via `fieldTransforms.increment` (operação atômica do próprio Firestore, sem transação explícita, sem corrida entre web e desktop gravando perto um do outro), e incrementa um contador global `meta/reservas_version`. A UI só mostra "sucesso" depois da confirmação HTTP real — nunca mais um "disparei e torci" (a causa raiz do bug mais grave das rodadas anteriores era exatamente isso: `_apagar_fila_em_lote` nunca verificava se a exclusão realmente funcionou).
+
+**Desktop**: novo laço em segundo plano (`_rsv_sync_loop_iniciar`) — acorda a cada ~7s, mais na hora de qualquer gravação local e ao focar a janela; confere só o contador global (leitura barata) e só busca o resto (todas as pessoas + todo o ledger) quando ele muda. SQLite local vira um espelho, nunca mais a fonte de verdade — nunca apaga/mexe numa linha local ainda não confirmada remotamente. `_rsv_registrar`, lançamento em lote, nova/editar pessoa gravam direto no Firestore (bloqueante, com popup de erro real se falhar — sem gravar nada local nesse caso). "✏ Editar Selecionado"/"🗑 Excluir Selecionado" viraram "↩ Estornar Selecionado" (o ledger não permite mais editar/apagar histórico). Removidos: os 3 botões antigos da aba Reservas, a tela de revisão, toda a fila de pendências e o cooldown de 15min (só existiam por causa do volume da fila antiga).
+
+**Web** (`admin.js`): os dois formulários de lançamento gravam direto via `db.runTransaction` (mesmo commit atômico); `carregarReservas` lê `saldoReserva` direto, sem mais somar pendentes; "Ver Pendentes" some. Nova função `makePartId` em JS, espelhando `_make_part_id` do Python byte a byte (mesmo slug determinístico de ID da pessoa nos dois lados).
+
+**`firestore.rules`**: novas regras pra `reservas_participantes/{id}/movimentos/{movId}` (só-criação) e `meta/reservas_version`; a regra da fila antiga fica até a migração esvaziá-la de vez.
+
+**Migração** (`migrar_reservas_rodada118.py`, script único, re-executável): esvazia a fila antiga, preenche o ledger novo a partir do histórico local (preservando as datas originais), confere saldo por saldo que bate exatamente entre SQLite e Firestore antes de liberar o corte.
+
+35 testes automatizados + 2 novos testes dedicados (push com sucesso/falha nunca grava sem confirmar; reconciliação cria/atualiza/nunca mexe em lançamento não confirmado) + `py_compile` + `node --check`, todos OK.
+
+## Rodada 119 — Achado real: a URL de commit em lote do Firestore estava errada desde sempre
+
+Pedido do usuário, testando a limpeza de pendências pela última vez antes da migração: recebeu `HTTP 404` com a página genérica de erro do Google (`Error 404 (Not Found)!!1` — nem chega a ser um erro da API do Firestore).
+
+**Causa raiz, confirmada na documentação oficial do Google**: o endpoint `Commit` do Firestore é `POST .../databases/{db}/documents:commit` — faltava o `/documents` antes de `:commit` em **todo** código deste projeto que fazia commit em lote (`_apagar_fila_em_lote`, usada desde antes desta sessão para reservas E premiações; e a recém-criada `_rsv_commit_atomico` da Rodada 118, que herdou o mesmo padrão). Como GET usa um caminho diferente (`.../documents/{coleção}`), toda LEITURA sempre funcionou — só toda ESCRITA EM LOTE (apagar da fila, e agora os commits atômicos de reserva) batia nesse 404 genérico, desde o primeiro dia que esse código existiu. Isso explica a saga INTEIRA de pendências presas ao longo de várias rodadas — nenhuma delas era a causa raiz de verdade; essa URL errada sempre foi.
+
+**Corrigido**: `/documents` adicionado nas duas funções. `migrar_reservas_rodada118.py` ganhou um passo que dreno a fila antiga diretamente (usando a URL corrigida) em vez de mandar abrir o `.exe` antigo de novo, que teria o mesmo bug.
+
+35 testes automatizados + `py_compile`, todos OK.
+
+## Rodada 120 — Achado real, durante a migração: combinar 2 tipos de transform na mesma updateTransforms falha
+
+Depois da Rodada 119 (URL de commit corrigida), a migração avançou — esvaziou a fila antiga, criou `meta/reservas_version` — mas falhou com `403 PERMISSION_DENIED` no primeiro lançamento real (Andreia Teles), mesmo com um diagnóstico isolado (`diagnostico_rodada118.py`) passando em todos os 5 testes, incluindo um commit combinado idêntico em estrutura.
+
+**Causa raiz, encontrada comparando os writes reais que falharam contra os do diagnóstico**: o diagnóstico testava `increment` sozinho e `setToServerValue` sozinho, cada um numa `updateTransforms` com 1 item só — ambos passavam. A migração real combinava os DOIS num `updateTransforms` só (`[saldoReserva increment, dataAtualizacao setToServerValue]`, e o mesmo pra `meta/reservas_version`) — e isso falhava. Ou seja: 1 transform por write funciona; 2 tipos diferentes de transform na MESMA lista, não.
+
+**Corrigido**: cada transform vira seu próprio write dentro do mesmo commit atômico (incrementar `saldoReserva` numa, `setToServerValue` de `dataAtualizacao` noutra — mesma ideia pro sentinela). Mais writes no mesmo commit não tem custo nem risco — ainda é tudo atômico, tudo ou nada. Corrigido em `_rsv_registrar_movimento_firestore` (bolao_pro_v3.py) e no script de migração.
+
+35 testes automatizados + `py_compile`, todos OK.
+
+## Rodada 121 — Achado real, durante a migração: pessoas do modelo antigo tinham um campo "historico" que a regra nova proíbe
+
+Depois da Rodada 120, a migração ainda falhava com `403` na primeira pessoa real (Andreia Teles), mesmo com cada gravação isolada passando no diagnóstico. Testando direto contra o documento dela (`diagnostico_rodada118.py`, passo 6c, lendo o documento real), achei a causa: ela tinha um campo `historico` (array do modelo antigo, gravado por `enviar_reservas_para_site` — a última sincronização dela tinha sido horas antes, nesta mesma sessão). A regra nova de `reservas_participantes` proíbe explicitamente isso (`!('historico' in request.resource.data)`, de propósito — ver Rodada 118) em QUALQUER gravação futura no documento, inclusive um incremento de saldo.
+
+**Corrigido**: `migrar_pessoa()` agora lê o documento existente antes de decidir o que fazer — se tiver `historico`, substitui o documento inteiro (sem `updateMask`, derruba o campo de vez) e **zera `saldoReserva`**, já que o replay completo do histórico local abaixo vai reconstruir o saldo do zero (preservar o saldo antigo E replayar tudo contaria em dobro). Acontece só 1 vez por pessoa — depois que `historico` sumir, rodar o script de novo não mexe mais nisso, só continua o replay dos movimentos que faltarem.
+
+35 testes automatizados + `py_compile`, todos OK.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

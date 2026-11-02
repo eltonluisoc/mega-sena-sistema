@@ -31,6 +31,98 @@ function dataLocalISO() {
     return `${ano}-${mes}-${dia}`;
 }
 
+// Mesmo slug determinístico que o desktop usa (_make_part_id, em
+// bolao_pro_v3.py) pra gerar o ID do documento de uma pessoa em
+// reservas_participantes — tem que ficar byte a byte igual aos dois
+// lados, senão web e desktop criam IDs diferentes pra "a mesma
+// pessoa" e o ledger dela fica dividido em dois sem ninguém perceber.
+// NFD + remover marcas diacríticas (acentos) é o equivalente em JS do
+// unicodedata.category(c) != "Mn" do Python.
+function makePartId(nome, telefone) {
+    function norm(s) {
+        s = (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '');
+        return s.replace(/[^a-zA-Z0-9]/g, '');
+    }
+    const partes = (nome || '').trim().split(/\s+/).filter(Boolean).map(norm);
+    const idNome = partes.length > 1 ? `${partes[0]}_${partes[partes.length - 1]}` : (partes[0] || 'x');
+    const tel = (telefone || '').replace(/\D/g, '');
+    return tel ? `${idNome}_${tel}` : idNome;
+}
+
+// Grava um depósito/saque de reserva de forma atômica e IMEDIATA —
+// substitui a fila reservas_movimentos_pendentes. Pedido do usuário:
+// "quando eu lançar depósito ou saque pela web, o sistema imediatamente
+// atualiza o banco de dados e mostra na web... não quero pendências."
+// Uma transação do Firestore garante que o lançamento (ledger), o
+// incremento do saldo e o aviso global (meta/reservas_version, que o
+// desktop fica de olho em segundo plano) acontecem juntos ou nenhum
+// acontece — e serve de idempotência: se a chamada for repetida depois
+// de uma falha de rede ambígua, o movId já gravado faz a transação não
+// fazer nada de novo (tratado como sucesso, não como erro/duplicata).
+// Lança uma exceção se falhar — quem chama só pode dizer "sucesso" depois
+// que este await terminar sem erro, nunca antes.
+async function registrarMovimentoNoFirestore({ pessoaId, pessoaNova, nome, telefone, chavePix, tipo, valor, data, descricao, loteria, concurso }) {
+    const personRef = db.collection('reservas_participantes').doc(pessoaId);
+    const movRef = personRef.collection('movimentos').doc();
+    const sentinelRef = db.collection('meta').doc('reservas_version');
+    const delta = tipo === 'deposito' ? valor : -valor;
+
+    await db.runTransaction(async (tx) => {
+        if (pessoaNova) {
+            const personSnap = await tx.get(personRef);
+            if (personSnap.exists) {
+                throw new Error('Já existe uma pessoa com esse nome/telefone — selecione "Pessoa existente" em vez de "Pessoa nova".');
+            }
+            tx.set(personRef, {
+                participanteId: pessoaId, nome, telefone: telefone || '',
+                chavePix: chavePix || '', observacoes: '', ativo: true,
+                saldoReserva: 0, admin: true,
+                dataAtualizacao: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        }
+
+        tx.set(movRef, {
+            tipo, valor, data, descricao: descricao || '',
+            loteria: loteria || '', concurso: concurso || '',
+            origem: 'web',
+            criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        tx.update(personRef, {
+            saldoReserva: firebase.firestore.FieldValue.increment(delta),
+            dataAtualizacao: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        tx.set(sentinelRef, {
+            versao: firebase.firestore.FieldValue.increment(1),
+            atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+    });
+}
+
+// Reconstrói o formato "histórico com saldo por item" (igual ao que
+// existia antes, gravado por inteiro no documento da pessoa) a partir
+// do ledger (reservas_participantes/{id}/movimentos), que agora é a
+// única fonte de verdade — nunca mais um array reescrito por inteiro a
+// cada sincronização. Soma andando pra frente a partir de zero (o
+// primeiro movimento de sempre parte de saldo zero).
+async function buscarHistoricoDerivado(pessoaId) {
+    const snap = await db.collection('reservas_participantes').doc(pessoaId)
+        .collection('movimentos').orderBy('criadoEm', 'asc').get();
+    let saldo = 0;
+    const historico = [];
+    snap.forEach(doc => {
+        const m = doc.data();
+        const valor = m.valor || 0;
+        const saldoAnterior = saldo;
+        saldo = m.tipo === 'deposito' ? saldo + valor : saldo - valor;
+        historico.push({
+            data: m.criadoEm && m.criadoEm.toDate ? m.criadoEm.toDate() : new Date(),
+            tipo: m.tipo, valor, descricao: m.descricao || '',
+            saldoAnterior, saldoNovo: saldo
+        });
+    });
+    return historico;
+}
+
 // Concurso mais recente de cada loteria que precisa da 1ª conferência do
 // admin antes do público poder conferir (ver atualizarConcursoMaisRecenteBloqueio
 // e o painel "🔒 Conferência Pública" na aba Cartões) — espelha
@@ -4236,49 +4328,6 @@ function handleParticipanteFinanceiroChange(event) {
     _ligarBotoesHistoricoPagamento(container);
 }
 
-// Mostra os movimentos de reserva já lançados aqui no site mas que o
-// desktop ainda não importou/apagou da fila — pedido do usuário pra
-// conferir antes de registrar de novo e evitar duplicidade.
-async function verPendentesReserva() {
-    const container = document.getElementById('pendentesReservaResultado');
-    if (!container) return;
-    container.style.display = 'block';
-    container.innerHTML = '<div class="loading">🔍 Verificando pendentes...</div>';
-
-    try {
-        const snapshot = await db.collection('reservas_movimentos_pendentes').get();
-        if (snapshot.empty) {
-            container.innerHTML = `
-                <div style="text-align:center;padding:16px;background:#d1fae5;border-radius:12px;color:#065f46;">
-                    <div style="font-size:26px;">✅</div>
-                    <div style="font-weight:600;margin-top:6px;">Nenhum movimento pendente — tudo já foi importado pelo desktop.</div>
-                </div>`;
-            return;
-        }
-
-        const itens = [];
-        snapshot.forEach(doc => itens.push({ id: doc.id, ...doc.data() }));
-        itens.sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')));
-
-        let html = `
-            <div style="background:#fef9c3;padding:12px 16px;border-radius:12px;margin-bottom:10px;border-left:4px solid #f59e0b;">
-                <strong style="color:#854d0e;">⚠️ ${itens.length} movimento(s) ainda não importado(s) pelo desktop</strong>
-                <div style="font-size:12px;color:#78350f;margin-top:4px;">Confira aqui antes de registrar de novo. Cada item some sozinho assim que o app desktop abrir e importar.</div>
-            </div>`;
-        itens.forEach(m => {
-            const tipoLabel = m.tipo === 'deposito' ? '⬆️ Depósito' : '⬇️ Uso/Saque';
-            html += `
-                <div style="background:#f8fafc;border-radius:10px;padding:10px 14px;margin-bottom:8px;border:1px solid #e2e8f0;display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;">
-                    <div><strong>${escapeHtml(m.nome || '?')}</strong> — ${tipoLabel} — R$ ${Number(m.valor || 0).toFixed(2)}</div>
-                    <div style="font-size:12px;color:#64748b;">${escapeHtml(m.data || '-')}${m.descricao ? ' · ' + escapeHtml(m.descricao) : ''}</div>
-                </div>`;
-        });
-        container.innerHTML = html;
-    } catch (error) {
-        console.error('Erro ao verificar pendentes:', error);
-        container.innerHTML = '<div class="empty-state">❌ Erro ao verificar pendentes: ' + (error.message || error) + '</div>';
-    }
-}
 
 // ============================================
 // PREMIAÇÕES — pedido do usuário: "quando ganhar algum prêmio... quero
@@ -4470,72 +4519,47 @@ async function cancelarPremiacaoPendente(id) {
 // ============================================
 async function carregarReservas() {
     try {
-        const [snapshot, snapshotPendentes] = await Promise.all([
-            db.collection('reservas_participantes').get(),
-            db.collection('reservas_movimentos_pendentes').get()
-        ]);
-
-        // Soma, por participanteId, o que ainda está pendente (lançado
-        // aqui no site mas que o desktop ainda não importou de volta) —
-        // achado real do usuário: "lancei via web o valor de 1,00 pra
-        // Elton... o sistema não atualizou o valor de Elton" — saldoReserva
-        // só é atualizado quando o desktop sincroniza de volta pro site
-        // (ver enviar_reservas_para_site), então sem isso o saldo mostrado
-        // aqui sempre ficava atrasado até alguém abrir o desktop. Itens de
-        // "pessoa nova" (sem participanteId ainda) não têm como somar aqui
-        // — essa pessoa só passa a existir nesta lista quando o desktop a
-        // criar e sincronizar.
-        const pendentePorParticipante = {};
-        snapshotPendentes.forEach(doc => {
-            const d = doc.data();
-            if (!d.participanteId) return;
-            const delta = d.tipo === 'deposito' ? (d.valor || 0) : -(d.valor || 0);
-            pendentePorParticipante[d.participanteId] = (pendentePorParticipante[d.participanteId] || 0) + delta;
-        });
+        // Modelo novo: saldoReserva é mantido por incremento atômico a
+        // cada lançamento (web ou desktop), direto no documento — não
+        // existe mais fila de pendência nenhuma pra somar por cima.
+        // Lançado agora, aparece aqui agora (e no desktop no próximo
+        // ciclo de verificação automática, ~poucos segundos depois).
+        const snapshot = await db.collection('reservas_participantes').get();
 
         const reservas = [];
         let totalSaldo = 0;
 
         snapshot.forEach(doc => {
             const data = doc.data();
-            const saldoConfirmado = data.saldoReserva || 0;
-            const saldoPendente = pendentePorParticipante[doc.id] || 0;
-            reservas.push({
-                id: doc.id, ...data,
-                saldoPendente,
-                saldoProjetado: saldoConfirmado + saldoPendente
-            });
-            totalSaldo += saldoConfirmado + saldoPendente;
+            const saldo = data.saldoReserva || 0;
+            reservas.push({ id: doc.id, ...data, saldo });
+            totalSaldo += saldo;
         });
 
-        reservas.sort((a, b) => b.saldoProjetado - a.saldoProjetado);
+        reservas.sort((a, b) => b.saldo - a.saldo);
         reservasCarregadas = reservas;
 
         document.getElementById('totalReservas').innerHTML = `R$ ${totalSaldo.toFixed(2)}`;
-        
+
         const container = document.getElementById('listaReservas');
-        
+
         if (reservas.length === 0) {
             container.innerHTML = '<div class="empty-state">📭 Nenhuma reserva encontrada</div>';
             return;
         }
-        
+
         let html = '<div class="reservas-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">';
         for (const reserva of reservas) {
-            const dataAtualizacao = reserva.dataAtualizacao ? new Date(reserva.dataAtualizacao).toLocaleString('pt-BR') : '---';
-            const saldo = reserva.saldoProjetado.toFixed(2);
-            const temPendente = Math.abs(reserva.saldoPendente) > 0.001;
+            const dataAtualizacao = reserva.dataAtualizacao && reserva.dataAtualizacao.toDate
+                ? reserva.dataAtualizacao.toDate().toLocaleString('pt-BR') : '---';
+            const saldo = reserva.saldo.toFixed(2);
 
             html += `
                 <div class="reserva-card" style="background: #f8fafc; border-radius: 12px; padding: 14px; border: 1px solid #e2e8f0;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                         <div style="font-weight: bold; font-size: 15px; color: #1e293b;">👤 ${escapeHtml(reserva.nome)}</div>
-                        <div style="font-weight: bold; font-size: 16px; color: ${reserva.saldoProjetado > 0 ? '#10b981' : reserva.saldoProjetado < 0 ? '#ef4444' : '#64748b'};">R$ ${saldo}</div>
+                        <div style="font-weight: bold; font-size: 16px; color: ${reserva.saldo > 0 ? '#10b981' : reserva.saldo < 0 ? '#ef4444' : '#64748b'};">R$ ${saldo}</div>
                     </div>
-                    ${temPendente ? `
-                    <div style="font-size: 11px; color: #d97706; background:#fef3c7; border-radius:6px; padding:3px 8px; margin-bottom:6px; display:inline-block;">
-                        ⏳ inclui R$ ${reserva.saldoPendente.toFixed(2)} ainda não sincronizado pelo desktop
-                    </div>` : ''}
                     <div style="font-size: 12px; color: #64748b; margin-bottom: 8px;">
                         🆔 ${reserva.participanteId || reserva.id.substring(0, 8)} • 📅 ${dataAtualizacao}
                     </div>
@@ -4589,17 +4613,17 @@ async function mostrarHistorico(id, nome) {
     
     try {
         const doc = await db.collection('reservas_participantes').doc(id).get();
-        
+
         if (!doc.exists) {
             div.innerHTML = '<div style="color: #ef4444;">❌ Reserva não encontrada</div>';
             if (btn) btn.textContent = '📜 VER HISTÓRICO';
             return;
         }
-        
+
         const data = doc.data();
-        const historico = data.historico || [];
+        const historico = await buscarHistoricoDerivado(id);
         const saldoAtual = data.saldoReserva || 0;
-        
+
         if (historico.length === 0) {
             div.innerHTML = `
                 <div style="text-align: center; color: #64748b;">📭 Nenhuma movimentação registrada</div>
@@ -4672,11 +4696,12 @@ async function mostrarHistorico(id, nome) {
     }
 }
 
-// Registra um depósito/saque de reserva pelo site — não altera o saldo na
-// hora. Fica na fila reservas_movimentos_pendentes até o app desktop abrir
-// e importar (o desktop é quem mantém o histórico completo; o site só
-// empilha até ser importado). Sem isso, a sincronização só ia desktop→site,
-// nunca o contrário.
+// Registra um depósito/saque de reserva — grava direto no saldo (via
+// registrarMovimentoNoFirestore, commit atômico), aparece aqui e no
+// desktop assim que o ciclo de verificação em segundo plano dele rodar
+// de novo (poucos segundos). Substitui o modelo antigo de fila
+// (reservas_movimentos_pendentes), que exigia o desktop abrir pra
+// importar manualmente.
 function abrirModalRegistrarMovimento() {
     let modal = document.getElementById('modalRegistrarMovimento');
     if (modal) modal.remove();
@@ -4712,7 +4737,7 @@ function abrirModalRegistrarMovimento() {
             <div style="font-size: 32px; text-align: center; margin-bottom: 8px;">💰</div>
             <div style="font-weight: bold; font-size: 18px; text-align: center; margin-bottom: 4px;">REGISTRAR MOVIMENTO DE RESERVA</div>
             <div style="font-size: 12px; color: #64748b; text-align: center; margin-bottom: 20px;">
-                Fica pendente até o app desktop abrir e importar — o saldo não muda aqui na hora.
+                Grava direto no saldo — aparece aqui e no desktop na hora.
             </div>
 
             <div style="display: flex; gap: 8px; margin-bottom: 14px;">
@@ -4791,40 +4816,58 @@ function abrirModalRegistrarMovimento() {
         if (!valor || valor <= 0) { showToast('⚠️ Informe um valor válido', 'warning'); return; }
         if (!data) { showToast('⚠️ Informe a data', 'warning'); return; }
 
-        const doc = {
-            pessoaExistente, tipo, valor, data, descricao,
-            sincronizado: false,
-            criadoEm: new Date().toISOString()
-        };
+        let pessoaId, nome, telefone, chavePix, pessoaNova;
 
         if (pessoaExistente) {
             const select = document.getElementById('movPessoaSelect');
             const reservaId = select.value;
             if (!reservaId) { showToast('⚠️ Selecione a pessoa', 'warning'); return; }
             const reserva = reservasCarregadas.find(r => r.id === reservaId);
-            doc.participanteId = reservaId;
-            doc.nome = reserva ? reserva.nome : '';
-            doc.telefone = reserva ? (reserva.telefone || '') : '';
-            doc.chavePix = '';
+            pessoaId = reservaId;
+            nome = reserva ? reserva.nome : '';
+            telefone = reserva ? (reserva.telefone || '') : '';
+            chavePix = '';
+            pessoaNova = false;
+
+            // Único aviso que ainda interrompe (1 clique): saldo ficar
+            // negativo — os demais avisos inteligentes (nome parecido,
+            // duplicata, valor fora do padrão, data suspeita) viraram
+            // notificação passiva, não bloqueiam mais (pedido do
+            // usuário: "não quero interação pra atualizar").
+            if (tipo === 'saque' && reserva) {
+                const saldoDepois = (reserva.saldo || 0) - valor;
+                if (saldoDepois < 0 && !confirm(
+                        `O saldo de ${nome} ficará negativo (R$ ${saldoDepois.toFixed(2)}). Confirmar mesmo assim?`)) {
+                    return;
+                }
+            }
         } else {
-            const nome = document.getElementById('movNomeNovo').value.trim();
-            const telefone = document.getElementById('movTelefoneNovo').value.trim();
-            const pix = document.getElementById('movPixNovo').value.trim();
+            nome = document.getElementById('movNomeNovo').value.trim();
+            telefone = document.getElementById('movTelefoneNovo').value.trim();
+            chavePix = document.getElementById('movPixNovo').value.trim();
             if (!nome) { showToast('⚠️ Informe o nome', 'warning'); return; }
             if (!telefone) { showToast('⚠️ Informe o telefone', 'warning'); return; }
-            doc.participanteId = null;
-            doc.nome = nome;
-            doc.telefone = telefone.replace(/\D/g, '');
-            doc.chavePix = pix;
+            telefone = telefone.replace(/\D/g, '');
+            pessoaId = makePartId(nome, telefone);
+            pessoaNova = true;
         }
 
+        const btnConfirmar = document.getElementById('btnConfirmarMovimento');
+        btnConfirmar.disabled = true;
+        btnConfirmar.textContent = '⏳ Gravando...';
+
         try {
-            await db.collection('reservas_movimentos_pendentes').add(doc);
-            showToast('✅ Registrado! Vai aparecer no saldo quando o desktop abrir e sincronizar.', 'success');
+            await registrarMovimentoNoFirestore({
+                pessoaId, pessoaNova, nome, telefone, chavePix, tipo, valor, data, descricao
+            });
+            showToast('✅ Registrado — já está valendo no saldo!', 'success');
             modal.remove();
+            carregarReservas();
         } catch (error) {
             console.error('Erro ao registrar movimento:', error);
-            showToast('❌ Erro ao registrar movimento', 'error');
+            showToast('❌ Não gravou: ' + (error.message || error), 'error');
+            btnConfirmar.disabled = false;
+            btnConfirmar.textContent = '✅ REGISTRAR';
         }
     };
 
@@ -4835,12 +4878,12 @@ function abrirModalRegistrarMovimento() {
 // tudo junto — pedido explícito do usuário porque registrar um por um no
 // modal acima (abrirModalRegistrarMovimento) era lento demais quando o
 // mesmo valor vale pra várias pessoas (ex.: "uso da reserva" de um cartão
-// comprado por 15 pessoas). Cada pessoa marcada vira um documento próprio
-// em reservas_movimentos_pendentes (mesma fila/formato do modal simples —
-// o desktop importa cada um igual), gravados juntos num batch do
-// Firestore. O modal fica aberto depois de registrar: some as caixinhas
-// marcadas e limpa o valor, pra já poder marcar outro grupo com outro
-// valor sem reabrir nada — exatamente o fluxo descrito pelo usuário.
+// comprado por 15 pessoas). Cada pessoa marcada vira uma gravação atômica
+// própria (registrarMovimentoNoFirestore) — não dá pra juntar num commit
+// só porque cada uma incrementa o saldo de um documento diferente. O modal
+// fica aberto depois de registrar: some as caixinhas marcadas e limpa o
+// valor, pra já poder marcar outro grupo com outro valor sem reabrir nada
+// — exatamente o fluxo descrito pelo usuário.
 function abrirModalLancamentoLote() {
     let modal = document.getElementById('modalLancamentoLote');
     if (modal) modal.remove();
@@ -4979,31 +5022,44 @@ function abrirModalLancamentoLote() {
 
         const btnConfirmar = document.getElementById('btnConfirmarLote');
         btnConfirmar.disabled = true;
-        btnConfirmar.textContent = '⏳ Registrando...';
 
-        try {
-            const batch = db.batch();
-            const criadoEm = new Date().toISOString();
-            for (const cb of selecionados) {
-                const reserva = reservasCarregadas.find(r => r.id === cb.value);
-                const ref = db.collection('reservas_movimentos_pendentes').doc();
-                batch.set(ref, {
-                    pessoaExistente: true,
-                    participanteId: cb.value,
+        // Cada pessoa tem sua própria gravação atômica (lançamento +
+        // incremento do saldo dela + aviso global) — não dá pra juntar
+        // várias pessoas num commit só porque cada incremento é num
+        // documento diferente. Roda uma de cada vez (não em paralelo)
+        // pra poder reportar exatamente quem deu certo e quem falhou,
+        // em vez de um erro genérico "o lote falhou" sem saber quanto
+        // já tinha sido gravado de verdade.
+        let sucesso = 0;
+        const falhas = [];
+        for (let i = 0; i < selecionados.length; i++) {
+            const cb = selecionados[i];
+            btnConfirmar.textContent = `⏳ Gravando ${i + 1}/${selecionados.length}...`;
+            const reserva = reservasCarregadas.find(r => r.id === cb.value);
+            try {
+                await registrarMovimentoNoFirestore({
+                    pessoaId: cb.value, pessoaNova: false,
                     nome: reserva ? reserva.nome : '',
                     telefone: reserva ? (reserva.telefone || '') : '',
-                    chavePix: '',
-                    tipo, valor, data, descricao,
-                    sincronizado: false,
-                    criadoEm
+                    tipo, valor, data, descricao
                 });
+                sucesso++;
+            } catch (error) {
+                console.error('Erro ao registrar lote para', cb.value, error);
+                falhas.push(reserva ? reserva.nome : cb.value);
             }
-            await batch.commit();
+        }
 
-            totalRegistradoSessao += selecionados.length;
+        try {
+            totalRegistradoSessao += sucesso;
             resumoEl.style.display = '';
             resumoEl.textContent = `✅ ${totalRegistradoSessao} movimento(s) registrado(s) nesta sessão`;
-            showToast(`✅ ${selecionados.length} movimento(s) registrado(s)! Continue marcando outro grupo ou feche.`, 'success');
+            if (falhas.length === 0) {
+                showToast(`✅ ${sucesso} movimento(s) registrado(s) — já valendo no saldo! Continue marcando outro grupo ou feche.`, 'success');
+            } else {
+                showToast(`⚠️ ${sucesso} ok, ${falhas.length} falharam: ${falhas.join(', ')}`, 'warning');
+            }
+            if (sucesso > 0) carregarReservas();
 
             // Limpa pra próxima rodada com outro valor, mas mantém tipo/data
             // (o mais comum é continuar no mesmo dia/tipo, só trocando quem
@@ -5014,8 +5070,8 @@ function abrirModalLancamentoLote() {
             atualizarContador();
             document.getElementById('loteValor').focus();
         } catch (error) {
-            console.error('Erro ao registrar lote:', error);
-            showToast('❌ Erro ao registrar o lote', 'error');
+            console.error('Erro ao finalizar lote:', error);
+            showToast('❌ Erro ao finalizar o lote', 'error');
         } finally {
             btnConfirmar.disabled = false;
             btnConfirmar.textContent = '✅ REGISTRAR SELECIONADOS';
@@ -5042,7 +5098,7 @@ async function copiarHistoricoWhatsApp(id, nome, completo = false) {
         }
 
         const data = doc.data();
-        const historico = data.historico || [];
+        const historico = await buscarHistoricoDerivado(id);
         const saldoAtual = data.saldoReserva || 0;
 
         if (historico.length === 0) {
@@ -5786,8 +5842,6 @@ document.addEventListener('DOMContentLoaded', () => {
             exibirOtimizadorCotas();
         });
     });
-    const btnVerPendentesReserva = document.getElementById('btnVerPendentesReserva');
-    if (btnVerPendentesReserva) btnVerPendentesReserva.onclick = verPendentesReserva;
     const btnRegistrarMovimentoReserva = document.getElementById('btnRegistrarMovimentoReserva');
     if (btnRegistrarMovimentoReserva) btnRegistrarMovimentoReserva.onclick = abrirModalRegistrarMovimento;
     const btnLancamentoLoteReserva = document.getElementById('btnLancamentoLoteReserva');

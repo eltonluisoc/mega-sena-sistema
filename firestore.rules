@@ -136,16 +136,74 @@ service cloud.firestore {
     // reservas_participantes é dado financeiro nominal e só é lido pelo
     // admin (nenhuma página pública consulta essa coleção) — não faz
     // sentido deixar leitura pública aqui, nem get nem list.
-    match /reservas_participantes/{document} {
+    //
+    // Modelo novo (sincronização ao vivo, sem fila de pendências —
+    // substitui reservas_movimentos_pendentes abaixo, que fica só até a
+    // migração terminar de esvaziá-la): o saldo (`saldoReserva`) só
+    // muda por incremento atômico, junto com a criação do lançamento
+    // correspondente em movimentos/ — nunca mais reescrito por inteiro
+    // a partir de uma cópia local (essa reescrita era a causa raiz de
+    // web e desktop divergirem quando gravavam perto um do outro). O
+    // campo `historico` (array antigo, reescrito por inteiro a cada
+    // sync) não pode mais aparecer — é exatamente o padrão que está
+    // sendo substituído pela subcoleção `movimentos` abaixo.
+    match /reservas_participantes/{pessoaId} {
       allow read: if isAdmin();
-      allow write, delete: if isAdmin();
+      allow create: if isAdmin()
+                    && request.resource.data.keys().hasOnly(
+                         ['participanteId','nome','telefone','chavePix',
+                          'observacoes','ativo','saldoReserva','dataAtualizacao','admin'])
+                    && request.resource.data.saldoReserva == 0;
+      allow update: if isAdmin()
+                    && !('historico' in request.resource.data)
+                    && request.resource.data.keys().hasOnly(
+                         ['participanteId','nome','telefone','chavePix',
+                          'observacoes','ativo','saldoReserva','dataAtualizacao','admin']);
+      allow delete: if isAdmin();
+
+      // Ledger só-de-inserção: um documento por depósito/saque, nunca
+      // editado nem apagado (nem pelo admin) — um engano vira um
+      // lançamento reverso novo, nunca uma edição do passado. `movId`
+      // é gerado pelo cliente (UUID no desktop, doc().id no site) e
+      // serve de chave de idempotência contra gravação duplicada depois
+      // de uma falha de rede ambígua.
+      //
+      // criadoEm aceita qualquer timestamp (não só request.time): a
+      // migração que preenche o ledger a partir do histórico local
+      // precisa gravar a data ORIGINAL de cada lançamento antigo, não
+      // "agora". Não há um boundary de segurança real sendo afrouxado
+      // aqui — os dois únicos escritores (site e desktop) já são o
+      // mesmo admin autenticado; isso só garante o formato do campo.
+      match /movimentos/{movId} {
+        allow read: if isAdmin();
+        allow create: if isAdmin()
+                      && request.resource.data.keys().hasOnly(
+                           ['tipo','valor','data','descricao','loteria',
+                            'concurso','origem','criadoEm'])
+                      && request.resource.data.tipo in ['deposito','saque']
+                      && request.resource.data.valor is number
+                      && request.resource.data.valor > 0
+                      && request.resource.data.origem in ['web','desktop','migracao']
+                      && request.resource.data.criadoEm is timestamp;
+        allow update, delete: if false;
+      }
     }
 
-    // Fila de depósitos/saques de reserva registrados pelo admin no site,
-    // aguardando o app desktop abrir e importar pro SQLite local (é o
-    // desktop que mantém o histórico completo — o site só empilha aqui até
-    // ser importado, depois o documento é apagado). Só o admin toca nisso,
-    // dos dois lados (site e desktop usam a mesma conta).
+    // Contador global incrementado atomicamente em toda gravação de
+    // reserva (web ou desktop) — é só isso que o desktop fica
+    // verificando em segundo plano (a cada poucos segundos) pra saber
+    // "mudou algo, hora de buscar de novo", em vez de reler a coleção
+    // inteira toda hora.
+    match /meta/reservas_version {
+      allow read: if isAdmin();
+      allow write: if isAdmin()
+                   && request.resource.data.keys().hasOnly(['versao','atualizadoEm'])
+                   && request.resource.data.versao is int;
+    }
+
+    // Fila ANTIGA de depósitos/saques de reserva (modelo substituído
+    // pela sincronização ao vivo acima) — mantida só até a migração
+    // esvaziá-la de vez; depois disso este bloco é removido.
     match /reservas_movimentos_pendentes/{document} {
       allow read, write: if isAdmin();
     }
