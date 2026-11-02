@@ -1,7 +1,26 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.52
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.53
+Correções v6.53 (botão "Limpar Pendências" travava em "Verificando..."
+pra sempre, sem erro nenhum):
+- Achado real do usuário, clicando no botão manual direto: "aparece
+  verificando pendências já resolvidas e não mostra mais nada."
+  Causa provável: um .exe "windowed" (sem console, como este) não
+  mostra NADA quando uma thread de fundo levanta uma exceção não
+  tratada — o Python só imprime no stderr, que não existe nessa
+  build, e a thread morre em silêncio, sem nenhum rastro visível.
+- Corrigido: TODO o corpo de _limpar_pendencias_ja_importadas (leitura
+  do SQLite, início da thread, e o laço inteiro dentro da thread)
+  agora está envolvido em try/except que sempre termina em algo
+  visível — popup de erro com o nome e texto completos da exceção,
+  nunca mais silêncio puro. Acrescentado também um "vigia"
+  (root.after 25s): se nada tiver respondido até lá (nem sucesso nem
+  erro — ex.: um travamento de rede que não dispara exceção nenhuma
+  do Python), avisa isso explicitamente em vez de ficar preso pra
+  sempre sem nenhum aviso.
+- 35 testes automatizados + py_compile, todos OK.
+
 Correções v6.52 (blindagem: falha na limpeza automática não pode mais
 travar o resto do login):
 - Depois da v6.51, usuário reportou "abri e não apareceu nada,
@@ -2587,7 +2606,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.52")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.53")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -3291,96 +3310,156 @@ class BolaoApp:
         import threading
         self._status("🔎 Verificando pendências já resolvidas no site...")
 
-        # Leitura do SQLite na thread principal — sqlite3 não permite
-        # usar a mesma conexão fora da thread onde foi criada.
-        resolvidos_local = set()
-        for r in self.db.fetchall(
-                "SELECT DISTINCT origem_doc_id FROM reservas_movimentos "
-                "WHERE origem_doc_id IS NOT NULL"):
-            resolvidos_local.add(r["origem_doc_id"])
-        for r in self.db.fetchall("SELECT origem_doc_id FROM reservas_fila_decisoes"):
-            resolvidos_local.add(r["origem_doc_id"])
+        # Achado real do usuário: a tela travava em "Verificando..." pra
+        # sempre, sem erro nenhum. Causa provável — um .exe "windowed"
+        # (sem console) não mostra NADA quando uma thread de fundo
+        # levanta uma exceção não tratada: o Python só imprime no
+        # stderr, que não existe nessa build, e a thread morre em
+        # silêncio. Daqui pra baixo, TUDO (inclusive a leitura do SQLite
+        # e o próprio início da thread) está envolvido num try/except
+        # que SEMPRE termina em algo visível — popup de erro com o
+        # texto completo da exceção, nunca mais silêncio puro.
+        #
+        # "Vigia" final: se depois de 25s nada tiver respondido (nem
+        # sucesso nem erro — ex.: um travamento de rede que não dispara
+        # nenhuma exceção do Python, bem mais raro, mas possível), avisa
+        # isso explicitamente em vez de ficar preso pra sempre sem
+        # nenhum aviso. concluido[0] vira True assim que QUALQUER
+        # caminho de saída rodar (sucesso, erro, ou o próprio vigia).
+        concluido = [False]
+
+        def _vigia():
+            if not concluido[0]:
+                concluido[0] = True
+                self._status("")
+                if not silencioso:
+                    messagebox.showwarning("Limpar Pendências",
+                        "A verificação está demorando demais (mais de 25s) e não "
+                        "respondeu nem com sucesso nem com erro — provavelmente a "
+                        "internet caiu ou travou no meio do caminho. Tente de novo "
+                        "em instantes.")
+        self.root.after(25000, _vigia)
+
+        try:
+            # Leitura do SQLite na thread principal — sqlite3 não permite
+            # usar a mesma conexão fora da thread onde foi criada.
+            resolvidos_local = set()
+            for r in self.db.fetchall(
+                    "SELECT DISTINCT origem_doc_id FROM reservas_movimentos "
+                    "WHERE origem_doc_id IS NOT NULL"):
+                resolvidos_local.add(r["origem_doc_id"])
+            for r in self.db.fetchall("SELECT origem_doc_id FROM reservas_fila_decisoes"):
+                resolvidos_local.add(r["origem_doc_id"])
+        except Exception as ex:
+            concluido[0] = True
+            self._status("")
+            messagebox.showerror("Limpar Pendências",
+                f"Erro lendo o banco local antes de verificar o site:\n\n{type(ex).__name__}: {ex}")
+            return
 
         def _run():
-            import urllib.request, urllib.error, json
-            url = ("https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
-                   "/databases/(default)/documents/reservas_movimentos_pendentes")
             try:
-                req = urllib.request.Request(url, method="GET", headers=_firebase_headers())
-                with urllib.request.urlopen(req, timeout=15) as r:
-                    dados = json.loads(r.read().decode("utf-8"))
-            except Exception as ex:
-                if silencioso:
-                    # Falha ao buscar (sem internet, etc.) não é um erro
-                    # que precisa de popup no fluxo automático — a
-                    # importação normal já lida/avisa sobre isso.
-                    self.root.after(0, lambda: self._status(""))
-                else:
-                    self.root.after(0, lambda: (
-                        self._status(""),
-                        messagebox.showerror("Limpar Pendências",
-                            f"Não consegui buscar a fila do site:\n\n{ex}")))
-                return
-
-            docs = dados.get("documents", [])
-            doc_ids_na_fila = [d.get("name", "").split("/")[-1] for d in docs]
-            presos = [did for did in doc_ids_na_fila if did in resolvidos_local]
-
-            if not presos:
-                total = len(doc_ids_na_fila)
-                if silencioso:
-                    self.root.after(0, lambda: self._status(""))
-                else:
-                    self.root.after(0, lambda: (
-                        self._status(""),
-                        messagebox.showinfo("Limpar Pendências",
-                            f"A fila do site tem {total} item(ns), mas nenhum já resolvido "
-                            f"localmente — nada preso pra limpar agora."
-                            if total else "A fila do site já está vazia — nada pra limpar.")))
-                return
-
-            base = ("projects/mega-sena-sistema/databases/(default)/documents"
-                    "/reservas_movimentos_pendentes/")
-            commit_url = ("https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
-                          "/databases/(default):commit")
-            apagados = 0
-            erro_detalhe = None
-            grupos = [presos[i:i + 500] for i in range(0, len(presos), 500)]
-            for grupo in grupos:
-                corpo = json.dumps({"writes": [{"delete": base + did} for did in grupo]}).encode("utf-8")
+                import urllib.request, urllib.error, json
+                url = ("https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
+                       "/databases/(default)/documents/reservas_movimentos_pendentes")
                 try:
-                    req = urllib.request.Request(commit_url, data=corpo, method="POST",
-                                                  headers=_firebase_headers())
-                    with urllib.request.urlopen(req, timeout=20) as resp:
-                        resp.read()
-                    apagados += len(grupo)
-                except urllib.error.HTTPError as ex:
-                    corpo_erro = ex.read().decode("utf-8", "replace")[:400] if ex.fp else ""
-                    erro_detalhe = f"HTTP {ex.code}: {corpo_erro}"
+                    req = urllib.request.Request(url, method="GET", headers=_firebase_headers())
+                    with urllib.request.urlopen(req, timeout=15) as r:
+                        dados = json.loads(r.read().decode("utf-8"))
                 except Exception as ex:
-                    erro_detalhe = str(ex)[:400]
+                    concluido[0] = True
+                    if silencioso:
+                        # Falha ao buscar (sem internet, etc.) não é um
+                        # erro que precisa de popup no fluxo automático —
+                        # a importação normal já lida/avisa sobre isso.
+                        self.root.after(0, lambda: self._status(""))
+                    else:
+                        self.root.after(0, lambda: (
+                            self._status(""),
+                            messagebox.showerror("Limpar Pendências",
+                                f"Não consegui buscar a fila do site:\n\n"
+                                f"{type(ex).__name__}: {ex}")))
+                    return
 
-            def _ui():
-                self._status("")
-                msg = (f"🔍 {len(doc_ids_na_fila)} item(ns) na fila do site.\n"
-                       f"📌 {len(presos)} já estavam resolvidos localmente e presos lá.\n"
-                       f"✅ {apagados} removido(s) agora.")
-                if erro_detalhe:
-                    # Erro de verdade merece popup SEMPRE, mesmo no modo
-                    # silencioso automático — é exatamente o tipo de
-                    # problema que não pode continuar invisível (ver
-                    # achado real do usuário, docstring acima).
-                    msg += f"\n\n❌ Erro ao apagar o restante (mande isto pra análise):\n{erro_detalhe}"
-                    self._log("Limpar Pendências — erro", erro_detalhe)
-                    messagebox.showwarning("Limpar Pendências", msg)
-                elif not silencioso:
-                    messagebox.showinfo("Limpar Pendências", msg)
-                elif apagados:
-                    self._status(f"🧹 {apagados} pendência(s) presa(s) no site foram limpas sozinhas")
-                    self.root.after(6000, lambda: self._status(""))
-            self.root.after(0, _ui)
+                docs = dados.get("documents", [])
+                doc_ids_na_fila = [d.get("name", "").split("/")[-1] for d in docs]
+                presos = [did for did in doc_ids_na_fila if did in resolvidos_local]
 
-        threading.Thread(target=_run, daemon=True).start()
+                if not presos:
+                    concluido[0] = True
+                    total = len(doc_ids_na_fila)
+                    if silencioso:
+                        self.root.after(0, lambda: self._status(""))
+                    else:
+                        self.root.after(0, lambda: (
+                            self._status(""),
+                            messagebox.showinfo("Limpar Pendências",
+                                f"A fila do site tem {total} item(ns), mas nenhum já resolvido "
+                                f"localmente — nada preso pra limpar agora."
+                                if total else "A fila do site já está vazia — nada pra limpar.")))
+                    return
+
+                base = ("projects/mega-sena-sistema/databases/(default)/documents"
+                        "/reservas_movimentos_pendentes/")
+                commit_url = ("https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
+                              "/databases/(default):commit")
+                apagados = 0
+                erro_detalhe = None
+                grupos = [presos[i:i + 500] for i in range(0, len(presos), 500)]
+                for grupo in grupos:
+                    corpo = json.dumps({"writes": [{"delete": base + did} for did in grupo]}).encode("utf-8")
+                    try:
+                        req = urllib.request.Request(commit_url, data=corpo, method="POST",
+                                                      headers=_firebase_headers())
+                        with urllib.request.urlopen(req, timeout=20) as resp:
+                            resp.read()
+                        apagados += len(grupo)
+                    except urllib.error.HTTPError as ex:
+                        corpo_erro = ex.read().decode("utf-8", "replace")[:400] if ex.fp else ""
+                        erro_detalhe = f"HTTP {ex.code}: {corpo_erro}"
+                    except Exception as ex:
+                        erro_detalhe = f"{type(ex).__name__}: {str(ex)[:400]}"
+
+                def _ui():
+                    concluido[0] = True
+                    self._status("")
+                    msg = (f"🔍 {len(doc_ids_na_fila)} item(ns) na fila do site.\n"
+                           f"📌 {len(presos)} já estavam resolvidos localmente e presos lá.\n"
+                           f"✅ {apagados} removido(s) agora.")
+                    if erro_detalhe:
+                        # Erro de verdade merece popup SEMPRE, mesmo no modo
+                        # silencioso automático — é exatamente o tipo de
+                        # problema que não pode continuar invisível (ver
+                        # achado real do usuário, docstring acima).
+                        msg += f"\n\n❌ Erro ao apagar o restante (mande isto pra análise):\n{erro_detalhe}"
+                        self._log("Limpar Pendências — erro", erro_detalhe)
+                        messagebox.showwarning("Limpar Pendências", msg)
+                    elif not silencioso:
+                        messagebox.showinfo("Limpar Pendências", msg)
+                    elif apagados:
+                        self._status(f"🧹 {apagados} pendência(s) presa(s) no site foram limpas sozinhas")
+                        self.root.after(6000, lambda: self._status(""))
+                self.root.after(0, _ui)
+            except Exception as ex:
+                # Rede de segurança final: NENHUMA exceção pode morrer
+                # calada dentro desta thread — sempre vira um popup. O
+                # _log (grava no SQLite) precisa rodar na thread
+                # principal também — daí dentro do lambda, não aqui.
+                concluido[0] = True
+                erro_txt = f"{type(ex).__name__}: {ex}"
+                self.root.after(0, lambda: (
+                    self._status(""),
+                    self._log("Limpar Pendências — falha inesperada", erro_txt),
+                    messagebox.showerror("Limpar Pendências",
+                        f"Erro inesperado (mande isto pra análise):\n\n{erro_txt}")))
+
+        try:
+            threading.Thread(target=_run, daemon=True).start()
+        except Exception as ex:
+            concluido[0] = True
+            self._status("")
+            messagebox.showerror("Limpar Pendências",
+                f"Não consegui iniciar a verificação:\n\n{type(ex).__name__}: {ex}")
 
     def _importar_premiacoes_pendentes_web(self):
         """Importa premiações registradas no admin do site (fila
@@ -3551,7 +3630,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.52",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.53",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -7677,7 +7756,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.52</span>
+        <span>Sistema de Gestão de Bolões v6.53</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -9967,7 +10046,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.52</span>
+        <span>Sistema de Gestão de Bolões v6.53</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
