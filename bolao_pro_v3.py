@@ -1,7 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v7.0
+SISTEMA DE GESTÃO DE BOLÕES PRO v7.1
+Correções v7.1 (barra de status geral ficava presa em "Conectando ao
+Firebase..." pra sempre, mesmo com tudo funcionando):
+- Achado real do usuário: abriu a v7.0, o rodapé ficou parado em
+  "Conectando ao Firebase..." por minutos, parecia travado — mas o
+  resto do sistema respondia normalmente e a aba Reservas já mostrava
+  "🟢 Sincronizado" (confirmando que login e sincronização
+  funcionaram). Era só cosmético: nada depois do login atualizava mais
+  a barra de status geral (o indicador novo da sincronização de
+  reservas é outro, só da aba Reservas).
+- Corrigido: `_login_inicial` agora mostra "✅ Conectado ao Firebase"
+  ao final (some sozinho depois de alguns segundos).
+
 Correções v7.0 (reservas: solução definitiva — sincronização ao vivo,
 sem fila de pendências):
 - Pedido explícito do usuário: "quero uma solução definitiva... quando
@@ -2857,7 +2869,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v7.0")
+        self.root.title("Sistema de Gestão de Bolões PRO v7.1")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -2930,6 +2942,14 @@ class BolaoApp:
         # cooldown, sem botão manual. O laço em segundo plano cuida de
         # tudo sozinho a partir daqui.
         self._rsv_sync_loop_iniciar()
+        # Achado real do usuário: a barra de status geral (rodapé) ficava
+        # presa em "Conectando ao Firebase..." pra sempre depois de um
+        # login bem-sucedido — nada daqui pra baixo atualizava mais ela
+        # (o indicador de verdade da sincronização de reservas é outro,
+        # só da aba Reservas, _pub_status_rsv). Sem isso, parecia
+        # travado mesmo com tudo funcionando normalmente por trás.
+        self._status("✅ Conectado ao Firebase")
+        self.root.after(4000, lambda: self._status(""))
 
     def _rsv_sync_loop_iniciar(self):
         """Inicia o laço de verificação em segundo plano das reservas —
@@ -3306,7 +3326,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v7.0",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v7.1",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -7424,7 +7444,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v7.0</span>
+        <span>Sistema de Gestão de Bolões v7.1</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -9717,7 +9737,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v7.0</span>
+        <span>Sistema de Gestão de Bolões v7.1</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
