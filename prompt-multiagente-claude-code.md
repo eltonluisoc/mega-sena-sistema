@@ -1690,6 +1690,16 @@ Pedido do usuário, vendo o botão "🧹 Limpar Pendências Já Importadas" da R
 
 35 testes automatizados + `py_compile`, todos OK. Versão desktop v6.49 → **v6.50** (4 locais) + rebuild do `.exe`.
 
+## Rodada 117 — Causa raiz real: cooldown de 15min bloqueava a limpeza automática por inteiro (desktop)
+
+Pedido do usuário, depois de abrir a v6.50 e nada mudar: "revise o sistema e me traga uma solução.... estou há 1 hora aqui com esses erros." Confirmado com uma pergunta direta — "não apareceu tela nenhuma" ao abrir o desktop, nem a tela de revisão, nem nenhum resultado da limpeza.
+
+**Causa raiz**: o cooldown de 15min (`_rsv_cooldown_ativo`, existe desde antes desta sessão pra não martelar o limite diário gratuito do Firestore depois de um 429) fazia `_login_inicial` retornar **antes** de chegar em `_importar_movimentos_pendentes_web` — e era exatamente dentro desse caminho que a limpeza automática da Rodada 116/v6.50 rodava (dentro de `_concluir_import_pendentes`). Toda vez que o cooldown estava ativo (bem provável depois de uma hora de testes seguidos, cada abertura/reabertura arriscando um novo 429), a limpeza automática nunca rodava nem uma vez — só um texto discreto na barra de status avisava, sem tela, sem popup, fácil de nunca notar em uma sessão corrida.
+
+**Corrigido**: `_limpar_pendencias_ja_importadas(silencioso=True)` agora é chamada em `_login_inicial` **antes** da checagem de cooldown — é uma leitura independente e mais leve que o backlog completo de reservas, não faz sentido ficar presa no mesmo cooldown da busca principal. Passa a rodar sempre que o app abre, mesmo com o cooldown ativo.
+
+35 testes automatizados + `py_compile`, todos OK. Versão desktop v6.50 → **v6.51** (4 locais) + rebuild do `.exe`.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

@@ -1,7 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.50
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.51
+Correções v6.51 (limpeza automática da v6.50 nunca rodava quando
+havia cooldown ativo — causa raiz real de "nada mudou"):
+- Achado real do usuário, depois de abrir a v6.50 e nada ter sido
+  limpo: "não apareceu tela nenhuma" ao abrir o app. Causa: o cooldown
+  de 15min (ativado quando uma tentativa recente de buscar a fila
+  principal leva 429 do Firestore) fazia _login_inicial retornar ANTES
+  de chegar em _importar_movimentos_pendentes_web — e era DENTRO desse
+  caminho que a limpeza automática da v6.50 rodava (dentro de
+  _concluir_import_pendentes). Toda vez que o cooldown estava ativo, a
+  limpeza nunca rodava nem uma vez — só um texto discreto na barra de
+  status, sem tela, sem popup, fácil de nunca notar.
+- Corrigido: _limpar_pendencias_ja_importadas(silencioso=True) agora é
+  chamada em _login_inicial ANTES da checagem de cooldown — é uma
+  leitura independente e bem mais leve que o backlog completo, não faz
+  sentido ficar presa no mesmo cooldown da busca principal. Roda
+  sempre que o app abre, mesmo com o cooldown ativo.
+- 35 testes automatizados + py_compile, todos OK.
+
 Correções v6.50 (limpar pendências presas vira automático — não é
 mais um botão manual):
 - Achado real do usuário, logo depois da v6.49: "NÃO TENHO QUE CLICAR
@@ -2549,7 +2567,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.50")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.51")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -2629,6 +2647,21 @@ class BolaoApp:
         # separadas, sem relação entre si — ver _importar_premiacoes_
         # pendentes_web, nunca teve histórico de rate-limit).
         self._importar_premiacoes_pendentes_web()
+
+        # Achado real do usuário: o cooldown de 15min (quando uma
+        # tentativa recente levou 429) fazia _login_inicial retornar
+        # ANTES de chegar em _importar_movimentos_pendentes_web — e era
+        # justamente DENTRO desse caminho que a limpeza automática da
+        # v6.50 rodava (dentro de _concluir_import_pendentes). Resultado:
+        # toda vez que o cooldown estava ativo, a limpeza automática
+        # nunca rodava nenhuma vez — silenciosamente, só um texto
+        # discreto na barra de status, sem tela nem popup. Chamando aqui,
+        # ANTES do cooldown, a limpeza passa a rodar sempre que o app
+        # abre, mesmo que a busca da fila principal esteja em cooldown —
+        # é uma leitura independente, bem mais leve que o backlog
+        # completo, então não faz sentido ficar presa no mesmo cooldown.
+        self._limpar_pendencias_ja_importadas(silencioso=True)
+
         restante = _rsv_cooldown_ativo()
         if restante is not None:
             # Última tentativa falhou por 429 recentemente — não tenta nesta
@@ -3488,7 +3521,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.50",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.51",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -7614,7 +7647,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.50</span>
+        <span>Sistema de Gestão de Bolões v6.51</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -9904,7 +9937,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.50</span>
+        <span>Sistema de Gestão de Bolões v6.51</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
