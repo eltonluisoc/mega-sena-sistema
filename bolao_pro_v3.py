@@ -1,7 +1,36 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.45
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.46
+Correções v6.46 (reservas do site: revisão inteligente antes de importar,
+não grava mais direto):
+- Pedido do usuário, depois de uma semana sem abrir o desktop pra
+  sincronizar reservas: "quero que ele avalie com inteligência para
+  evitar que eu cadastre com erro, tente identificar possíveis
+  problemas e me mostrar para confirmar". Antes, _concluir_import_
+  pendentes gravava tudo direto no SQLite assim que achava na fila do
+  site, e só mostrava um resumo depois — sem chance de revisar antes.
+- Agora: _analisar_pendentes_reserva lê a fila (reservas_movimentos_
+  pendentes) e só ANALISA, sem gravar nada, calculando avisos por
+  item — nome parecido com pessoa já cadastrada, possível duplicata
+  (contra o histórico OU contra outro item da mesma leva), débito que
+  deixaria o saldo negativo, valor bem acima do habitual da pessoa,
+  data no futuro ou com mais de 90 dias. _abrir_revisao_import_reserva
+  mostra tudo numa lista com checkbox (tudo marcado por padrão, itens
+  com aviso em destaque laranja) — só grava no SQLite o que for
+  confirmado; o que ficar desmarcado continua intacto na fila pra
+  revisar depois, sem duplicar nem se perder.
+- Novo botão "📥 Verificar Reservas do Site" na aba Reservas, pra
+  rodar a checagem a qualquer momento (sem precisar fechar/abrir o
+  app) — mesmo padrão do botão equivalente de premiações.
+- Validado com teste isolado de Tk ao vivo simulando o cenário real
+  (pessoa com nome parecido, débito que estoura o saldo, valor fora
+  do padrão, duplicata dentro da mesma leva, erro bloqueante) —
+  confirma que a análise não grava nada sozinha, que só os itens
+  marcados na tela são gravados, e que os desmarcados permanecem na
+  fila. 35 testes automatizados + py_compile + varredura de método
+  duplicado, todos OK.
+
 Correções v6.45 (premiações do site: não exige mais um bolão cadastrado
 — só a loteria importa):
  - Pedido do usuário: "lancei a premiação no site vinculada a um bolão
@@ -2436,7 +2465,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.45")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.46")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -2582,14 +2611,346 @@ class BolaoApp:
 
         threading.Thread(target=_run, daemon=True).start()
 
+    def _rsv_saldo_pessoa(self, pessoa_id):
+        """Saldo atual de uma pessoa (créditos - débitos), já considerando
+        as variantes de tipo unificadas em TIPOS_CREDITO_RESERVA/
+        TIPOS_DEBITO_RESERVA."""
+        cred = self.db.fetchone(
+            "SELECT SUM(valor) as t FROM reservas_movimentos WHERE pessoa_id=? AND UPPER(tipo) IN "
+            + _sql_in_tipos(TIPOS_CREDITO_RESERVA), (pessoa_id,))["t"] or 0
+        deb = self.db.fetchone(
+            "SELECT SUM(valor) as t FROM reservas_movimentos WHERE pessoa_id=? AND UPPER(tipo) IN "
+            + _sql_in_tipos(TIPOS_DEBITO_RESERVA), (pessoa_id,))["t"] or 0
+        return float(cred) - float(deb)
+
+    def _analisar_pendentes_reserva(self, docs):
+        """Lê os docs crus da fila reservas_movimentos_pendentes e NÃO
+        grava nada — só analisa e devolve 3 grupos:
+        - itens: lançamentos novos, prontos pra revisão, já com os
+          avisos de possível problema calculados (nome parecido, possível
+          duplicata, saldo que ficaria negativo, valor fora do padrão da
+          pessoa, data suspeita);
+        - ja_importados_doc_ids: doc_ids que já tinham sido gravados antes
+          (idempotência — só precisam sumir da fila, sem perguntar nada);
+        - erros_bloqueantes: itens com dado faltando/inválido, que ficam
+          na fila pro usuário corrigir no site.
+
+        Pedido do usuário, depois de uma semana sem abrir o desktop pra
+        sincronizar: "quero que ele avalie com inteligência para evitar
+        que eu cadastre com erro, tente identificar possíveis problemas e
+        me mostrar para confirmar" — antes, _concluir_import_pendentes
+        gravava tudo direto no SQLite e só avisava depois; agora isso vira
+        responsabilidade de quem chama (_concluir_import_pendentes abre
+        _abrir_revisao_import_reserva com o resultado daqui, e só grava o
+        que for confirmado na tela)."""
+        import re as _re, difflib
+        from datetime import datetime as _dt, date as _date
+
+        def campo(fields, nome, tipo, default=None):
+            return fields.get(nome, {}).get(tipo, default)
+
+        pessoas_existentes = self.db.fetchall(
+            "SELECT id, nome, telefone FROM reservas_pessoas WHERE ativo=1")
+
+        itens = []
+        ja_importados_doc_ids = []
+        erros_bloqueantes = []
+        vistos_na_leva = []
+
+        for doc in docs:
+            nome_erro = "?"
+            try:
+                fields   = doc.get("fields", {})
+                doc_id   = doc.get("name", "").split("/")[-1]
+                nome     = (campo(fields, "nome", "stringValue", "") or "").strip()
+                nome_erro = nome or doc_id
+                telefone = campo(fields, "telefone", "stringValue", "") or ""
+                chavePix = campo(fields, "chavePix", "stringValue", "") or ""
+                tipo_web = campo(fields, "tipo", "stringValue", "deposito")
+                valor    = float(campo(fields, "valor", "doubleValue")
+                                  or campo(fields, "valor", "integerValue") or 0)
+                data_web = campo(fields, "data", "stringValue", "") or ""
+                descricao= campo(fields, "descricao", "stringValue", "") or ""
+                criado_em_web = campo(fields, "criadoEm", "stringValue", "") or ""
+
+                if valor <= 0 or not nome:
+                    raise ValueError(f"dados incompletos (valor={valor!r}, nome={nome!r})")
+
+                ja_importado = self.db.fetchone(
+                    "SELECT id FROM reservas_movimentos WHERE origem_doc_id=?", (doc_id,))
+                if ja_importado:
+                    ja_importados_doc_ids.append(doc_id)
+                    continue
+
+                tel_digits = _re.sub(r"\D", "", telefone)
+                pessoa_match = None
+                for p in pessoas_existentes:
+                    if tel_digits and (p["telefone"] or "") == tel_digits:
+                        pessoa_match = p; break
+                if not pessoa_match:
+                    for p in pessoas_existentes:
+                        if (p["nome"] or "").strip().lower() == nome.lower():
+                            pessoa_match = p; break
+
+                tipo_db = "CRÉDITO" if tipo_web == "deposito" else "DÉBITO"
+
+                data_mov = data_web
+                if len(data_web) == 10 and data_web[4:5] == "-":
+                    a, m, d = data_web.split("-")
+                    data_mov = f"{d}/{m}/{a}"
+
+                desc_final = (descricao + " (via site)").strip() if descricao else "Via site"
+
+                avisos = []
+
+                if not pessoa_match:
+                    for p in pessoas_existentes:
+                        outro = (p["nome"] or "").strip()
+                        if not outro:
+                            continue
+                        ratio = difflib.SequenceMatcher(None, nome.lower(), outro.lower()).ratio()
+                        if ratio > 0.82:
+                            avisos.append(
+                                f'nome parecido com "{outro}", já cadastrado — confirme se não é '
+                                f"a mesma pessoa (um cadastro novo será criado se importar assim)")
+                            break
+
+                if pessoa_match:
+                    dup = self.db.fetchone(
+                        "SELECT id FROM reservas_movimentos WHERE pessoa_id=? AND tipo=? "
+                        "AND valor=? AND data_mov=?",
+                        (pessoa_match["id"], tipo_db, valor, data_mov))
+                    if dup:
+                        avisos.append("parece repetido: já existe um lançamento idêntico "
+                                       "(mesma pessoa, tipo, valor e data) no histórico")
+
+                chave_leva = (nome.lower(), tipo_db, valor, data_mov)
+                if chave_leva in vistos_na_leva:
+                    avisos.append("idêntico a outro item desta mesma leva — pode ser duplicado")
+                vistos_na_leva.append(chave_leva)
+
+                if tipo_db == "DÉBITO" and pessoa_match:
+                    saldo_atual = self._rsv_saldo_pessoa(pessoa_match["id"])
+                    if valor > saldo_atual:
+                        avisos.append(f"saldo ficaria negativo: R$ {saldo_atual - valor:.2f}")
+
+                if tipo_db == "CRÉDITO" and pessoa_match:
+                    historico_valores = self.db.fetchall(
+                        "SELECT valor FROM reservas_movimentos WHERE pessoa_id=? AND tipo=?",
+                        (pessoa_match["id"], "CRÉDITO"))
+                    if len(historico_valores) >= 2:
+                        media = sum(h["valor"] for h in historico_valores) / len(historico_valores)
+                        if media > 0 and valor > media * 3:
+                            avisos.append("valor bem acima do habitual dessa pessoa "
+                                          f"(média de R$ {media:.2f})")
+
+                try:
+                    d_mov = _dt.strptime(data_mov, "%d/%m/%Y").date()
+                    hoje = _date.today()
+                    if d_mov > hoje:
+                        avisos.append("data está no futuro")
+                    elif (hoje - d_mov).days > 90:
+                        avisos.append("data tem mais de 90 dias — confira se não é engano")
+                except Exception:
+                    pass
+
+                itens.append({
+                    "doc_id": doc_id, "nome": nome,
+                    "pessoa_id": pessoa_match["id"] if pessoa_match else None,
+                    "pessoa_nova": pessoa_match is None,
+                    "telefone": tel_digits, "chavePix": chavePix,
+                    "tipo_db": tipo_db, "valor": valor, "data_mov": data_mov,
+                    "desc_final": desc_final, "criado_em_web": criado_em_web,
+                    "avisos": avisos,
+                })
+            except Exception as ex:
+                erros_bloqueantes.append((doc.get("name", "").split("/")[-1], nome_erro, str(ex)[:100]))
+
+        return itens, ja_importados_doc_ids, erros_bloqueantes
+
+    def _abrir_revisao_import_reserva(self, itens, erros_bloqueantes):
+        """Mostra os lançamentos de reserva pendentes do site ANTES de
+        gravar no banco, com os avisos de possível problema já
+        destacados — nada é gravado até clicar em "Confirmar e
+        Importar"; fechar/cancelar deixa tudo intacto na fila (seguro
+        pra revisar com calma e tentar de novo depois). Mesmo padrão
+        visual de lista rolável com checkbox já usado em
+        _abrir_popup_lote_reserva."""
+        win = tk.Toplevel(self.root)
+        win.title(f"Revisar Importação de Reservas do Site ({len(itens)} pendente(s))")
+        win.geometry("760x680")
+        win.configure(bg=CORES["bg_frame"])
+        win.grab_set(); win.lift(); win.focus_force()
+
+        n_avisos = sum(1 for it in itens if it["avisos"])
+        topo = tk.Frame(win, bg="#1a3a5a", padx=14, pady=10)
+        topo.pack(fill="x")
+        tk.Label(topo, text=f"📥 {len(itens)} lançamento(s) de reserva aguardando confirmação",
+                 bg="#1a3a5a", fg="white", font=("Arial", 11, "bold")).pack(anchor="w")
+        if n_avisos:
+            tk.Label(topo, text=f"⚠ {n_avisos} com possível problema — revise antes de confirmar",
+                     bg="#1a3a5a", fg="#f5a623", font=("Arial", 9, "bold")).pack(anchor="w", pady=(2, 0))
+        if erros_bloqueantes:
+            tk.Label(topo, text=f"❌ {len(erros_bloqueantes)} item(ns) com erro ficaram de fora "
+                                 f"(continuam na fila — corrija no site)",
+                     bg="#1a3a5a", fg="#ff8080", font=("Arial", 9, "bold")).pack(anchor="w", pady=(2, 0))
+
+        rodape = tk.Frame(win, bg=CORES["bg_frame"])
+        rodape.pack(side="bottom", fill="x", padx=16, pady=12)
+        contador_lbl = tk.Label(rodape, text="", bg=CORES["bg_frame"], fg="#aad4f5",
+                                 font=("Arial", 9, "bold"))
+        contador_lbl.pack(anchor="w", pady=(0, 6))
+        bf_rodape = tk.Frame(rodape, bg=CORES["bg_frame"]); bf_rodape.pack(fill="x")
+        btn(bf_rodape, "✅ Confirmar e Importar", CORES["btn_verde"],
+            lambda: _confirmar(), width=22).pack(side="left", padx=4)
+        btn(bf_rodape, "Marcar todos", CORES["btn_azul"],
+            lambda: _marcar(True), width=14).pack(side="left", padx=4)
+        btn(bf_rodape, "Desmarcar todos", CORES["btn_cinza"],
+            lambda: _marcar(False), width=14).pack(side="left", padx=4)
+        btn(bf_rodape, "Cancelar (não importa nada agora)", CORES["btn_vermelho"],
+            win.destroy, width=28).pack(side="left", padx=4)
+
+        sec_lista = tk.LabelFrame(win, text="  LANÇAMENTOS  ", bg="#243447", fg="white",
+                                   font=("Arial", 9, "bold"), bd=1, padx=8, pady=6)
+        sec_lista.pack(fill="both", expand=True, padx=16, pady=(8, 0))
+
+        canvas = tk.Canvas(sec_lista, bg="#1a2a3a", highlightthickness=0)
+        sb = ttk.Scrollbar(sec_lista, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+        lista_frame = tk.Frame(canvas, bg="#1a2a3a")
+        canvas_window = canvas.create_window((0, 0), window=lista_frame, anchor="nw")
+        canvas.bind("<Configure>", lambda e: canvas.itemconfig(canvas_window, width=e.width))
+        lista_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+
+        def _scroll(e): canvas.yview_scroll(int(-1 * (e.delta / 120)), "units")
+        canvas.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", _scroll))
+        canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
+
+        vars_checkbox = {it["doc_id"]: tk.IntVar(value=1) for it in itens}
+
+        def _atualizar_contador():
+            n = sum(1 for v in vars_checkbox.values() if v.get())
+            contador_lbl.configure(text=f"{n} de {len(itens)} marcado(s) pra importar")
+
+        for it in itens:
+            cor_fundo = "#3a2a1a" if it["avisos"] else "#1a2a3a"
+            row = tk.Frame(lista_frame, bg=cor_fundo, padx=8, pady=6)
+            row.pack(fill="x", padx=4, pady=3)
+
+            icone = "💰" if it["tipo_db"] == "CRÉDITO" else "💸"
+            sinal = "+" if it["tipo_db"] == "CRÉDITO" else "-"
+            cab = f"{icone} {it['nome']}  {sinal} R$ {it['valor']:.2f}  —  {it['data_mov']}"
+            if it["pessoa_nova"]:
+                cab += "  🆕(pessoa nova)"
+            hora = fmt_hora_web(it["criado_em_web"]) if it["criado_em_web"] else ""
+            if hora:
+                cab += f"  às {hora}"
+
+            tk.Checkbutton(
+                row, text=cab, variable=vars_checkbox[it["doc_id"]],
+                bg=cor_fundo, fg="white", selectcolor="#243447",
+                activebackground=cor_fundo, font=("Arial", 9, "bold"),
+                command=_atualizar_contador
+            ).pack(anchor="w")
+
+            if it["desc_final"] and it["desc_final"] != "Via site":
+                tk.Label(row, text=f"    📝 {it['desc_final']}", bg=cor_fundo, fg="#aad4f5",
+                         font=("Arial", 8)).pack(anchor="w")
+
+            for aviso in it["avisos"]:
+                tk.Label(row, text=f"    ⚠ {aviso}", bg=cor_fundo, fg="#ffb347",
+                         font=("Arial", 8, "bold"), wraplength=680, justify="left").pack(anchor="w")
+
+        _atualizar_contador()
+
+        def _marcar(valor):
+            for v in vars_checkbox.values():
+                v.set(1 if valor else 0)
+            _atualizar_contador()
+
+        def _confirmar():
+            selecionados = [it for it in itens if vars_checkbox[it["doc_id"]].get()]
+            if not selecionados:
+                if not messagebox.askyesno("Nada selecionado",
+                        "Nenhum item marcado — fechar sem importar nada agora?"):
+                    return
+                win.destroy()
+                return
+
+            importados = 0
+            total_dep = 0.0; total_saq = 0.0
+            erros_confirmar = []
+            doc_ids_para_apagar = []
+            detalhes_por_pessoa = {}
+
+            for it in selecionados:
+                try:
+                    pessoa_id = it["pessoa_id"]
+                    if pessoa_id is None:
+                        self.db.execute(
+                            "INSERT INTO reservas_pessoas (nome,telefone,chave_pix,observacoes) "
+                            "VALUES (?,?,?,?)",
+                            (it["nome"], it["telefone"], it["chavePix"],
+                             "Criado a partir de movimento do site"))
+                        pessoa_id = self.db.fetchone("SELECT last_insert_rowid() as id")["id"]
+
+                    self.db.execute(
+                        "INSERT INTO reservas_movimentos "
+                        "(pessoa_id, tipo, valor, data_mov, loteria, concurso, descricao, origem_doc_id, registrado_em) "
+                        "VALUES (?,?,?,?,?,?,?,?,?)",
+                        (pessoa_id, it["tipo_db"], it["valor"], it["data_mov"], "", "",
+                         it["desc_final"], it["doc_id"], it["criado_em_web"]))
+
+                    importados += 1
+                    if it["tipo_db"] == "CRÉDITO": total_dep += it["valor"]
+                    else: total_saq += it["valor"]
+                    detalhes_por_pessoa.setdefault(it["nome"], []).append(
+                        (it["tipo_db"], it["valor"], fmt_hora_web(it["criado_em_web"])))
+                    doc_ids_para_apagar.append(it["doc_id"])
+                except Exception as ex:
+                    erros_confirmar.append(f"  • {it['nome']}: {str(ex)[:100]}")
+
+            if doc_ids_para_apagar:
+                self._apagar_fila_em_lote("reservas_movimentos_pendentes", doc_ids_para_apagar)
+
+            partes = []
+            if importados > 0:
+                partes.append(f"✅ {importados} movimento(s) de reserva importado(s) do site:")
+                if total_dep > 0: partes.append(f"  💰 Depósitos: {fmt_brl(total_dep)}")
+                if total_saq > 0: partes.append(f"  💸 Saques/uso: {fmt_brl(total_saq)}")
+                partes.append("")
+                partes.append("Detalhes por pessoa:")
+                for nome_pessoa in sorted(detalhes_por_pessoa.keys(), key=str.lower):
+                    lancs = detalhes_por_pessoa[nome_pessoa]
+                    subtotal = sum(v if t == "CRÉDITO" else -v for t, v, _h in lancs)
+                    sinal = "+" if subtotal >= 0 else "-"
+                    partes.append(f"  👤 {nome_pessoa} ({sinal}{fmt_brl(abs(subtotal))})")
+                    for tipo_l, valor_l, hora_l in lancs:
+                        icone = "💰" if tipo_l == "CRÉDITO" else "💸"
+                        quando = f" às {hora_l}" if hora_l else " (sem horário)"
+                        partes.append(f"      {icone} {fmt_brl(valor_l)}{quando}")
+            if len(selecionados) < len(itens):
+                restantes = len(itens) - len(selecionados)
+                partes.append(f"\n📋 {restantes} item(ns) não marcado(s) continuam na fila pra depois.")
+            if erros_confirmar:
+                partes.append(f"\n⚠ {len(erros_confirmar)} item(ns) falharam ao gravar:")
+                partes.extend(erros_confirmar)
+
+            win.destroy()
+            self._rsv_load()
+            messagebox.showinfo("Reservas sincronizadas", "\n".join(partes) if partes else "Nada importado.")
+
     def _concluir_import_pendentes(self, dados, erro_final):
         """Roda na thread principal (agendada via root.after de dentro de
         _importar_movimentos_pendentes_web) — recebe o resultado da busca
-        feita em background e grava no SQLite (não pode rodar fora da
-        thread principal). A limpeza da fila no Firestore (apagar os
-        itens já garantidos no SQLite) roda à parte, em UM lote só, em
-        background — ver _apagar_fila_em_lote."""
-        import re as _re
+        feita em background e, em vez de gravar direto no SQLite, chama
+        _analisar_pendentes_reserva (só leitura/análise) e abre
+        _abrir_revisao_import_reserva pra eu confirmar antes de qualquer
+        gravação. A limpeza da fila no Firestore dos itens já confirmados
+        (ou já importados antes, idempotência) roda à parte, em lote —
+        ver _apagar_fila_em_lote."""
         self._rsv_import_em_andamento = False
 
         if dados is None:
@@ -2612,171 +2973,35 @@ class BolaoApp:
             self.root.after(5000, lambda: self._status(""))
             return
 
-        self._status(f"🔄 Importando {len(docs)} movimento(s) de reserva do site...")
+        self._status(f"🔎 Analisando {len(docs)} movimento(s) de reserva do site...")
 
-        def campo(fields, nome, tipo, default=None):
-            return fields.get(nome, {}).get(tipo, default)
+        itens, ja_importados_doc_ids, erros_bloqueantes = self._analisar_pendentes_reserva(docs)
 
-        importados = 0; erros = 0
-        total_dep = 0.0; total_saq = 0.0
-        erros_detalhe = []
-        doc_ids_para_apagar = []
-        # Lançamentos novos agrupados por pessoa, pro resumo detalhado ao
-        # abrir o desktop (pedido do usuário: além do total, ver separado
-        # por usuário e o horário que foi registrado no site).
-        detalhes_por_pessoa = {}
+        # Itens que já tinham sido gravados antes (idempotência — ver
+        # comentário em _analisar_pendentes_reserva) não precisam de
+        # confirmação nenhuma, só sumir da fila.
+        if ja_importados_doc_ids:
+            self._apagar_fila_em_lote("reservas_movimentos_pendentes", ja_importados_doc_ids)
 
-        for doc in docs:
-            nome_erro = "?"
-            try:
-                fields   = doc.get("fields", {})
-                doc_id   = doc.get("name", "").split("/")[-1]
-                nome     = (campo(fields, "nome", "stringValue", "") or "").strip()
-                nome_erro = nome or doc_id
-                telefone = campo(fields, "telefone", "stringValue", "") or ""
-                chavePix = campo(fields, "chavePix", "stringValue", "") or ""
-                tipo_web = campo(fields, "tipo", "stringValue", "deposito")
-                valor    = float(campo(fields, "valor", "doubleValue")
-                                  or campo(fields, "valor", "integerValue") or 0)
-                data_web = campo(fields, "data", "stringValue", "") or ""
-                descricao= campo(fields, "descricao", "stringValue", "") or ""
-                criado_em_web = campo(fields, "criadoEm", "stringValue", "") or ""
-
-                if valor <= 0 or not nome:
-                    raise ValueError(f"dados incompletos (valor={valor!r}, nome={nome!r})")
-
-                tel_digits = _re.sub(r"\D", "", telefone)
-
-                # Acha a pessoa local por telefone (mais confiável) ou nome;
-                # se não achar, cria — mesmo que o site achasse que já existia
-                # (participanteId pode ter sido gerado antes da pessoa
-                # existir localmente, ou o app pode ter sido reinstalado).
-                pessoa = None
-                if tel_digits:
-                    pessoa = self.db.fetchone(
-                        "SELECT id FROM reservas_pessoas WHERE telefone=?", (tel_digits,))
-                if not pessoa:
-                    pessoa = self.db.fetchone(
-                        "SELECT id FROM reservas_pessoas WHERE LOWER(nome)=?", (nome.lower(),))
-
-                if pessoa:
-                    pessoa_id = pessoa["id"]
-                else:
-                    self.db.execute(
-                        "INSERT INTO reservas_pessoas (nome,telefone,chave_pix,observacoes) "
-                        "VALUES (?,?,?,?)",
-                        (nome, tel_digits, chavePix, "Criado a partir de movimento do site"))
-                    pessoa_id = self.db.fetchone("SELECT last_insert_rowid() as id")["id"]
-
-                tipo_db = "CRÉDITO" if tipo_web == "deposito" else "DÉBITO"
-
-                # "AAAA-MM-DD" (input date do site) -> "DD/MM/AAAA" (padrão desktop)
-                data_mov = data_web
-                if len(data_web) == 10 and data_web[4:5] == "-":
-                    a, m, d = data_web.split("-")
-                    data_mov = f"{d}/{m}/{a}"
-
-                desc_final = (descricao + " (via site)").strip() if descricao else "Via site"
-
-                # Idempotência: se este doc_id já foi importado antes (o
-                # INSERT rodou numa tentativa anterior mas o DELETE da fila
-                # falhou em seguida — rede caiu, app fechou), não insere de
-                # novo. Só tenta limpar a fila e segue pro próximo item, em
-                # vez de duplicar o lançamento (achado real da auditoria:
-                # commit local acontece antes do DELETE no Firestore, então
-                # uma falha bem nesse meio-tempo reimportava o mesmo
-                # depósito/saque numa próxima abertura do app).
-                ja_importado = self.db.fetchone(
-                    "SELECT id FROM reservas_movimentos WHERE origem_doc_id=?", (doc_id,))
-                if not ja_importado:
-                    self.db.execute(
-                        "INSERT INTO reservas_movimentos "
-                        "(pessoa_id, tipo, valor, data_mov, loteria, concurso, descricao, origem_doc_id, registrado_em) "
-                        "VALUES (?,?,?,?,?,?,?,?,?)",
-                        (pessoa_id, tipo_db, valor, data_mov, "", "", desc_final, doc_id, criado_em_web))
-                    # Só conta/soma como "importado" quem é NOVO de verdade.
-                    # Achado real do usuário: "já abri 3 vezes e nas 3
-                    # informou a atualização" — o item continuava na fila do
-                    # site (o DELETE em lote não tinha tido tempo/sucesso de
-                    # limpar ainda) e cada reabertura contava ele nessa soma
-                    # de novo, mostrando popup "importado" pra algo que já
-                    # tinha sido importado antes. Item repetido só entra no
-                    # lote de apagar a fila (abaixo), não na contagem.
-                    importados += 1
-                    if tipo_db == "CRÉDITO": total_dep += valor
-                    else: total_saq += valor
-                    detalhes_por_pessoa.setdefault(nome, []).append(
-                        (tipo_db, valor, fmt_hora_web(criado_em_web)))
-
-                # Já está garantido no SQLite local (inserido agora, ou já
-                # tinha sido inserido antes) — só acumula o id aqui pra
-                # apagar da fila TUDO de uma vez, num lote só, depois do
-                # loop (achado real do usuário: apagar 1 item por vez, em
-                # rajada, é o padrão que o Firestore rate-limita numa
-                # coleção pequena — "reservas do site está ocupado", ver
-                # _apagar_fila_em_lote).
-                doc_ids_para_apagar.append(doc_id)
-            except Exception as ex:
-                erros += 1
-                erros_detalhe.append(f"  • {nome_erro}: {str(ex)[:100]}")
-
-        # A limpeza da fila roda sempre que há algo pra apagar, mesmo
-        # quando nada é reportado ao usuário abaixo (ex.: fila só tinha
-        # itens repetidos, de uma tentativa de limpeza anterior que não
-        # terminou) — antes isso só rodava se "importados" fosse > 0, e
-        # como repetidos nunca incrementavam esse contador de verdade (ver
-        # acima), a fila podia nunca ser tentada de novo nesse caso.
-        if doc_ids_para_apagar:
-            self._apagar_fila_em_lote("reservas_movimentos_pendentes", doc_ids_para_apagar)
-
-        if importados == 0 and erros == 0:
-            # Nada NOVO pra reportar (tudo que veio da fila já tinha sido
-            # importado antes) — não interrompe o usuário com uma mensagem
-            # sobre algo que já aconteceu numa abertura anterior.
+        if not itens:
+            if not erros_bloqueantes:
+                # Nada NOVO pra reportar (tudo que veio da fila já tinha
+                # sido importado antes) — não interrompe o usuário com uma
+                # mensagem sobre algo que já aconteceu numa abertura
+                # anterior.
+                self._status("✅ Reservas em dia — nada novo do site.")
+                self.root.after(5000, lambda: self._status(""))
+                return
+            partes = [f"⚠ {len(erros_bloqueantes)} item(ns) da fila NÃO puderam ser importados:"]
+            for _doc_id, nome_erro, msg in erros_bloqueantes:
+                partes.append(f"  • {nome_erro}: {msg}")
+            partes.append("\nEsses itens continuam na fila — corrija no site e feche/abra o app de novo.")
+            self._status(f"❌ {len(erros_bloqueantes)} movimento(s) de reserva com erro", cor="#ff6b6b")
+            messagebox.showerror("Erro ao sincronizar reservas", "\n".join(partes))
             return
 
-        partes = []
-        if importados > 0:
-            partes.append(f"✅ {importados} movimento(s) de reserva importado(s) do site:")
-            if total_dep > 0: partes.append(f"  💰 Depósitos: {fmt_brl(total_dep)}")
-            if total_saq > 0: partes.append(f"  💸 Saques/uso: {fmt_brl(total_saq)}")
-            # Detalhe por pessoa + horário (pedido do usuário: "mostrar
-            # separadamente os lançamentos por usuário e o horário que
-            # registrei"). Horário vem do campo "criadoEm" gravado pelo
-            # site (admin.js); lançamentos feitos direto no desktop ou
-            # antigos (antes desta versão) não têm isso — mostra sem
-            # horário nesse caso, como pedido ("se não tiver a informação
-            # do horário não tem problema, pode seguir sem").
-            partes.append("")
-            partes.append("Detalhes por pessoa:")
-            for nome_pessoa in sorted(detalhes_por_pessoa.keys(), key=str.lower):
-                lancs = detalhes_por_pessoa[nome_pessoa]
-                subtotal = sum(v if t == "CRÉDITO" else -v for t, v, _h in lancs)
-                sinal = "+" if subtotal >= 0 else "-"
-                partes.append(f"  👤 {nome_pessoa} ({sinal}{fmt_brl(abs(subtotal))})")
-                for tipo_l, valor_l, hora_l in lancs:
-                    icone = "💰" if tipo_l == "CRÉDITO" else "💸"
-                    quando = f" às {hora_l}" if hora_l else " (sem horário)"
-                    partes.append(f"      {icone} {fmt_brl(valor_l)}{quando}")
-        if erros:
-            partes.append(f"⚠ {erros} item(ns) da fila NÃO foram importados:")
-            partes.extend(erros_detalhe)
-            partes.append("\nEsses itens continuam na fila — corrija no site e feche/abra o app de novo.")
-
-        if erros and importados == 0:
-            self._status(f"❌ {erros} movimento(s) de reserva falharam ao importar", cor="#ff6b6b")
-            messagebox.showerror("Erro ao sincronizar reservas", "\n".join(partes))
-        elif erros:
-            self._status(f"⚠️ {importados} importado(s), {erros} com erro", cor="#f39c12")
-            messagebox.showwarning("Reservas sincronizadas com pendências", "\n".join(partes))
-        else:
-            self._status(f"✅ {importados} movimento(s) de reserva importado(s) do site")
-            messagebox.showinfo("Reservas sincronizadas", "\n".join(partes))
-
-        if importados > 0:
-            try: self._rsv_load()
-            except Exception: pass
-        self.root.after(8000, lambda: self._status(""))
+        self._status(f"📥 {len(itens)} movimento(s) de reserva aguardando sua revisão...")
+        self._abrir_revisao_import_reserva(itens, erros_bloqueantes)
 
     def _apagar_fila_em_lote(self, colecao, doc_ids):
         """Apaga de uma fila de pendências (ex.: reservas_movimentos_
@@ -3001,7 +3226,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.45",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.46",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -7127,7 +7352,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.45</span>
+        <span>Sistema de Gestão de Bolões v6.46</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -8514,6 +8739,9 @@ class BolaoApp:
         btn(bsf, "📤 Sincronizar Reservas com Site",
             CORES["btn_verde"], self._pub_sincronizar_reservas,
             width=30).pack(side="left", padx=4)
+        btn(bsf, "📥 Verificar Reservas do Site",
+            CORES["btn_azul"], self._importar_movimentos_pendentes_web,
+            width=26).pack(side="left", padx=4)
         self._pub_status_rsv = tk.Label(bsf, text="", bg="#1a3a5a",
             fg="#1D9E75", font=("Arial",9,"bold"))
         self._pub_status_rsv.pack(side="left", padx=12)
@@ -9411,7 +9639,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.45</span>
+        <span>Sistema de Gestão de Bolões v6.46</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>

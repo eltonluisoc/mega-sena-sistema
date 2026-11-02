@@ -1640,7 +1640,23 @@ Pedido do usuário, a partir de um print do extrato: "o saldo é negativo, mesmo
 
 **Corrigido**: quando o extrato filtra "a partir do último depósito" (não no modo `completo`), calcula o `saldoAnterior` (o `saldoNovo` do item do histórico imediatamente anterior ao depósito, em ordem cronológica) e acrescenta uma linha "📂 Saldo anterior" no resumo, antes dos totais — agora "Saldo anterior + Depósitos − Saques − Uso = Saldo atual" fecha a conta e a inconsistência fica evidenciada, não escondida.
 
-`sw.js` `CACHE_NAME` v80 → **v81**.
+`sw.js` `CACHE_NAME` v80 → **v81** (depois ajustado mais 3 vezes nesta mesma rodada de pedidos — posição do "Saldo anterior" e troca do "Total de uso" pelo "Saldo atual" — até **v84**).
+
+## Rodada 113 — Reservas: revisão inteligente antes de importar do site (desktop)
+
+Pedido do usuário, depois de uma semana sem abrir o desktop pra sincronizar: "quero que ele avalie com inteligência para evitar que eu cadastre com erro, tente identificar possíveis problemas e me mostrar para confirmar." Combinado nessa mesma conversa: a mudança maior de deixar a reserva "sempre online" (desktop e site lendo o mesmo banco ao vivo) fica pra um plano separado, depois — essa rodada resolve só o atraso de uma semana com segurança.
+
+**Antes**: `_concluir_import_pendentes` gravava cada movimento da fila (`reservas_movimentos_pendentes`) direto no SQLite assim que buscava do Firestore, e só mostrava um resumo *depois* de já ter gravado tudo — sem chance de revisar antes.
+
+**Depois**: a busca na fila virou só leitura/análise (`_analisar_pendentes_reserva`) — calcula, por item, avisos de possível problema: nome parecido com pessoa já cadastrada (mas não igual — `difflib`), possível duplicata (contra o histórico já gravado OU contra outro item da mesma leva), débito que deixaria o saldo negativo, valor bem acima do habitual da pessoa (3× a média dos depósitos anteriores dela), data no futuro ou com mais de 90 dias. `_abrir_revisao_import_reserva` mostra tudo numa tela com checkbox por item (tudo marcado por padrão, itens com aviso em destaque laranja) — só grava no SQLite o que for confirmado; o que ficar desmarcado continua intacto na fila, sem duplicar nem se perder, pra revisar com calma depois. Itens já importados antes (idempotência) seguem saindo da fila sem perguntar nada — não há nada novo pra confirmar neles.
+
+Novo botão "📥 Verificar Reservas do Site" na aba Reservas (ao lado do já existente "📤 Sincronizar Reservas com Site"), pra rodar a checagem a qualquer momento — mesmo padrão do botão equivalente já usado em Premiações (Rodada 107).
+
+Revisão do lado web (`admin.js`) a pedido do usuário, já que havia uma semana de lançamentos reais esperando na fila: conferido o contrato de campos gravado pelo modal individual e pelo modal em lote (`nome`, `telefone`, `chavePix`, `tipo`, `valor`, `data`, `descricao`, `criadoEm`) contra o que o desktop espera — consistente, nenhum bug encontrado. `verPendentesReserva` (botão "Ver Pendentes" já existente no site) deixa conferir a fila antes mesmo de abrir o desktop.
+
+Validado com teste isolado de Tk ao vivo simulando o cenário real (nome parecido, débito que estoura o saldo, valor fora do padrão, duplicata dentro da mesma leva, erro bloqueante) — confirma que a análise sozinha não grava nada, que só os itens marcados na tela são gravados, e que os desmarcados permanecem intactos na fila. 35 testes automatizados + `py_compile` + varredura de método duplicado, todos OK.
+
+Versão desktop v6.45 → **v6.46** (4 locais) + rebuild do `.exe` via `python -m PyInstaller SistemaBoloes.spec`.
 
 ## Agentes a utilizar
 
