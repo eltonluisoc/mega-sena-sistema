@@ -1,7 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.47
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.48
+Correções v6.48 (reservas: item importado e depois apagado voltava a
+pedir revisão de novo):
+- Achado real do usuário: confirmou a importação de um lançamento que
+  a revisão avisou como "parece repetido", depois foi na aba Reservas
+  e apagou esse lançamento (confirmou que era mesmo duplicado) — e o
+  MESMO item voltou a pedir revisão de novo ao reabrir. Causa raiz: a
+  checagem de "já importado" olhava só a linha viva em reservas_
+  movimentos — apagar essa linha apagava junto a única lembrança de
+  que aquele doc_id já tinha sido decidido.
+- Corrigido: nova tabela reservas_fila_decisoes, gravada junto com
+  cada lançamento confirmado na tela de revisão, guardando a decisão
+  separada da tabela financeira — sobrevive a qualquer exclusão
+  posterior do lançamento em si. _analisar_pendentes_reserva agora
+  considera "já resolvido" (sem perguntar de novo) tanto quem ainda
+  tem a linha em reservas_movimentos quanto quem só tem a decisão
+  registrada aqui.
+- Validado no mesmo teste isolado de Tk ao vivo (acrescentado o
+  cenário exato do usuário: confirma, apaga o lançamento, reabre a
+  mesma fila com o mesmo doc_id — confirma que NÃO volta a pedir
+  revisão). 35 testes automatizados + py_compile, todos OK.
+
 Correções v6.47 (reservas: desktop e site ficavam com saldo diferente
 depois de importar):
 - Achado real do usuário, logo depois da v6.46 (revisão antes de
@@ -1581,6 +1602,11 @@ class Database:
             origem_doc_id TEXT,
             FOREIGN KEY(pessoa_id) REFERENCES reservas_pessoas(id)
         );
+        CREATE TABLE IF NOT EXISTS reservas_fila_decisoes (
+            origem_doc_id TEXT PRIMARY KEY,
+            decisao TEXT NOT NULL,
+            decidido_em TEXT
+        );
         CREATE TABLE IF NOT EXISTS saques_emergenciais (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             bolao_id INTEGER,
@@ -2485,7 +2511,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.47")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.48")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -2662,7 +2688,18 @@ class BolaoApp:
         gravava tudo direto no SQLite e só avisava depois; agora isso vira
         responsabilidade de quem chama (_concluir_import_pendentes abre
         _abrir_revisao_import_reserva com o resultado daqui, e só grava o
-        que for confirmado na tela)."""
+        que for confirmado na tela).
+
+        Achado real do usuário: confirmou a importação de um lançamento
+        que a revisão tinha avisado como "parece repetido", e DEPOIS
+        decidiu apagar esse lançamento direto na aba Reservas (achou que
+        era mesmo duplicado). Como a checagem de "já importado" olhava só
+        a linha viva em reservas_movimentos, apagar essa linha apagava
+        junto a única lembrança de que aquele doc_id já tinha sido
+        decidido — reabrir o app voltava a perguntar a mesma coisa de
+        novo, como se nada tivesse acontecido. reservas_fila_decisoes
+        guarda a decisão separada da tabela financeira: sobrevive a
+        qualquer exclusão posterior do lançamento em si."""
         import re as _re, difflib
         from datetime import datetime as _dt, date as _date
 
@@ -2698,7 +2735,9 @@ class BolaoApp:
 
                 ja_importado = self.db.fetchone(
                     "SELECT id FROM reservas_movimentos WHERE origem_doc_id=?", (doc_id,))
-                if ja_importado:
+                ja_decidido = self.db.fetchone(
+                    "SELECT origem_doc_id FROM reservas_fila_decisoes WHERE origem_doc_id=?", (doc_id,))
+                if ja_importado or ja_decidido:
                     ja_importados_doc_ids.append(doc_id)
                     continue
 
@@ -2922,6 +2961,15 @@ class BolaoApp:
                         "VALUES (?,?,?,?,?,?,?,?,?)",
                         (pessoa_id, it["tipo_db"], it["valor"], it["data_mov"], "", "",
                          it["desc_final"], it["doc_id"], it["criado_em_web"]))
+                    # Grava a decisão separada da linha financeira acima —
+                    # se o lançamento for apagado depois (ex.: usuário
+                    # percebeu que era duplicado e removeu na aba
+                    # Reservas), a decisão "já importei isso" continua
+                    # valendo e o item não volta a pedir revisão de novo.
+                    self.db.execute(
+                        "INSERT OR REPLACE INTO reservas_fila_decisoes "
+                        "(origem_doc_id, decisao, decidido_em) VALUES (?,?,?)",
+                        (it["doc_id"], "importado", datetime.now().isoformat()))
 
                     importados += 1
                     if it["tipo_db"] == "CRÉDITO": total_dep += it["valor"]
@@ -3258,7 +3306,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.47",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.48",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -7384,7 +7432,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.47</span>
+        <span>Sistema de Gestão de Bolões v6.48</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -9671,7 +9719,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.47</span>
+        <span>Sistema de Gestão de Bolões v6.48</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
