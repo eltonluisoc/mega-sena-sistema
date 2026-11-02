@@ -4533,7 +4533,13 @@ async function carregarReservas() {
         // do Firestore, sem ninguém mais confiar cegamente nele aqui).
         const snapshot = await db.collection('reservas_participantes').get();
 
-        const reservas = await Promise.all(snapshot.docs.map(async doc => {
+        // Achado real (02/11): pessoas inativas/removidas (ex.: a de
+        // teste da migração) entravam na lista e no total do site — o
+        // desktop sempre excluiu quem está inativo (WHERE ativo=1),
+        // por isso o total batia diferente entre os dois.
+        const docsAtivos = snapshot.docs.filter(doc => doc.data().ativo !== false);
+
+        const reservas = await Promise.all(docsAtivos.map(async doc => {
             const data = doc.data();
             const movsSnap = await doc.ref.collection('movimentos').get();
             let saldo = 0;

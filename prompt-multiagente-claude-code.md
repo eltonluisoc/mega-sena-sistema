@@ -1758,6 +1758,16 @@ Três coisas reportadas de uma vez pelo usuário depois da Rodada 121 em produç
 
 `sw.js` v87 → v88. 35 testes automatizados + `py_compile` + `node --check`, todos OK.
 
+## Rodada 123 — Achado real: total de reservas contava gente inativa no site (v89, web)
+
+Logo depois da Rodada 122, usuário reportou total diferente entre desktop (R$131,25) e site (R$217,25). Auditei de novo (todas as 32 pessoas, ativo + saldo cacheado + ledger) e achei 2 causas: (1) `admin.js` nunca filtrava por `ativo` — a pessoa de teste da migração (inativa, R$15) entrava na lista e no total do site, mas o desktop sempre fez `WHERE ativo=1`; "total somando só ativos" bateu exatamente com os R$131,25 do desktop, confirmando. (2) o R$217,25 nem batia com a soma de TODO mundo (R$146,25) — sinal de que o navegador ainda estava com o `admin.js` antigo em cache (aba aberta antes do deploy da Rodada 122).
+
+**Corrigido**: `carregarReservas` agora filtra `doc.data().ativo !== false` antes de somar/listar, igual o desktop. `sw.js` v88 → v89 pra forçar a atualização do cache do navegador.
+
+`node --check`, OK.
+
+## Agentes a utilizar
+
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
 2. **Agente de Levantamento de Requisitos** — lê o código e/ou documentação existente e lista requisitos funcionais e não funcionais da versão nova, incluindo o que NÃO pode regredir.
 3. **Agente Desenvolvedor Core** — implementa a lógica principal/backend da nova versão conforme o desenho do Arquiteto.
