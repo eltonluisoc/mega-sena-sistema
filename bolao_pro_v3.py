@@ -1,7 +1,27 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.46
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.47
+Correções v6.47 (reservas: desktop e site ficavam com saldo diferente
+depois de importar):
+- Achado real do usuário, logo depois da v6.46 (revisão antes de
+  importar): "desktop informa reserva de 381,25, web informa reserva
+  de 271,25". Causa raiz: importar do site (site→desktop) e
+  sincronizar pro site (desktop→site) sempre foram 2 ações manuais
+  separadas — _pub_sincronizar_reservas só roda quando alguém clica
+  em "📤 Sincronizar Reservas com Site". A importação da v6.46 grava
+  certo no SQLite local, mas não avisava o site sozinha — o site
+  ficava mostrando o saldo antigo até alguém lembrar de clicar no
+  outro botão.
+- Corrigido: ao confirmar uma importação na tela de revisão (quando
+  pelo menos 1 item for importado), _pub_sincronizar_reservas roda
+  sozinha logo em seguida — fecha o ciclo site→desktop→site numa
+  ação só, sem precisar lembrar de um segundo clique.
+- Validado no mesmo teste isolado de Tk ao vivo da v6.46 (acrescentado
+  um stub de _pub_sincronizar_reservas pra confirmar que é chamado
+  exatamente 1 vez depois de uma importação com sucesso). 35 testes
+  automatizados + py_compile, todos OK.
+
 Correções v6.46 (reservas do site: revisão inteligente antes de importar,
 não grava mais direto):
 - Pedido do usuário, depois de uma semana sem abrir o desktop pra
@@ -2465,7 +2485,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.46")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.47")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -2938,9 +2958,21 @@ class BolaoApp:
                 partes.append(f"\n⚠ {len(erros_confirmar)} item(ns) falharam ao gravar:")
                 partes.extend(erros_confirmar)
 
+            if importados > 0:
+                # Achado real do usuário logo depois desta mesma feature:
+                # importar do site deixava o SQLite local correto, mas o
+                # site continuava mostrando o saldo ANTIGO — porque
+                # importar (site→desktop) e sincronizar (desktop→site)
+                # sempre foram 2 ações manuais separadas, e só a primeira
+                # rodava sozinha. Fechar esse ciclo automaticamente aqui
+                # evita esse descompasso se repetir toda vez que alguém
+                # confirmar uma importação.
+                partes.append("\n📤 Enviando saldo atualizado pro site...")
             win.destroy()
             self._rsv_load()
             messagebox.showinfo("Reservas sincronizadas", "\n".join(partes) if partes else "Nada importado.")
+            if importados > 0:
+                self._pub_sincronizar_reservas()
 
     def _concluir_import_pendentes(self, dados, erro_final):
         """Roda na thread principal (agendada via root.after de dentro de
@@ -3226,7 +3258,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.46",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.47",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -7352,7 +7384,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.46</span>
+        <span>Sistema de Gestão de Bolões v6.47</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -9639,7 +9671,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.46</span>
+        <span>Sistema de Gestão de Bolões v6.47</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
