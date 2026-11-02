@@ -1,7 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.48
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.49
+Correções v6.49 (reservas: 68 pendências presas no site mesmo já
+importadas — sem erro visível em lugar nenhum):
+- Achado real do usuário: "continua apresentando 68 movimentos de
+  pendência no web... que inclusive já foram importados. ERRO GRAVE."
+  Causa: _apagar_fila_em_lote engolia qualquer erro de exclusão (menos
+  429) num "except Exception: break" silencioso — sem gravar nada em
+  lugar nenhum, impossível saber SE estava falhando ou por quê.
+- Corrigido: agora captura o erro real (status HTTP + corpo da
+  resposta) e grava em log_auditoria quando a limpeza automática
+  falhar. Novo botão "🧹 Limpar Pendências Já Importadas" na aba
+  Reservas — ferramenta manual que busca a fila do site, acha quem já
+  está resolvido localmente (reservas_movimentos OU reservas_fila_
+  decisoes) mas continua preso lá, tenta apagar de novo e mostra o
+  resultado real, erro incluso se houver (apagar um doc que já não
+  existe mais não dá erro no Firestore — rodar isso à toa não tem
+  risco).
+- 35 testes automatizados + py_compile, todos OK.
+
 Correções v6.48 (reservas: item importado e depois apagado voltava a
 pedir revisão de novo):
 - Achado real do usuário: confirmou a importação de um lançamento que
@@ -2511,7 +2529,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.48")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.49")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -3106,7 +3124,17 @@ class BolaoApp:
         "importados" de novo) na próxima abertura, indefinidamente.
         Thread normal garante que o processo só encerra de vez depois
         dela terminar (a janela já fecha na hora — só o processo em si
-        fica uns instantes a mais vivo em segundo plano)."""
+        fica uns instantes a mais vivo em segundo plano).
+
+        Achado real do usuário: "continua apresentando 68 movimentos de
+        pendência no web... que inclusive já foram importados" — até
+        aqui, QUALQUER erro na exclusão (menos 429) era engolido pelo
+        "except Exception: break" sem deixar rastro nenhum, em lugar
+        nenhum. Sem isso, não dava pra saber SE estava falhando, nem
+        por quê. Agora grava o erro real (status HTTP + corpo da
+        resposta) em log_auditoria, pra investigar com evidência em vez
+        de palpite — ver também _limpar_pendencias_ja_importadas, a
+        ferramenta manual que reusa esse mesmo diagnóstico."""
         import threading
 
         def _run():
@@ -3117,6 +3145,7 @@ class BolaoApp:
                     f"/{colecao}/")
             grupos = [doc_ids[i:i + 500] for i in range(0, len(doc_ids), 500)]
             esperas = [2, 5, 10, 20, 30]
+            erro_detalhe = None
             for grupo in grupos:
                 corpo = json.dumps({"writes": [
                     {"delete": base + did} for did in grupo
@@ -3126,16 +3155,110 @@ class BolaoApp:
                         req = urllib.request.Request(
                             url, data=corpo, method="POST", headers=_firebase_headers())
                         urllib.request.urlopen(req, timeout=20)
+                        erro_detalhe = None
                         break
                     except urllib.error.HTTPError as ex:
+                        corpo_erro = ex.read().decode("utf-8", "replace")[:300] if ex.fp else ""
+                        erro_detalhe = f"HTTP {ex.code}: {corpo_erro}"
                         if ex.code == 429 and tentativa < len(esperas):
                             _time.sleep(esperas[tentativa])
                             continue
                         break
-                    except Exception:
+                    except Exception as ex:
+                        erro_detalhe = str(ex)[:300]
                         break
+            if erro_detalhe:
+                msg = f"Apagar {len(doc_ids)} item(ns) de {colecao}: {erro_detalhe}"
+                self.root.after(0, lambda: self._log("Falha ao limpar fila do site", msg))
 
         threading.Thread(target=_run, daemon=False).start()
+
+    def _limpar_pendencias_ja_importadas(self):
+        """Ferramenta manual de diagnóstico/recuperação: varre a fila
+        reservas_movimentos_pendentes do site, acha quem já está
+        resolvido localmente (importado em reservas_movimentos OU com
+        decisão em reservas_fila_decisoes) mas continua preso lá, tenta
+        apagar de novo e mostra o resultado real — incluindo o erro
+        exato, se houver, em vez do silêncio de sempre (ver
+        _apagar_fila_em_lote). Apagar um doc que já não existe mais não
+        dá erro no Firestore, então rodar isso à toa não tem risco."""
+        import threading
+        self._status("🔎 Verificando pendências já resolvidas no site...")
+
+        # Leitura do SQLite na thread principal — sqlite3 não permite
+        # usar a mesma conexão fora da thread onde foi criada.
+        resolvidos_local = set()
+        for r in self.db.fetchall(
+                "SELECT DISTINCT origem_doc_id FROM reservas_movimentos "
+                "WHERE origem_doc_id IS NOT NULL"):
+            resolvidos_local.add(r["origem_doc_id"])
+        for r in self.db.fetchall("SELECT origem_doc_id FROM reservas_fila_decisoes"):
+            resolvidos_local.add(r["origem_doc_id"])
+
+        def _run():
+            import urllib.request, urllib.error, json
+            url = ("https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
+                   "/databases/(default)/documents/reservas_movimentos_pendentes")
+            try:
+                req = urllib.request.Request(url, method="GET", headers=_firebase_headers())
+                with urllib.request.urlopen(req, timeout=15) as r:
+                    dados = json.loads(r.read().decode("utf-8"))
+            except Exception as ex:
+                self.root.after(0, lambda: (
+                    self._status(""),
+                    messagebox.showerror("Limpar Pendências",
+                        f"Não consegui buscar a fila do site:\n\n{ex}")))
+                return
+
+            docs = dados.get("documents", [])
+            doc_ids_na_fila = [d.get("name", "").split("/")[-1] for d in docs]
+            presos = [did for did in doc_ids_na_fila if did in resolvidos_local]
+
+            if not presos:
+                total = len(doc_ids_na_fila)
+                self.root.after(0, lambda: (
+                    self._status(""),
+                    messagebox.showinfo("Limpar Pendências",
+                        f"A fila do site tem {total} item(ns), mas nenhum já resolvido "
+                        f"localmente — nada preso pra limpar agora."
+                        if total else "A fila do site já está vazia — nada pra limpar.")))
+                return
+
+            base = ("projects/mega-sena-sistema/databases/(default)/documents"
+                    "/reservas_movimentos_pendentes/")
+            commit_url = ("https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
+                          "/databases/(default):commit")
+            apagados = 0
+            erro_detalhe = None
+            grupos = [presos[i:i + 500] for i in range(0, len(presos), 500)]
+            for grupo in grupos:
+                corpo = json.dumps({"writes": [{"delete": base + did} for did in grupo]}).encode("utf-8")
+                try:
+                    req = urllib.request.Request(commit_url, data=corpo, method="POST",
+                                                  headers=_firebase_headers())
+                    with urllib.request.urlopen(req, timeout=20) as resp:
+                        resp.read()
+                    apagados += len(grupo)
+                except urllib.error.HTTPError as ex:
+                    corpo_erro = ex.read().decode("utf-8", "replace")[:400] if ex.fp else ""
+                    erro_detalhe = f"HTTP {ex.code}: {corpo_erro}"
+                except Exception as ex:
+                    erro_detalhe = str(ex)[:400]
+
+            def _ui():
+                self._status("")
+                msg = (f"🔍 {len(doc_ids_na_fila)} item(ns) na fila do site.\n"
+                       f"📌 {len(presos)} já estavam resolvidos localmente e presos lá.\n"
+                       f"✅ {apagados} removido(s) agora.")
+                if erro_detalhe:
+                    msg += f"\n\n❌ Erro ao apagar o restante (mande isto pra análise):\n{erro_detalhe}"
+                    self._log("Limpar Pendências — erro", erro_detalhe)
+                    messagebox.showwarning("Limpar Pendências", msg)
+                else:
+                    messagebox.showinfo("Limpar Pendências", msg)
+            self.root.after(0, _ui)
+
+        threading.Thread(target=_run, daemon=True).start()
 
     def _importar_premiacoes_pendentes_web(self):
         """Importa premiações registradas no admin do site (fila
@@ -3306,7 +3429,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.48",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.49",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -7432,7 +7555,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.48</span>
+        <span>Sistema de Gestão de Bolões v6.49</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -8822,6 +8945,9 @@ class BolaoApp:
         btn(bsf, "📥 Verificar Reservas do Site",
             CORES["btn_azul"], self._importar_movimentos_pendentes_web,
             width=26).pack(side="left", padx=4)
+        btn(bsf, "🧹 Limpar Pendências Já Importadas",
+            CORES["btn_laranja"], self._limpar_pendencias_ja_importadas,
+            width=28).pack(side="left", padx=4)
         self._pub_status_rsv = tk.Label(bsf, text="", bg="#1a3a5a",
             fg="#1D9E75", font=("Arial",9,"bold"))
         self._pub_status_rsv.pack(side="left", padx=12)
@@ -9719,7 +9845,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.48</span>
+        <span>Sistema de Gestão de Bolões v6.49</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>

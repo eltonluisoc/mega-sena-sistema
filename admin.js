@@ -4455,17 +4455,45 @@ async function cancelarPremiacaoPendente(id) {
 // ============================================
 async function carregarReservas() {
     try {
-        const snapshot = await db.collection('reservas_participantes').get();
+        const [snapshot, snapshotPendentes] = await Promise.all([
+            db.collection('reservas_participantes').get(),
+            db.collection('reservas_movimentos_pendentes').get()
+        ]);
+
+        // Soma, por participanteId, o que ainda está pendente (lançado
+        // aqui no site mas que o desktop ainda não importou de volta) —
+        // achado real do usuário: "lancei via web o valor de 1,00 pra
+        // Elton... o sistema não atualizou o valor de Elton" — saldoReserva
+        // só é atualizado quando o desktop sincroniza de volta pro site
+        // (ver enviar_reservas_para_site), então sem isso o saldo mostrado
+        // aqui sempre ficava atrasado até alguém abrir o desktop. Itens de
+        // "pessoa nova" (sem participanteId ainda) não têm como somar aqui
+        // — essa pessoa só passa a existir nesta lista quando o desktop a
+        // criar e sincronizar.
+        const pendentePorParticipante = {};
+        snapshotPendentes.forEach(doc => {
+            const d = doc.data();
+            if (!d.participanteId) return;
+            const delta = d.tipo === 'deposito' ? (d.valor || 0) : -(d.valor || 0);
+            pendentePorParticipante[d.participanteId] = (pendentePorParticipante[d.participanteId] || 0) + delta;
+        });
+
         const reservas = [];
         let totalSaldo = 0;
-        
+
         snapshot.forEach(doc => {
             const data = doc.data();
-            reservas.push({ id: doc.id, ...data });
-            totalSaldo += data.saldoReserva || 0;
+            const saldoConfirmado = data.saldoReserva || 0;
+            const saldoPendente = pendentePorParticipante[doc.id] || 0;
+            reservas.push({
+                id: doc.id, ...data,
+                saldoPendente,
+                saldoProjetado: saldoConfirmado + saldoPendente
+            });
+            totalSaldo += saldoConfirmado + saldoPendente;
         });
-        
-        reservas.sort((a, b) => (b.saldoReserva || 0) - (a.saldoReserva || 0));
+
+        reservas.sort((a, b) => b.saldoProjetado - a.saldoProjetado);
         reservasCarregadas = reservas;
 
         document.getElementById('totalReservas').innerHTML = `R$ ${totalSaldo.toFixed(2)}`;
@@ -4480,14 +4508,19 @@ async function carregarReservas() {
         let html = '<div class="reservas-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">';
         for (const reserva of reservas) {
             const dataAtualizacao = reserva.dataAtualizacao ? new Date(reserva.dataAtualizacao).toLocaleString('pt-BR') : '---';
-            const saldo = (reserva.saldoReserva || 0).toFixed(2);
-            
+            const saldo = reserva.saldoProjetado.toFixed(2);
+            const temPendente = Math.abs(reserva.saldoPendente) > 0.001;
+
             html += `
                 <div class="reserva-card" style="background: #f8fafc; border-radius: 12px; padding: 14px; border: 1px solid #e2e8f0;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                         <div style="font-weight: bold; font-size: 15px; color: #1e293b;">👤 ${escapeHtml(reserva.nome)}</div>
-                        <div style="font-weight: bold; font-size: 16px; color: ${reserva.saldoReserva > 0 ? '#10b981' : reserva.saldoReserva < 0 ? '#ef4444' : '#64748b'};">R$ ${saldo}</div>
+                        <div style="font-weight: bold; font-size: 16px; color: ${reserva.saldoProjetado > 0 ? '#10b981' : reserva.saldoProjetado < 0 ? '#ef4444' : '#64748b'};">R$ ${saldo}</div>
                     </div>
+                    ${temPendente ? `
+                    <div style="font-size: 11px; color: #d97706; background:#fef3c7; border-radius:6px; padding:3px 8px; margin-bottom:6px; display:inline-block;">
+                        ⏳ inclui R$ ${reserva.saldoPendente.toFixed(2)} ainda não sincronizado pelo desktop
+                    </div>` : ''}
                     <div style="font-size: 12px; color: #64748b; margin-bottom: 8px;">
                         🆔 ${reserva.participanteId || reserva.id.substring(0, 8)} • 📅 ${dataAtualizacao}
                     </div>

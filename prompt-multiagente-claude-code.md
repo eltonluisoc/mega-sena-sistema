@@ -1658,6 +1658,20 @@ Validado com teste isolado de Tk ao vivo simulando o cenário real (nome parecid
 
 Versão desktop v6.45 → **v6.46** (4 locais) + rebuild do `.exe` via `python -m PyInstaller SistemaBoloes.spec`.
 
+## Rodada 114 — Reservas: 3 bugs reais achados em sequência ao usar a revisão pela primeira vez (desktop+web)
+
+Sequência de achados reais do usuário, usando a Rodada 113 pela primeira vez com uma semana de dados de verdade esperando:
+
+**1) "desktop informa reserva de 381,25, web informa reserva de 271,25"** — importar do site (site→desktop) e sincronizar pro site (desktop→site) sempre foram 2 ações manuais separadas; a Rodada 113 corrigiu a importação, mas não disparava o envio de volta pro site sozinha. Corrigido: `_pub_sincronizar_reservas` roda automaticamente logo depois de qualquer importação confirmada com pelo menos 1 item — fecha o ciclo numa ação só. Versão v6.47.
+
+**2) "lista de pendentes na web continua... isso já deveria ter desaparecido"** — o usuário confirmou a importação de um lançamento avisado como "parece repetido", depois foi na aba Reservas e apagou esse lançamento (confirmou que era duplicado) — e o mesmo item voltou a pedir revisão de novo ao reabrir. Causa: a checagem de "já importado" olhava só a linha viva em `reservas_movimentos`; apagar essa linha apagava junto a única lembrança de que o doc_id já tinha sido decidido. Corrigido: nova tabela `reservas_fila_decisoes`, gravada junto com cada lançamento confirmado, guardando a decisão separada da tabela financeira — sobrevive a qualquer exclusão posterior do lançamento em si. Versão v6.48.
+
+**3) "continua apresentando 68 movimentos de pendência no web... que inclusive já foram importados. ERRO GRAVE"** — achado mais sério: `_apagar_fila_em_lote` engolia qualquer erro de exclusão (menos 429) num `except Exception: break` silencioso, sem gravar nada em lugar nenhum — impossível saber se estava falhando ou por quê. Corrigido: agora captura o erro real (status HTTP + corpo da resposta) e grava em `log_auditoria` quando falhar. Novo botão "🧹 Limpar Pendências Já Importadas" na aba Reservas — ferramenta manual que busca a fila do site, acha quem já está resolvido localmente (`reservas_movimentos` OU `reservas_fila_decisoes`) mas continua preso lá, tenta apagar de novo e mostra o resultado real (apagar um doc que já não existe mais não dá erro no Firestore — rodar isso à toa não tem risco). Versão v6.49.
+
+**Lado web** — pedido do usuário ("acabo de lançar via web o valor de 1,00 para Elton... o sistema não atualizou o valor de Elton"): `carregarReservas()` (`admin.js`) agora soma, por participante, o que ainda está pendente na fila (créditos − débitos ainda não importados pelo desktop) ao saldo confirmado, e mostra isso como "saldo projetado" — com uma etiqueta "⏳ inclui R$ X ainda não sincronizado pelo desktop" quando há diferença. O site passa a refletir lançamentos novos na hora, mesmo sem o desktop ter aberto ainda, sem exigir a mudança maior de arquitetura "online" (que segue como plano separado, pra depois).
+
+Cada correção validada com teste isolado de Tk ao vivo (inclusive reproduzindo o cenário exato do usuário: confirmar, apagar o lançamento, reabrir a mesma fila) antes de publicar. 35 testes automatizados + `py_compile`, todos OK a cada passo. `sw.js` v84 → **v85**.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
