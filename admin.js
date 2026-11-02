@@ -4519,22 +4519,34 @@ async function cancelarPremiacaoPendente(id) {
 // ============================================
 async function carregarReservas() {
     try {
-        // Modelo novo: saldoReserva é mantido por incremento atômico a
-        // cada lançamento (web ou desktop), direto no documento — não
-        // existe mais fila de pendência nenhuma pra somar por cima.
-        // Lançado agora, aparece aqui agora (e no desktop no próximo
-        // ciclo de verificação automática, ~poucos segundos depois).
+        // O campo saldoReserva (cache incrementado a cada lançamento) já
+        // se mostrou capaz de ficar desatualizado de verdade — achado
+        // real (auditoria de 02/11): 3 pessoas reais com o campo
+        // divergindo do ledger de verdade em até R$43, provavelmente
+        // resíduo de uma re-execução da migração. O desktop nunca
+        // confiou nesse campo (sempre recalcula somando o histórico
+        // local) e por isso nunca mostrou o valor errado — o site
+        // confiava, e por isso mostrava. Daqui pra frente, o site
+        // também soma o ledger de cada pessoa na hora, igual o desktop
+        // sempre fez — o campo cacheado deixa de ser a fonte da verdade
+        // pra exibição (continua existindo só como otimização interna
+        // do Firestore, sem ninguém mais confiar cegamente nele aqui).
         const snapshot = await db.collection('reservas_participantes').get();
 
-        const reservas = [];
-        let totalSaldo = 0;
-
-        snapshot.forEach(doc => {
+        const reservas = await Promise.all(snapshot.docs.map(async doc => {
             const data = doc.data();
-            const saldo = data.saldoReserva || 0;
-            reservas.push({ id: doc.id, ...data, saldo });
-            totalSaldo += saldo;
-        });
+            const movsSnap = await doc.ref.collection('movimentos').get();
+            let saldo = 0;
+            movsSnap.forEach(m => {
+                const mv = m.data();
+                const valor = mv.valor || 0;
+                saldo += mv.tipo === 'deposito' ? valor : -valor;
+            });
+            return { id: doc.id, ...data, saldo };
+        }));
+
+        let totalSaldo = 0;
+        reservas.forEach(r => { totalSaldo += r.saldo; });
 
         reservas.sort((a, b) => b.saldo - a.saldo);
         reservasCarregadas = reservas;
@@ -4620,9 +4632,11 @@ async function mostrarHistorico(id, nome) {
             return;
         }
 
-        const data = doc.data();
         const historico = await buscarHistoricoDerivado(id);
-        const saldoAtual = data.saldoReserva || 0;
+        // saldoAtual vem do próprio ledger somado (buscarHistoricoDerivado),
+        // não do campo cacheado data.saldoReserva — achado real de
+        // 02/11: esse campo pode ficar desatualizado (ver carregarReservas).
+        const saldoAtual = historico.length > 0 ? historico[historico.length - 1].saldoNovo : 0;
 
         if (historico.length === 0) {
             div.innerHTML = `
@@ -4909,13 +4923,15 @@ function abrirModalLancamentoLote() {
     const pessoasOrdenadas = [...reservasCarregadas].sort((a, b) =>
         (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
     const linhasPessoas = pessoasOrdenadas.map(r => {
-        const saldo = (r.saldoReserva || 0).toFixed(2);
+        // r.saldo (somado do ledger em carregarReservas) — não r.saldoReserva,
+        // o campo cacheado que pode ficar desatualizado (achado real 02/11).
+        const saldo = (r.saldo || 0).toFixed(2);
         return `
             <label class="lote-linha-pessoa" data-nome-busca="${escapeHtml(r.nome).toLowerCase()}"
                    style="display:flex; align-items:center; gap:10px; padding:9px 6px; border-bottom:1px solid #f1f5f9; cursor:pointer;">
                 <input type="checkbox" class="lote-checkbox" value="${r.id}" style="width:18px; height:18px; flex-shrink:0;">
                 <span style="flex:1; font-size:14px; color:#1e293b;">${escapeHtml(r.nome)}</span>
-                <span style="font-size:12px; color:${r.saldoReserva > 0 ? '#10b981' : r.saldoReserva < 0 ? '#ef4444' : '#94a3b8'};">R$ ${saldo}</span>
+                <span style="font-size:12px; color:${r.saldo > 0 ? '#10b981' : r.saldo < 0 ? '#ef4444' : '#94a3b8'};">R$ ${saldo}</span>
             </label>`;
     }).join('');
 
@@ -5097,9 +5113,10 @@ async function copiarHistoricoWhatsApp(id, nome, completo = false) {
             return;
         }
 
-        const data = doc.data();
         const historico = await buscarHistoricoDerivado(id);
-        const saldoAtual = data.saldoReserva || 0;
+        // saldoAtual vem do ledger somado, não do campo cacheado (ver
+        // carregarReservas — achado real 02/11, campo pode desatualizar).
+        const saldoAtual = historico.length > 0 ? historico[historico.length - 1].saldoNovo : 0;
 
         if (historico.length === 0) {
             showToast('📭 Nenhuma movimentação para copiar', 'warning');

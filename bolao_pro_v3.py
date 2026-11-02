@@ -1,7 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v7.1
+SISTEMA DE GESTÃO DE BOLÕES PRO v7.2
+Correções v7.2 (saldo de reserva divergindo entre site e desktop +
+limpeza pós-migração):
+- Achado real do usuário (auditado pessoa por pessoa, ver Rodada 122):
+  o campo saldoReserva (cache incrementado a cada lançamento, usado só
+  pelo site) tinha ficado desatualizado pra 3 pessoas reais — o
+  desktop nunca usou esse campo pra mostrar saldo (sempre soma o
+  histórico local na hora), por isso sempre mostrou certo. Corrigido
+  no site (admin.js) e o dado real das 3 pessoas realinhado.
+- Removida a sincronização de reservas antiga, duplicada, de dentro de
+  `_on_close` — sempre falhava com 403 a cada fechamento do app desde
+  a Rodada 118 (regras novas proíbem o campo "historico" que essa
+  rotina ainda tentava gravar), mostrando uma parede de erro vermelho
+  sem motivo nenhum pra preocupar.
+- Combo de pessoa da aba Reservas agora limpa depois de registrar um
+  lançamento, em vez de continuar com a mesma pessoa selecionada
+  (atrapalhava o próximo lançamento — achado real do usuário).
+
 Correções v7.1 (barra de status geral ficava presa em "Conectando ao
 Firebase..." pra sempre, mesmo com tudo funcionando):
 - Achado real do usuário: abriu a v7.0, o rodapé ficou parado em
@@ -2869,7 +2886,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v7.1")
+        self.root.title("Sistema de Gestão de Bolões PRO v7.2")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -3326,7 +3343,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v7.1",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v7.2",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -7444,7 +7461,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v7.1</span>
+        <span>Sistema de Gestão de Bolões v7.2</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -9188,13 +9205,20 @@ class BolaoApp:
         desc = self._rsv_desc.get().strip() if tipo_db == "DÉBITO" else ""
 
         def _depois():
+            # Achado real do usuário: deixar a mesma pessoa selecionada
+            # depois de registrar atrapalhava — limpa tudo (combo,
+            # seleção na lista, histórico) pra evitar registrar de novo
+            # pra mesma pessoa sem querer.
             self._rsv_val.delete(0,"end")
             self._rsv_dt.delete(0,"end")
             self._rsv_dt.insert(0, date.today().strftime("%d/%m/%Y"))
             self._rsv_conc.delete(0,"end")
             self._rsv_desc.delete(0,"end")
-            self._rsv_tree_sal.selection_set(str(pid))
-            self._rsv_sel_pessoa()
+            self._rsv_cb_pessoa.set("")
+            self._rsv_tree_sal.selection_remove(*self._rsv_tree_sal.selection())
+            self._rsv_tree_hist.delete(*self._rsv_tree_hist.get_children())
+            self._rsv_nome_lbl.configure(text="← Selecione uma pessoa na lista")
+            self._rsv_saldo_lbl.configure(text="")
 
         self._rsv_push_movimento(
             pessoa_doc_id=ps["firebase_doc_id"], pessoa_local_id=pid, pessoa_nova=False,
@@ -9737,7 +9761,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v7.1</span>
+        <span>Sistema de Gestão de Bolões v7.2</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -11212,8 +11236,6 @@ class BolaoApp:
                 text="Sincronização com erro(s) — revise o log acima.")
             btn_fechar_mesmo_assim.pack(side="right", padx=16, pady=4)
 
-        FIREBASE_RSV  = ("https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
-                         "/databases/(default)/documents/reservas_participantes/")
         FIREBASE_BASE = ("https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
                          "/databases/(default)/documents/participantes/")
         FIREBASE_IDS  = {
@@ -11224,15 +11246,6 @@ class BolaoApp:
             "quina de sao joao 2026 ii":"bolao_quina_de_sao_joao_2026_ii",
             "mega-sena 30 anos":"bolao_mega_sena_30_anos",
         }
-
-        def norm_id(nome, tel):
-            def n(s):
-                s = _uc.normalize("NFD", s)
-                return "".join(c for c in s if _uc.category(c)!="Mn")
-            partes = [_re_c.sub(r"[^a-zA-Z0-9]","",n(p)) for p in nome.strip().split() if p]
-            id_n = (partes[0]+"_"+partes[-1]) if len(partes)>1 else (partes[0] if partes else "x")
-            tel_d = _re_c.sub(r"\D","",tel or "")
-            return (id_n+"_"+tel_d) if tel_d else id_n
 
         def slug(s):
             s = _uc.normalize("NFD", s)
@@ -11251,100 +11264,22 @@ class BolaoApp:
                 from datetime import datetime as _dtnow
                 ts_now = _dtnow.utcnow().strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
-                # ═══ RESERVAS ═══════════════════════════════════════
-                win.after(0, lambda: log("", "dim"))
-                win.after(0, lambda: log("  RESERVAS PESSOAIS", "head"))
-                win.after(0, lambda: log("  "+"-"*50, "dim"))
-                win.after(0, lambda: sp(2))
-                win.after(0, lambda: footer_lbl.configure(text="Etapa 1/3 — Reservas pessoais"))
-
-                pessoas = db2.fetchall(
-                    "SELECT * FROM reservas_pessoas WHERE ativo=1 ORDER BY nome")
-                total_p = len(pessoas)
-                win.after(0, lambda n=total_p: log(
-                    "  Total: "+str(n)+" participante(s)", "info"))
-
-                ok_r = 0; err_r = []
-                for idx_p, ps in enumerate(pessoas):
-                    ps = dict(ps)
-                    pid_r = ps["id"]; nome_r = ps["nome"] or "?"
-                    tel_r  = ps.get("telefone") or ""
-                    win.after(0, lambda nm=nome_r, i=idx_p, t=total_p: log(
-                        "  ["+str(i+1).zfill(2)+"/"+str(t).zfill(2)+"] "+nm, "name"))
-
-                    movs = db2.fetchall(
-                        "SELECT * FROM reservas_movimentos WHERE pessoa_id=? ORDER BY id", (pid_r,))
-                    cred = sum(float(m["valor"] or 0) for m in movs
-                               if (m["tipo"] or "").upper() in
-                               ("CREDITO","CRÉDITO","ENTRADA","DEPOSITO","DEPÓSITO"))
-                    deb  = sum(float(m["valor"] or 0) for m in movs
-                               if (m["tipo"] or "").upper() in
-                               ("DEBITO","DÉBITO","SAQUE","USO"))
-                    saldo_r = cred - deb
-                    win.after(0, lambda s=saldo_r, n=len(movs): log(
-                        "       saldo R$"+str(round(s,2))+" | "+str(n)+" movimentos", "dim"))
-
-                    hist = []; sa = 0.0
-                    for m in movs:
-                        v = float(m["valor"] or 0)
-                        tp_up = (m["tipo"] or "").upper()
-                        eh_c = tp_up in ("CREDITO","CRÉDITO","ENTRADA","DEPOSITO","DEPÓSITO")
-                        ant = sa; sa = sa+v if eh_c else sa-v
-                        dm = m["data_mov"] or ts_now
-                        try:
-                            if len(dm)==10 and "/" in dm:
-                                dm = _dtnow.strptime(dm,"%d/%m/%Y").strftime("%Y-%m-%dT00:00:00.000Z")
-                        except: pass
-                        tp_fb = "deposito" if eh_c else "saque"
-                        desc_m = str(dict(m).get("descricao") or dict(m).get("loteria") or tp_fb)
-                        hist.append({"mapValue":{"fields":{
-                            "data":{"stringValue":dm},"tipo":{"stringValue":tp_fb},
-                            "valor":{"doubleValue":v},"saldoAnterior":{"doubleValue":round(ant,2)},
-                            "saldoNovo":{"doubleValue":round(sa,2)},
-                            "descricao":{"stringValue":desc_m},
-                        }}})
-
-                    doc_id = norm_id(nome_r, tel_r)
-                    doc = {"fields":{
-                        "participanteId":{"stringValue":doc_id},
-                        "nome":{"stringValue":nome_r},
-                        "telefone":{"stringValue":_re_c.sub(r"\D","",tel_r)},
-                        "saldoReserva":{"doubleValue":round(saldo_r,2)},
-                        "dataAtualizacao":{"stringValue":ts_now},
-                        "admin":{"booleanValue":True},
-                        "historico":{"arrayValue":{"values":hist}},
-                    }}
-                    corpo = json.dumps(doc, ensure_ascii=False).encode("utf-8")
-                    url_r = _firestore_patch_url(FIREBASE_RSV+doc_id,
-                        ["participanteId","nome","telefone","saldoReserva","dataAtualizacao","admin","historico"])
-                    try:
-                        req = urllib.request.Request(url_r, data=corpo,
-                              method="PATCH", headers=_firebase_headers())
-                        with urllib.request.urlopen(req, timeout=15) as resp:
-                            if resp.status == 200:
-                                ok_r += 1
-                                win.after(0, lambda: log("       OK enviado", "ok"))
-                            else:
-                                err_r.append(nome_r)
-                                win.after(0, lambda s=resp.status: log(
-                                    "       ERRO HTTP "+str(s), "err"))
-                    except Exception as ex:
-                        err_r.append(nome_r)
-                        win.after(0, lambda e=str(ex)[:60]: log("       ERRO: "+e, "err"))
-
-                    perc_r = int(2 + 38*(idx_p+1)/max(total_p,1))
-                    win.after(0, lambda p=perc_r: sp(p))
-
-                win.after(0, lambda o=ok_r, e=len(err_r): log(
-                    "  Resultado: "+str(o)+" ok"+(", "+str(e)+" erro(s)" if e else ""),
-                    "ok" if not e else "warn"))
+                # Reservas pessoais NÃO sincronizam mais aqui — Rodada 118
+                # (sincronização ao vivo): cada lançamento já grava direto
+                # no Firestore na hora, e esta rotina antiga ainda tentava
+                # reescrever o documento inteiro com um campo "historico"
+                # que as regras novas proíbem de propósito (ver
+                # firestore.rules, reservas_participantes) — sempre dava
+                # 403 aqui, mostrando uma parede de erro vermelho no
+                # fechamento sem motivo nenhum pra preocupar (achado real
+                # do usuário). Removida de vez.
 
                 # ═══ BOLÕES ══════════════════════════════════════════
                 win.after(0, lambda: log("", "dim"))
                 win.after(0, lambda: log("  BOLOES NO SITE", "head"))
                 win.after(0, lambda: log("  "+"-"*50, "dim"))
-                win.after(0, lambda: sp(42))
-                win.after(0, lambda: footer_lbl.configure(text="Etapa 2/3 — Publicando boloes"))
+                win.after(0, lambda: sp(2))
+                win.after(0, lambda: footer_lbl.configure(text="Etapa 1/2 — Publicando boloes"))
 
                 boloes = db2.fetchall(
                     "SELECT * FROM boloes WHERE encerrado=0 ORDER BY id")
@@ -11516,7 +11451,7 @@ class BolaoApp:
                                     def _progresso_bp(i, tot, pulou, nm=nome_b):
                                         _contador_bp["pulou" if pulou else "sinc"] += 1
                                         win.after(0, lambda: footer_lbl.configure(
-                                            text=f"Etapa 2/3 — busca por telefone de '{nm}': "
+                                            text=f"Etapa 1/2 — busca por telefone de '{nm}': "
                                                  f"{i}/{tot} ({_contador_bp['sinc']} atualizados, "
                                                  f"{_contador_bp['pulou']} sem mudança)"))
                                     atualizar_busca_participante(
@@ -11550,7 +11485,7 @@ class BolaoApp:
                         err_b.append(nome_b)
                         win.after(0, lambda e=str(ex)[:80]: log("       ERRO: "+e, "err"))
 
-                    perc_b = int(42 + 55*(idx_b+1)/max(total_b,1))
+                    perc_b = int(2 + 85*(idx_b+1)/max(total_b,1))
                     win.after(0, lambda p=perc_b: sp(p))
 
                     if idx_b < total_b-1:
@@ -11570,7 +11505,7 @@ class BolaoApp:
                 win.after(0, lambda: log("", "dim"))
                 win.after(0, lambda: log("  BACKUP NA NUVEM", "head"))
                 win.after(0, lambda: log("  "+"-"*50, "dim"))
-                win.after(0, lambda: footer_lbl.configure(text="Etapa 3/3 — Backup na nuvem"))
+                win.after(0, lambda: footer_lbl.configure(text="Etapa 2/2 — Backup na nuvem"))
                 if _ultimo_backup_path:
                     try:
                         enviar_backup_para_nuvem(_ultimo_backup_path)
@@ -11583,10 +11518,10 @@ class BolaoApp:
                     win.after(0, lambda: log("  Backup local falhou antes — nada pra enviar.", "warn"))
                 win.after(0, lambda: sp(100))
                 win.after(0, lambda: log("", "dim"))
-                houve_erro = bool(err_r or err_b)
-                win.after(0, lambda o1=ok_r, o2=ok_b, e1=len(err_r), e2=len(err_b): log(
-                    "  CONCLUIDO — Reservas: "+str(o1)+" ok | Boloes: "+str(o2)+" ok"
-                    +(" | "+str(e1+e2)+" erro(s)" if e1+e2 else ""),
+                houve_erro = bool(err_b)
+                win.after(0, lambda o2=ok_b, e2=len(err_b): log(
+                    "  CONCLUIDO — Boloes: "+str(o2)+" ok"
+                    +(" | "+str(e2)+" erro(s)" if e2 else ""),
                     "ok" if not houve_erro else "warn"))
 
                 if not houve_erro:

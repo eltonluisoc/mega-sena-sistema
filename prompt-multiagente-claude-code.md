@@ -1744,7 +1744,19 @@ Depois da Rodada 120, a migração ainda falhava com `403` na primeira pessoa re
 
 35 testes automatizados + `py_compile`, todos OK.
 
-## Agentes a utilizar
+## Rodada 122 — Limpeza pós-migração (118) + achado real grave: saldo cacheado da reserva diverge do ledger pra 3 pessoas reais (desktop v7.2, web)
+
+Três coisas reportadas de uma vez pelo usuário depois da Rodada 121 em produção: (a) a rotina de fechamento do app (`_on_close`) ainda tinha uma terceira cópia, nunca antes percebida, da sincronização antiga de reservas (modelo `historico`) — sempre falhava com 403 em todas as pessoas a cada fechamento, desde que as regras novas passaram a proibir esse campo; (b) o combo de pessoa da aba Reservas continuava selecionado depois de registrar um lançamento, atrapalhando o próximo lançamento; (c) usuário percebeu saldo divergente pro participante "Cosme" entre site e desktop, e suspeitou que um débito de R$20 só tivesse aplicado R$8 de delta.
+
+**(a) e (b) corrigidos direto**: removido o bloco de reservas de `_on_close` (sobra só bolões+backup, "Etapa 1/2"/"2/2"); `_depois()` do lançamento de reserva agora limpa o combo e a seleção em vez de reselecionar a mesma pessoa.
+
+**(c) investigado com os dados reais, não com suposição** (mesmo método da Rodada 121): recalculando o ledger inteiro do Cosme, o delta do débito de R$20 estava certo (-48,00 → -68,00) — o "-60,00" que o usuário lembrava não era o valor real. Daí a pergunta virou "então por que os saldos aparecem diferentes em lugares diferentes?", e a investigação virou uma auditoria dos 32 participantes: comparar, pra cada um, o campo `saldoReserva` (cache incrementado atomicamente a cada lançamento) contra a soma de verdade do ledger (`movimentos`) no Firestore, e contra o espelho local do desktop.
+
+**Achado real**: o desktop NUNCA leu o campo cacheado pra mostrar saldo — sempre soma o histórico local (`reservas_movimentos`) na hora, por isso sempre mostrou certo. O site (`admin.js`), em 5 pontos (`carregarReservas`, `mostrarHistorico`, `abrirModalLancamentoLote`, `copiarHistoricoWhatsApp`), lia `saldoReserva` direto — e esse campo tinha ficado desatualizado pra 3 pessoas reais (Cosme: R$43 de diferença; Sandra Regina: R$28; Andreia Teles: R$0,01), provavelmente resíduo de alguma das 3 re-execuções do script de migração da Rodada 118-121 enquanto bugs reais iam sendo achados e corrigidos (o ledger tem proteção contra duplicar — `currentDocument.exists:false` por `movId` — mas os writes de incremento do saldo não têm essa mesma proteção, então um retry no meio do processo poderia ter incrementado o cache de novo sem duplicar o lançamento).
+
+**Corrigido de 2 formas**: (1) dado real — reescrito `saldoReserva` das 3 pessoas reais (+ a de teste da migração) pra bater com o ledger, via script pontual que só grava esse 1 campo, com confirmação pessoa por pessoa; (2) estrutural — `admin.js` para de confiar no campo cacheado pra EXIBIÇÃO em todos os 5 pontos, passa a somar o ledger na hora (mesmo método que o desktop já usava), pra essa classe de bug não poder mais acontecer silenciosamente. O campo cacheado continua existindo e sendo incrementado (grava rápido, é usado só como otimização interna), só ninguém mais confia cegamente nele pra mostrar número pro usuário.
+
+`sw.js` v87 → v88. 35 testes automatizados + `py_compile` + `node --check`, todos OK.
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
 2. **Agente de Levantamento de Requisitos** — lê o código e/ou documentação existente e lista requisitos funcionais e não funcionais da versão nova, incluindo o que NÃO pode regredir.
