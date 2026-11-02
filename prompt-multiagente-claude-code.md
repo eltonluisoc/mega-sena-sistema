@@ -1682,6 +1682,14 @@ Pedido do usuário, a partir de um aviso real na revisão do desktop: "POR QUE N
 
 `sw.js` v85 → **v86**.
 
+## Rodada 116 — Limpar pendências presas vira automático, não botão manual (desktop)
+
+Pedido do usuário, vendo o botão "🧹 Limpar Pendências Já Importadas" da Rodada 114/v6.49: "NÃO TENHO QUE CLICAR EM NADA DISSO... O SISTEMA DEVE ATUALIZAR AUTOMATICAMENTE... QUERO UM SISTEMA INTELIGENTE." Reforçado por um texto do próprio site que o usuário apontou como incorreto na prática: "Cada item some sozinho assim que o app desktop abrir e importar" — não estava acontecendo de verdade, porque a limpeza automática (`_apagar_fila_em_lote`) seguia falhando silenciosamente (causa raiz da Rodada 114) e só a ferramenta manual conseguia confirmar/corrigir isso.
+
+**Corrigido**: `_limpar_pendencias_ja_importadas` ganhou um parâmetro `silencioso` — chamado automaticamente no início de `_concluir_import_pendentes` (roda toda vez que o ciclo de sincronização de reservas acontece: abrir o app, ou clicar em "Verificar Reservas do Site"), fazendo sua própria busca independente na fila do site e pegando qualquer item antigo preso por uma falha de exclusão anterior — mesmo que a sincronização do momento não tenha achado nada novo pra revisar. Só interrompe com popup quando sobra erro de verdade; sucesso ou "nada preso" vira uma linha de status discreta que some sozinha. O botão manual continua disponível pra rodar sob demanda, com popup sempre (silencioso=False).
+
+35 testes automatizados + `py_compile`, todos OK. Versão desktop v6.49 → **v6.50** (4 locais) + rebuild do `.exe`.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

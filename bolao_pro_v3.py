@@ -1,7 +1,27 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v6.49
+SISTEMA DE GESTÃO DE BOLÕES PRO v6.50
+Correções v6.50 (limpar pendências presas vira automático — não é
+mais um botão manual):
+- Achado real do usuário, logo depois da v6.49: "NÃO TENHO QUE CLICAR
+  EM NADA DISSO... O SISTEMA DEVE ATUALIZAR AUTOMATICAMENTE... QUERO
+  UM SISTEMA INTELIGENTE." Razão — o botão "🧹 Limpar Pendências Já
+  Importadas" da v6.49 era só uma ferramenta manual de diagnóstico;
+  a expectativa certa é essa varredura rodar sozinha sempre.
+- Corrigido: _limpar_pendencias_ja_importadas ganhou um modo
+  silencioso=True, chamado automaticamente toda vez que o ciclo normal
+  de sincronização de reservas roda (abrir o app, ou clicar em
+  "Verificar Reservas do Site") — faz sua própria busca independente
+  na fila do site, então pega qualquer item antigo preso por uma falha
+  de exclusão anterior, mesmo que a sincronização do momento não tenha
+  achado nada novo pra revisar. Só interrompe com um popup quando
+  sobra erro de verdade (idêntico ao que já existe há de verdade pra
+  resolver); sucesso ou "nada preso" vira só uma linha de status que
+  some sozinha. O botão manual continua existindo, pra rodar sob
+  demanda com popup sempre.
+- 35 testes automatizados + py_compile, todos OK.
+
 Correções v6.49 (reservas: 68 pendências presas no site mesmo já
 importadas — sem erro visível em lugar nenhum):
 - Achado real do usuário: "continua apresentando 68 movimentos de
@@ -2529,7 +2549,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v6.49")
+        self.root.title("Sistema de Gestão de Bolões PRO v6.50")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -3048,8 +3068,20 @@ class BolaoApp:
         _abrir_revisao_import_reserva pra eu confirmar antes de qualquer
         gravação. A limpeza da fila no Firestore dos itens já confirmados
         (ou já importados antes, idempotência) roda à parte, em lote —
-        ver _apagar_fila_em_lote."""
+        ver _apagar_fila_em_lote.
+
+        Toda vez que este ciclo roda (abrir o app, ou clicar em
+        "Verificar Reservas do Site"), também dispara sozinha uma
+        varredura completa (_limpar_pendencias_ja_importadas, modo
+        silencioso) pra pegar qualquer item antigo que tenha ficado
+        preso na fila do site por uma falha de exclusão anterior —
+        pedido do usuário: "não tenho que clicar em nada disso... o
+        sistema deve atualizar automaticamente... quero um sistema
+        inteligente." Faz sua própria busca independente, então roda
+        mesmo que esta sincronização em particular não tenha achado
+        nada novo."""
         self._rsv_import_em_andamento = False
+        self._limpar_pendencias_ja_importadas(silencioso=True)
 
         if dados is None:
             # 429 especificamente liga o cooldown — evita que a PRÓXIMA
@@ -3173,15 +3205,26 @@ class BolaoApp:
 
         threading.Thread(target=_run, daemon=False).start()
 
-    def _limpar_pendencias_ja_importadas(self):
-        """Ferramenta manual de diagnóstico/recuperação: varre a fila
-        reservas_movimentos_pendentes do site, acha quem já está
-        resolvido localmente (importado em reservas_movimentos OU com
-        decisão em reservas_fila_decisoes) mas continua preso lá, tenta
-        apagar de novo e mostra o resultado real — incluindo o erro
-        exato, se houver, em vez do silêncio de sempre (ver
+    def _limpar_pendencias_ja_importadas(self, silencioso=False):
+        """Varre a fila reservas_movimentos_pendentes do site, acha quem
+        já está resolvido localmente (importado em reservas_movimentos
+        OU com decisão em reservas_fila_decisoes) mas continua preso lá,
+        tenta apagar de novo e mostra o resultado real — incluindo o
+        erro exato, se houver, em vez do silêncio de sempre (ver
         _apagar_fila_em_lote). Apagar um doc que já não existe mais não
-        dá erro no Firestore, então rodar isso à toa não tem risco."""
+        dá erro no Firestore, então rodar isso à toa não tem risco.
+
+        Achado real do usuário: "NÃO TENHO QUE CLICAR EM NADA DISSO...
+        O SISTEMA DEVE ATUALIZAR AUTOMATICAMENTE... QUERO UM SISTEMA
+        INTELIGENTE." — com razão: isso nasceu como botão manual de
+        diagnóstico, mas a expectativa certa é essa varredura rodar
+        sozinha. Agora roda automaticamente ao abrir o app
+        (_login_inicial) e depois de cada importação confirmada, com
+        silencioso=True — só incomoda com um popup quando sobra erro de
+        verdade pra resolver; sucesso/"nada pra limpar" só atualiza o
+        status de rodapé, sem interromper. O botão manual (ver
+        _build_reservas) continua existindo pra rodar sob demanda,
+        silencioso=False, com popup sempre."""
         import threading
         self._status("🔎 Verificando pendências já resolvidas no site...")
 
@@ -3204,10 +3247,16 @@ class BolaoApp:
                 with urllib.request.urlopen(req, timeout=15) as r:
                     dados = json.loads(r.read().decode("utf-8"))
             except Exception as ex:
-                self.root.after(0, lambda: (
-                    self._status(""),
-                    messagebox.showerror("Limpar Pendências",
-                        f"Não consegui buscar a fila do site:\n\n{ex}")))
+                if silencioso:
+                    # Falha ao buscar (sem internet, etc.) não é um erro
+                    # que precisa de popup no fluxo automático — a
+                    # importação normal já lida/avisa sobre isso.
+                    self.root.after(0, lambda: self._status(""))
+                else:
+                    self.root.after(0, lambda: (
+                        self._status(""),
+                        messagebox.showerror("Limpar Pendências",
+                            f"Não consegui buscar a fila do site:\n\n{ex}")))
                 return
 
             docs = dados.get("documents", [])
@@ -3216,12 +3265,15 @@ class BolaoApp:
 
             if not presos:
                 total = len(doc_ids_na_fila)
-                self.root.after(0, lambda: (
-                    self._status(""),
-                    messagebox.showinfo("Limpar Pendências",
-                        f"A fila do site tem {total} item(ns), mas nenhum já resolvido "
-                        f"localmente — nada preso pra limpar agora."
-                        if total else "A fila do site já está vazia — nada pra limpar.")))
+                if silencioso:
+                    self.root.after(0, lambda: self._status(""))
+                else:
+                    self.root.after(0, lambda: (
+                        self._status(""),
+                        messagebox.showinfo("Limpar Pendências",
+                            f"A fila do site tem {total} item(ns), mas nenhum já resolvido "
+                            f"localmente — nada preso pra limpar agora."
+                            if total else "A fila do site já está vazia — nada pra limpar.")))
                 return
 
             base = ("projects/mega-sena-sistema/databases/(default)/documents"
@@ -3251,11 +3303,18 @@ class BolaoApp:
                        f"📌 {len(presos)} já estavam resolvidos localmente e presos lá.\n"
                        f"✅ {apagados} removido(s) agora.")
                 if erro_detalhe:
+                    # Erro de verdade merece popup SEMPRE, mesmo no modo
+                    # silencioso automático — é exatamente o tipo de
+                    # problema que não pode continuar invisível (ver
+                    # achado real do usuário, docstring acima).
                     msg += f"\n\n❌ Erro ao apagar o restante (mande isto pra análise):\n{erro_detalhe}"
                     self._log("Limpar Pendências — erro", erro_detalhe)
                     messagebox.showwarning("Limpar Pendências", msg)
-                else:
+                elif not silencioso:
                     messagebox.showinfo("Limpar Pendências", msg)
+                elif apagados:
+                    self._status(f"🧹 {apagados} pendência(s) presa(s) no site foram limpas sozinhas")
+                    self.root.after(6000, lambda: self._status(""))
             self.root.after(0, _ui)
 
         threading.Thread(target=_run, daemon=True).start()
@@ -3429,7 +3488,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.49",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v6.50",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -7555,7 +7614,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.49</span>
+        <span>Sistema de Gestão de Bolões v6.50</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -9845,7 +9904,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v6.49</span>
+        <span>Sistema de Gestão de Bolões v6.50</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
