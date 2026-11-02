@@ -16,6 +16,21 @@ let cartoesFiltrados = [];
 let boloes = [];
 let reservasCarregadas = []; // última lista carregada em carregarReservas() — usada pelo modal de registrar movimento
 
+// Data de HOJE no fuso local (não UTC), no formato "AAAA-MM-DD" que o
+// <input type="date"> espera. Achado real do usuário: perto da meia-noite
+// UTC (= ~21h em Brasília, UTC-3), `new Date().toISOString().split('T')[0]`
+// já pulava pro dia seguinte em UTC enquanto ainda era "hoje" em Brasília —
+// um depósito lançado às 22h58 (01/11, hora local) nascia datado pro dia
+// seguinte (02/11) sem o usuário perceber, e o desktop avisava "data no
+// futuro" corretamente, mas por uma causa raiz no site, não no lançamento.
+function dataLocalISO() {
+    const d = new Date();
+    const ano = d.getFullYear();
+    const mes = String(d.getMonth() + 1).padStart(2, '0');
+    const dia = String(d.getDate()).padStart(2, '0');
+    return `${ano}-${mes}-${dia}`;
+}
+
 // Concurso mais recente de cada loteria que precisa da 1ª conferência do
 // admin antes do público poder conferir (ver atualizarConcursoMaisRecenteBloqueio
 // e o painel "🔒 Conferência Pública" na aba Cartões) — espelha
@@ -4690,7 +4705,7 @@ function abrirModalRegistrarMovimento() {
         `<option value="${r.id}">${escapeHtml(r.nome)}</option>`
     ).join('');
 
-    const hoje = new Date().toISOString().split('T')[0];
+    const hoje = dataLocalISO();
 
     modal.innerHTML = `
         <div style="background: white; border-radius: 20px; max-width: 420px; width: 100%; padding: 25px; max-height: 90vh; overflow-y: auto;">
@@ -4844,7 +4859,7 @@ function abrirModalLancamentoLote() {
         padding: 20px; overflow-y: auto;
     `;
 
-    const hoje = new Date().toISOString().split('T')[0];
+    const hoje = dataLocalISO();
     // Mesmo achado do modal simples (abrirModalRegistrarMovimento) — essa
     // lista vem de reservasCarregadas, ordenada por saldo pra tela
     // principal de Reservas, sem sentido pra marcar nomes aqui.

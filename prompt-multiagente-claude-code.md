@@ -1672,6 +1672,16 @@ Sequência de achados reais do usuário, usando a Rodada 113 pela primeira vez c
 
 Cada correção validada com teste isolado de Tk ao vivo (inclusive reproduzindo o cenário exato do usuário: confirmar, apagar o lançamento, reabrir a mesma fila) antes de publicar. 35 testes automatizados + `py_compile`, todos OK a cada passo. `sw.js` v84 → **v85**.
 
+## Rodada 115 — Reservas: depósito "no futuro" perto da meia-noite UTC — bug de fuso no site (web)
+
+Pedido do usuário, a partir de um aviso real na revisão do desktop: "POR QUE NO FUTURO?: QUE ERRO É ESSE?" — um depósito de R$1,00 lançado às 22h58 (01/11, horário de Brasília) nasceu datado como 02/11.
+
+**Investigação**: a primeira hipótese (relógio do computador do desktop errado) foi descartada depois de pedir pro usuário checar o relógio do Windows — "A DATA ESTÁ CORRETA E É 01/11/2026, 22:58". A causa real estava no site: os dois formulários de lançamento de reserva (`abrirModalRegistrarMovimento` e o modal de lançamento em lote, `admin.js`) calculavam a data padrão do campo com `new Date().toISOString().split('T')[0]` — `toISOString()` sempre devolve em **UTC**, nunca no fuso local. Brasília é UTC-3, então entre ~21h e meia-noite (horário local), o relógio UTC já virou o dia seguinte enquanto ainda é "hoje" em Brasília — o campo de data nascia pré-preenchido com amanhã, sem o usuário perceber (o aviso "data está no futuro" do desktop, da Rodada 113, estava certo — a causa raiz é que a data chegou errada do site).
+
+**Corrigido**: nova função `dataLocalISO()` (monta "AAAA-MM-DD" a partir de `getFullYear()/getMonth()/getDate()`, sempre no fuso local do navegador) substituindo as duas ocorrências do padrão UTC. `criadoEm` (timestamp completo, não só a data) continua em UTC de propósito — isso está certo, é convertido de volta pra Brasília na hora de exibir (`fmt_hora_web`, já existente).
+
+`sw.js` v85 → **v86**.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
