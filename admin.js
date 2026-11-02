@@ -98,6 +98,26 @@ async function registrarMovimentoNoFirestore({ pessoaId, pessoaNova, nome, telef
     });
 }
 
+// Autocorreção do saldo cacheado (saldoReserva) — achado real (02/11):
+// esse campo pode divergir do ledger de verdade (3 pessoas reais
+// ficaram desatualizadas, resíduo de uma migração que já foi fechada).
+// A lista/total confiam nesse campo pra não pagar 1 leitura extra POR
+// PESSOA toda vez que a tela abre (isso já bateu num 429 Too Many
+// Requests — ver carregarReservas). Em vez de ficar lendo o ledger
+// inteiro sempre, a correção acontece de graça aqui: toda vez que
+// alguém abre o histórico de uma pessoa (que já lê o ledger completo
+// dela mesmo, pra mostrar o extrato), confere se o cache bate com a
+// soma de verdade e corrige sozinho se não bater — sem nenhuma leitura
+// a mais, só 1 escrita no raríssimo caso de já estar errado.
+function autocorrigirSaldoCacheado(doc, saldoReal) {
+    const saldoCacheado = doc.data().saldoReserva || 0;
+    if (Math.abs(saldoCacheado - saldoReal) > 0.01) {
+        doc.ref.update({ saldoReserva: saldoReal }).catch(err => {
+            console.error('Falha ao autocorrigir saldoReserva de', doc.id, err);
+        });
+    }
+}
+
 // Reconstrói o formato "histórico com saldo por item" (igual ao que
 // existia antes, gravado por inteiro no documento da pessoa) a partir
 // do ledger (reservas_participantes/{id}/movimentos), que agora é a
@@ -4519,40 +4539,37 @@ async function cancelarPremiacaoPendente(id) {
 // ============================================
 async function carregarReservas() {
     try {
-        // O campo saldoReserva (cache incrementado a cada lançamento) já
-        // se mostrou capaz de ficar desatualizado de verdade — achado
-        // real (auditoria de 02/11): 3 pessoas reais com o campo
-        // divergindo do ledger de verdade em até R$43, provavelmente
-        // resíduo de uma re-execução da migração. O desktop nunca
-        // confiou nesse campo (sempre recalcula somando o histórico
-        // local) e por isso nunca mostrou o valor errado — o site
-        // confiava, e por isso mostrava. Daqui pra frente, o site
-        // também soma o ledger de cada pessoa na hora, igual o desktop
-        // sempre fez — o campo cacheado deixa de ser a fonte da verdade
-        // pra exibição (continua existindo só como otimização interna
-        // do Firestore, sem ninguém mais confiar cegamente nele aqui).
+        // saldoReserva (cache incrementado atomicamente a cada
+        // lançamento) é a fonte pra LISTA/TOTAL — 1 leitura só, rápido,
+        // igual o desktop (que também nunca paga o custo de ler o
+        // ledger inteiro só pra mostrar a lista). Tentamos trocar isso
+        // por somar o ledger de cada pessoa aqui (achado real 02/11: o
+        // cache tinha ficado desatualizado pra 3 pessoas, resíduo de
+        // migração) — mas isso signfica 1 leitura POR PESSOA toda vez
+        // que a tela abre, e bateu direto no limite de leitura do
+        // Firestore (429 Too Many Requests — mesmo problema já visto
+        // na Rodada 36). Solução de verdade: a causa raiz (migração)
+        // já foi corrigida e fechada (não vai mais se repetir); pra
+        // qualquer drift futuro (não deveria acontecer mais, mas por
+        // segurança), a autocorreção fica em mostrarHistorico/
+        // copiarHistoricoWhatsApp — que já leem o ledger completo da
+        // pessoa de qualquer forma, então corrigir ali não custa
+        // nenhuma leitura extra.
         const snapshot = await db.collection('reservas_participantes').get();
 
         // Achado real (02/11): pessoas inativas/removidas (ex.: a de
         // teste da migração) entravam na lista e no total do site — o
         // desktop sempre excluiu quem está inativo (WHERE ativo=1),
         // por isso o total batia diferente entre os dois.
-        const docsAtivos = snapshot.docs.filter(doc => doc.data().ativo !== false);
-
-        const reservas = await Promise.all(docsAtivos.map(async doc => {
-            const data = doc.data();
-            const movsSnap = await doc.ref.collection('movimentos').get();
-            let saldo = 0;
-            movsSnap.forEach(m => {
-                const mv = m.data();
-                const valor = mv.valor || 0;
-                saldo += mv.tipo === 'deposito' ? valor : -valor;
-            });
-            return { id: doc.id, ...data, saldo };
-        }));
-
+        const reservas = [];
         let totalSaldo = 0;
-        reservas.forEach(r => { totalSaldo += r.saldo; });
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            if (data.ativo === false) return;
+            const saldo = data.saldoReserva || 0;
+            reservas.push({ id: doc.id, ...data, saldo });
+            totalSaldo += saldo;
+        });
 
         reservas.sort((a, b) => b.saldo - a.saldo);
         reservasCarregadas = reservas;
@@ -4639,10 +4656,8 @@ async function mostrarHistorico(id, nome) {
         }
 
         const historico = await buscarHistoricoDerivado(id);
-        // saldoAtual vem do próprio ledger somado (buscarHistoricoDerivado),
-        // não do campo cacheado data.saldoReserva — achado real de
-        // 02/11: esse campo pode ficar desatualizado (ver carregarReservas).
         const saldoAtual = historico.length > 0 ? historico[historico.length - 1].saldoNovo : 0;
+        autocorrigirSaldoCacheado(doc, saldoAtual);
 
         if (historico.length === 0) {
             div.innerHTML = `
@@ -5120,9 +5135,8 @@ async function copiarHistoricoWhatsApp(id, nome, completo = false) {
         }
 
         const historico = await buscarHistoricoDerivado(id);
-        // saldoAtual vem do ledger somado, não do campo cacheado (ver
-        // carregarReservas — achado real 02/11, campo pode desatualizar).
         const saldoAtual = historico.length > 0 ? historico[historico.length - 1].saldoNovo : 0;
+        autocorrigirSaldoCacheado(doc, saldoAtual);
 
         if (historico.length === 0) {
             showToast('📭 Nenhuma movimentação para copiar', 'warning');

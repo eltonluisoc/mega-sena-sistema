@@ -1766,6 +1766,16 @@ Logo depois da Rodada 122, usuário reportou total diferente entre desktop (R$13
 
 `node --check`, OK.
 
+## Rodada 124 — Correção da própria Rodada 123: somar o ledger de cada pessoa toda vez bate num 429 (v90, web)
+
+A correção da Rodada 123 (somar o ledger de cada pessoa na hora, em vez de confiar no campo cacheado) resolveu a divergência mas trocou 1 leitura por N+1 leituras (1 por pessoa) toda vez que a tela de Reservas abre — isso bateu em `HTTP 429 Too Many Requests` (limite de leitura do Firestore no plano gratuito, mesmo problema já visto na Rodada 36), e explica também os números estranhos que apareceram depois (a busca provavelmente parava no meio, sem erro visível pro usuário).
+
+**Solução de verdade, pensando em custo**: a causa raiz do drift (re-execuções da migração da Rodada 118-121) já está fechada e não deve mais se repetir — não faz sentido pagar leitura extra pra sempre por causa de um problema que já não existe mais. `carregarReservas` volta a ler `saldoReserva` direto (1 leitura só, igual o desktop sempre fez), mantendo o filtro de `ativo` da Rodada 123. Como rede de segurança pra qualquer drift futuro, `mostrarHistorico` e `copiarHistoricoWhatsApp` — que já leem o ledger completo da pessoa de qualquer forma, pra mostrar o extrato — agora também comparam esse total com o campo cacheado e corrigem sozinhos (`autocorrigirSaldoCacheado`) se divergir, sem nenhuma leitura a mais, só 1 escrita no raríssimo caso de já estar errado.
+
+Falta ainda apagar de vez a pessoa de teste da migração (`teste_diagnostico_118`) — tentativa anterior bateu no mesmo 429 antes de chegar nessa etapa.
+
+`sw.js` v89 → v90. `node --check`, OK.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
