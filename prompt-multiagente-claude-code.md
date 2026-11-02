@@ -1776,6 +1776,14 @@ Falta ainda apagar de vez a pessoa de teste da migração (`teste_diagnostico_11
 
 `sw.js` v89 → v90. `node --check`, OK.
 
+## Rodada 125 — Popup de sucesso a cada lançamento de reserva atrapalhava (v7.3, desktop)
+
+Achado real do usuário: todo lançamento de reserva no desktop (registrar, lote, estorno — os três passam por `_rsv_push_movimento`) abria um popup "Gravado" exigindo clique pra fechar antes de continuar pro próximo. Trocado por uma confirmação na barra de status (aparece e some sozinha em ~2,5s); erro continua com popup de verdade, porque aí precisa mesmo parar e avisar.
+
+Reconstruído e substituído o `.exe` de produção — achado à parte: o `.exe` da Rodada 122 tinha sumido da pasta `dist` entre a geração e a cópia (comportamento clássico de antivírus colocando em quarentena um executável novo do PyInstaller, não assinado).
+
+35 testes + `py_compile`, OK.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

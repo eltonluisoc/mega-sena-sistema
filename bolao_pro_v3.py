@@ -1,7 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v7.2
+SISTEMA DE GESTÃO DE BOLÕES PRO v7.3
+Correções v7.3 (popup de sucesso a cada lançamento de reserva
+atrapalhava):
+- Achado real do usuário: todo lançamento de reserva (registrar, lote,
+  estorno) abria um popup "Gravado" exigindo clique pra fechar antes
+  de continuar. Trocado por uma confirmação na barra de status, que
+  aparece e some sozinha — erro continua abrindo popup de verdade
+  (precisa parar e avisar nesse caso).
+
 Correções v7.2 (saldo de reserva divergindo entre site e desktop +
 limpeza pós-migração):
 - Achado real do usuário (auditado pessoa por pessoa, ver Rodada 122):
@@ -2886,7 +2894,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v7.2")
+        self.root.title("Sistema de Gestão de Bolões PRO v7.3")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -3343,7 +3351,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v7.2",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v7.3",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -7461,7 +7469,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v7.2</span>
+        <span>Sistema de Gestão de Bolões v7.3</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -9152,7 +9160,13 @@ class BolaoApp:
                 self._rsv_sync_poke_agora()
                 if on_sucesso:
                     on_sucesso()
-                messagebox.showinfo("Gravado", "Lançamento registrado — já está valendo no saldo!")
+                # Achado real do usuário: popup de sucesso a cada lançamento
+                # atrapalhava (exige clique pra fechar, toda vez). Confirmação
+                # fica só na barra de status, some sozinha — erro continua
+                # com popup de verdade (acima), porque aí precisa parar e
+                # avisar.
+                self._status("✅ Lançamento registrado — já está valendo no saldo!")
+                self.root.after(2500, lambda: self._status(""))
             self.root.after(0, _ok)
 
         threading.Thread(target=_run, daemon=True).start()
@@ -9761,7 +9775,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v7.2</span>
+        <span>Sistema de Gestão de Bolões v7.3</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
