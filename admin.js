@@ -109,8 +109,19 @@ async function registrarMovimentoNoFirestore({ pessoaId, pessoaNova, nome, telef
 // dela mesmo, pra mostrar o extrato), confere se o cache bate com a
 // soma de verdade e corrige sozinho se não bater — sem nenhuma leitura
 // a mais, só 1 escrita no raríssimo caso de já estar errado.
-function autocorrigirSaldoCacheado(doc, saldoReal) {
+function autocorrigirSaldoCacheado(doc, saldoReal, qtdMovimentos) {
     const saldoCacheado = doc.data().saldoReserva || 0;
+    // Trava de segurança (achado real 03/11): nunca autocorrige pra 0
+    // se o histórico lido veio vazio mas o cache já tinha um valor
+    // diferente de 0 — isso é mais sinal de leitura incompleta (ver
+    // buscarHistoricoDerivado) do que de pessoa realmente zerada, e
+    // zerar errado é o pior caso possível aqui. Só corrige quando
+    // realmente tem movimentos de verdade sustentando o novo valor.
+    if (qtdMovimentos === 0 && Math.abs(saldoCacheado) > 0.01) {
+        console.warn('Autocorreção ignorada por segurança:', doc.id,
+            '— histórico veio vazio mas cache era', saldoCacheado);
+        return;
+    }
     if (Math.abs(saldoCacheado - saldoReal) > 0.01) {
         doc.ref.update({ saldoReserva: saldoReal }).catch(err => {
             console.error('Falha ao autocorrigir saldoReserva de', doc.id, err);
@@ -125,11 +136,26 @@ function autocorrigirSaldoCacheado(doc, saldoReal) {
 // cada sincronização. Soma andando pra frente a partir de zero (o
 // primeiro movimento de sempre parte de saldo zero).
 async function buscarHistoricoDerivado(pessoaId) {
+    // SEM orderBy de propósito — achado real (03/11): o Firestore EXCLUI
+    // da resposta, sem erro nenhum, qualquer documento que não tenha o
+    // campo usado no orderBy bem definido. Pelo menos 2 pessoas reais
+    // (as 2 com mais lançamentos) tiveram o histórico calculado
+    // incompleto por causa disso, e a autocorreção (abaixo, chamada por
+    // quem usa este histórico) gravou esse total incompleto por cima do
+    // certo — um zerou de vez (Cosme). Lendo tudo sem orderBy e
+    // ordenando no cliente, COM fallback pra quem não tiver criadoEm,
+    // garante que a soma nunca mais fica incompleta, seja qual for a
+    // causa de algum documento ficar sem esse campo.
     const snap = await db.collection('reservas_participantes').doc(pessoaId)
-        .collection('movimentos').orderBy('criadoEm', 'asc').get();
+        .collection('movimentos').get();
+    const docs = snap.docs.slice().sort((a, b) => {
+        const ta = a.data().criadoEm && a.data().criadoEm.toMillis ? a.data().criadoEm.toMillis() : 0;
+        const tb = b.data().criadoEm && b.data().criadoEm.toMillis ? b.data().criadoEm.toMillis() : 0;
+        return ta - tb;
+    });
     let saldo = 0;
     const historico = [];
-    snap.forEach(doc => {
+    docs.forEach(doc => {
         const m = doc.data();
         const valor = m.valor || 0;
         const saldoAnterior = saldo;
@@ -4657,7 +4683,7 @@ async function mostrarHistorico(id, nome) {
 
         const historico = await buscarHistoricoDerivado(id);
         const saldoAtual = historico.length > 0 ? historico[historico.length - 1].saldoNovo : 0;
-        autocorrigirSaldoCacheado(doc, saldoAtual);
+        autocorrigirSaldoCacheado(doc, saldoAtual, historico.length);
 
         if (historico.length === 0) {
             div.innerHTML = `
@@ -5136,7 +5162,7 @@ async function copiarHistoricoWhatsApp(id, nome, completo = false) {
 
         const historico = await buscarHistoricoDerivado(id);
         const saldoAtual = historico.length > 0 ? historico[historico.length - 1].saldoNovo : 0;
-        autocorrigirSaldoCacheado(doc, saldoAtual);
+        autocorrigirSaldoCacheado(doc, saldoAtual, historico.length);
 
         if (historico.length === 0) {
             showToast('📭 Nenhuma movimentação para copiar', 'warning');

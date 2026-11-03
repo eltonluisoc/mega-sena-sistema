@@ -1784,7 +1784,13 @@ Reconstruído e substituído o `.exe` de produção — achado à parte: o `.exe
 
 35 testes + `py_compile`, OK.
 
-## Agentes a utilizar
+## Rodada 126 — Causa raiz real da divergência "reaparecendo": orderBy excluía lançamento sem criadoEm, e a autocorreção gravava o total incompleto por cima (v91, web)
+
+Um dia depois da Rodada 122, o Cosme apareceu com saldo cacheado **zerado** (não "desatualizado" — 0,00 exato, sem nenhum lançamento novo: mesmos 100 movimentos de antes) e a Sandra Regina com o cache R$3 ACIMA do ledger (175 vs 172) — um padrão diferente do bug original, e só nas duas pessoas com mais lançamentos (100 cada, as maiores contas do sistema). Descartada intervenção manual (confirmado com o usuário). A correlação com "mais movimentos" apontou pro lugar certo: `buscarHistoricoDerivado` usava `.orderBy('criadoEm', 'asc')` pra montar o extrato — e o Firestore **exclui da resposta, sem erro nenhum,** qualquer documento que não tenha esse campo bem definido. Se algum lançamento tivesse ficado sem `criadoEm` válido (residual de alguma das re-execuções de migração), o extrato calculado ficava incompleto — e a autocorreção que eu tinha criado na Rodada 124 (pensada pra ser uma rede de segurança) gravava esse total INCOMPLETO por cima do valor certo, piorando em vez de ajudar. Pro Cosme, bastou o pior caso (extrato vindo vazio) pra zerar o cache de vez.
+
+**Corrigido na raiz, não só o sintoma**: `buscarHistoricoDerivado` não usa mais `orderBy` — lê tudo (`.get()` simples) e ordena no cliente, com fallback pra quem não tiver `criadoEm`, garantindo que a soma NUNCA mais fica incompleta não importa a causa. `autocorrigirSaldoCacheado` ganhou uma trava de segurança: nunca grava um valor zerado se o histórico lido veio vazio mas o cache já tinha algo diferente de zero — nesse caso é sinal mais forte de leitura incompleta do que de pessoa realmente zerada, e zerar errado é o pior desfecho possível ali.
+
+`sw.js` v90 → v91. `node --check`, OK.
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
 2. **Agente de Levantamento de Requisitos** — lê o código e/ou documentação existente e lista requisitos funcionais e não funcionais da versão nova, incluindo o que NÃO pode regredir.
