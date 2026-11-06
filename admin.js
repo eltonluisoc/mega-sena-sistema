@@ -5792,19 +5792,20 @@ function carregarOtimizadorCotas() {
     });
 }
 
-// Compara 2 chaves_ranking (listas de inteiros: [tem_algo, faixa_melhor,
-// faixa_meio, faixa_pior]) elemento a elemento, maior primeiro -- mesma
-// ordem que o "Ranking de Acertos" do app desktop usa, sem reimplementar
-// NENHUMA regra de negócio aqui (a lista já vem pronta do Firestore).
-function compararChaveRanking(a, b) {
-    const ca = a.chave_ranking || [0];
-    const cb = b.chave_ranking || [0];
-    const n = Math.max(ca.length, cb.length);
-    for (let i = 0; i < n; i++) {
-        const diff = (cb[i] || 0) - (ca[i] || 0);
-        if (diff !== 0) return diff;
-    }
-    return 0;
+// (data) : usado só pelo "melhor resultado" dentro de cada card (cor/
+// headline) -- a ORDEM da lista em si não usa mais isso, ver
+// compararPorDataDesc abaixo (pedido do usuário: mais recentes primeiro).
+function temMelhorResultado(g) {
+    return g.chave_ranking && g.chave_ranking[0] === 1;
+}
+
+// (data) : ordena pela data de geração, mais recente primeiro. `g.id` é o
+// próprio ID do documento, que o app desktop grava como timestamp
+// ordenável (YYYYMMDDHHMMSSffffff, ver salvar_geracao) -- comparação de
+// string já basta, sem precisar parsear `data_legivel` (formato dd/mm/aaaa
+// não ordena certo como string).
+function compararPorDataDesc(a, b) {
+    return (b.id || '').localeCompare(a.id || '');
 }
 
 function exibirOtimizadorCotas() {
@@ -5819,18 +5820,22 @@ function exibirOtimizadorCotas() {
         return;
     }
 
-    const ordenadas = [...filtradas].sort(compararChaveRanking);
+    const ordenadas = [...filtradas].sort(compararPorDataDesc);
 
     const CORES_LOTERIA = { 'Mega-Sena': '#0071e3', 'Lotofácil': '#1b6b2e', 'Quina': '#5856d6' };
 
     let html = '';
-    ordenadas.forEach((g, idx) => {
+    ordenadas.forEach(g => {
         const cor = CORES_LOTERIA[g.loteria] || '#0071e3';
-        const temAlgo = g.chave_ranking && g.chave_ranking[0] === 1;
+        const temAlgo = temMelhorResultado(g);
         const headline = temAlgo
             ? `🏆 ${escapeHtml(g.melhor_faixa_texto || '')}`
-            : '— Sem resultado ainda';
-        const medalha = (idx === 0 && temAlgo) ? '🥇 ' : `#${idx + 1} `;
+            : (g.resultado_conferido ? '✅ Conferido, sem prêmio' : '— Sem resultado ainda');
+        // (data) : "🥇"/"#N" era posição de RANKING (melhor resultado
+        // primeiro) -- sem sentido agora que a lista ordena por data; um
+        // "🥇" no 1º card só porque é o mais recente seria enganoso (pode
+        // nem ter resultado ainda). Removido, sem substituto -- a data já
+        // aparece no próprio card.
         const orcamentosTexto = g.orcamentos
             ? Object.entries(g.orcamentos).map(([k, v]) => `${k === 'qualquer_premio' ? '🎲' : '⚖️'} R$ ${Number(v).toFixed(2)}`).join('  ')
             : '';
@@ -5839,7 +5844,7 @@ function exibirOtimizadorCotas() {
             <div class="reserva-card" style="background: #f8fafc; border-radius: 12px; padding: 14px; border: 1px solid #e2e8f0; border-left: 3px solid ${cor}; margin-bottom: 12px;">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
                     <div>
-                        <div style="font-size:12px; color:#64748b; font-weight:600;">${medalha}${escapeHtml(g.loteria || 'Mega-Sena')} · ${escapeHtml(g.data_legivel || '')}</div>
+                        <div style="font-size:12px; color:#64748b; font-weight:600;">${escapeHtml(g.loteria || 'Mega-Sena')} · ${escapeHtml(g.data_legivel || '')}</div>
                         <div style="font-weight:800; font-size:16px; color:${temAlgo ? '#9a7300' : '#64748b'}; margin-top:2px;">${headline}</div>
                         ${g.resumo_resultado_texto ? `<div style="font-size:12.5px; color:#64748b; margin-top:2px;">${escapeHtml(g.resumo_resultado_texto)}</div>` : ''}
                     </div>
