@@ -176,6 +176,10 @@ async function buscarHistoricoDerivado(pessoaId) {
 // otimizadorFiltroLoteria é só o filtro da TELA (não refaz a leitura).
 let otimizadorGeracoes = [];
 let otimizadorFiltroLoteria = 'Todas';
+// (data) : guarda a função de cancelar o listener ao vivo do Firestore
+// (ver carregarOtimizadorCotas) -- evita acumular listeners duplicados se
+// a função for chamada mais de uma vez (ex.: botão "Atualizar").
+let _otimizadorCotasUnsub = null;
 
 // ============================================
 // VARIÁVEIS DO CADASTRO EM LOTE
@@ -5763,19 +5767,29 @@ function atualizarDashboardEstatisticasVazio() {
 // jogos novos continua existindo só no app desktop, de propósito (ver
 // comentário no HTML da seção) -- mantém 1 motor de otimização só, sem
 // risco de uma 2ª implementação em JS divergir da versão Python.
-async function carregarOtimizadorCotas() {
+function carregarOtimizadorCotas() {
     const container = document.getElementById('listaOtimizadorCotas');
-    try {
-        const snapshot = await db.collection('otimizador_cotas_geracoes').get();
+    // (data) : passou de leitura única (.get()) pra um listener ao vivo
+    // (.onSnapshot()) -- pedido do usuário: uma geração salva no app
+    // desktop deve aparecer aqui IMEDIATAMENTE, sem precisar recarregar a
+    // página nem clicar em "Atualizar" (antes só carregava 1 vez, no
+    // login do admin). Desinscreve qualquer listener anterior antes de
+    // criar outro -- essa função também é o handler do botão "Atualizar",
+    // que senão acumularia um listener novo a cada clique.
+    if (_otimizadorCotasUnsub) {
+        _otimizadorCotasUnsub();
+        _otimizadorCotasUnsub = null;
+    }
+    _otimizadorCotasUnsub = db.collection('otimizador_cotas_geracoes').onSnapshot(snapshot => {
         otimizadorGeracoes = [];
         snapshot.forEach(doc => {
             otimizadorGeracoes.push({ id: doc.id, ...doc.data() });
         });
         exibirOtimizadorCotas();
-    } catch (error) {
-        console.error('Erro ao carregar gerações do Otimizador de Cotas:', error);
+    }, error => {
+        console.error('Erro ao sincronizar gerações do Otimizador de Cotas:', error);
         if (container) container.innerHTML = '<div class="empty-state">❌ Erro ao carregar -- veja o console</div>';
-    }
+    });
 }
 
 // Compara 2 chaves_ranking (listas de inteiros: [tem_algo, faixa_melhor,
