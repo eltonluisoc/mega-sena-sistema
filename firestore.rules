@@ -147,13 +147,15 @@ service cloud.firestore {
       allow create: if isAdmin()
                     && request.resource.data.keys().hasOnly(
                          ['participanteId','nome','telefone','chavePix',
-                          'observacoes','ativo','saldoReserva','dataAtualizacao','admin'])
+                          'observacoes','ativo','saldoReserva','dataAtualizacao','admin',
+                          'qualificaAlertaSaldoBaixo'])
                     && request.resource.data.saldoReserva == 0;
       allow update: if isAdmin()
                     && !('historico' in request.resource.data)
                     && request.resource.data.keys().hasOnly(
                          ['participanteId','nome','telefone','chavePix',
-                          'observacoes','ativo','saldoReserva','dataAtualizacao','admin']);
+                          'observacoes','ativo','saldoReserva','dataAtualizacao','admin',
+                          'qualificaAlertaSaldoBaixo']);
       allow delete: if isAdmin();
 
       // Ledger só-de-inserção: um documento por depósito/saque, nunca
