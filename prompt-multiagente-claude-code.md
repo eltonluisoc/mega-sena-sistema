@@ -1792,6 +1792,22 @@ Um dia depois da Rodada 122, o Cosme apareceu com saldo cacheado **zerado** (nã
 
 `sw.js` v90 → v91. `node --check`, OK.
 
+## Rodada 127 — Conferência ganha seção própria, separada de publicar pro público + menu reagrupado (v92, web)
+
+Pedido do usuário, a partir do uso real: (a) conferir um concurso já liberava pro público na hora — queria 2 momentos separados, conferir primeiro (privado) e publicar só quando decidir; (b) essa conferência vivia escondida dentro da aba "Cartões" — queria um botão próprio; (c) o menu lateral (8 botões verticais) ocupava espaço demais no celular, pediu pra reagrupar.
+
+Investigado com 2 agentes antes de mexer: confirmado que o site público (`script.js`) não grava mais em `resultados_conferidos` há tempo (só lê, com `try/catch` que trata qualquer erro — inclusive um futuro erro de permissão — exatamente como "ainda não conferido", sem mensagem de bloqueio nenhuma pro visitante) — ou seja, só o admin cria esses documentos hoje, e a trava antiga (`config_geral/conferencia_bloqueio`, pensada pra impedir um visitante de criar o doc do concurso mais recente antes do admin) estava morta, nunca mais exercitada.
+
+**Conferir ≠ Publicar**: campo novo `publicado` em `resultados_conferidos`. Admin confere (`conferirComoAdmin`) grava `publicado: false` — visível só pra ele. Ações novas, separadas: `publicarResultado` (`publicado: true` + `dataPublicacao`) e `despublicarResultado` (reverte, rede de segurança pra corrigir engano sem apagar o documento conferido). `firestore.rules`: `allow get` exige `publicado == true` OU `isAdmin()`; `allow create` simplificado pra exigir `isAdmin()` direto (a trava antiga de `conferencia_bloqueio` virou redundante, removida junto com `atualizarConcursoMaisRecenteBloqueio`/`conferenciaBloqueioCache`/`atualizarPainelConferenciaPublica` no `admin.js`).
+
+**Seção própria "✅ Conferência"**: novo item no menu, com 1 card por loteria (Mega/Lotofácil/Quina/+Milionária) mostrando o concurso mais recente e o estado (não conferido / conferido-privado / publicado), cada um com a ação certa. Substituiu o painel que vivia dentro de "Cartões".
+
+**Menu reagrupado** (de 8 pra 6 botões, escolha do usuário "por tipo de dado"): Dashboard, Cartões, Conferência, **Bolões** (sub-abas Gestão/Premiações), **Financeiro** (sub-abas Pagamentos/Reservas), **Mais** (sub-abas Otimizador de Cotas/Config). Achado real ao generalizar o seletor de sub-abas que já existia só em Cartões (`mostrarSubsecaoCartoes`): usava `querySelectorAll` **sem nenhum escopo** — reusar as mesmas classes num 2º grupo faria um clique ali mexer nas sub-abas de Cartões também. Corrigido com `mostrarSubsecao(grupo, nome)`, escopando por `data-grupo` em todos os botões/painéis (inclusive os 3 que já existiam em Cartões, atualizados pro novo padrão).
+
+`sw.js` v91 → v92. `node --check` + checagem de balanceamento de tags (`section`/`div`/`nav`/`main`/`button`), todos OK.
+
+## Agentes a utilizar
+
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
 2. **Agente de Levantamento de Requisitos** — lê o código e/ou documentação existente e lista requisitos funcionais e não funcionais da versão nova, incluindo o que NÃO pode regredir.
 3. **Agente Desenvolvedor Core** — implementa a lógica principal/backend da nova versão conforme o desenho do Arquiteto.

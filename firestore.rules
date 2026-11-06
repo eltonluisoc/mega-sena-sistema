@@ -50,43 +50,38 @@ service cloud.firestore {
       allow write, delete: if isAdmin();
     }
 
-    // Cache de resultados oficiais das loterias: gravado pelo público
-    // (script.js) na primeira vez que alguém confere um concurso no site
-    // (o app não tem backend próprio pra validar contra a API oficial da
-    // Caixa antes de gravar). Só a CRIAÇÃO é pública — depois de gravado,
-    // só o admin pode alterar/apagar. Sem isso, qualquer visitante podia
-    // sobrescrever o resultado de um concurso já conferido com números
-    // forjados a qualquer momento, e o site passava a confiar cegamente
-    // nesse cache pra todo mundo (inclusive pra decidir quem "ganhou").
+    // Cache de resultados oficiais das loterias, hoje gravado só pelo
+    // admin (conferirComoAdmin, admin.js) — a gravação pública foi
+    // removida do site faz tempo (script.js só lê). Achado real
+    // (03/11): como só o admin cria, dá pra exigir isAdmin() direto no
+    // create, sem precisar mais da trava antiga de
+    // config_geral/conferencia_bloqueio (ela só existia pra impedir um
+    // visitante de criar o doc do concurso mais recente antes do
+    // admin — um caminho que não existe mais).
+    //
+    // Pedido do usuário (03/11): conferir e publicar viram 2 momentos
+    // diferentes — o admin confere primeiro (privado), só publica
+    // quando decidir. O campo `publicado` controla isso: só quem pode
+    // ler um doc ainda não publicado é o próprio admin. script.js (site
+    // público) já trata qualquer erro de leitura (inclusive um futuro
+    // PERMISSION_DENIED aqui) exatamente como "ainda não conferido" —
+    // confirmado lendo o código, não muda nada lá.
     match /resultados_conferidos/{document} {
-      allow read: if true;
+      allow get: if resource.data.get('publicado', false) == true || isAdmin();
+      allow list: if isAdmin();
       // 'trevos' é opcional (só +Milionária usa) — hasOnly só limita quais
       // chaves PODEM existir, não exige que todas estejam presentes, então
       // documentos das outras 3 loterias (sem trevos) continuam válidos.
-      //
-      // Pedido do usuário: ele quer ser sempre o PRIMEIRO a conferir o
-      // concurso mais recente de cada loteria — só depois disso o público
-      // pode conferir normalmente (igual já acontecia com todo mundo até
-      // aqui). O concurso "mais recente travado" de cada loteria fica em
-      // config_geral/conferencia_bloqueio (mantido pelo admin.js, ver
-      // atualizarConcursoMaisRecenteBloqueio) — se o concurso sendo criado
-      // aqui bater com o travado daquela loteria, só admin passa; qualquer
-      // outro concurso (incluindo esse mesmo depois que o admin já criou
-      // o doc, já que create não roda 2x no mesmo id) continua público.
-      allow create: if request.resource.data.keys().hasOnly(
-                        ['loteria','concurso','numeros','trevos','dataConferencia','dataSorteio','conferido','admin'])
+      allow create: if isAdmin()
+                    && request.resource.data.keys().hasOnly(
+                        ['loteria','concurso','numeros','trevos','dataConferencia','dataSorteio','conferido','admin','publicado','dataPublicacao'])
                     && request.resource.data.loteria in ['mega','lotofacil','quina','maismilionaria']
                     && request.resource.data.numeros is list
                     && request.resource.data.numeros.size() > 0
                     && request.resource.data.numeros.size() <= 20
                     && (!('trevos' in request.resource.data) || (request.resource.data.trevos is list && request.resource.data.trevos.size() == 2))
                     && request.resource.data.conferido == true
-                    && (
-                         isAdmin()
-                         || !exists(/databases/$(database)/documents/config_geral/conferencia_bloqueio)
-                         || get(/databases/$(database)/documents/config_geral/conferencia_bloqueio)
-                              .data.get(request.resource.data.loteria, '') != request.resource.data.concurso
-                       );
+                    && request.resource.data.publicado is bool;
       allow update, delete: if isAdmin();
     }
 

@@ -1270,12 +1270,33 @@
                 grid-template-columns: 1fr;
             }
             .top-bar {
-                flex-direction: column;
-                text-align: center;
+                /* Achado real do usuário: "flex-direction: column" empilhava
+                   logo numa linha inteira e as estatísticas em outra —
+                   cabeçalho alto demais, escondia informação (ele citou
+                   especificamente o "carregando a reserva"). Tira o
+                   empilhamento forçado e deixa o padding/fonte menor
+                   decidirem um encaixe mais compacto. */
+                padding: 8px 12px;
+                gap: 6px;
+            }
+            .logo {
+                font-size: 14px;
+            }
+            .version {
+                display: none; /* "Administração" não é essencial — economiza espaço */
             }
             .stats {
-                justify-content: center;
-                width: 100%;
+                justify-content: flex-start;
+                gap: 6px;
+            }
+            .stat {
+                padding: 3px 9px;
+                font-size: 10px;
+            }
+            .btn-logout {
+                padding: 5px 10px;
+                font-size: 11px;
+                min-height: 30px;
             }
             .sidebar-item {
                 font-size: 12px;
@@ -1352,23 +1373,17 @@
             <button class="sidebar-item" data-section="cartoes">
                 <span class="icon">📋</span> Cartões
             </button>
-            <button class="sidebar-item" data-section="boloes">
+            <button class="sidebar-item" data-section="conferencia">
+                <span class="icon">✅</span> Conferência
+            </button>
+            <button class="sidebar-item" data-section="boloes-grupo">
                 <span class="icon">👥</span> Bolões
             </button>
-            <button class="sidebar-item" data-section="financeiro">
+            <button class="sidebar-item" data-section="financeiro-grupo">
                 <span class="icon">💳</span> Financeiro
             </button>
-            <button class="sidebar-item" data-section="reservas">
-                <span class="icon">💰</span> Reservas
-            </button>
-            <button class="sidebar-item" data-section="premiacoes">
-                <span class="icon">🏆</span> Premiações
-            </button>
-            <button class="sidebar-item" data-section="otimizador">
-                <span class="icon">🧮</span> Otimizador de Cotas
-            </button>
-            <button class="sidebar-item" data-section="config">
-                <span class="icon">⚙️</span> Config
+            <button class="sidebar-item" data-section="mais-grupo">
+                <span class="icon">🧰</span> Mais
             </button>
         </nav>
 
@@ -1466,12 +1481,12 @@
             <!-- ============================================ -->
             <section id="section-cartoes" class="section">
                 <div class="subsecao-seletor" style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
-                    <button type="button" class="subsecao-btn" data-subcartoes="importar" style="flex:1; min-width:140px; padding:12px; border:none; border-radius:12px; font-weight:700; cursor:pointer; background:#0071e3; color:white;">📄 Importar PDF</button>
-                    <button type="button" class="subsecao-btn" data-subcartoes="cadastro" style="flex:1; min-width:140px; padding:12px; border:none; border-radius:12px; font-weight:700; cursor:pointer; background:#e2e8f0; color:#334155;">📝 Cadastro</button>
-                    <button type="button" class="subsecao-btn" data-subcartoes="lista" style="flex:1; min-width:140px; padding:12px; border:none; border-radius:12px; font-weight:700; cursor:pointer; background:#e2e8f0; color:#334155;">📋 Cartões</button>
+                    <button type="button" class="subsecao-btn" data-grupo="cartoes" data-sub="importar" style="flex:1; min-width:140px; padding:12px; border:none; border-radius:12px; font-weight:700; cursor:pointer; background:#0071e3; color:white;">📄 Importar PDF</button>
+                    <button type="button" class="subsecao-btn" data-grupo="cartoes" data-sub="cadastro" style="flex:1; min-width:140px; padding:12px; border:none; border-radius:12px; font-weight:700; cursor:pointer; background:#e2e8f0; color:#334155;">📝 Cadastro</button>
+                    <button type="button" class="subsecao-btn" data-grupo="cartoes" data-sub="lista" style="flex:1; min-width:140px; padding:12px; border:none; border-radius:12px; font-weight:700; cursor:pointer; background:#e2e8f0; color:#334155;">📋 Cartões</button>
                 </div>
 
-                <div class="subsecao-cartoes" data-subcartoes="cadastro" style="display:none;">
+                <div class="subsecao-painel" data-grupo="cartoes" data-sub="cadastro" style="display:none;">
 
                 <!-- SELETOR DE LOTERIA -->
                 <div class="card" style="background: #f8fafc; border: 1px solid #e2e8f0;">
@@ -1693,12 +1708,12 @@
                 </div>
 
                 </div>
-                <!-- /subsecao-cartoes="cadastro" -->
+                <!-- /subsecao-painel data-grupo="cartoes" data-sub="cadastro" -->
 
                 <!-- ============================================ -->
                 <!-- SUB-SEÇÃO: IMPORTAR PDF (padrão, mais usada) -->
                 <!-- ============================================ -->
-                <div class="subsecao-cartoes" data-subcartoes="importar" style="display:block;">
+                <div class="subsecao-painel" data-grupo="cartoes" data-sub="importar" style="display:block;">
                 <div class="card" style="border: 2px solid #0071e3;">
                     <div class="card-header">📄 IMPORTAR COMPROVANTE PDF DA CAIXA</div>
                     <div style="font-size: 13px; color: #64748b; margin-bottom: 14px;">
@@ -1744,12 +1759,12 @@
                 <div id="pdfImportResultados"></div>
                 <div id="pdfImportRodape" style="margin-top: 12px;"></div>
                 </div>
-                <!-- /subsecao-cartoes="importar" -->
+                <!-- /subsecao-painel data-grupo="cartoes" data-sub="importar" -->
 
                 <!-- ============================================ -->
                 <!-- SUB-SEÇÃO: LISTA DE CARTÕES -->
                 <!-- ============================================ -->
-                <div class="subsecao-cartoes" data-subcartoes="lista" style="display:none;">
+                <div class="subsecao-painel" data-grupo="cartoes" data-sub="lista" style="display:none;">
                 <div class="card" style="background: #f8fafc; border: 1px solid #e2e8f0;">
                     <div class="card-header" style="font-size: 15px;">🎯 LOTERIA</div>
                     <div style="font-size: 12px; color: #64748b; margin-bottom: 8px;">A lista, os filtros de concurso e o "Verificar Duplicados" abaixo são só desta loteria.</div>
@@ -1760,13 +1775,6 @@
                         <button id="cartoesBtnMilionaria" class="loteria-btn-admin maismilionaria" style="flex:1; padding: 10px; border: 2px solid #16a34a; border-radius: 30px; font-weight: bold; background: #dcfce7; color: #166534; cursor: pointer; transition: all 0.2s;">🍀 +MILIONÁRIA</button>
                     </div>
                 </div>
-                <!-- "Primeira conferência" do admin (Rodada 99) — pedido do
-                     usuário: ele quer ser sempre o primeiro a conferir o
-                     concurso mais recente de cada loteria; o público só
-                     pode conferir depois disso. Montado/atualizado por
-                     atualizarPainelConferenciaPublica() (admin.js); fica
-                     vazio/escondido quando não há concurso travado. -->
-                <div id="painelConferenciaPublica" style="display:none; margin-bottom: 14px;"></div>
                 <div class="card">
                     <div class="card-header">📋 CARTÕES CADASTRADOS</div>
                     <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">
@@ -1797,13 +1805,34 @@
                     <div id="duplicadosResultado" style="display: none; margin-top: 16px; border-top: 2px solid #e2e8f0; padding-top: 16px;"></div>
                 </div>
                 </div>
-                <!-- /subsecao-cartoes="lista" -->
+                <!-- /subsecao-painel data-grupo="cartoes" data-sub="lista" -->
             </section>
 
             <!-- ============================================ -->
-            <!-- SEÇÃO: BOLÕES -->
+            <!-- SEÇÃO: CONFERÊNCIA (03/11) — pedido do usuário: conferir
+                 um concurso e publicar pro público viraram 2 momentos
+                 separados (ver publicarResultado/despublicarResultado
+                 em admin.js), e ganhou botão próprio no menu em vez de
+                 ficar escondida dentro de Cartões. -->
             <!-- ============================================ -->
-            <section id="section-boloes" class="section">
+            <section id="section-conferencia" class="section">
+                <div id="painelConferencia" style="display:flex; flex-direction:column; gap:12px;">
+                    <div class="empty-state">Carregando...</div>
+                </div>
+            </section>
+
+            <!-- ============================================ -->
+            <!-- SEÇÃO: BOLÕES (grupo) — Gestão + Premiações viraram
+                 sub-abas de 1 item de menu só (03/11, pedido do usuário
+                 pra reduzir o número de botões verticais). -->
+            <!-- ============================================ -->
+            <section id="section-boloes-grupo" class="section">
+                <div class="subsecao-seletor" style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
+                    <button type="button" class="subsecao-btn" data-grupo="boloes" data-sub="gestao" style="flex:1; min-width:140px; padding:12px; border:none; border-radius:12px; font-weight:700; cursor:pointer; background:#0071e3; color:white;">👥 Gestão</button>
+                    <button type="button" class="subsecao-btn" data-grupo="boloes" data-sub="premiacoes" style="flex:1; min-width:140px; padding:12px; border:none; border-radius:12px; font-weight:700; cursor:pointer; background:#e2e8f0; color:#334155;">🏆 Premiações</button>
+                </div>
+
+                <div class="subsecao-painel" data-grupo="boloes" data-sub="gestao" style="display:block;">
                 <div class="card">
                     <div class="card-header">👥 GERENCIAR BOLÕES</div>
                     <div id="listaBoloes" style="max-height: 600px; overflow-y: auto;">
@@ -1811,98 +1840,17 @@
                     </div>
                     <button id="btnSalvarSelecao" class="btn btn-primary btn-block" style="margin-top: 15px;">💾 SALVAR CONFIGURAÇÕES</button>
                 </div>
-            </section>
-
-            <!-- ============================================ -->
-            <!-- SEÇÃO: FINANCEIRO -->
-            <!-- Pedido do usuário: "preciso ter como facilmente listar um
-                 bolão e ver todos os participantes e tudo que foi pago por
-                 ele". Essa tela já existia (Rodada 82) mas vivia escondida
-                 dentro de "Bolões" (2º card, depois de "Gerenciar Bolões") —
-                 virou seção própria no menu (Rodada 87), com um resumo
-                 financeiro no topo que não existia antes (mesmas classes
-                 .dashboard-cards/.dashboard-card/.dashboard-number do
-                 Dashboard, pra manter a mesma identidade visual do site). -->
-            <!-- ============================================ -->
-            <section id="section-financeiro" class="section">
-                <div class="card">
-                    <div class="card-header">💳 FINANCEIRO POR BOLÃO</div>
-                    <select id="bolaoSelectParticipantes" class="form-control" style="margin-bottom: 14px;">
-                        <option value="">Selecione um bolão</option>
-                    </select>
-                    <div class="dashboard-cards" id="finKpisResumo" style="display: none; margin-bottom: 16px;">
-                        <div class="dashboard-card" style="background: #e8f2ff; border-color: #93c5fd;">
-                            <div class="dashboard-number" style="color: #0071e3;" id="finKpiTotalParticipantes">0</div>
-                            <div style="font-size: 13px; font-weight: 600; color: #1e3a5f;">👥 PARTICIPANTES</div>
-                        </div>
-                        <div class="dashboard-card" style="background: #f0fdf4; border-color: #bbf7d0;">
-                            <div class="dashboard-number" style="color: #10b981;" id="finKpiTotalArrecadado">R$ 0,00</div>
-                            <div style="font-size: 13px; font-weight: 600; color: #065f46;">💰 TOTAL ARRECADADO</div>
-                        </div>
-                        <div class="dashboard-card" style="background: #fef3c7; border-color: #fde68a;">
-                            <div class="dashboard-number" style="color: #f59e0b;" id="finKpiTotalPendente">R$ 0,00</div>
-                            <div style="font-size: 13px; font-weight: 600; color: #92400e;">⏳ TOTAL PENDENTE</div>
-                        </div>
-                    </div>
-                    <button id="btnCopiarListaWhatsApp" class="btn btn-success btn-block" style="margin-bottom: 15px;" disabled>📱 COPIAR LISTA PARA WHATSAPP</button>
-                    <div id="listaParticipantesAdmin" style="max-height: 500px; overflow-y: auto;">
-                        <div class="empty-state">Selecione um bolão para ver os participantes e pagamentos</div>
-                    </div>
                 </div>
+                <!-- /subsecao-painel data-grupo="boloes" data-sub="gestao" -->
 
-                <!-- Pedido do usuário: "quero também aqui um [seletor de]
-                     participante e ele me mostra todos os bolões que ele
-                     está com situação de pagamento" — o card acima já
-                     resolve "1 bolão → todos os participantes"; este
-                     resolve o caminho inverso, "1 participante → todos os
-                     bolões dele". Não existe uma coleção "pessoas" no
-                     Firestore (só o SQLite local do desktop tem isso) —
-                     monta a lista escaneando todos os docs de
-                     "participantes" e agrupando por telefone (mesma chave
-                     usada no desktop pra identificar a mesma pessoa). -->
-                <div class="card">
-                    <div class="card-header">👤 FINANCEIRO POR PARTICIPANTE</div>
-                    <select id="participanteSelectFinanceiro" class="form-control" style="margin-bottom: 14px;">
-                        <option value="">Selecione um participante</option>
-                    </select>
-                    <div id="listaBoloesPorParticipante" style="max-height: 500px; overflow-y: auto;">
-                        <div class="empty-state">Selecione um participante para ver em quais bolões ele está e a situação de pagamento em cada um</div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- ============================================ -->
-            <!-- SEÇÃO: RESERVAS -->
-            <!-- ============================================ -->
-            <section id="section-reservas" class="section">
-                <div class="card">
-                    <div class="card-header">💰 RESERVAS DOS PARTICIPANTES</div>
-                    <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-                        <div style="font-size: 15px; font-weight: 600; color: #1e293b;">
-                            💵 TOTAL EM RESERVAS: <span id="totalReservas" style="font-size: 22px; color: #10b981; font-weight: 700;">R$ 0,00</span>
-                        </div>
-                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                            <button id="btnRegistrarMovimentoReserva" class="btn btn-success btn-sm">➕ Registrar</button>
-                            <button id="btnLancamentoLoteReserva" class="btn btn-purple btn-sm">📦 Lote</button>
-                            <button id="btnAtualizarReservas" class="btn btn-primary btn-sm">🔄 Atualizar</button>
-                        </div>
-                    </div>
-                    <div id="listaReservas" style="max-height: 500px; overflow-y: auto;">
-                        <div class="empty-state">Nenhuma reserva encontrada</div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- ============================================ -->
-            <!-- SEÇÃO: PREMIAÇÕES — registrar aqui um prêmio ganho; o
-                 desktop busca e atualiza a aba "Gestão → Premiações"
-                 sozinho (fila premiacoes_pendentes, mesmo padrão de
-                 reservas_movimentos_pendentes). Pedido do usuário:
-                 "quando ganhar algum prêmio... quero informar no
-                 admin... e quero que o sistema desktop atualize a
-                 premiação na aba gestão premiações". -->
-            <!-- ============================================ -->
-            <section id="section-premiacoes" class="section">
+                <!-- PREMIAÇÕES — registrar aqui um prêmio ganho; o desktop
+                     busca e atualiza a aba "Gestão → Premiações" sozinho
+                     (fila premiacoes_pendentes, mesmo padrão de
+                     reservas_movimentos_pendentes). Pedido do usuário:
+                     "quando ganhar algum prêmio... quero informar no
+                     admin... e quero que o sistema desktop atualize a
+                     premiação na aba gestão premiações". -->
+                <div class="subsecao-painel" data-grupo="boloes" data-sub="premiacoes" style="display:none;">
                 <div class="card">
                     <div class="card-header">🏆 PREMIAÇÕES</div>
                     <div style="font-size: 12px; color: var(--cor-texto-sec); margin-bottom: 16px;">
@@ -1947,20 +1895,119 @@
                         </div>
                     </div>
                 </div>
+                </div>
+                <!-- /subsecao-painel data-grupo="boloes" data-sub="premiacoes" -->
             </section>
 
             <!-- ============================================ -->
-            <!-- SEÇÃO: OTIMIZADOR DE COTAS (só visualização -- pedido do
-                 usuário: o site NUNCA gera jogos novos, isso continua só
-                 no app desktop D:\PROJETOS\OTIMIZADOR_COTAS. Esta seção
-                 só LÊ a coleção otimizador_cotas_geracoes, sincronizada
-                 de lá -- ver _sincronizar_geracao_nuvem no Python. Todo
-                 campo de ordenação/classificação (chave_ranking,
-                 melhor_faixa_texto) já vem PRONTO do Firestore, calculado
-                 no Python -- este JS só compara/exibe, nunca decide o que
-                 conta como "melhor resultado". -->
+            <!-- SEÇÃO: FINANCEIRO (grupo) — Pagamentos + Reservas viraram
+                 sub-abas de 1 item de menu só (03/11, mesmo pedido). -->
             <!-- ============================================ -->
-            <section id="section-otimizador" class="section">
+            <section id="section-financeiro-grupo" class="section">
+                <div class="subsecao-seletor" style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
+                    <button type="button" class="subsecao-btn" data-grupo="financeiro" data-sub="pagamentos" style="flex:1; min-width:140px; padding:12px; border:none; border-radius:12px; font-weight:700; cursor:pointer; background:#0071e3; color:white;">💳 Pagamentos</button>
+                    <button type="button" class="subsecao-btn" data-grupo="financeiro" data-sub="reservas" style="flex:1; min-width:140px; padding:12px; border:none; border-radius:12px; font-weight:700; cursor:pointer; background:#e2e8f0; color:#334155;">💰 Reservas</button>
+                </div>
+
+                <!-- PAGAMENTOS — pedido do usuário: "preciso ter como
+                     facilmente listar um bolão e ver todos os participantes
+                     e tudo que foi pago por ele". Essa tela já existia
+                     (Rodada 82) mas vivia escondida dentro de "Bolões" (2º
+                     card, depois de "Gerenciar Bolões") — virou seção
+                     própria no menu (Rodada 87), com um resumo financeiro
+                     no topo que não existia antes (mesmas classes
+                     .dashboard-cards/.dashboard-card/.dashboard-number do
+                     Dashboard, pra manter a mesma identidade visual do
+                     site). -->
+                <div class="subsecao-painel" data-grupo="financeiro" data-sub="pagamentos" style="display:block;">
+                <div class="card">
+                    <div class="card-header">💳 FINANCEIRO POR BOLÃO</div>
+                    <select id="bolaoSelectParticipantes" class="form-control" style="margin-bottom: 14px;">
+                        <option value="">Selecione um bolão</option>
+                    </select>
+                    <div class="dashboard-cards" id="finKpisResumo" style="display: none; margin-bottom: 16px;">
+                        <div class="dashboard-card" style="background: #e8f2ff; border-color: #93c5fd;">
+                            <div class="dashboard-number" style="color: #0071e3;" id="finKpiTotalParticipantes">0</div>
+                            <div style="font-size: 13px; font-weight: 600; color: #1e3a5f;">👥 PARTICIPANTES</div>
+                        </div>
+                        <div class="dashboard-card" style="background: #f0fdf4; border-color: #bbf7d0;">
+                            <div class="dashboard-number" style="color: #10b981;" id="finKpiTotalArrecadado">R$ 0,00</div>
+                            <div style="font-size: 13px; font-weight: 600; color: #065f46;">💰 TOTAL ARRECADADO</div>
+                        </div>
+                        <div class="dashboard-card" style="background: #fef3c7; border-color: #fde68a;">
+                            <div class="dashboard-number" style="color: #f59e0b;" id="finKpiTotalPendente">R$ 0,00</div>
+                            <div style="font-size: 13px; font-weight: 600; color: #92400e;">⏳ TOTAL PENDENTE</div>
+                        </div>
+                    </div>
+                    <button id="btnCopiarListaWhatsApp" class="btn btn-success btn-block" style="margin-bottom: 15px;" disabled>📱 COPIAR LISTA PARA WHATSAPP</button>
+                    <div id="listaParticipantesAdmin" style="max-height: 500px; overflow-y: auto;">
+                        <div class="empty-state">Selecione um bolão para ver os participantes e pagamentos</div>
+                    </div>
+                </div>
+
+                <!-- Pedido do usuário: "quero também aqui um [seletor de]
+                     participante e ele me mostra todos os bolões que ele
+                     está com situação de pagamento" — o card acima já
+                     resolve "1 bolão → todos os participantes"; este
+                     resolve o caminho inverso, "1 participante → todos os
+                     bolões dele". Não existe uma coleção "pessoas" no
+                     Firestore (só o SQLite local do desktop tem isso) —
+                     monta a lista escaneando todos os docs de
+                     "participantes" e agrupando por telefone (mesma chave
+                     usada no desktop pra identificar a mesma pessoa). -->
+                <div class="card">
+                    <div class="card-header">👤 FINANCEIRO POR PARTICIPANTE</div>
+                    <select id="participanteSelectFinanceiro" class="form-control" style="margin-bottom: 14px;">
+                        <option value="">Selecione um participante</option>
+                    </select>
+                    <div id="listaBoloesPorParticipante" style="max-height: 500px; overflow-y: auto;">
+                        <div class="empty-state">Selecione um participante para ver em quais bolões ele está e a situação de pagamento em cada um</div>
+                    </div>
+                </div>
+                </div>
+                <!-- /subsecao-painel data-grupo="financeiro" data-sub="pagamentos" -->
+
+                <div class="subsecao-painel" data-grupo="financeiro" data-sub="reservas" style="display:none;">
+                <div class="card">
+                    <div class="card-header">💰 RESERVAS DOS PARTICIPANTES</div>
+                    <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                        <div style="font-size: 15px; font-weight: 600; color: #1e293b;">
+                            💵 TOTAL EM RESERVAS: <span id="totalReservas" style="font-size: 22px; color: #10b981; font-weight: 700;">R$ 0,00</span>
+                        </div>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <button id="btnRegistrarMovimentoReserva" class="btn btn-success btn-sm">➕ Registrar</button>
+                            <button id="btnLancamentoLoteReserva" class="btn btn-purple btn-sm">📦 Lote</button>
+                            <button id="btnAtualizarReservas" class="btn btn-primary btn-sm">🔄 Atualizar</button>
+                        </div>
+                    </div>
+                    <div id="listaReservas" style="max-height: 500px; overflow-y: auto;">
+                        <div class="empty-state">Nenhuma reserva encontrada</div>
+                    </div>
+                </div>
+                </div>
+                <!-- /subsecao-painel data-grupo="financeiro" data-sub="reservas" -->
+            </section>
+
+            <!-- ============================================ -->
+            <!-- SEÇÃO: MAIS (grupo) — Otimizador de Cotas + Config viraram
+                 sub-abas de 1 item de menu só (03/11, mesmo pedido). -->
+            <!-- ============================================ -->
+            <section id="section-mais-grupo" class="section">
+                <div class="subsecao-seletor" style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
+                    <button type="button" class="subsecao-btn" data-grupo="mais" data-sub="otimizador" style="flex:1; min-width:140px; padding:12px; border:none; border-radius:12px; font-weight:700; cursor:pointer; background:#0071e3; color:white;">🧮 Otimizador de Cotas</button>
+                    <button type="button" class="subsecao-btn" data-grupo="mais" data-sub="config" style="flex:1; min-width:140px; padding:12px; border:none; border-radius:12px; font-weight:700; cursor:pointer; background:#e2e8f0; color:#334155;">⚙️ Config</button>
+                </div>
+
+                <!-- OTIMIZADOR DE COTAS (só visualização -- pedido do
+                     usuário: o site NUNCA gera jogos novos, isso continua só
+                     no app desktop D:\PROJETOS\OTIMIZADOR_COTAS. Esta seção
+                     só LÊ a coleção otimizador_cotas_geracoes, sincronizada
+                     de lá -- ver _sincronizar_geracao_nuvem no Python. Todo
+                     campo de ordenação/classificação (chave_ranking,
+                     melhor_faixa_texto) já vem PRONTO do Firestore, calculado
+                     no Python -- este JS só compara/exibe, nunca decide o que
+                     conta como "melhor resultado". -->
+                <div class="subsecao-painel" data-grupo="mais" data-sub="otimizador" style="display:block;">
                 <div class="card">
                     <div class="card-header">🧮 OTIMIZADOR DE COTAS — GERAÇÕES</div>
                     <div style="display:flex; align-items:center; gap:8px; background: var(--cor-fundo); border:1px solid var(--cor-borda); border-radius: var(--raio); padding:10px 14px; margin-bottom:16px; font-size:12px; color: var(--cor-texto-sec);">
@@ -1977,12 +2024,10 @@
                         <div class="empty-state">Carregando gerações...</div>
                     </div>
                 </div>
-            </section>
+                </div>
+                <!-- /subsecao-painel data-grupo="mais" data-sub="otimizador" -->
 
-            <!-- ============================================ -->
-            <!-- SEÇÃO: CONFIG -->
-            <!-- ============================================ -->
-            <section id="section-config" class="section">
+                <div class="subsecao-painel" data-grupo="mais" data-sub="config" style="display:none;">
                 <div class="card">
                     <div class="card-header">⚙️ CONFIGURAÇÕES GERAIS</div>
                     <div class="form-group">
@@ -2002,6 +2047,8 @@
                         🗑️ LIMPAR CACHE DO SISTEMA
                     </button>
                 </div>
+                </div>
+                <!-- /subsecao-painel data-grupo="mais" data-sub="config" -->
             </section>
 
         </main>
@@ -2082,6 +2129,14 @@
                 document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
                 const target = document.getElementById('section-' + sectionId);
                 if (target) target.classList.add('active');
+
+                // Conferência (03/11) depende do array `cartoes` + 1 leitura
+                // por loteria no Firestore — já é atualizada ao carregar os
+                // dados, mas reforça aqui pra nunca mostrar algo velho se o
+                // admin ficou um tempo parado antes de abrir esta aba.
+                if (sectionId === 'conferencia' && typeof atualizarPainelConferencia === 'function') {
+                    atualizarPainelConferencia();
+                }
             });
         });
 

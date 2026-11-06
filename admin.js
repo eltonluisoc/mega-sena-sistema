@@ -169,11 +169,6 @@ async function buscarHistoricoDerivado(pessoaId) {
     return historico;
 }
 
-// Concurso mais recente de cada loteria que precisa da 1ª conferência do
-// admin antes do público poder conferir (ver atualizarConcursoMaisRecenteBloqueio
-// e o painel "🔒 Conferência Pública" na aba Cartões) — espelha
-// config_geral/conferencia_bloqueio, só pra não reler o doc a cada render.
-let conferenciaBloqueioCache = {};
 
 // Otimizador de Cotas (app desktop separado) -- gerações sincronizadas
 // só pra VISUALIZAÇÃO (ver comentário na seção #section-otimizador do
@@ -1735,7 +1730,7 @@ async function carregarDadosAdmin() {
         atualizarDashboardAdmin();
         atualizarBadgeTotalCartoes();
         carregarOtimizadorCotas();
-        atualizarConcursoMaisRecenteBloqueio();
+        atualizarPainelConferencia();
         showToast('✅ Dados carregados!', 'success');
 
     } catch (error) {
@@ -1756,25 +1751,31 @@ function atualizarUIComCartoesLocais() {
     exibirCartoesAdmin();
     carregarConcursosAdmin();
     atualizarDashboardAdmin();
-    atualizarConcursoMaisRecenteBloqueio();
+    atualizarPainelConferencia();
 }
 
 // ============================================
-// CONFERÊNCIA PÚBLICA — só o admin confere primeiro
+// CONFERÊNCIA — seção própria (03/11): conferir ≠ publicar
 // ============================================
-// Pedido do usuário: ele quer ser sempre o primeiro a conferir o
-// concurso MAIS RECENTE de cada loteria — só depois disso o botão
-// "Conferir Resultados" do site público libera pra todo mundo (como já
-// acontecia antes com todo concurso). Em vez de mexer em cada um dos
-// vários jeitos de cadastrar cartão (individual, lote, PDF, sync do
-// desktop) pra avisar "surgiu concurso novo", essa função recalcula o
-// maior concurso de cada loteria a partir do array `cartoes` já
-// carregado (sempre fresco quando ela é chamada, ver chamadores) e
-// mantém isso espelhado em config_geral/conferencia_bloqueio — é esse
-// doc que firestore.rules consulta pra travar o 1º `create` em
-// resultados_conferidos pro concurso mais recente de cada loteria.
-async function atualizarConcursoMaisRecenteBloqueio() {
-    const maisRecentes = {};
+// Pedido do usuário: antes, conferir já liberava pro público na hora —
+// 1 ação só. Agora são 2 momentos: conferir (privado, só o admin vê) e
+// publicar (quando ele decidir, separadamente). O campo `publicado`
+// (novo) controla isso — ver firestore.rules. O mecanismo antigo
+// (config_geral/conferencia_bloqueio, travando o 1º `create` público)
+// foi removido: confirmado que o site público não grava mais nesta
+// coleção há tempo (só lê), então só o admin cria esses docs — a trava
+// virou redundante, o `publicado` já resolve tudo.
+//
+// Recalcula o maior concurso de cada loteria a partir do array
+// `cartoes` já carregado (sem query nova), busca o status de cada 1 em
+// resultados_conferidos e desenha os 4 cards (seção "Conferência").
+async function atualizarPainelConferencia() {
+    const container = document.getElementById('painelConferencia');
+    if (!container) return;
+
+    const nomes = { mega: '🎯 Mega-Sena', lotofacil: '🍀 Lotofácil', quina: '⭐ Quina', maismilionaria: '🌟 +Milionária' };
+    let html = '';
+
     for (const loteria of ['mega', 'lotofacil', 'quina', 'maismilionaria']) {
         let maior = 0;
         for (const c of cartoes) {
@@ -1782,79 +1783,67 @@ async function atualizarConcursoMaisRecenteBloqueio() {
             const n = parseInt(c.concurso, 10);
             if (!isNaN(n) && n > maior) maior = n;
         }
-        if (maior > 0) maisRecentes[loteria] = String(maior);
-    }
-    try {
-        const ref = db.collection('config_geral').doc('conferencia_bloqueio');
-        const doc = await ref.get();
-        const atual = doc.exists ? (doc.data() || {}) : {};
-        let precisaSalvar = false;
-        for (const lot of Object.keys(maisRecentes)) {
-            if (atual[lot] !== maisRecentes[lot]) { precisaSalvar = true; break; }
+        if (maior === 0) {
+            html += `
+                <div class="card" style="background:#f8fafc; border:1px solid #e2e8f0;">
+                    <div class="card-header">${nomes[loteria]}</div>
+                    <div style="font-size:13px; color:#64748b;">Nenhum cartão cadastrado ainda.</div>
+                </div>`;
+            continue;
         }
-        if (precisaSalvar) {
-            await ref.set(maisRecentes, { merge: true });
-            console.log('🔒 Concurso mais recente (trava de conferência) atualizado:', maisRecentes);
+        const concurso = String(maior);
+
+        let dados = null;
+        try {
+            const doc = await db.collection('resultados_conferidos').doc(`${loteria}_${concurso}`).get();
+            if (doc.exists && doc.data().conferido === true) dados = doc.data();
+        } catch (e) {
+            console.warn('Erro ao checar resultados_conferidos:', e);
         }
-        conferenciaBloqueioCache = { ...atual, ...maisRecentes };
-    } catch (e) {
-        console.warn('Erro ao atualizar conferencia_bloqueio:', e);
-    }
-    atualizarPainelConferenciaPublica();
-}
 
-// Redesenha o card "🔒 CONFERÊNCIA PÚBLICA" (aba Cartões) pra refletir o
-// estado da loteria selecionada no momento (loteriaAdmin) — chamado toda
-// vez que o cache de bloqueio é atualizado, e também ao trocar de
-// loteria na lista de cartões (ver setLoteriaAdmin).
-async function atualizarPainelConferenciaPublica() {
-    const container = document.getElementById('painelConferenciaPublica');
-    if (!container) return;
-
-    const concursoTravado = conferenciaBloqueioCache[loteriaAdmin];
-    if (!concursoTravado) {
-        container.style.display = 'none';
-        container.innerHTML = '';
-        return;
-    }
-
-    let jaConferido = false;
-    let dadosConferidos = null;
-    try {
-        const doc = await db.collection('resultados_conferidos')
-            .doc(`${loteriaAdmin}_${concursoTravado}`).get();
-        jaConferido = doc.exists && doc.data().conferido === true;
-        if (jaConferido) dadosConferidos = doc.data();
-    } catch (e) {
-        console.warn('Erro ao checar resultados_conferidos:', e);
+        if (!dados) {
+            html += `
+                <div class="card" style="background:#fff7ed; border:1px solid #fdba74;">
+                    <div class="card-header" style="color:#9a3412;">${nomes[loteria]} — concurso ${concurso}</div>
+                    <div style="font-size:13px; color:#9a3412; margin-bottom:10px;">⏳ Ainda não conferido.</div>
+                    <button class="btn btn-warning btn-block" data-conferir="${loteria}:${concurso}">✅ CONFERIR AGORA</button>
+                </div>`;
+        } else if (!dados.publicado) {
+            html += `
+                <div class="card" style="background:#eff6ff; border:1px solid #93c5fd;">
+                    <div class="card-header" style="color:#1e40af;">${nomes[loteria]} — concurso ${concurso}</div>
+                    <div style="font-size:13px; color:#1e40af; margin-bottom:10px;">
+                        🔒 Conferido por você, só você vê. O público ainda não tem acesso.
+                    </div>
+                    ${melhorResultadoAdminHtml(loteria, concurso, dados)}
+                    <button class="btn btn-block" style="margin-top:10px; background:#0071e3; color:white;" data-publicar="${loteria}:${concurso}">📢 PUBLICAR PRO PÚBLICO</button>
+                </div>`;
+        } else {
+            const dataPub = dados.dataPublicacao && dados.dataPublicacao.toDate
+                ? dados.dataPublicacao.toDate().toLocaleString('pt-BR') : '—';
+            html += `
+                <div class="card" style="background:#ecfdf5; border:1px solid #6ee7b7;">
+                    <div class="card-header" style="color:#065f46;">${nomes[loteria]} — concurso ${concurso}</div>
+                    <div style="font-size:13px; color:#065f46; margin-bottom:10px;">🔓 Publicado em ${dataPub}.</div>
+                    ${melhorResultadoAdminHtml(loteria, concurso, dados)}
+                    <button class="btn btn-block" style="margin-top:10px; background:transparent; color:#64748b; border:1px solid #cbd5e1;" data-despublicar="${loteria}:${concurso}">↩ Despublicar</button>
+                </div>`;
+        }
     }
 
-    container.style.display = 'block';
-    if (jaConferido) {
-        container.innerHTML = `
-            <div class="card" style="background:#ecfdf5; border:1px solid #6ee7b7;">
-                <div class="card-header" style="color:#065f46;">🔓 CONFERÊNCIA PÚBLICA</div>
-                <div style="font-size:13px; color:#065f46; margin-bottom:10px;">
-                    ✅ Concurso ${concursoTravado} já conferido por você — liberado pro público.
-                </div>
-                ${melhorResultadoAdminHtml(loteriaAdmin, concursoTravado, dadosConferidos)}
-            </div>`;
-    } else {
-        container.innerHTML = `
-            <div class="card" style="background:#fff7ed; border:1px solid #fdba74;">
-                <div class="card-header" style="color:#9a3412;">🔒 CONFERÊNCIA PÚBLICA</div>
-                <div style="font-size:13px; color:#9a3412; margin-bottom:10px;">
-                    Concurso ${concursoTravado} é o mais recente desta loteria — o botão
-                    "Conferir Resultados" fica indisponível pro público até você conferir
-                    primeiro aqui.
-                </div>
-                <button id="btnConferirComoAdmin" class="btn btn-warning btn-block">
-                    ✅ CONFERIR AGORA E LIBERAR PRO PÚBLICO
-                </button>
-            </div>`;
-        const btn = document.getElementById('btnConferirComoAdmin');
-        if (btn) btn.onclick = () => conferirComoAdmin(loteriaAdmin, concursoTravado);
-    }
+    container.innerHTML = html;
+    container.querySelectorAll('[data-conferir]').forEach(btn => {
+        const [loteria, concurso] = btn.dataset.conferir.split(':');
+        btn.onclick = () => conferirComoAdmin(loteria, concurso, btn);
+    });
+    container.querySelectorAll('[data-publicar]').forEach(btn => {
+        const [loteria, concurso] = btn.dataset.publicar.split(':');
+        btn.onclick = () => publicarResultado(loteria, concurso, btn);
+    });
+    container.querySelectorAll('[data-despublicar]').forEach(btn => {
+        const [loteria, concurso] = btn.dataset.despublicar.split(':');
+        btn.onclick = () => despublicarResultado(loteria, concurso, btn);
+    });
 }
 
 // Monta o resumo do "melhor resultado" (maior nº de acertos) pro painel
@@ -1888,11 +1877,11 @@ function melhorResultadoAdminHtml(loteria, concurso, dadosConferidos) {
     const trevosHtml = trevos ? trevos.map(t => `<span class="numero-cartao-badge" style="background:#dcfce7;color:#166534;border-radius:50%;">🍀${t.toString().padStart(2,'0')}</span>`).join('') : '';
 
     return `
-        <div style="border-top:1px solid #6ee7b7; margin-top:4px; padding-top:10px;">
-            <div style="font-size:12px; font-weight:700; color:#065f46; margin-bottom:6px;">🔢 NÚMEROS SORTEADOS</div>
+        <div style="border-top:1px solid #cbd5e1; margin-top:4px; padding-top:10px;">
+            <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:6px;">🔢 NÚMEROS SORTEADOS</div>
             <div class="numeros-cartao-lista">${numerosHtml}</div>
             ${trevosHtml ? `<div class="numeros-cartao-lista" style="margin-top:4px;">${trevosHtml}</div>` : ''}
-            <div style="font-size:13px; color:#065f46; margin-top:10px;">
+            <div style="font-size:13px; color:#334155; margin-top:10px;">
                 🏆 <strong>Melhor resultado: ${melhor.acertos} acertos${trevos ? ` (+${melhor.acertosTrevo} trevo${melhor.acertosTrevo===1?'':'s'})` : ''}</strong>
                 — ${melhor.bolao || 'Sem Bolão'}
                 ${empatados > 1 ? `<span style="color:#64748b;"> (${empatados} cartões empatados nesse topo)</span>` : ''}
@@ -1901,13 +1890,12 @@ function melhorResultadoAdminHtml(loteria, concurso, dadosConferidos) {
 }
 
 // Busca o resultado oficial na API da Caixa e grava em
-// resultados_conferidos — autenticado como admin, então passa na regra
-// mesmo pro concurso travado (ver firestore.rules). Mesma URL/formato
-// que script.js usa em buscarResultadoInterno/salvarResultadoConferido;
+// resultados_conferidos com publicado:false (privado, só o admin vê —
+// achado 03/11, ver comentário da seção). Mesma URL/formato que
+// script.js usa em buscarResultadoInterno/salvarResultadoConferido;
 // duplicado aqui porque admin.html não carrega script.js (páginas
 // separadas, sem módulo compartilhado hoje).
-async function conferirComoAdmin(loteria, concurso) {
-    const btn = document.getElementById('btnConferirComoAdmin');
+async function conferirComoAdmin(loteria, concurso, btn) {
     if (btn) { btn.disabled = true; btn.textContent = '🔍 Buscando na Caixa...'; }
 
     try {
@@ -1925,6 +1913,7 @@ async function conferirComoAdmin(loteria, concurso) {
 
         if (!dezenas || dezenas.length < minLength) {
             showToast(`⏳ Resultado do concurso ${concurso} ainda não saiu na Caixa`, 'warning');
+            if (btn) { btn.disabled = false; btn.textContent = '✅ CONFERIR AGORA'; }
             return;
         }
 
@@ -1942,17 +1931,53 @@ async function conferirComoAdmin(loteria, concurso) {
             dataConferencia: new Date().toISOString(),
             dataSorteio: dados.dataApuracao || null,
             conferido: true,
+            publicado: false,
             admin: true
         };
         if (trevos) doc.trevos = trevos;
 
         await db.collection('resultados_conferidos').doc(`${loteria}_${concurso}`).set(doc);
-        showToast(`✅ Concurso ${concurso} conferido e liberado pro público!`, 'success');
-        await atualizarPainelConferenciaPublica();
+        showToast(`✅ Concurso ${concurso} conferido — publique quando quiser liberar pro público.`, 'success');
+        await atualizarPainelConferencia();
     } catch (error) {
         console.error('Erro ao conferir como admin:', error);
         showToast('❌ Erro ao conferir: ' + error.message, 'error');
-        if (btn) { btn.disabled = false; btn.textContent = '✅ CONFERIR AGORA E LIBERAR PRO PÚBLICO'; }
+        if (btn) { btn.disabled = false; btn.textContent = '✅ CONFERIR AGORA'; }
+    }
+}
+
+// Publica pro público um resultado já conferido — 2º momento, separado
+// de conferirComoAdmin (pedido do usuário 03/11). Só grava o campo
+// publicado (+ a data), não reescreve o documento inteiro.
+async function publicarResultado(loteria, concurso, btn) {
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Publicando...'; }
+    try {
+        await db.collection('resultados_conferidos').doc(`${loteria}_${concurso}`).update({
+            publicado: true,
+            dataPublicacao: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        showToast(`📢 Concurso ${concurso} publicado — já está visível pro público!`, 'success');
+        await atualizarPainelConferencia();
+    } catch (error) {
+        console.error('Erro ao publicar resultado:', error);
+        showToast('❌ Erro ao publicar: ' + error.message, 'error');
+        if (btn) { btn.disabled = false; btn.textContent = '📢 PUBLICAR PRO PÚBLICO'; }
+    }
+}
+
+// Despublica (volta pra privado) — rede de segurança pro admin corrigir
+// um engano sem precisar apagar o resultado conferido.
+async function despublicarResultado(loteria, concurso, btn) {
+    if (!confirm('Tirar este resultado do ar pro público? Volta a ficar só visível aqui no admin.')) return;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳...'; }
+    try {
+        await db.collection('resultados_conferidos').doc(`${loteria}_${concurso}`).update({ publicado: false });
+        showToast(`↩ Concurso ${concurso} despublicado — fora do ar pro público.`, 'success');
+        await atualizarPainelConferencia();
+    } catch (error) {
+        console.error('Erro ao despublicar resultado:', error);
+        showToast('❌ Erro ao despublicar: ' + error.message, 'error');
+        if (btn) { btn.disabled = false; btn.textContent = '↩ Despublicar'; }
     }
 }
 
@@ -2061,7 +2086,12 @@ function exibirCartoesAdmin() {
     document.querySelectorAll('.checkbox-cartao').forEach(cb => cb.onchange = atualizarContadorSelecionados);
     atualizarContadorSelecionados();
     atualizarBadgeTotalCartoes();
-    atualizarPainelConferenciaPublica();
+    // atualizarPainelConferencia() não é mais chamada aqui — o painel de
+    // conferência saiu da aba Cartões (ganhou seção própria, pedido do
+    // usuário 03/11) e não depende mais de qual loteria está filtrada
+    // nesta lista; chamar a cada filtro/ordenação só gastaria leitura à
+    // toa. Atualiza ao carregar dados (carregarDadosAdmin/
+    // atualizarUIComCartoesLocais) e ao abrir a seção Conferência.
     // Mantém o dropdown de bolões da aba Premiações sempre em dia com os
     // cartões mais recentes — evita qualquer corrida com o carregamento
     // inicial (ver carregarBoloesSelectPremiacoes).
@@ -2218,20 +2248,26 @@ function setLoteriaAdmin(loteria) {
 }
 
 // ============================================
-// SUB-SEÇÕES DE "CARTÕES" (Rodada 89)
+// SUB-ABAS GENÉRICAS (Rodada 89, Cartões; generalizado 03/11)
 // ============================================
-// Pedido do usuário: Cadastro/Importar PDF/Cartões eram 3 itens
+// Pedido original: Cadastro/Importar PDF/Cartões eram 3 itens
 // separados no menu lateral — viraram 1 só ("📋 Cartões"), com um
-// seletor segmentado no topo na ordem de uso que o usuário pediu
-// (Importar PDF é a mais usada, por isso é a padrão ao abrir). Mesma
-// técnica já usada pro seletor de loteria (setLoteriaAdmin) — troca só
-// o display dos 3 blocos, nenhum dos 3 perdeu nenhum id/função interna.
-function mostrarSubsecaoCartoes(nome) {
-    document.querySelectorAll('.subsecao-cartoes').forEach(div => {
-        div.style.display = div.dataset.subcartoes === nome ? 'block' : 'none';
+// seletor segmentado no topo. Reaproveitado agora (03/11) pra outros
+// grupos do menu (Bolões, Financeiro, Mais), pedido do usuário pra
+// reduzir o número de botões verticais.
+//
+// Achado real ao generalizar: a versão original só pra Cartões usava
+// `document.querySelectorAll('.subsecao-cartoes')`/`.subsecao-btn`
+// SEM nenhum escopo — reusar as mesmas classes num 2º grupo faria um
+// clique ali esconder/mostrar as sub-abas de Cartões também. Corrigido
+// escopando por `data-grupo` (cada botão/painel pertence a 1 grupo só;
+// `data-sub` identifica qual sub-aba dentro do grupo).
+function mostrarSubsecao(grupo, nome) {
+    document.querySelectorAll(`.subsecao-painel[data-grupo="${grupo}"]`).forEach(div => {
+        div.style.display = div.dataset.sub === nome ? 'block' : 'none';
     });
-    document.querySelectorAll('.subsecao-btn').forEach(btn => {
-        const ativo = btn.dataset.subcartoes === nome;
+    document.querySelectorAll(`.subsecao-btn[data-grupo="${grupo}"]`).forEach(btn => {
+        const ativo = btn.dataset.sub === nome;
         btn.style.background = ativo ? '#0071e3' : '#e2e8f0';
         btn.style.color = ativo ? 'white' : '#334155';
     });
@@ -5876,7 +5912,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (cartoesBtnQuina) cartoesBtnQuina.onclick = () => setLoteriaAdmin('quina');
     if (cartoesBtnMilionaria) cartoesBtnMilionaria.onclick = () => setLoteriaAdmin('maismilionaria');
     document.querySelectorAll('.subsecao-btn').forEach(btn => {
-        btn.onclick = () => mostrarSubsecaoCartoes(btn.dataset.subcartoes);
+        btn.onclick = () => mostrarSubsecao(btn.dataset.grupo, btn.dataset.sub);
     });
     const btnRecarregarLista = document.getElementById('btnRecarregarLista');
     if (btnRecarregarLista) btnRecarregarLista.onclick = carregarDadosAdmin;
