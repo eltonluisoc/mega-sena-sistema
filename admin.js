@@ -4759,18 +4759,36 @@ async function verificarAlertasSaldoBaixo() {
             inputLimite.value = limiteAlertaSaldoBaixo.toFixed(2);
         }
 
-        const snapAlertas = await db.collection('alertas_saldo_baixo').where('enviado', '==', false).get();
-        const alertaPorPessoa = {};
-        snapAlertas.forEach(doc => { alertaPorPessoa[doc.data().pessoaId] = { id: doc.id, ...doc.data() }; });
+        // Achado real do usuário: olhar só os alertas PENDENTES (enviado
+        // ==false) não bastava — depois de marcar "já enviei", o alerta
+        // sumia da lista de pendentes, e na PRÓXIMA verificação (saldo
+        // continua baixo, nada mudou) o sistema achava que não tinha
+        // alerta nenhum e criava outro na hora, reabrindo o banner sem
+        // nenhum depósito novo ter acontecido. Pega TODOS os alertas
+        // (pendente ou já enviado) e olha só o mais recente por pessoa —
+        // enquanto o motivo desse último não for "saldo_recuperado", a
+        // "crise" continua aberta (mesmo já avisada) e não gera outro
+        // alerta; só quando o saldo volta a subir e cai de novo é que
+        // conta como uma crise NOVA.
+        const snapTodos = await db.collection('alertas_saldo_baixo').get();
+        const ultimoPorPessoa = {};
+        snapTodos.forEach(doc => {
+            const d = { id: doc.id, ...doc.data() };
+            const atual = ultimoPorPessoa[d.pessoaId];
+            const msNovo = d.criadoEm && d.criadoEm.toMillis ? d.criadoEm.toMillis() : 0;
+            const msAtual = atual && atual.criadoEm && atual.criadoEm.toMillis ? atual.criadoEm.toMillis() : -1;
+            if (!atual || msNovo > msAtual) ultimoPorPessoa[d.pessoaId] = d;
+        });
 
         const batch = db.batch();
         let houveMudanca = false;
 
         for (const p of reservasCarregadas) {
             const saldo = p.saldo || 0;
-            const alertaExistente = alertaPorPessoa[p.id];
+            const ultimo = ultimoPorPessoa[p.id];
+            const crisesAberta = ultimo && ultimo.motivo !== 'saldo_recuperado';
 
-            if (p.qualificaAlertaSaldoBaixo && saldo < limiteAlertaSaldoBaixo && !alertaExistente) {
+            if (p.qualificaAlertaSaldoBaixo && saldo < limiteAlertaSaldoBaixo && !crisesAberta) {
                 const ref = db.collection('alertas_saldo_baixo').doc();
                 batch.set(ref, {
                     pessoaId: p.id, nome: p.nome, telefone: p.telefone || '',
@@ -4778,8 +4796,8 @@ async function verificarAlertasSaldoBaixo() {
                     criadoEm: firebase.firestore.FieldValue.serverTimestamp()
                 });
                 houveMudanca = true;
-            } else if (saldo >= limiteAlertaSaldoBaixo && alertaExistente) {
-                batch.update(db.collection('alertas_saldo_baixo').doc(alertaExistente.id), {
+            } else if (saldo >= limiteAlertaSaldoBaixo && crisesAberta) {
+                batch.update(db.collection('alertas_saldo_baixo').doc(ultimo.id), {
                     enviado: true, motivo: 'saldo_recuperado',
                     resolvidoEm: firebase.firestore.FieldValue.serverTimestamp()
                 });
@@ -4788,9 +4806,7 @@ async function verificarAlertasSaldoBaixo() {
         }
         if (houveMudanca) await batch.commit();
 
-        const snapFinal = houveMudanca
-            ? await db.collection('alertas_saldo_baixo').where('enviado', '==', false).get()
-            : snapAlertas;
+        const snapFinal = await db.collection('alertas_saldo_baixo').where('enviado', '==', false).get();
         const pendentes = [];
         snapFinal.forEach(doc => pendentes.push({ id: doc.id, ...doc.data() }));
         renderizarBannerAlertasSaldoBaixo(pendentes);

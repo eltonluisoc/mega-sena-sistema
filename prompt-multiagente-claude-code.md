@@ -1828,6 +1828,16 @@ Pedido do usuário: quem já depositou um valor relevante uma vez e a reserva ca
 
 **Hotfix mesma rodada**: usuário reportou "Missing or insufficient permissions" ao registrar um depósito pelo site logo depois do deploy — a regra esqueceu de adicionar `qualificaAlertaSaldoBaixo` na lista `hasOnly` de create/update de `reservas_participantes`, rejeitando qualquer depósito acima do limite (que é exatamente quando esse campo novo entra na gravação). Corrigido e publicado na hora.
 
+## Rodada 130 — Marcar "já enviei" recriava o alerta na hora (v95, web)
+
+Achado real do usuário: marcou um alerta de saldo baixo como "já enviei", a mensagem sumiu do banner, mas reapareceu pouco depois sem nenhum depósito novo ter acontecido — ele só quer ser avisado de novo depois que a pessoa depositar e o saldo cair abaixo do limite de novo, nunca mais de uma vez pela mesma "crise".
+
+Causa: `verificarAlertasSaldoBaixo` só checava se havia um alerta PENDENTE (`enviado==false`) pra decidir se criava um novo — depois de marcar como enviado, não sobrava nenhum pendente, e a próxima verificação (saldo continuando baixo, nada mudou) achava que não tinha alerta nenhum e criava outro na hora.
+
+**Corrigido**: a checagem agora olha o alerta mais RECENTE de cada pessoa (pendente ou já enviado, não só pendente) — enquanto o motivo desse último não for `saldo_recuperado`, a "crise" continua aberta (mesmo já avisada) e não gera outro alerta. Só quando o saldo volta a subir pro limite (aí sim marcado `saldo_recuperado`) e cai de novo depois é que conta como uma crise nova de verdade.
+
+`sw.js` v94 → v95. `node --check`, OK.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
