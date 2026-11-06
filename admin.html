@@ -1359,6 +1359,17 @@
     </div>
 
     <!-- ============================================ -->
+    <!-- BANNER DE ALERTA DE SALDO BAIXO (03/11) — fica FORA de
+         qualquer section de propósito: pedido do usuário, precisa
+         aparecer não importa em qual aba o admin esteja, até cada
+         alerta ser marcado como enviado (ver
+         verificarAlertasSaldoBaixo/renderizarBannerAlertasSaldoBaixo
+         em admin.js). Escondido por padrão — só aparece quando há
+         alerta pendente de verdade. -->
+    <!-- ============================================ -->
+    <div id="bannerAlertasSaldoBaixo" style="display:none;"></div>
+
+    <!-- ============================================ -->
     <!-- LAYOUT PRINCIPAL -->
     <!-- ============================================ -->
     <div class="app-container">
@@ -2035,6 +2046,17 @@
                         <input type="text" id="pixConfig" class="form-control" placeholder="Ex: 61998507770 ou email">
                     </div>
                     <button id="btnSalvarPix" class="btn btn-success btn-block">💾 SALVAR PIX</button>
+                </div>
+                <div class="card">
+                    <div class="card-header">🔔 ALERTA DE SALDO BAIXO</div>
+                    <div style="font-size:13px; color:#64748b; margin-bottom:10px;">
+                        Quem já depositou mais que esse valor uma vez e a reserva cair abaixo dele de novo, gera um aviso destacado aqui no admin (em qualquer aba) pra você mandar mensagem pedindo recarga — fica até você marcar "já enviei".
+                    </div>
+                    <div class="form-group">
+                        <label>💵 Limite (R$)</label>
+                        <input type="number" id="limiteAlertaSaldoBaixoInput" class="form-control" step="0.01" min="0.01" placeholder="20,00">
+                    </div>
+                    <button id="btnSalvarLimiteAlerta" class="btn btn-success btn-block">💾 SALVAR LIMITE</button>
                 </div>
                 <div class="card">
                     <div class="card-header">🔐 SEGURANÇA</div>

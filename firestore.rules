@@ -196,6 +196,15 @@ service cloud.firestore {
                    && request.resource.data.versao is int;
     }
 
+    // Alerta de saldo baixo (03/11) — pedido do usuário: quem já
+    // depositou um valor relevante e caiu abaixo do limite configurado
+    // gera um aviso que fica destacado no admin até ser marcado como
+    // enviado (ver verificarAlertasSaldoBaixo, admin.js). Uso 100%
+    // interno do admin, nunca lido pelo site público.
+    match /alertas_saldo_baixo/{document} {
+      allow read, write: if isAdmin();
+    }
+
     // Fila ANTIGA de depósitos/saques de reserva (modelo substituído
     // pela sincronização ao vivo acima) — mantida só até a migração
     // esvaziá-la de vez; depois disso este bloco é removido.

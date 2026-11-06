@@ -1814,6 +1814,18 @@ Pedido do usuário: o resumo "🏆 Melhor resultado: 4 acertos — Bolão (3 car
 
 `sw.js` v92 → v93. `node --check`, OK.
 
+## Rodada 129 — Alerta de saldo baixo da reserva, persistente até marcar como enviado (v94, web)
+
+Pedido do usuário: quem já depositou um valor relevante uma vez e a reserva cair abaixo de um limite, o sistema deve gerar uma mensagem pronta pro WhatsApp e deixar isso destacado no admin até ele marcar que já enviou — reaparecendo sempre que abrir o admin, não só na hora.
+
+**Modelo**: campo `qualificaAlertaSaldoBaixo` (nunca desmarca, gravado no momento do depósito em `registrarMovimentoNoFirestore` quando o valor passa do limite) + coleção nova `alertas_saldo_baixo` (1 doc por alerta pendente, `enviado: false`). Limite configurável em Config → "🔔 Alerta de Saldo Baixo" (`config_geral/alertas`, padrão R$20), usado tanto pra qualificar quem entra na regra quanto pro próprio gatilho.
+
+**Detecção sem leitura cara**: `verificarAlertasSaldoBaixo` roda a cada `carregarReservas()` (boot + toda atualização), reaproveitando a lista que já carrega (zero leitura extra por pessoa — mesma lição das Rodadas 123/124) + 1 leitura só, pequena, na coleção de alertas. Quem qualifica e caiu abaixo do limite sem alerta pendente ainda ganha um novo; quem tinha alerta pendente e voltou a ficar com saldo OK é resolvido sozinho (pedido do usuário: não precisa continuar cobrando se já depositou de novo).
+
+**Banner global**: fica fora de qualquer section (sempre visível, não importa a aba) — 1 linha por pessoa com nome, saldo, botão "📋 Copiar mensagem" (mesmo mecanismo de clipboard do extrato, incluindo a chave PIX já salva) e "✅ Já enviei" (marca resolvido). Como fica gravado no Firestore (não só na memória do navegador), continua aparecendo em qualquer sessão até ser marcado.
+
+`sw.js` v93 → v94. `node --check` + checagem de balanceamento de tags, OK.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

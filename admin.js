@@ -16,6 +16,13 @@ let cartoesFiltrados = [];
 let boloes = [];
 let reservasCarregadas = []; // última lista carregada em carregarReservas() — usada pelo modal de registrar movimento
 
+// Limite (R$) usado tanto pra decidir quem "qualifica" pro alerta de
+// saldo baixo (depósito > limite alguma vez) quanto pro próprio
+// gatilho (saldo atual < limite) — pedido do usuário (03/11): "quero
+// poder ajustar sem mexer em código". Valor padrão até carregar de
+// config_geral/alertas (ver verificarAlertasSaldoBaixo).
+let limiteAlertaSaldoBaixo = 20;
+
 // Data de HOJE no fuso local (não UTC), no formato "AAAA-MM-DD" que o
 // <input type="date"> espera. Achado real do usuário: perto da meia-noite
 // UTC (= ~21h em Brasília, UTC-3), `new Date().toISOString().split('T')[0]`
@@ -89,7 +96,14 @@ async function registrarMovimentoNoFirestore({ pessoaId, pessoaNova, nome, telef
         });
         tx.update(personRef, {
             saldoReserva: firebase.firestore.FieldValue.increment(delta),
-            dataAtualizacao: firebase.firestore.FieldValue.serverTimestamp()
+            dataAtualizacao: firebase.firestore.FieldValue.serverTimestamp(),
+            // Marca de uma vez pra sempre (nunca desmarca) quem já fez um
+            // depósito "relevante" — é o filtro do alerta de saldo baixo
+            // (ver verificarAlertasSaldoBaixo): só manda cobrar quem
+            // realmente usa o sistema pra valer, não quem só testou com
+            // um valor pequeno. Mesmo limite configurável usado no
+            // gatilho (config_geral/alertas), pedido do usuário (03/11).
+            ...(tipo === 'deposito' && valor > limiteAlertaSaldoBaixo ? { qualificaAlertaSaldoBaixo: true } : {})
         });
         tx.set(sentinelRef, {
             versao: firebase.firestore.FieldValue.increment(1),
@@ -4665,6 +4679,11 @@ async function carregarReservas() {
         reservas.sort((a, b) => b.saldo - a.saldo);
         reservasCarregadas = reservas;
 
+        // Roda em segundo plano, sem bloquear o resto da tela — usa
+        // reservasCarregadas que acabou de ser preenchida (zero leitura
+        // extra por pessoa, ver verificarAlertasSaldoBaixo).
+        verificarAlertasSaldoBaixo();
+
         document.getElementById('totalReservas').innerHTML = `R$ ${totalSaldo.toFixed(2)}`;
 
         const container = document.getElementById('listaReservas');
@@ -4708,6 +4727,179 @@ async function carregarReservas() {
         console.error('Erro ao carregar reservas:', error);
         document.getElementById('listaReservas').innerHTML = '<div class="empty-state">❌ Erro ao carregar reservas</div>';
         showToast('❌ Erro ao carregar reservas', 'error');
+    }
+}
+
+// ============================================
+// ALERTA DE SALDO BAIXO (03/11) — pedido do usuário: quem já depositou
+// um valor "relevante" alguma vez (qualificaAlertaSaldoBaixo, gravado
+// em registrarMovimentoNoFirestore no momento do depósito) e caiu
+// abaixo do limite configurado (config_geral/alertas) gera um aviso
+// que fica destacado no admin — em QUALQUER aba, não só Reservas — até
+// ser marcado como enviado. Fica gravado no Firestore de propósito
+// (alertas_saldo_baixo), não só na memória do navegador: é assim que
+// "sempre que eu abrir o admin" funciona de verdade, mesmo trocando de
+// computador ou fechando a aba sem marcar.
+// ============================================
+
+// Roda a cada carregarReservas() (boot + toda vez que a lista é
+// atualizada) — reaproveita reservasCarregadas (zero leitura extra por
+// pessoa) + 1 leitura só na coleção de alertas (pequena, filtrada por
+// enviado==false). Cria alerta novo pra quem qualifica e caiu abaixo
+// do limite; resolve sozinho (pedido do usuário: "se já depositou de
+// novo, não precisa continuar cobrando") quem tinha alerta pendente e
+// voltou a ficar com saldo OK.
+async function verificarAlertasSaldoBaixo() {
+    try {
+        const docConfig = await db.collection('config_geral').doc('alertas').get();
+        const limiteSalvo = docConfig.exists ? Number(docConfig.data().limiteSaldoBaixo) : null;
+        limiteAlertaSaldoBaixo = (limiteSalvo && limiteSalvo > 0) ? limiteSalvo : 20;
+        const inputLimite = document.getElementById('limiteAlertaSaldoBaixoInput');
+        if (inputLimite && document.activeElement !== inputLimite) {
+            inputLimite.value = limiteAlertaSaldoBaixo.toFixed(2);
+        }
+
+        const snapAlertas = await db.collection('alertas_saldo_baixo').where('enviado', '==', false).get();
+        const alertaPorPessoa = {};
+        snapAlertas.forEach(doc => { alertaPorPessoa[doc.data().pessoaId] = { id: doc.id, ...doc.data() }; });
+
+        const batch = db.batch();
+        let houveMudanca = false;
+
+        for (const p of reservasCarregadas) {
+            const saldo = p.saldo || 0;
+            const alertaExistente = alertaPorPessoa[p.id];
+
+            if (p.qualificaAlertaSaldoBaixo && saldo < limiteAlertaSaldoBaixo && !alertaExistente) {
+                const ref = db.collection('alertas_saldo_baixo').doc();
+                batch.set(ref, {
+                    pessoaId: p.id, nome: p.nome, telefone: p.telefone || '',
+                    saldoNoMomento: saldo, enviado: false,
+                    criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                houveMudanca = true;
+            } else if (saldo >= limiteAlertaSaldoBaixo && alertaExistente) {
+                batch.update(db.collection('alertas_saldo_baixo').doc(alertaExistente.id), {
+                    enviado: true, motivo: 'saldo_recuperado',
+                    resolvidoEm: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                houveMudanca = true;
+            }
+        }
+        if (houveMudanca) await batch.commit();
+
+        const snapFinal = houveMudanca
+            ? await db.collection('alertas_saldo_baixo').where('enviado', '==', false).get()
+            : snapAlertas;
+        const pendentes = [];
+        snapFinal.forEach(doc => pendentes.push({ id: doc.id, ...doc.data() }));
+        renderizarBannerAlertasSaldoBaixo(pendentes);
+    } catch (e) {
+        console.error('Erro ao verificar alertas de saldo baixo:', e);
+    }
+}
+
+// Banner fica FORA das seções (ver admin.html, logo depois da .top-bar)
+// de propósito — precisa aparecer não importa em qual aba o admin
+// esteja, e continuar visível até cada alerta ser marcado.
+function renderizarBannerAlertasSaldoBaixo(pendentes) {
+    const container = document.getElementById('bannerAlertasSaldoBaixo');
+    if (!container) return;
+
+    if (pendentes.length === 0) {
+        container.style.display = 'none';
+        container.innerHTML = '';
+        return;
+    }
+
+    pendentes.sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
+
+    let html = `
+        <div style="background:#fff7ed; border-bottom:2px solid #fdba74; padding:10px 20px;">
+            <div style="font-weight:700; font-size:13px; color:#9a3412; margin-bottom:8px;">
+                🔔 ${pendentes.length} pessoa${pendentes.length === 1 ? '' : 's'} com reserva baixa — avise no WhatsApp
+            </div>
+            <div style="display:flex; flex-direction:column; gap:8px;">`;
+
+    for (const a of pendentes) {
+        html += `
+            <div style="background:white; border:1px solid #fdba74; border-radius:8px; padding:8px 12px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+                <div style="font-size:13px; color:#1e293b;">
+                    <strong>${escapeHtml(a.nome)}</strong> — saldo R$ ${(a.saldoNoMomento || 0).toFixed(2)}
+                </div>
+                <div style="display:flex; gap:6px;">
+                    <button class="btn btn-sm" style="background:#25D366; color:white;" data-copiar-alerta="${a.id}">📋 Copiar mensagem</button>
+                    <button class="btn btn-sm" style="background:#e2e8f0; color:#334155;" data-marcar-alerta="${a.id}">✅ Já enviei</button>
+                </div>
+            </div>`;
+    }
+
+    html += `</div></div>`;
+    container.innerHTML = html;
+    container.style.display = 'block';
+
+    container.querySelectorAll('[data-copiar-alerta]').forEach(btn => {
+        const alerta = pendentes.find(a => a.id === btn.dataset.copiarAlerta);
+        if (alerta) btn.onclick = () => copiarMensagemAlertaSaldoBaixo(alerta);
+    });
+    container.querySelectorAll('[data-marcar-alerta]').forEach(btn => {
+        btn.onclick = () => marcarAlertaSaldoBaixoEnviado(btn.dataset.marcarAlerta);
+    });
+}
+
+// Mesmo mecanismo (clipboard + fallback prompt) que copiarHistoricoWhatsApp
+// já usa — mantém consistência com o resto do admin. Inclui a chave PIX
+// já salva em Config pra pessoa já poder depositar na hora.
+async function copiarMensagemAlertaSaldoBaixo(alerta) {
+    let chavePix = '';
+    try {
+        const doc = await db.collection('config_geral').doc('pix').get();
+        chavePix = doc.exists ? (doc.data().chave || '') : '';
+    } catch (e) {
+        console.warn('Erro ao buscar chave PIX pro alerta:', e);
+    }
+
+    let mensagem = `👋 Oi ${alerta.nome}! Sua reserva no sistema está em R$ ${(alerta.saldoNoMomento || 0).toFixed(2)}.\n`;
+    mensagem += `Pra continuar participando dos próximos bolões, você pode fazer um novo depósito quando puder`;
+    mensagem += chavePix ? ` 🙂\n\n💰 Chave PIX: ${chavePix}` : ` 🙂`;
+    mensagem += `\n\nQualquer dúvida é só chamar! 🍀`;
+
+    try {
+        await navigator.clipboard.writeText(mensagem);
+        showToast('✅ Mensagem copiada! Cole no WhatsApp', 'success');
+    } catch (error) {
+        console.error('Erro ao copiar:', error);
+        prompt('Copie a mensagem abaixo:', mensagem);
+        showToast('📋 Mensagem pronta para copiar!', 'info');
+    }
+}
+
+async function marcarAlertaSaldoBaixoEnviado(alertaId) {
+    try {
+        await db.collection('alertas_saldo_baixo').doc(alertaId).update({
+            enviado: true, motivo: 'enviado_pelo_admin',
+            resolvidoEm: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        showToast('✅ Marcado como enviado!', 'success');
+        verificarAlertasSaldoBaixo();
+    } catch (error) {
+        console.error('Erro ao marcar alerta como enviado:', error);
+        showToast('❌ Erro ao marcar: ' + error.message, 'error');
+    }
+}
+
+async function salvarLimiteAlertaSaldoBaixo() {
+    const input = document.getElementById('limiteAlertaSaldoBaixoInput');
+    const valor = parseFloat(input ? input.value : '');
+    if (!valor || valor <= 0) { showToast('⚠️ Informe um valor válido', 'warning'); return; }
+    try {
+        await db.collection('config_geral').doc('alertas').set({ limiteSaldoBaixo: valor });
+        limiteAlertaSaldoBaixo = valor;
+        showToast('✅ Limite salvo!', 'success');
+        verificarAlertasSaldoBaixo();
+    } catch (error) {
+        console.error('Erro ao salvar limite de alerta:', error);
+        showToast('❌ Erro ao salvar: ' + error.message, 'error');
     }
 }
 
@@ -5963,6 +6155,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnExcluirSelecionados) btnExcluirSelecionados.onclick = excluirSelecionados;
     if (btnAlterarTipo) btnAlterarTipo.onclick = abrirModalAlterarTipo;
     if (btnSalvarPix) btnSalvarPix.onclick = salvarPixConfig;
+    const btnSalvarLimiteAlerta = document.getElementById('btnSalvarLimiteAlerta');
+    if (btnSalvarLimiteAlerta) btnSalvarLimiteAlerta.onclick = salvarLimiteAlertaSaldoBaixo;
     if (btnSalvarSelecao) btnSalvarSelecao.addEventListener('click', salvarConfigBoloes);
     if (btnExportar) btnExportar.onclick = exportarCartoes;
     const limparResultadoDuplicados = () => {
