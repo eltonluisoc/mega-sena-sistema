@@ -1826,6 +1826,8 @@ Pedido do usuário: quem já depositou um valor relevante uma vez e a reserva ca
 
 `sw.js` v93 → v94. `node --check` + checagem de balanceamento de tags, OK.
 
+**Hotfix mesma rodada**: usuário reportou "Missing or insufficient permissions" ao registrar um depósito pelo site logo depois do deploy — a regra esqueceu de adicionar `qualificaAlertaSaldoBaixo` na lista `hasOnly` de create/update de `reservas_participantes`, rejeitando qualquer depósito acima do limite (que é exatamente quando esse campo novo entra na gravação). Corrigido e publicado na hora.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
