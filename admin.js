@@ -1871,10 +1871,35 @@ function melhorResultadoAdminHtml(loteria, concurso, dadosConferidos) {
     }).sort((a, b) => (b.acertos - a.acertos) || (b.acertosTrevo - a.acertosTrevo));
 
     const melhor = comAcertos[0];
-    const empatados = comAcertos.filter(c => c.acertos === melhor.acertos).length;
+    // Achado real do usuário: "empatados nesse topo" só dizia QUANTOS
+    // cartões empataram, não QUAIS — pediu pra mostrar o código e os
+    // números de cada um. Pega todos os cartões no topo (mesmo acertos
+    // E mesmos acertos de trevo, quando a loteria tem trevo).
+    const empatadosNoTopo = comAcertos.filter(c =>
+        c.acertos === melhor.acertos && c.acertosTrevo === melhor.acertosTrevo);
 
     const numerosHtml = numeros.map(n => `<span class="numero-cartao-badge">${n.toString().padStart(2,'0')}</span>`).join('');
     const trevosHtml = trevos ? trevos.map(t => `<span class="numero-cartao-badge" style="background:#dcfce7;color:#166534;border-radius:50%;">🍀${t.toString().padStart(2,'0')}</span>`).join('') : '';
+
+    // 1 bloco por cartão empatado no topo — código (mesmo padrão já usado
+    // na lista de Cartões, "Cartão #" + últimos 6 do id do Firestore) +
+    // números do cartão, com os que bateram no sorteio destacados em
+    // verde (mesmo padrão visual que o site público já usa).
+    const cartoesTopoHtml = empatadosNoTopo.map(c => {
+        const numsCartaoHtml = (c.numeros || []).map(n => {
+            const acertou = numeros.includes(n);
+            return `<span style="display:inline-block; padding:4px 8px; margin:2px; border-radius:6px; font-family:monospace; font-size:12px; font-weight:${acertou ? '700' : '400'}; background:${acertou ? '#10b981' : '#e2e8f0'}; color:${acertou ? 'white' : '#334155'};">${n.toString().padStart(2,'0')}</span>`;
+        }).join('');
+        const trevosCartaoHtml = trevos && c.trevos ? c.trevos.map(t => {
+            const acertou = trevos.includes(t);
+            return `<span style="display:inline-block; padding:4px 7px; margin:2px; border-radius:50%; font-family:monospace; font-size:12px; font-weight:${acertou ? '700' : '400'}; background:${acertou ? '#10b981' : '#e2e8f0'}; color:${acertou ? 'white' : '#334155'};">🍀${t}</span>`;
+        }).join('') : '';
+        return `
+            <div style="background:white; border:1px solid #e2e8f0; border-radius:8px; padding:8px 10px; margin-top:6px;">
+                <div style="font-size:11px; color:#64748b; margin-bottom:4px;">🆔 Cartão #${c.id ? c.id.slice(-6) : '???'} — ${c.bolao || 'Sem Bolão'}</div>
+                <div>${numsCartaoHtml}${trevosCartaoHtml}</div>
+            </div>`;
+    }).join('');
 
     return `
         <div style="border-top:1px solid #cbd5e1; margin-top:4px; padding-top:10px;">
@@ -1883,9 +1908,9 @@ function melhorResultadoAdminHtml(loteria, concurso, dadosConferidos) {
             ${trevosHtml ? `<div class="numeros-cartao-lista" style="margin-top:4px;">${trevosHtml}</div>` : ''}
             <div style="font-size:13px; color:#334155; margin-top:10px;">
                 🏆 <strong>Melhor resultado: ${melhor.acertos} acertos${trevos ? ` (+${melhor.acertosTrevo} trevo${melhor.acertosTrevo===1?'':'s'})` : ''}</strong>
-                — ${melhor.bolao || 'Sem Bolão'}
-                ${empatados > 1 ? `<span style="color:#64748b;"> (${empatados} cartões empatados nesse topo)</span>` : ''}
+                ${empatadosNoTopo.length > 1 ? `<span style="color:#64748b;"> (${empatadosNoTopo.length} cartões empatados nesse topo)</span>` : ''}
             </div>
+            ${cartoesTopoHtml}
         </div>`;
 }
 

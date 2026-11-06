@@ -1806,6 +1806,14 @@ Investigado com 2 agentes antes de mexer: confirmado que o site público (`scrip
 
 `sw.js` v91 → v92. `node --check` + checagem de balanceamento de tags (`section`/`div`/`nav`/`main`/`button`), todos OK.
 
+## Rodada 128 — "Melhor resultado" da Conferência passa a mostrar QUAL cartão, não só quantos empataram (v93, web)
+
+Pedido do usuário: o resumo "🏆 Melhor resultado: 4 acertos — Bolão (3 cartões empatados nesse topo)" dizia quantos cartões empataram no topo, mas não quais — queria ver o código de cada um (mesmo padrão já usado na lista de Cartões, "Cartão #" + últimos 6 do id do Firestore) e os números de cada um, com os que bateram destacados.
+
+`melhorResultadoAdminHtml` (admin.js) agora lista 1 bloco por cartão empatado no topo (mesmos acertos E mesmos acertos de trevo, quando a loteria tem trevo) — código do cartão, bolão, e os números dele com os que bateram no sorteio em destaque (verde), mesmo padrão visual que o site público já usa pros cartões.
+
+`sw.js` v92 → v93. `node --check`, OK.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
