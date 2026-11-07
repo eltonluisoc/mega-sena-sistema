@@ -67,7 +67,16 @@ service cloud.firestore {
     // PERMISSION_DENIED aqui) exatamente como "ainda não conferido" —
     // confirmado lendo o código, não muda nada lá.
     match /resultados_conferidos/{document} {
-      allow get: if resource.data.get('publicado', false) == true || isAdmin();
+      // Achado real do usuário (07/11): documentos ANTIGOS (conferidos
+      // antes da Rodada 127, quando "publicado" nem existia) ficaram
+      // invisíveis pro público — o padrão de "campo ausente" era false
+      // (privado). Corrigido: campo ausente = documento antigo = já
+      // era público antes dessa funcionalidade existir, continua
+      // público (default true). Só um documento com "publicado"
+      // GRAVADO como false (os novos, de conferirComoAdmin) fica
+      // privado de verdade — é exatamente o caso que essa funcionalidade
+      // precisa cobrir.
+      allow get: if resource.data.get('publicado', true) == true || isAdmin();
       allow list: if isAdmin();
       // 'trevos' é opcional (só +Milionária usa) — hasOnly só limita quais
       // chaves PODEM existir, não exige que todas estejam presentes, então
