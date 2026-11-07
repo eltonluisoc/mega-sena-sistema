@@ -1860,6 +1860,16 @@ Corrigidos de novo os 2 valores (Cosme, Sandra Regina) via script pontual, mesmo
 
 `sw.js` v96 → v97. 35 testes + `py_compile` + `node --check`, OK.
 
+## Rodada 133 — Revisão estrutural: site passa a somar o ledger de verdade (igual o desktop sempre fez), não mais um campo cacheado (v98, web)
+
+Mesmo depois da Rodada 132 (saldo vira recálculo absoluto a cada lançamento), o usuário reportou MAIS uma divergência site×desktop, agora envolvendo um lançamento feito pelo celular que parecia não ter entrado — com uma suspeita a mais, nunca de todo descartada: o celular (PWA) rodando uma versão em cache mais antiga do `admin.js`. Pedido explícito e direto: **"quero revisão estrutural e os valores precisam ser exatamente iguais"**.
+
+Diagnóstico da causa estrutural de fundo: o desktop NUNCA teve esse histórico de divergência porque nunca confiou em nenhum campo cacheado pra EXIBIR o saldo — sempre soma o ledger de verdade. O site confiava no campo `saldoReserva` só por causa do custo (Rodadas 123/124: somar o ledger de cada pessoa a cada render bateu em 429 Too Many Requests) — ou seja, o site trocou exatidão por economia, e foi exatamente aí que a divergência sempre nasceu.
+
+**Corrigido copiando a técnica que já faz o desktop nunca errar**: `carregarReservas` agora soma o ledger de TODO mundo pra exibir — mas só paga esse custo quando o contador global `meta/reservas_version` realmente mudou desde a última vez (1 leitura barata por chamada pra checar; a soma cara só roda quando algo de fato mudou em qualquer pessoa, não a cada clique/boot). Resultado: exatidão de ledger — igual o desktop — pelo mesmo custo de antes na prática, sem reintroduzir o 429 das Rodadas 123/124.
+
+`sw.js` v97 → v98 — também reforça a atualização do app no celular (o SW novo some com qualquer versão antiga em cache assim que a página recarrega). `node --check`, OK.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

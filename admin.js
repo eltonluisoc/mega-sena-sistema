@@ -16,6 +16,14 @@ let cartoesFiltrados = [];
 let boloes = [];
 let reservasCarregadas = []; // última lista carregada em carregarReservas() — usada pelo modal de registrar movimento
 
+// Última versão de meta/reservas_version pra qual reservasCarregadas foi
+// de fato recalculada somando o ledger de todo mundo — null força 1
+// recálculo completo na 1ª chamada da sessão. Ver carregarReservas()
+// (07/11): só paga o custo de somar o ledger de novo quando esse
+// contador mudou de verdade, não a cada clique/boot — mesma técnica já
+// usada pelo desktop pra nunca errar o saldo exibido.
+let reservasVersaoConhecida = null;
+
 // Limite (R$) usado tanto pra decidir quem "qualifica" pro alerta de
 // saldo baixo (depósito > limite alguma vez) quanto pro próprio
 // gatilho (saldo atual < limite) — pedido do usuário (03/11): "quero
@@ -4696,40 +4704,65 @@ async function cancelarPremiacaoPendente(id) {
 // ============================================
 async function carregarReservas() {
     try {
-        // saldoReserva (cache incrementado atomicamente a cada
-        // lançamento) é a fonte pra LISTA/TOTAL — 1 leitura só, rápido,
-        // igual o desktop (que também nunca paga o custo de ler o
-        // ledger inteiro só pra mostrar a lista). Tentamos trocar isso
-        // por somar o ledger de cada pessoa aqui (achado real 02/11: o
-        // cache tinha ficado desatualizado pra 3 pessoas, resíduo de
-        // migração) — mas isso signfica 1 leitura POR PESSOA toda vez
-        // que a tela abre, e bateu direto no limite de leitura do
-        // Firestore (429 Too Many Requests — mesmo problema já visto
-        // na Rodada 36). Solução de verdade: a causa raiz (migração)
-        // já foi corrigida e fechada (não vai mais se repetir); pra
-        // qualquer drift futuro (não deveria acontecer mais, mas por
-        // segurança), a autocorreção fica em mostrarHistorico/
-        // copiarHistoricoWhatsApp — que já leem o ledger completo da
-        // pessoa de qualquer forma, então corrigir ali não custa
-        // nenhuma leitura extra.
-        const snapshot = await db.collection('reservas_participantes').get();
+        // Achado real do usuário (07/11): o campo cacheado (saldoReserva)
+        // divergiu do ledger de verdade PELA 3ª VEZ, de formas diferentes
+        // cada vez, sem causa 100% isolável — e o site (que confiava
+        // nesse campo pra exibição) mostrou valor errado de novo. Pedido
+        // explícito: "quero revisão estrutural e os valores precisam ser
+        // exatamente iguais" (entre site e desktop).
+        //
+        // O desktop NUNCA teve esse problema porque nunca confiou no
+        // campo cacheado pra exibir — sempre soma o ledger de verdade.
+        // A única razão de o site ter usado o cache era custo (Rodada
+        // 123/124: somar o ledger de cada pessoa EM TODA renderização
+        // bateu em 429 Too Many Requests). A solução estrutural de
+        // verdade é copiar a MESMA técnica que já faz o desktop nunca
+        // errar: só paga o custo de somar o ledger de todo mundo quando
+        // o contador global (meta/reservas_version) realmente mudou
+        // desde a última vez — não a cada clique/boot. Entre mudanças
+        // reais, reusa o resultado já calculado, sem nenhuma leitura
+        // nova. Isso dá exatidão de ledger pelo mesmo custo de antes na
+        // prática (recalcula só quando alguém de fato lança algo em
+        // QUALQUER pessoa, não por pessoa/por clique).
+        let versaoAtual = null;
+        try {
+            const docVersao = await db.collection('meta').doc('reservas_version').get();
+            versaoAtual = docVersao.exists ? docVersao.data().versao : null;
+        } catch (e) {
+            console.warn('Erro ao checar meta/reservas_version:', e);
+        }
 
-        // Achado real (02/11): pessoas inativas/removidas (ex.: a de
-        // teste da migração) entravam na lista e no total do site — o
-        // desktop sempre excluiu quem está inativo (WHERE ativo=1),
-        // por isso o total batia diferente entre os dois.
-        const reservas = [];
-        let totalSaldo = 0;
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            if (data.ativo === false) return;
-            const saldo = data.saldoReserva || 0;
-            reservas.push({ id: doc.id, ...data, saldo });
-            totalSaldo += saldo;
-        });
+        const precisaRecalcular = versaoAtual === null
+            || versaoAtual !== reservasVersaoConhecida
+            || reservasCarregadas.length === 0;
 
-        reservas.sort((a, b) => b.saldo - a.saldo);
-        reservasCarregadas = reservas;
+        if (precisaRecalcular) {
+            const snapshot = await db.collection('reservas_participantes').get();
+
+            // Achado real (02/11): pessoas inativas/removidas (ex.: a de
+            // teste da migração) entravam na lista e no total do site —
+            // o desktop sempre excluiu quem está inativo (WHERE ativo=1).
+            const docsAtivos = snapshot.docs.filter(doc => doc.data().ativo !== false);
+
+            const reservas = await Promise.all(docsAtivos.map(async doc => {
+                const data = doc.data();
+                const movsSnap = await doc.ref.collection('movimentos').get();
+                let saldo = 0;
+                movsSnap.forEach(m => {
+                    const mv = m.data();
+                    const valor = mv.valor || 0;
+                    saldo += mv.tipo === 'deposito' ? valor : -valor;
+                });
+                return { id: doc.id, ...data, saldo };
+            }));
+
+            reservas.sort((a, b) => b.saldo - a.saldo);
+            reservasCarregadas = reservas;
+            reservasVersaoConhecida = versaoAtual;
+        }
+
+        const reservas = reservasCarregadas;
+        const totalSaldo = reservas.reduce((soma, r) => soma + (r.saldo || 0), 0);
 
         // Roda em segundo plano, sem bloquear o resto da tela — usa
         // reservasCarregadas que acabou de ser preenchida (zero leitura
