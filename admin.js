@@ -61,13 +61,25 @@ function makePartId(nome, telefone) {
 // "quando eu lançar depósito ou saque pela web, o sistema imediatamente
 // atualiza o banco de dados e mostra na web... não quero pendências."
 // Uma transação do Firestore garante que o lançamento (ledger), o
-// incremento do saldo e o aviso global (meta/reservas_version, que o
+// saldo cacheado e o aviso global (meta/reservas_version, que o
 // desktop fica de olho em segundo plano) acontecem juntos ou nenhum
 // acontece — e serve de idempotência: se a chamada for repetida depois
 // de uma falha de rede ambígua, o movId já gravado faz a transação não
 // fazer nada de novo (tratado como sucesso, não como erro/duplicata).
 // Lança uma exceção se falhar — quem chama só pode dizer "sucesso" depois
 // que este await terminar sem erro, nunca antes.
+//
+// Achado real do usuário (07/11) — 3ª vez que o saldo cacheado divergia
+// do ledger de verdade, sempre de um jeito diferente, sem causa 100%
+// isolável: `FieldValue.increment(delta)` é frágil por desenho — uma
+// vez que algo dá errado (nunca descobrimos exatamente o quê, e talvez
+// nunca descubra), o erro fica arrastado pra sempre, porque incrementar
+// um valor errado só preserva o erro. Trocado por recálculo absoluto:
+// cada lançamento lê o ledger INTEIRO da pessoa (já existia a leitura
+// de `pessoaNova`; agora lê sempre) e grava saldoReserva = soma certa,
+// não mais um incremento. Isso significa que QUALQUER drift do passado
+// se autocorrige sozinho no próximo lançamento dessa pessoa, em vez de
+// continuar arrastado — segurança por construção, não por vigilância.
 async function registrarMovimentoNoFirestore({ pessoaId, pessoaNova, nome, telefone, chavePix, tipo, valor, data, descricao, loteria, concurso }) {
     const personRef = db.collection('reservas_participantes').doc(pessoaId);
     const movRef = personRef.collection('movimentos').doc();
@@ -88,6 +100,17 @@ async function registrarMovimentoNoFirestore({ pessoaId, pessoaNova, nome, telef
             });
         }
 
+        // Soma o ledger inteiro JÁ existente (pessoa nova = vazio, soma 0)
+        // pra calcular o saldo absoluto certo — não confia mais num
+        // incremento acumulado que pode arrastar erro antigo pra sempre.
+        const movsSnap = await tx.get(personRef.collection('movimentos'));
+        let saldoAtual = 0;
+        movsSnap.forEach(d => {
+            const m = d.data();
+            saldoAtual += m.tipo === 'deposito' ? (m.valor || 0) : -(m.valor || 0);
+        });
+        const novoSaldo = saldoAtual + delta;
+
         tx.set(movRef, {
             tipo, valor, data, descricao: descricao || '',
             loteria: loteria || '', concurso: concurso || '',
@@ -95,7 +118,7 @@ async function registrarMovimentoNoFirestore({ pessoaId, pessoaNova, nome, telef
             criadoEm: firebase.firestore.FieldValue.serverTimestamp()
         });
         tx.update(personRef, {
-            saldoReserva: firebase.firestore.FieldValue.increment(delta),
+            saldoReserva: novoSaldo,
             dataAtualizacao: firebase.firestore.FieldValue.serverTimestamp(),
             // Marca de uma vez pra sempre (nunca desmarca) quem já fez um
             // depósito "relevante" — é o filtro do alerta de saldo baixo

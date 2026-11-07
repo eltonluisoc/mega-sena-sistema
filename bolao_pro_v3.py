@@ -1,7 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v7.3
+SISTEMA DE GESTÃO DE BOLÕES PRO v7.4
+Correções v7.4 (saldo cacheado da reserva divergindo do ledger — 3ª
+vez, causa raiz nunca 100% isolável):
+- Achado real do usuário: o saldo mostrado divergiu do histórico real
+  de novo (2 pessoas, valores bem errados), mesmo já tendo sido
+  corrigido 2 vezes antes. Causa provável: incrementar um contador
+  (FieldValue.increment) é frágil por desenho — uma vez que algo dá
+  errado, o erro fica arrastado pra sempre, porque incrementar um
+  valor errado só preserva o erro.
+- Trocado por recálculo absoluto: todo lançamento (desktop e site)
+  agora lê o ledger INTEIRO da pessoa antes de gravar e manda o saldo
+  = soma certa, não mais um incremento. Qualquer drift futuro se
+  autocorrige sozinho no próximo lançamento dessa pessoa — segurança
+  por construção, não por vigilância.
+
 Correções v7.3 (popup de sucesso a cada lançamento de reserva
 atrapalhava):
 - Achado real do usuário: todo lançamento de reserva (registrar, lote,
@@ -2234,6 +2248,26 @@ def _rsv_commit_atomico(writes, timeout=20):
         corpo_erro = ex.read().decode("utf-8", "replace")[:500] if ex.fp else ""
         raise RuntimeError(f"HTTP {ex.code}: {corpo_erro}") from ex
 
+def _rsv_somar_ledger_pessoa(pessoa_doc_id):
+    """Soma o ledger INTEIRO (reservas_participantes/{id}/movimentos) de
+    uma pessoa, lendo direto do Firestore — usado por
+    _rsv_registrar_movimento_firestore pra gravar saldoReserva como
+    valor absoluto (recalculado), não mais um incremento acumulado que
+    pode arrastar um erro antigo pra sempre (achado real 07/11)."""
+    import urllib.request, json
+    url = f"https://firestore.googleapis.com/v1/{FIREBASE_RESERVAS_BASE}/reservas_participantes/{pessoa_doc_id}/movimentos"
+    req = urllib.request.Request(url, method="GET", headers=_firebase_headers())
+    with urllib.request.urlopen(req, timeout=20) as r:
+        dados = json.loads(r.read().decode("utf-8"))
+    soma = 0.0
+    for doc in dados.get("documents", []):
+        fields = doc.get("fields", {})
+        tipo_mov = fields.get("tipo", {}).get("stringValue", "")
+        valor_mov = float(fields.get("valor", {}).get("doubleValue")
+                           or fields.get("valor", {}).get("integerValue") or 0)
+        soma += valor_mov if tipo_mov == "deposito" else -valor_mov
+    return soma
+
 def _rsv_registrar_movimento_firestore(pessoa_doc_id, pessoa_nova, nome, telefone, chave_pix,
                                         tipo, valor, data_mov, descricao, loteria, concurso,
                                         origem="desktop"):
@@ -2254,13 +2288,30 @@ def _rsv_registrar_movimento_firestore(pessoa_doc_id, pessoa_nova, nome, telefon
 
     Síncrono — levanta exceção se a gravação não for confirmada; quem
     chama só pode dizer "sucesso" depois que isto retornar sem erro,
-    nunca antes. Retorna o movId gravado."""
+    nunca antes. Retorna o movId gravado.
+
+    Achado real do usuário (07/11) — 3ª vez que o saldo cacheado
+    divergia do ledger de verdade, sempre de um jeito diferente, sem
+    causa 100% isolável: incrementar um contador é frágil por desenho —
+    se algo der errado uma vez (nunca descobrimos exatamente o quê), o
+    erro fica arrastado pra sempre. Trocado por recálculo absoluto: lê
+    o ledger INTEIRO da pessoa antes de gravar e manda saldoReserva =
+    soma certa, não mais um incremento — qualquer drift do passado se
+    autocorrige sozinho no próximo lançamento, em vez de continuar
+    arrastado. Essa leitura tem uma janela pequena de corrida com outra
+    gravação concorrente da MESMA pessoa (não é uma transação de
+    verdade como no site, que usa runTransaction) — aceitável no uso
+    real deste app (1 admin, uso raro simultâneo), e mesmo que aconteça,
+    a PRÓXIMA gravação dessa pessoa já corrige sozinha de novo."""
     import uuid
     pessoa_path = f"{FIREBASE_RESERVAS_BASE}/reservas_participantes/{pessoa_doc_id}"
     mov_id = uuid.uuid4().hex
     mov_path = f"{pessoa_path}/movimentos/{mov_id}"
     sentinel_path = f"{FIREBASE_RESERVAS_BASE}/meta/reservas_version"
     delta = valor if tipo == "deposito" else -valor
+
+    saldo_atual = 0.0 if pessoa_nova else _rsv_somar_ledger_pessoa(pessoa_doc_id)
+    novo_saldo = saldo_atual + delta
 
     writes = []
     if pessoa_nova:
@@ -2308,18 +2359,18 @@ def _rsv_registrar_movimento_firestore(pessoa_doc_id, pessoa_nova, nome, telefon
     # exatamente o que o SDK oficial gera por baixo dos panos pra
     # FieldValue.increment(). Nunca mais usar "transform" sozinho nesse
     # arquivo.
-    # Separado em 2 writes por documento (um só com "increment", outro só
-    # com "setToServerValue") em vez de misturar os dois tipos de
-    # transform numa updateTransforms só — achado real: combinar os dois
-    # tipos na mesma lista voltava PERMISSION_DENIED num caso real
-    # (sozinhos, cada um passava no diagnóstico). Mais writes no mesmo
-    # commit não tem custo/risco — ainda é tudo atômico, tudo ou nada.
+    # saldoReserva vai como valor ABSOLUTO (update + updateMask comum),
+    # não mais "increment" — ver o porquê no docstring da função. dataAtualizacao
+    # continua em write separado (um só com "setToServerValue") — achado
+    # real antigo: misturar transform com update de campo comum no MESMO
+    # write também já deu PERMISSION_DENIED num caso real; separado
+    # sempre funcionou. Mais writes no mesmo commit não tem custo/risco —
+    # ainda é tudo atômico, tudo ou nada.
     writes.append({
-        "update": {"name": pessoa_path, "fields": {}},
-        "updateMask": {"fieldPaths": []},
-        "updateTransforms": [
-            {"fieldPath": "saldoReserva", "increment": {"doubleValue": delta}},
-        ],
+        "update": {"name": pessoa_path, "fields": {
+            "saldoReserva": {"doubleValue": novo_saldo},
+        }},
+        "updateMask": {"fieldPaths": ["saldoReserva"]},
     })
     writes.append({
         "update": {"name": pessoa_path, "fields": {}},
@@ -2894,7 +2945,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v7.3")
+        self.root.title("Sistema de Gestão de Bolões PRO v7.4")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -3351,7 +3402,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v7.3",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v7.4",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -7469,7 +7520,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v7.3</span>
+        <span>Sistema de Gestão de Bolões v7.4</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -9775,7 +9826,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v7.3</span>
+        <span>Sistema de Gestão de Bolões v7.4</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>

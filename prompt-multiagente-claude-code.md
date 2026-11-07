@@ -1848,6 +1848,18 @@ Duas coisas reportadas de uma vez: (a) no índice público, resultados já publi
 
 `sw.js` v95 → v96. `node --check` + checagem de balanceamento de tags, OK.
 
+## Rodada 132 — 3ª divergência do saldo cacheado: troca de incremento por recálculo absoluto (v7.4 desktop, v97 web)
+
+Usuário reportou mais uma vez (3ª desde a migração — Rodadas 122, 126 e agora) saldo divergindo entre site e desktop logo após um lançamento real, com valores bem errados pra 2 pessoas (Cosme e Sandra Regina de novo). Auditoria confirmou: ledger (fonte de verdade, bate com o espelho local do desktop) correto; só o campo cacheado `saldoReserva` desviou, de um jeito diferente de cada vez, sem causa 100% isolável desta vez (não achei o "porquê" exato, diferente das duas vezes anteriores).
+
+Dado o padrão recorrente, a causa estrutural é o próprio desenho: `FieldValue.increment(delta)` é frágil por natureza — se UMA gravação aplicar o delta errado por qualquer motivo (nunca totalmente descartável com um mecanismo distribuído como este, sem transação verdadeira do lado do desktop), o erro fica arrastado pra sempre, porque incrementar um valor já errado só preserva o erro.
+
+**Corrigido na arquitetura, não só no sintoma**: tanto `registrarMovimentoNoFirestore` (site, dentro da mesma `runTransaction` já existente — agora também lê `tx.get(personRef.collection('movimentos'))` antes de gravar) quanto `_rsv_registrar_movimento_firestore` (desktop, nova função `_rsv_somar_ledger_pessoa`) passam a gravar `saldoReserva` como **valor absoluto recalculado do ledger inteiro**, não mais um incremento. Qualquer drift futuro — seja qual for a causa, conhecida ou não — se autocorrige sozinho no PRÓXIMO lançamento da mesma pessoa, em vez de ficar arrastado pra sempre. Segurança por construção, não por vigilância.
+
+Corrigidos de novo os 2 valores (Cosme, Sandra Regina) via script pontual, mesmo padrão de sempre (recalcula na hora, confirma com releitura).
+
+`sw.js` v96 → v97. 35 testes + `py_compile` + `node --check`, OK.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).
