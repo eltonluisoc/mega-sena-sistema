@@ -1838,6 +1838,16 @@ Causa: `verificarAlertasSaldoBaixo` só checava se havia um alerta PENDENTE (`en
 
 `sw.js` v94 → v95. `node --check`, OK.
 
+## Rodada 131 — Resultados antigos sumiram do público + Conferência só mostrava o concurso mais recente (v96, web)
+
+Duas coisas reportadas de uma vez: (a) no índice público, resultados já publicados antes e as setas de "quase acertou" devem continuar funcionando; (b) gostou de conferir ≠ publicar, mas a aba Conferência só mostrava o concurso MAIS RECENTE de cada loteria, sem filtro nem jeito de ver/gerenciar concursos mais antigos.
+
+**(a) Hotfix urgente, já publicado antes desta entrada**: documentos conferidos ANTES da Rodada 127 nunca tiveram o campo `publicado` gravado — a regra tratava campo ausente como `false` (privado), escondendo todo o histórico público anterior (inclusive as setas, que leem o mesmo dado). Corrigido trocando o default de `resource.data.get('publicado', false)` pra `resource.data.get('publicado', true)` — documento sem o campo é antigo, já era público antes dessa funcionalidade existir, continua público; só documento com `publicado` gravado como `false` (os novos) fica privado de verdade. Zero migração de dado necessária.
+
+**(b) Conferência ganhou filtro por loteria** (mesmo seletor visual já usado em Cartões) **e lista TODOS os concursos cadastrados daquela loteria**, não só o mais recente — `[...new Set(cartoes...)]` (já em memória, sem leitura nova) cruzado com 1 query só (`where('loteria','==',...)`, não 1 leitura por concurso — lição das Rodadas 123/124/126) na coleção de resultados.
+
+`sw.js` v95 → v96. `node --check` + checagem de balanceamento de tags, OK.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

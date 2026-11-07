@@ -1783,41 +1783,70 @@ function atualizarUIComCartoesLocais() {
 // foi removido: confirmado que o site público não grava mais nesta
 // coleção há tempo (só lê), então só o admin cria esses docs — a trava
 // virou redundante, o `publicado` já resolve tudo.
-//
-// Recalcula o maior concurso de cada loteria a partir do array
-// `cartoes` já carregado (sem query nova), busca o status de cada 1 em
-// resultados_conferidos e desenha os 4 cards (seção "Conferência").
+
+// Loteria selecionada no filtro da aba Conferência — achado real do
+// usuário (07/11): a 1ª versão só mostrava o concurso MAIS RECENTE de
+// cada loteria, sem filtro nem jeito de ver/gerenciar concursos mais
+// antigos. Separado de `loteriaAdmin` de propósito (é um filtro
+// independente, não precisa ficar sincronizado com a aba Cartões).
+let loteriaFiltroConferencia = 'mega';
+
+function setLoteriaConferencia(loteria) {
+    loteriaFiltroConferencia = loteria;
+    ['Mega', 'Lotofacil', 'Quina', 'Milionaria'].forEach(suf => {
+        const btn = document.getElementById('confBtn' + suf);
+        if (btn) {
+            btn.classList.remove('active');
+            btn.style.transform = 'scale(1)';
+            btn.style.filter = 'brightness(1)';
+            btn.style.boxShadow = 'none';
+        }
+    });
+    const idPorLoteria = { mega: 'confBtnMega', lotofacil: 'confBtnLotofacil', quina: 'confBtnQuina', maismilionaria: 'confBtnMilionaria' };
+    const btnAtivo = document.getElementById(idPorLoteria[loteria]);
+    if (btnAtivo) {
+        btnAtivo.classList.add('active');
+        btnAtivo.style.transform = 'scale(0.98)';
+        btnAtivo.style.filter = 'brightness(0.9)';
+        btnAtivo.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.1)';
+    }
+    atualizarPainelConferencia();
+}
+
+// Pra loteria filtrada: pega TODOS os concursos distintos cadastrados
+// (array `cartoes` já em memória, sem query nova) e busca o status de
+// TODOS eles numa leitura só (1 query filtrada por loteria, não 1
+// leitura por concurso — achado das Rodadas 123/124/126: ler por item
+// escala mal e já bateu em 429 antes). Desenha 1 card por concurso,
+// mais recente primeiro.
 async function atualizarPainelConferencia() {
     const container = document.getElementById('painelConferencia');
     if (!container) return;
 
     const nomes = { mega: '🎯 Mega-Sena', lotofacil: '🍀 Lotofácil', quina: '⭐ Quina', maismilionaria: '🌟 +Milionária' };
+    const loteria = loteriaFiltroConferencia;
+
+    const concursos = [...new Set(cartoes.filter(c => c.tipo === loteria).map(c => c.concurso))]
+        .filter(c => c)
+        .sort((a, b) => parseInt(b, 10) - parseInt(a, 10));
+
+    if (concursos.length === 0) {
+        container.innerHTML = `<div class="card" style="background:#f8fafc; border:1px solid #e2e8f0;"><div style="font-size:13px; color:#64748b;">Nenhum cartão de ${nomes[loteria]} cadastrado ainda.</div></div>`;
+        return;
+    }
+
+    let dadosPorConcurso = {};
+    try {
+        const snap = await db.collection('resultados_conferidos').where('loteria', '==', loteria).get();
+        snap.forEach(doc => { dadosPorConcurso[doc.data().concurso] = doc.data(); });
+    } catch (e) {
+        console.warn('Erro ao checar resultados_conferidos:', e);
+    }
+
     let html = '';
-
-    for (const loteria of ['mega', 'lotofacil', 'quina', 'maismilionaria']) {
-        let maior = 0;
-        for (const c of cartoes) {
-            if (c.tipo !== loteria) continue;
-            const n = parseInt(c.concurso, 10);
-            if (!isNaN(n) && n > maior) maior = n;
-        }
-        if (maior === 0) {
-            html += `
-                <div class="card" style="background:#f8fafc; border:1px solid #e2e8f0;">
-                    <div class="card-header">${nomes[loteria]}</div>
-                    <div style="font-size:13px; color:#64748b;">Nenhum cartão cadastrado ainda.</div>
-                </div>`;
-            continue;
-        }
-        const concurso = String(maior);
-
-        let dados = null;
-        try {
-            const doc = await db.collection('resultados_conferidos').doc(`${loteria}_${concurso}`).get();
-            if (doc.exists && doc.data().conferido === true) dados = doc.data();
-        } catch (e) {
-            console.warn('Erro ao checar resultados_conferidos:', e);
-        }
+    for (const concurso of concursos) {
+        const dados = dadosPorConcurso[concurso] && dadosPorConcurso[concurso].conferido === true
+            ? dadosPorConcurso[concurso] : null;
 
         if (!dados) {
             html += `
@@ -6163,6 +6192,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (cartoesBtnLotofacil) cartoesBtnLotofacil.onclick = () => setLoteriaAdmin('lotofacil');
     if (cartoesBtnQuina) cartoesBtnQuina.onclick = () => setLoteriaAdmin('quina');
     if (cartoesBtnMilionaria) cartoesBtnMilionaria.onclick = () => setLoteriaAdmin('maismilionaria');
+    const confBtnMega = document.getElementById('confBtnMega');
+    const confBtnLotofacil = document.getElementById('confBtnLotofacil');
+    const confBtnQuina = document.getElementById('confBtnQuina');
+    const confBtnMilionaria = document.getElementById('confBtnMilionaria');
+    if (confBtnMega) confBtnMega.onclick = () => setLoteriaConferencia('mega');
+    if (confBtnLotofacil) confBtnLotofacil.onclick = () => setLoteriaConferencia('lotofacil');
+    if (confBtnQuina) confBtnQuina.onclick = () => setLoteriaConferencia('quina');
+    if (confBtnMilionaria) confBtnMilionaria.onclick = () => setLoteriaConferencia('maismilionaria');
     document.querySelectorAll('.subsecao-btn').forEach(btn => {
         btn.onclick = () => mostrarSubsecao(btn.dataset.grupo, btn.dataset.sub);
     });
