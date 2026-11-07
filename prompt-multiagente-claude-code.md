@@ -1870,6 +1870,22 @@ Diagnóstico da causa estrutural de fundo: o desktop NUNCA teve esse histórico 
 
 `sw.js` v97 → v98 — também reforça a atualização do app no celular (o SW novo some com qualquer versão antiga em cache assim que a página recarrega). `node --check`, OK.
 
+## Rodada 134 — Solução definitiva contra estouro de cota do Firestore (v99, web + desktop)
+
+A Rodada 133 resolveu a exatidão (site passou a somar o ledger igual o desktop), mas trouxe um efeito colateral grave: o usuário ficou "muito tempo sem poder usar o Firebase" — ou seja, o projeto bateu no limite de leitura do plano gratuito (Spark), que o usuário se recusa a trocar por um plano pago. Pedido explícito: **"Elabore com agentes uma solução que melhor gerencie a reserva, e não extrapole o limite do firebase... Precisa elaborar uma solução sólida e definitiva."**
+
+Investigação com 2 agentes de exploração (admin.js e bolao_pro_v3.py) mapeou TODA leitura do Firestore ligada a reservas e achou a causa raiz: o guard de `meta/reservas_version` em `carregarReservas()` era só uma variável `let` em memória, resetada a cada reload da página — ou seja, **todo F5 do admin.html resomava o ledger inteiro de TODAS as pessoas**. Em paralelo, o laço de sincronização do desktop, a cada mudança detectada (de QUALQUER pessoa, QUALQUER lugar), rebuscava o histórico COMPLETO de TODAS as pessoas, mesmo quando só 1 tinha mudado. E `verificarAlertasSaldoBaixo` lia a coleção `alertas_saldo_baixo` (que só crescia) por completo, 2 vezes, a cada carregamento. Nenhum script de diagnóstico Python foi a causa — cada rodada deles lê algumas centenas de documentos 1 vez; o app em produção é que reconsumia o sistema inteiro sozinho, sem parar, 24/7.
+
+**Princípio da correção**: desde a Rodada 132, toda gravação já recalcula `saldoReserva` como valor ABSOLUTO — o campo cacheado já se autocorrige sozinho a cada lançamento real daquela pessoa. Não é mais preciso resomar o ledger de todo mundo pra EXIBIR, só confiar no cache (correto por construção):
+
+- `carregarReservas()` (admin.js): volta a ler só o campo `saldoReserva` cacheado (N leituras de documento, não cresce com histórico). Novo botão manual "🔎 Verificar/corrigir saldos" (nunca automático) faz a auditoria cara sob demanda e autocorrige.
+- Alerta de saldo baixo: migrado da coleção `alertas_saldo_baixo` (só crescia, lida 2x por carregamento) pra 3 campos direto em `reservas_participantes/{id}` (`alertaSaldoBaixoStatus/Desde/EnviadoEm`) — o banner passa a ser calculado em cima dos mesmos documentos que `carregarReservas()` já carregou, zero leituras extras. Script `migrar_alertas_saldo_baixo.py` porta os alertas antigos ainda abertos pros campos novos (uso único).
+- `firestore.rules`: os 3 campos novos somados ao `hasOnly` de create/update de `reservas_participantes` (create E update — esse ponto já quebrou produção antes).
+- Desktop (`bolao_pro_v3.py`): `_rsv_buscar_estado_atual` ganhou reconciliação incremental — compara o `dataAtualizacao` remoto de cada pessoa com o último conhecido localmente (nova coluna `firebase_data_atualizacao` em `reservas_pessoas`) e só rebusca o ledger de quem de fato mudou, não mais de todo mundo a cada evento. Intervalo do laço de 7s → 20s (margem extra).
+- `corrigir_cosme_sandra.py`: ganhou uma conferência extra contra o valor que o usuário confirmou de cabeça (Cosme R$20,00, Sandra R$163,00, já descontando o uso de R$7,00 do dia) — avisa se a soma do ledger não bater com o esperado, em vez de gravar às cegas.
+
+`sw.js` v98 → v99. `node --check admin.js` e `python -m py_compile bolao_pro_v3.py` + 35 testes, todos OK.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

@@ -16,14 +16,6 @@ let cartoesFiltrados = [];
 let boloes = [];
 let reservasCarregadas = []; // última lista carregada em carregarReservas() — usada pelo modal de registrar movimento
 
-// Última versão de meta/reservas_version pra qual reservasCarregadas foi
-// de fato recalculada somando o ledger de todo mundo — null força 1
-// recálculo completo na 1ª chamada da sessão. Ver carregarReservas()
-// (07/11): só paga o custo de somar o ledger de novo quando esse
-// contador mudou de verdade, não a cada clique/boot — mesma técnica já
-// usada pelo desktop pra nunca errar o saldo exibido.
-let reservasVersaoConhecida = null;
-
 // Limite (R$) usado tanto pra decidir quem "qualifica" pro alerta de
 // saldo baixo (depósito > limite alguma vez) quanto pro próprio
 // gatilho (saldo atual < limite) — pedido do usuário (03/11): "quero
@@ -4704,64 +4696,41 @@ async function cancelarPremiacaoPendente(id) {
 // ============================================
 async function carregarReservas() {
     try {
-        // Achado real do usuário (07/11): o campo cacheado (saldoReserva)
-        // divergiu do ledger de verdade PELA 3ª VEZ, de formas diferentes
-        // cada vez, sem causa 100% isolável — e o site (que confiava
-        // nesse campo pra exibição) mostrou valor errado de novo. Pedido
-        // explícito: "quero revisão estrutural e os valores precisam ser
-        // exatamente iguais" (entre site e desktop).
+        // Redesenho estrutural (07/11) — causa raiz do estouro de cota do
+        // Firestore: a versão anterior (Rodada 133) resomava o ledger
+        // INTEIRO de toda pessoa a cada carregamento, achando que o
+        // guard de meta/reservas_version evitava isso — mas esse guard
+        // era só uma variável `let` em memória, resetada a cada F5/
+        // reload da página (o script roda do zero), então na prática
+        // TODO reload fazia a conta mais cara de novo. Com ~32 pessoas e
+        // vários dispositivos abertos, isso sozinho já estourava os
+        // 50.000 reads/dia do plano gratuito.
         //
-        // O desktop NUNCA teve esse problema porque nunca confiou no
-        // campo cacheado pra exibir — sempre soma o ledger de verdade.
-        // A única razão de o site ter usado o cache era custo (Rodada
-        // 123/124: somar o ledger de cada pessoa EM TODA renderização
-        // bateu em 429 Too Many Requests). A solução estrutural de
-        // verdade é copiar a MESMA técnica que já faz o desktop nunca
-        // errar: só paga o custo de somar o ledger de todo mundo quando
-        // o contador global (meta/reservas_version) realmente mudou
-        // desde a última vez — não a cada clique/boot. Entre mudanças
-        // reais, reusa o resultado já calculado, sem nenhuma leitura
-        // nova. Isso dá exatidão de ledger pelo mesmo custo de antes na
-        // prática (recalcula só quando alguém de fato lança algo em
-        // QUALQUER pessoa, não por pessoa/por clique).
-        let versaoAtual = null;
-        try {
-            const docVersao = await db.collection('meta').doc('reservas_version').get();
-            versaoAtual = docVersao.exists ? docVersao.data().versao : null;
-        } catch (e) {
-            console.warn('Erro ao checar meta/reservas_version:', e);
-        }
+        // Desde a Rodada 132, toda gravação (registrarMovimentoNoFirestore,
+        // web e desktop) já recalcula e grava saldoReserva como valor
+        // ABSOLUTO — não mais um incremento — então o campo cacheado já
+        // se autocorrige sozinho a cada lançamento real daquela pessoa.
+        // Não há mais necessidade de resomar o ledger de todo mundo só
+        // pra EXIBIR: confiar no campo cacheado volta o custo a 1 leitura
+        // de documento por pessoa (não cresce com o histórico, nunca
+        // mais bate em cota). Auditoria/correção pontual de alguma
+        // divergência rara ficou no botão manual (verificarEcorrigirSaldos,
+        // sob demanda, nunca automático).
+        const snapshot = await db.collection('reservas_participantes').get();
 
-        const precisaRecalcular = versaoAtual === null
-            || versaoAtual !== reservasVersaoConhecida
-            || reservasCarregadas.length === 0;
+        // Achado real (02/11): pessoas inativas/removidas (ex.: a de
+        // teste da migração) entravam na lista e no total do site —
+        // o desktop sempre excluiu quem está inativo (WHERE ativo=1).
+        const docsAtivos = snapshot.docs.filter(doc => doc.data().ativo !== false);
 
-        if (precisaRecalcular) {
-            const snapshot = await db.collection('reservas_participantes').get();
+        const reservas = docsAtivos.map(doc => {
+            const data = doc.data();
+            return { id: doc.id, ...data, saldo: data.saldoReserva || 0 };
+        });
 
-            // Achado real (02/11): pessoas inativas/removidas (ex.: a de
-            // teste da migração) entravam na lista e no total do site —
-            // o desktop sempre excluiu quem está inativo (WHERE ativo=1).
-            const docsAtivos = snapshot.docs.filter(doc => doc.data().ativo !== false);
+        reservas.sort((a, b) => b.saldo - a.saldo);
+        reservasCarregadas = reservas;
 
-            const reservas = await Promise.all(docsAtivos.map(async doc => {
-                const data = doc.data();
-                const movsSnap = await doc.ref.collection('movimentos').get();
-                let saldo = 0;
-                movsSnap.forEach(m => {
-                    const mv = m.data();
-                    const valor = mv.valor || 0;
-                    saldo += mv.tipo === 'deposito' ? valor : -valor;
-                });
-                return { id: doc.id, ...data, saldo };
-            }));
-
-            reservas.sort((a, b) => b.saldo - a.saldo);
-            reservasCarregadas = reservas;
-            reservasVersaoConhecida = versaoAtual;
-        }
-
-        const reservas = reservasCarregadas;
         const totalSaldo = reservas.reduce((soma, r) => soma + (r.saldo || 0), 0);
 
         // Roda em segundo plano, sem bloquear o resto da tela — usa
@@ -4815,25 +4784,67 @@ async function carregarReservas() {
     }
 }
 
+// Auditoria/correção manual, SOB DEMANDA — nunca automática. É a mesma
+// conta cara que a versão antiga de carregarReservas() fazia em TODO
+// carregamento (somar o ledger completo de cada pessoa); aqui só roda
+// quando o admin clica o botão "🔎 Verificar/corrigir saldos" na aba
+// Reservas, servindo de rede de segurança contra alguma divergência
+// rara (ex.: edição manual direta no Firestore) sem voltar a pagar
+// esse custo em todo F5 da página.
+async function verificarEcorrigirSaldos() {
+    if (!confirm('Isso confere o histórico completo de TODAS as pessoas contra o saldo exibido — é mais caro que o carregamento normal. Confirma?')) return;
+    showToast('🔎 Verificando saldos de todo mundo...', 'info');
+    try {
+        let corrigidos = 0;
+        for (const p of reservasCarregadas) {
+            const historico = await buscarHistoricoDerivado(p.id);
+            const saldoReal = historico.length > 0 ? historico[historico.length - 1].saldoNovo : 0;
+            const saldoCacheado = p.saldo || 0;
+            // Mesma trava de segurança do autocorrigirSaldoCacheado: nunca
+            // zera por cima de um cache não-zero se a leitura veio vazia.
+            if (historico.length === 0 && Math.abs(saldoCacheado) > 0.01) continue;
+            if (Math.abs(saldoCacheado - saldoReal) > 0.01) {
+                await db.collection('reservas_participantes').doc(p.id).update({ saldoReserva: saldoReal });
+                p.saldo = saldoReal;
+                corrigidos++;
+            }
+        }
+        showToast(corrigidos > 0
+            ? `✅ ${corrigidos} saldo(s) corrigido(s) — lista atualizada`
+            : '✅ Tudo certo, nenhuma divergência encontrada', 'success');
+        if (corrigidos > 0) carregarReservas();
+    } catch (e) {
+        console.error('Erro ao verificar/corrigir saldos:', e);
+        showToast('❌ Erro ao verificar saldos: ' + e.message, 'error');
+    }
+}
+
 // ============================================
-// ALERTA DE SALDO BAIXO (03/11) — pedido do usuário: quem já depositou
-// um valor "relevante" alguma vez (qualificaAlertaSaldoBaixo, gravado
-// em registrarMovimentoNoFirestore no momento do depósito) e caiu
-// abaixo do limite configurado (config_geral/alertas) gera um aviso
-// que fica destacado no admin — em QUALQUER aba, não só Reservas — até
-// ser marcado como enviado. Fica gravado no Firestore de propósito
-// (alertas_saldo_baixo), não só na memória do navegador: é assim que
-// "sempre que eu abrir o admin" funciona de verdade, mesmo trocando de
-// computador ou fechando a aba sem marcar.
+// ALERTA DE SALDO BAIXO (03/11, redesenhado 07/11) — pedido do
+// usuário: quem já depositou um valor "relevante" alguma vez
+// (qualificaAlertaSaldoBaixo, gravado em registrarMovimentoNoFirestore
+// no momento do depósito) e caiu abaixo do limite configurado
+// (config_geral/alertas) gera um aviso que fica destacado no admin —
+// em QUALQUER aba, não só Reservas — até ser marcado como enviado.
+//
+// Redesenho (07/11): antes vivia numa coleção separada
+// (alertas_saldo_baixo) que só crescia (nunca apagava nada) e era lida
+// por completo 2 VEZES a cada carregamento de Reservas — uma das
+// causas do estouro de cota do Firestore. Agora o estado do alerta é
+// só 3 campos no PRÓPRIO documento da pessoa (alertaSaldoBaixoStatus/
+// Desde/EnviadoEm, ver firestore.rules) — o banner é calculado em cima
+// dos MESMOS documentos que carregarReservas() já carregou, sem
+// nenhuma leitura extra do Firestore.
 // ============================================
 
 // Roda a cada carregarReservas() (boot + toda vez que a lista é
-// atualizada) — reaproveita reservasCarregadas (zero leitura extra por
-// pessoa) + 1 leitura só na coleção de alertas (pequena, filtrada por
-// enviado==false). Cria alerta novo pra quem qualifica e caiu abaixo
-// do limite; resolve sozinho (pedido do usuário: "se já depositou de
-// novo, não precisa continuar cobrando") quem tinha alerta pendente e
-// voltou a ficar com saldo OK.
+// atualizada) — não lê nada do Firestore por conta própria (só a 1
+// leitura barata de config_geral/alertas, já existia); só GRAVA
+// (batch.update, direto no doc da pessoa) quando alguém de fato cruzou
+// o limite pra baixo ou se recuperou. Mesma lógica de "crise aberta"
+// de antes: enquanto o status não voltar a null (saldo recuperado), não
+// gera alerta novo — só quando cai de novo depois de recuperar conta
+// como uma crise NOVA.
 async function verificarAlertasSaldoBaixo() {
     try {
         const docConfig = await db.collection('config_geral').doc('alertas').get();
@@ -4844,56 +4855,34 @@ async function verificarAlertasSaldoBaixo() {
             inputLimite.value = limiteAlertaSaldoBaixo.toFixed(2);
         }
 
-        // Achado real do usuário: olhar só os alertas PENDENTES (enviado
-        // ==false) não bastava — depois de marcar "já enviei", o alerta
-        // sumia da lista de pendentes, e na PRÓXIMA verificação (saldo
-        // continua baixo, nada mudou) o sistema achava que não tinha
-        // alerta nenhum e criava outro na hora, reabrindo o banner sem
-        // nenhum depósito novo ter acontecido. Pega TODOS os alertas
-        // (pendente ou já enviado) e olha só o mais recente por pessoa —
-        // enquanto o motivo desse último não for "saldo_recuperado", a
-        // "crise" continua aberta (mesmo já avisada) e não gera outro
-        // alerta; só quando o saldo volta a subir e cai de novo é que
-        // conta como uma crise NOVA.
-        const snapTodos = await db.collection('alertas_saldo_baixo').get();
-        const ultimoPorPessoa = {};
-        snapTodos.forEach(doc => {
-            const d = { id: doc.id, ...doc.data() };
-            const atual = ultimoPorPessoa[d.pessoaId];
-            const msNovo = d.criadoEm && d.criadoEm.toMillis ? d.criadoEm.toMillis() : 0;
-            const msAtual = atual && atual.criadoEm && atual.criadoEm.toMillis ? atual.criadoEm.toMillis() : -1;
-            if (!atual || msNovo > msAtual) ultimoPorPessoa[d.pessoaId] = d;
-        });
-
         const batch = db.batch();
         let houveMudanca = false;
 
         for (const p of reservasCarregadas) {
             const saldo = p.saldo || 0;
-            const ultimo = ultimoPorPessoa[p.id];
-            const crisesAberta = ultimo && ultimo.motivo !== 'saldo_recuperado';
+            const status = p.alertaSaldoBaixoStatus || null;
+            const crisesAberta = status === 'pendente' || status === 'enviado';
 
             if (p.qualificaAlertaSaldoBaixo && saldo < limiteAlertaSaldoBaixo && !crisesAberta) {
-                const ref = db.collection('alertas_saldo_baixo').doc();
-                batch.set(ref, {
-                    pessoaId: p.id, nome: p.nome, telefone: p.telefone || '',
-                    saldoNoMomento: saldo, enviado: false,
-                    criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+                batch.update(db.collection('reservas_participantes').doc(p.id), {
+                    alertaSaldoBaixoStatus: 'pendente',
+                    alertaSaldoBaixoDesde: firebase.firestore.FieldValue.serverTimestamp(),
+                    alertaSaldoBaixoEnviadoEm: null
                 });
+                p.alertaSaldoBaixoStatus = 'pendente'; // reflete na mesma renderização, sem reler
                 houveMudanca = true;
             } else if (saldo >= limiteAlertaSaldoBaixo && crisesAberta) {
-                batch.update(db.collection('alertas_saldo_baixo').doc(ultimo.id), {
-                    enviado: true, motivo: 'saldo_recuperado',
-                    resolvidoEm: firebase.firestore.FieldValue.serverTimestamp()
+                batch.update(db.collection('reservas_participantes').doc(p.id), {
+                    alertaSaldoBaixoStatus: null,
+                    alertaSaldoBaixoEnviadoEm: null
                 });
+                p.alertaSaldoBaixoStatus = null;
                 houveMudanca = true;
             }
         }
         if (houveMudanca) await batch.commit();
 
-        const snapFinal = await db.collection('alertas_saldo_baixo').where('enviado', '==', false).get();
-        const pendentes = [];
-        snapFinal.forEach(doc => pendentes.push({ id: doc.id, ...doc.data() }));
+        const pendentes = reservasCarregadas.filter(p => p.alertaSaldoBaixoStatus === 'pendente');
         renderizarBannerAlertasSaldoBaixo(pendentes);
     } catch (e) {
         console.error('Erro ao verificar alertas de saldo baixo:', e);
@@ -4926,7 +4915,7 @@ function renderizarBannerAlertasSaldoBaixo(pendentes) {
         html += `
             <div style="background:white; border:1px solid #fdba74; border-radius:8px; padding:8px 12px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
                 <div style="font-size:13px; color:#1e293b;">
-                    <strong>${escapeHtml(a.nome)}</strong> — saldo R$ ${(a.saldoNoMomento || 0).toFixed(2)}
+                    <strong>${escapeHtml(a.nome)}</strong> — saldo R$ ${(a.saldo || 0).toFixed(2)}
                 </div>
                 <div style="display:flex; gap:6px;">
                     <button class="btn btn-sm" style="background:#25D366; color:white;" data-copiar-alerta="${a.id}">📋 Copiar mensagem</button>
@@ -4960,7 +4949,7 @@ async function copiarMensagemAlertaSaldoBaixo(alerta) {
         console.warn('Erro ao buscar chave PIX pro alerta:', e);
     }
 
-    let mensagem = `👋 Oi ${alerta.nome}! Sua reserva no sistema está em R$ ${(alerta.saldoNoMomento || 0).toFixed(2)}.\n`;
+    let mensagem = `👋 Oi ${alerta.nome}! Sua reserva no sistema está em R$ ${(alerta.saldo || 0).toFixed(2)}.\n`;
     mensagem += `Pra continuar participando dos próximos bolões, você pode fazer um novo depósito quando puder`;
     mensagem += chavePix ? ` 🙂\n\n💰 Chave PIX: ${chavePix}` : ` 🙂`;
     mensagem += `\n\nQualquer dúvida é só chamar! 🍀`;
@@ -4975,14 +4964,17 @@ async function copiarMensagemAlertaSaldoBaixo(alerta) {
     }
 }
 
-async function marcarAlertaSaldoBaixoEnviado(alertaId) {
+async function marcarAlertaSaldoBaixoEnviado(pessoaId) {
     try {
-        await db.collection('alertas_saldo_baixo').doc(alertaId).update({
-            enviado: true, motivo: 'enviado_pelo_admin',
-            resolvidoEm: firebase.firestore.FieldValue.serverTimestamp()
+        await db.collection('reservas_participantes').doc(pessoaId).update({
+            alertaSaldoBaixoStatus: 'enviado',
+            alertaSaldoBaixoEnviadoEm: firebase.firestore.FieldValue.serverTimestamp()
         });
         showToast('✅ Marcado como enviado!', 'success');
-        verificarAlertasSaldoBaixo();
+        // Atualiza localmente sem precisar reler do Firestore.
+        const p = reservasCarregadas.find(r => r.id === pessoaId);
+        if (p) p.alertaSaldoBaixoStatus = 'enviado';
+        renderizarBannerAlertasSaldoBaixo(reservasCarregadas.filter(r => r.alertaSaldoBaixoStatus === 'pendente'));
     } catch (error) {
         console.error('Erro ao marcar alerta como enviado:', error);
         showToast('❌ Erro ao marcar: ' + error.message, 'error');
@@ -6277,6 +6269,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (ordenarPor) ordenarPor.onchange = exibirCartoesAdmin;
 
     if (btnAtualizarReservas) btnAtualizarReservas.onclick = () => carregarReservas();
+
+    const btnVerificarSaldos = document.getElementById('btnVerificarSaldos');
+    if (btnVerificarSaldos) btnVerificarSaldos.onclick = () => verificarEcorrigirSaldos();
 
     const btnAtualizarOtimizador = document.getElementById('btnAtualizarOtimizador');
     if (btnAtualizarOtimizador) btnAtualizarOtimizador.onclick = () => carregarOtimizadorCotas();

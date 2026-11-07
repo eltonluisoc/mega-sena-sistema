@@ -157,14 +157,16 @@ service cloud.firestore {
                     && request.resource.data.keys().hasOnly(
                          ['participanteId','nome','telefone','chavePix',
                           'observacoes','ativo','saldoReserva','dataAtualizacao','admin',
-                          'qualificaAlertaSaldoBaixo'])
+                          'qualificaAlertaSaldoBaixo','alertaSaldoBaixoStatus',
+                          'alertaSaldoBaixoDesde','alertaSaldoBaixoEnviadoEm'])
                     && request.resource.data.saldoReserva == 0;
       allow update: if isAdmin()
                     && !('historico' in request.resource.data)
                     && request.resource.data.keys().hasOnly(
                          ['participanteId','nome','telefone','chavePix',
                           'observacoes','ativo','saldoReserva','dataAtualizacao','admin',
-                          'qualificaAlertaSaldoBaixo']);
+                          'qualificaAlertaSaldoBaixo','alertaSaldoBaixoStatus',
+                          'alertaSaldoBaixoDesde','alertaSaldoBaixoEnviadoEm']);
       allow delete: if isAdmin();
 
       // Ledger só-de-inserção: um documento por depósito/saque, nunca
@@ -207,11 +209,14 @@ service cloud.firestore {
                    && request.resource.data.versao is int;
     }
 
-    // Alerta de saldo baixo (03/11) — pedido do usuário: quem já
-    // depositou um valor relevante e caiu abaixo do limite configurado
-    // gera um aviso que fica destacado no admin até ser marcado como
-    // enviado (ver verificarAlertasSaldoBaixo, admin.js). Uso 100%
-    // interno do admin, nunca lido pelo site público.
+    // Alerta de saldo baixo (03/11) — coleção ANTIGA, substituída (07/11)
+    // por 3 campos direto em reservas_participantes/{pessoaId}
+    // (alertaSaldoBaixoStatus/Desde/EnviadoEm) pra não precisar mais ler
+    // essa coleção inteira a cada carregamento de Reservas (ela só
+    // crescia — uma das causas do estouro de cota do Firestore). Mantida
+    // só de leitura, pro script de migração pontual que porta os
+    // alertas pendentes antigos pros campos novos; nada no app grava
+    // aqui mais.
     match /alertas_saldo_baixo/{document} {
       allow read, write: if isAdmin();
     }

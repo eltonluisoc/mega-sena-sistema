@@ -1,7 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v7.4
+SISTEMA DE GESTÃO DE BOLÕES PRO v7.5
+Correções v7.5 (solução definitiva contra estouro de cota do Firestore):
+- Achado real do usuário: depois de várias rodadas de correção do saldo
+  de reserva, ficou "muito tempo sem poder usar o Firebase" — o projeto
+  bateu no limite de leitura do plano gratuito. Causa raiz: o laço de
+  sincronização em segundo plano rebuscava o histórico COMPLETO de
+  TODAS as pessoas a cada mudança detectada (de qualquer pessoa,
+  qualquer lugar), em vez de só de quem mudou.
+- Reconciliação virou incremental: compara o `dataAtualizacao` remoto
+  de cada pessoa com o último conhecido localmente (nova coluna
+  firebase_data_atualizacao) e só rebusca o ledger de quem de fato
+  mudou. Intervalo do laço de 7s pra 20s (margem extra).
+
 Correções v7.4 (saldo cacheado da reserva divergindo do ledger — 3ª
 vez, causa raiz nunca 100% isolável):
 - Achado real do usuário: o saldo mostrado divergiu do histórico real
@@ -1827,6 +1839,12 @@ class Database:
             # firebase_doc_id é a chave de ligação com o documento real.
             "ALTER TABLE reservas_pessoas ADD COLUMN firebase_doc_id TEXT",
             "ALTER TABLE reservas_movimentos ADD COLUMN firebase_doc_id TEXT",
+            # Reconciliação incremental (07/11, solução definitiva contra
+            # estouro de cota do Firestore): guarda o último `dataAtualizacao`
+            # remoto conhecido de cada pessoa, pra o laço de sincronização
+            # só reler o ledger de quem de fato mudou, não de todo mundo a
+            # cada evento. Ver _rsv_buscar_estado_atual/_rsv_reconciliar.
+            "ALTER TABLE reservas_pessoas ADD COLUMN firebase_data_atualizacao TEXT",
         ]
         for m in migs:
             try: c.execute(m)
@@ -2410,14 +2428,28 @@ def _rsv_buscar_versao_sentinela():
     campo = dados.get("fields", {}).get("versao", {})
     return int(campo.get("integerValue", "0"))
 
-def _rsv_buscar_estado_atual():
-    """Busca o estado completo de reservas no Firestore (todas as
-    pessoas + o ledger de movimentos de cada uma) — usado tanto pela
-    sincronização em segundo plano (reconciliação completa, barata
-    nesta escala) quanto pela migração. Síncrono, roda em thread de
-    fundo. Retorna (pessoas: list[dict], movimentos_por_pessoa:
-    dict[doc_id, list[dict]], versao_sentinela: int|None)."""
+def _rsv_buscar_estado_atual(local_timestamps=None):
+    """Busca o estado de reservas no Firestore — SEMPRE todas as
+    pessoas (N documentos, barato, não cresce com histórico), mas o
+    ledger completo (`movimentos`, caro, ilimitado) só de quem de fato
+    mudou desde a última sincronização.
+
+    Solução definitiva (07/11) contra o estouro de cota do Firestore:
+    antes, toda vez que o contador global mudava (ou seja, QUALQUER
+    lançamento de QUALQUER pessoa, site ou desktop), este laço
+    rebuscava o ledger INTEIRO de TODAS as pessoas — custo que cresce
+    com o tamanho do sistema inteiro, não com o que de fato mudou.
+    Agora compara o `dataAtualizacao` remoto de cada pessoa (gravado em
+    toda gravação, já existia) com o último valor conhecido localmente
+    (`local_timestamps`, vindo da coluna firebase_data_atualizacao) —
+    só busca `movimentos` de quem o carimbo mudou. `local_timestamps`
+    None ou vazio (1ª sincronização de sempre) busca tudo, igual antes.
+
+    Síncrono, roda em thread de fundo. Retorna (pessoas: list[dict],
+    movimentos_por_pessoa: dict[doc_id, list[dict]] — só contém as
+    pessoas que de fato mudaram, versao_sentinela: int|None)."""
     import urllib.request, json
+    local_timestamps = local_timestamps or {}
 
     def _get(path):
         url = f"https://firestore.googleapis.com/v1/{FIREBASE_RESERVAS_BASE}/{path}"
@@ -2442,10 +2474,15 @@ def _rsv_buscar_estado_atual():
             "ativo": campo(fields, "ativo", "booleanValue", True),
             "saldo": float(campo(fields, "saldoReserva", "doubleValue")
                            or campo(fields, "saldoReserva", "integerValue") or 0),
+            "data_atualizacao": campo(fields, "dataAtualizacao", "timestampValue", ""),
         })
 
     movimentos_por_pessoa = {}
     for p in pessoas:
+        ts_local = local_timestamps.get(p["doc_id"])
+        ts_remoto = p["data_atualizacao"]
+        if ts_local and ts_remoto and ts_local == ts_remoto:
+            continue  # essa pessoa não mudou desde a última vez — não rebusca o ledger dela
         dados_mov = _get(f"reservas_participantes/{p['doc_id']}/movimentos")
         movs = []
         for doc in dados_mov.get("documents", []):
@@ -2945,7 +2982,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v7.4")
+        self.root.title("Sistema de Gestão de Bolões PRO v7.5")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -3042,10 +3079,23 @@ class BolaoApp:
         self._rsv_sync_stop = threading.Event()
         self._rsv_sync_poke = threading.Event()
         self._rsv_sync_ultima_versao = None
+        # Carimbo de dataAtualizacao remoto já conhecido de cada pessoa
+        # (solução definitiva 07/11 contra estouro de cota) — permite ao
+        # laço de fundo (thread separada) saber quem NÃO mudou sem
+        # precisar tocar no SQLite por lá (sqlite3/Tkinter só na thread
+        # principal). Só esse dict é lido/escrito pelas 2 threads; é um
+        # dict simples de strings, leitura/escrita atômica o bastante
+        # pra esse uso (mesmo padrão já aceito em _rsv_sync_ultima_versao).
+        self._rsv_local_data_atualizacao = {
+            row["firebase_doc_id"]: row["firebase_data_atualizacao"]
+            for row in self.db.fetchall(
+                "SELECT firebase_doc_id, firebase_data_atualizacao FROM reservas_pessoas "
+                "WHERE firebase_doc_id IS NOT NULL")
+        }
 
         def _loop():
             while not self._rsv_sync_stop.is_set():
-                self._rsv_sync_poke.wait(timeout=7)
+                self._rsv_sync_poke.wait(timeout=20)
                 self._rsv_sync_poke.clear()
                 if self._rsv_sync_stop.is_set():
                     break
@@ -3080,7 +3130,7 @@ class BolaoApp:
         if versao == self._rsv_sync_ultima_versao:
             self.root.after(0, self._rsv_status_sincronizado)
             return
-        pessoas, movimentos_por_pessoa, _ = _rsv_buscar_estado_atual()
+        pessoas, movimentos_por_pessoa, _ = _rsv_buscar_estado_atual(self._rsv_local_data_atualizacao)
         self._rsv_sync_ultima_versao = versao
         self.root.after(0, lambda: self._rsv_reconciliar(pessoas, movimentos_por_pessoa))
 
@@ -3097,18 +3147,28 @@ class BolaoApp:
                 "SELECT id FROM reservas_pessoas WHERE firebase_doc_id=?", (p["doc_id"],))
             if existente:
                 self.db.execute(
-                    "UPDATE reservas_pessoas SET nome=?,telefone=?,chave_pix=?,observacoes=?,ativo=? "
-                    "WHERE id=?",
+                    "UPDATE reservas_pessoas SET nome=?,telefone=?,chave_pix=?,observacoes=?,ativo=?,"
+                    "firebase_data_atualizacao=? WHERE id=?",
                     (p["nome"], p["telefone"], p["chave_pix"], p["observacoes"],
-                     1 if p["ativo"] else 0, existente["id"]))
+                     1 if p["ativo"] else 0, p["data_atualizacao"], existente["id"]))
                 pid_local = existente["id"]
             else:
                 self.db.execute(
-                    "INSERT INTO reservas_pessoas (nome,telefone,chave_pix,observacoes,ativo,firebase_doc_id) "
-                    "VALUES (?,?,?,?,?,?)",
+                    "INSERT INTO reservas_pessoas "
+                    "(nome,telefone,chave_pix,observacoes,ativo,firebase_doc_id,firebase_data_atualizacao) "
+                    "VALUES (?,?,?,?,?,?,?)",
                     (p["nome"], p["telefone"], p["chave_pix"], p["observacoes"],
-                     1 if p["ativo"] else 0, p["doc_id"]))
+                     1 if p["ativo"] else 0, p["doc_id"], p["data_atualizacao"]))
                 pid_local = self.db.fetchone("SELECT last_insert_rowid() as id")["id"]
+
+            self._rsv_local_data_atualizacao[p["doc_id"]] = p["data_atualizacao"]
+
+            # Reconciliação incremental (07/11): se essa pessoa não mudou
+            # desde a última sincronização, _rsv_buscar_estado_atual nem
+            # rebuscou o ledger dela — não há nada aqui pra comparar ou
+            # apagar, o espelho local já está correto do ciclo anterior.
+            if p["doc_id"] not in movimentos_por_pessoa:
+                continue
 
             movs_remotos = movimentos_por_pessoa.get(p["doc_id"], [])
             mov_ids_remotos = set()
@@ -3402,7 +3462,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v7.4",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v7.5",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -7520,7 +7580,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v7.4</span>
+        <span>Sistema de Gestão de Bolões v7.5</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -9826,7 +9886,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v7.4</span>
+        <span>Sistema de Gestão de Bolões v7.5</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>

@@ -1414,6 +1414,14 @@
             🔒 <span><strong style="color: var(--cor-texto);">Dados confidenciais</strong> — informações financeiras e de participantes protegidas, com acesso restrito a este painel.</span>
         </div>
 
+        <!-- Acesso rápido (07/11) — pedido do usuário: atalho direto pras
+             2 telas mais usadas no dia a dia, sem precisar passar por
+             Financeiro>Reservas ou Cartões>Importar PDF toda vez. -->
+        <div style="display:flex; gap:10px; margin-bottom:18px; flex-wrap:wrap;">
+            <button type="button" onclick="irParaSecao('financeiro-grupo','financeiro','reservas')" style="flex:1; min-width:150px; padding:14px; border:none; border-radius:12px; font-weight:700; cursor:pointer; background:#10b981; color:white; font-size:14px;">💰 Reservas</button>
+            <button type="button" onclick="irParaSecao('cartoes','cartoes','importar')" style="flex:1; min-width:150px; padding:14px; border:none; border-radius:12px; font-weight:700; cursor:pointer; background:#0071e3; color:white; font-size:14px;">📄 Importar PDF</button>
+        </div>
+
         <!-- Status dos Bolões -->
         <div class="dashboard-cards">
             <div class="dashboard-card" style="--stat-accent:#34c759;">
@@ -2003,6 +2011,7 @@
                             <button id="btnRegistrarMovimentoReserva" class="btn btn-success btn-sm">➕ Registrar</button>
                             <button id="btnLancamentoLoteReserva" class="btn btn-purple btn-sm">📦 Lote</button>
                             <button id="btnAtualizarReservas" class="btn btn-primary btn-sm">🔄 Atualizar</button>
+                            <button id="btnVerificarSaldos" class="btn btn-sm" style="background:#e2e8f0; color:#334155;" title="Confere o histórico completo de todo mundo contra o saldo exibido — mais caro, só sob demanda">🔎 Verificar/corrigir saldos</button>
                         </div>
                     </div>
                     <div id="listaReservas" style="max-height: 500px; overflow-y: auto;">
@@ -2156,23 +2165,38 @@
 
     <!-- Navegação por menu lateral -->
     <script>
+        function irParaSecaoPorId(sectionId) {
+            document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+            const item = document.querySelector(`.sidebar-item[data-section="${sectionId}"]`);
+            if (item) item.classList.add('active');
+
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            const target = document.getElementById('section-' + sectionId);
+            if (target) target.classList.add('active');
+
+            // Conferência (03/11) depende do array `cartoes` + 1 leitura
+            // por loteria no Firestore — já é atualizada ao carregar os
+            // dados, mas reforça aqui pra nunca mostrar algo velho se o
+            // admin ficou um tempo parado antes de abrir esta aba.
+            if (sectionId === 'conferencia' && typeof atualizarPainelConferencia === 'function') {
+                atualizarPainelConferencia();
+            }
+        }
+
+        // Atalho (07/11) usado pelos botões de "Acesso rápido" do
+        // Dashboard — abre a seção E já seleciona a sub-aba certa dentro
+        // dela (reaproveita mostrarSubsecao, admin.js), em vez de deixar
+        // o admin precisar clicar 2x.
+        function irParaSecao(sectionId, grupo, sub) {
+            irParaSecaoPorId(sectionId);
+            if (grupo && sub && typeof mostrarSubsecao === 'function') {
+                mostrarSubsecao(grupo, sub);
+            }
+        }
+
         document.querySelectorAll('.sidebar-item').forEach(item => {
             item.addEventListener('click', function() {
-                document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
-                this.classList.add('active');
-
-                const sectionId = this.dataset.section;
-                document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-                const target = document.getElementById('section-' + sectionId);
-                if (target) target.classList.add('active');
-
-                // Conferência (03/11) depende do array `cartoes` + 1 leitura
-                // por loteria no Firestore — já é atualizada ao carregar os
-                // dados, mas reforça aqui pra nunca mostrar algo velho se o
-                // admin ficou um tempo parado antes de abrir esta aba.
-                if (sectionId === 'conferencia' && typeof atualizarPainelConferencia === 'function') {
-                    atualizarPainelConferencia();
-                }
+                irParaSecaoPorId(this.dataset.section);
             });
         });
 
