@@ -80,28 +80,25 @@ function makePartId(nome, telefone) {
 // não mais um incremento. Isso significa que QUALQUER drift do passado
 // se autocorrige sozinho no próximo lançamento dessa pessoa, em vez de
 // continuar arrastado — segurança por construção, não por vigilância.
-// Reescrita (08/11) — achado real: a versão anterior lia a coleção
-// `movimentos` INTEIRA de dentro de uma transação (`tx.get(query)`,
-// técnica nova, nunca usada antes nesse arquivo) combinada com vários
-// `FieldValue.serverTimestamp()`/`increment()` no mesmo commit — e
-// toda vez que alguém tentava gravar de verdade (incluindo o lote
-// inteiro de 07/11, que falhou por completo), o SDK jogava
-// `FirebaseError: Expected type 'Vd', but it was: a custom Bd object`,
-// um erro clássico desse SDK nessa combinação. Voltou pro padrão
-// simples e comprovado (anos de uso neste projeto, nunca deu esse
-// erro): lê só o DOCUMENTO da pessoa (1 leitura, nunca falhou) e usa o
-// saldo já cacheado — confiável desde que toda gravação (aqui e no
-// desktop) já recalcula esse campo certinho a cada vez. Timestamps
-// viram `new Date()` (tipo nativo do JS, sem sentinela nenhuma do
-// SDK) em vez de `serverTimestamp()`, removendo de vez a combinação
-// suspeita. Rede de segurança pra qualquer drift raro: botão manual
-// "🔎 Verificar/corrigir saldos".
+// Transaction.get() do SDK web só aceita DocumentReference: passar uma
+// coleção lança "Expected type 'Vd', but it was: a custom Bd object".
+// Por isso o ledger é somado ANTES da transação, e o saldo gravado
+// continua sendo a soma real, nunca o campo cacheado + delta.
 async function registrarMovimentoNoFirestore({ pessoaId, pessoaNova, nome, telefone, chavePix, tipo, valor, data, descricao, loteria, concurso }) {
     const personRef = db.collection('reservas_participantes').doc(pessoaId);
     const movRef = personRef.collection('movimentos').doc();
     const valorNum = Number(valor);
     const delta = tipo === 'deposito' ? valorNum : -valorNum;
     const agora = new Date();
+
+    let saldoLedger = 0;
+    if (!pessoaNova) {
+        const movsSnap = await personRef.collection('movimentos').get({ source: 'server' });
+        movsSnap.forEach(d => {
+            const m = d.data();
+            saldoLedger += m.tipo === 'deposito' ? (m.valor || 0) : -(m.valor || 0);
+        });
+    }
 
     await db.runTransaction(async (tx) => {
         const personSnap = await tx.get(personRef);
@@ -118,7 +115,7 @@ async function registrarMovimentoNoFirestore({ pessoaId, pessoaNova, nome, telef
                 dataAtualizacao: agora
             });
         } else {
-            saldoAtual = (personSnap.exists ? personSnap.data().saldoReserva : 0) || 0;
+            saldoAtual = saldoLedger;
         }
         const novoSaldo = saldoAtual + delta;
 
