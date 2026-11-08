@@ -80,15 +80,34 @@ function makePartId(nome, telefone) {
 // não mais um incremento. Isso significa que QUALQUER drift do passado
 // se autocorrige sozinho no próximo lançamento dessa pessoa, em vez de
 // continuar arrastado — segurança por construção, não por vigilância.
+// Reescrita (08/11) — achado real: a versão anterior lia a coleção
+// `movimentos` INTEIRA de dentro de uma transação (`tx.get(query)`,
+// técnica nova, nunca usada antes nesse arquivo) combinada com vários
+// `FieldValue.serverTimestamp()`/`increment()` no mesmo commit — e
+// toda vez que alguém tentava gravar de verdade (incluindo o lote
+// inteiro de 07/11, que falhou por completo), o SDK jogava
+// `FirebaseError: Expected type 'Vd', but it was: a custom Bd object`,
+// um erro clássico desse SDK nessa combinação. Voltou pro padrão
+// simples e comprovado (anos de uso neste projeto, nunca deu esse
+// erro): lê só o DOCUMENTO da pessoa (1 leitura, nunca falhou) e usa o
+// saldo já cacheado — confiável desde que toda gravação (aqui e no
+// desktop) já recalcula esse campo certinho a cada vez. Timestamps
+// viram `new Date()` (tipo nativo do JS, sem sentinela nenhuma do
+// SDK) em vez de `serverTimestamp()`, removendo de vez a combinação
+// suspeita. Rede de segurança pra qualquer drift raro: botão manual
+// "🔎 Verificar/corrigir saldos".
 async function registrarMovimentoNoFirestore({ pessoaId, pessoaNova, nome, telefone, chavePix, tipo, valor, data, descricao, loteria, concurso }) {
     const personRef = db.collection('reservas_participantes').doc(pessoaId);
     const movRef = personRef.collection('movimentos').doc();
-    const sentinelRef = db.collection('meta').doc('reservas_version');
-    const delta = tipo === 'deposito' ? valor : -valor;
+    const valorNum = Number(valor);
+    const delta = tipo === 'deposito' ? valorNum : -valorNum;
+    const agora = new Date();
 
     await db.runTransaction(async (tx) => {
+        const personSnap = await tx.get(personRef);
+        let saldoAtual = 0;
+
         if (pessoaNova) {
-            const personSnap = await tx.get(personRef);
             if (personSnap.exists) {
                 throw new Error('Já existe uma pessoa com esse nome/telefone — selecione "Pessoa existente" em vez de "Pessoa nova".');
             }
@@ -96,43 +115,44 @@ async function registrarMovimentoNoFirestore({ pessoaId, pessoaNova, nome, telef
                 participanteId: pessoaId, nome, telefone: telefone || '',
                 chavePix: chavePix || '', observacoes: '', ativo: true,
                 saldoReserva: 0, admin: true,
-                dataAtualizacao: firebase.firestore.FieldValue.serverTimestamp()
+                dataAtualizacao: agora
             });
+        } else {
+            saldoAtual = (personSnap.exists ? personSnap.data().saldoReserva : 0) || 0;
         }
-
-        // Soma o ledger inteiro JÁ existente (pessoa nova = vazio, soma 0)
-        // pra calcular o saldo absoluto certo — não confia mais num
-        // incremento acumulado que pode arrastar erro antigo pra sempre.
-        const movsSnap = await tx.get(personRef.collection('movimentos'));
-        let saldoAtual = 0;
-        movsSnap.forEach(d => {
-            const m = d.data();
-            saldoAtual += m.tipo === 'deposito' ? (m.valor || 0) : -(m.valor || 0);
-        });
         const novoSaldo = saldoAtual + delta;
 
         tx.set(movRef, {
-            tipo, valor, data, descricao: descricao || '',
+            tipo, valor: valorNum, data, descricao: descricao || '',
             loteria: loteria || '', concurso: concurso || '',
             origem: 'web',
-            criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+            criadoEm: agora
         });
         tx.update(personRef, {
             saldoReserva: novoSaldo,
-            dataAtualizacao: firebase.firestore.FieldValue.serverTimestamp(),
+            dataAtualizacao: agora,
             // Marca de uma vez pra sempre (nunca desmarca) quem já fez um
             // depósito "relevante" — é o filtro do alerta de saldo baixo
             // (ver verificarAlertasSaldoBaixo): só manda cobrar quem
             // realmente usa o sistema pra valer, não quem só testou com
             // um valor pequeno. Mesmo limite configurável usado no
             // gatilho (config_geral/alertas), pedido do usuário (03/11).
-            ...(tipo === 'deposito' && valor > limiteAlertaSaldoBaixo ? { qualificaAlertaSaldoBaixo: true } : {})
+            ...(tipo === 'deposito' && valorNum > limiteAlertaSaldoBaixo ? { qualificaAlertaSaldoBaixo: true } : {})
         });
-        tx.set(sentinelRef, {
+    });
+
+    // Aviso do contador global fora da transação (08/11) — não precisa
+    // ser atômico com o ledger (é só um "algo mudou" pro laço de
+    // sincronização do desktop ficar de olho); tirar daqui também
+    // elimina FieldValue.increment() de dentro de uma transação.
+    try {
+        await db.collection('meta').doc('reservas_version').set({
             versao: firebase.firestore.FieldValue.increment(1),
             atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
-    });
+    } catch (e) {
+        console.warn('Lançamento gravado, mas o aviso ao desktop falhou (sem urgência, ele confere sozinho a cada 20s):', e);
+    }
 }
 
 // Autocorreção do saldo cacheado (saldoReserva) — achado real (02/11):
