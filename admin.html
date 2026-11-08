@@ -1283,7 +1283,11 @@
                 font-size: 14px;
             }
             .version {
-                display: none; /* "Administração" não é essencial — economiza espaço */
+                /* Achado real (08/11): precisa dar pra ver a versão rodando
+                   na tela mesmo no celular, pra saber na hora se o app já
+                   atualizou sozinho ou ainda está numa versão velha — por
+                   isso deixou de ser escondida aqui, só fica menor. */
+                font-size: 9px;
             }
             .stats {
                 justify-content: flex-start;
@@ -1340,7 +1344,7 @@
     <!-- TOP BAR -->
     <!-- ============================================ -->
     <div class="top-bar">
-        <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">Administração</span></div>
+        <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">Administração · v101</span></div>
         <div class="stats">
             <div class="stat" id="bootProgress" style="display:none;">⏳ Carregando… 0%</div>
             <div class="stat" id="totalCartoes">📊 0 cartões</div>
