@@ -1291,6 +1291,7 @@ async function confirmarImportacaoPdf() {
         }
     }
     hideLoading();
+    if (ok > 0) cartoesMudaram();
     showToast(`✅ ${ok} cadastrado(s)` + (dup ? ` · ${dup} pulado(s) (duplicado)` : '') + (erro ? ` · ${erro} com erro` : ''), erro ? 'warning' : 'success');
 
     pdfImportEstado = [];
@@ -1682,6 +1683,7 @@ async function adicionarCartaoSelecaoAtual() {
         if (trevos) novoCartao.trevos = trevos;
         const docRef = await db.collection('cartoes').add(novoCartao);
         cartoes.push({ id: docRef.id, ...novoCartao });
+        cartoesMudaram();
         showToast(`✅ Cartão #${todosCartoesSelecao.length + 1} adicionado à ${label}!`, 'success');
 
         todosCartoesSelecao.push({
@@ -1763,14 +1765,147 @@ function atualizarBadgeTotalCartoes() {
 // ============================================
 // CARREGAR DADOS ADMIN
 // ============================================
+// meta/cartoes_indice é a referência de leitura barata: o site público
+// lê só esse documento (concursos e bolões) em vez dos ~3.900 cartões,
+// e o admin compara `versao` com a cópia guardada no IndexedDB.
+const REF_INDICE_CARTOES = () => db.collection('meta').doc('cartoes_indice');
+const CHAVE_INDICE_SUJO = 'cartoesIndiceSujo';
+let _versaoCartoes = null;
+let _publicandoIndice = false;
+let _publicarIndiceDeNovo = false;
+let _resolverCartoesProntos;
+const _cartoesProntos = new Promise(resolve => { _resolverCartoesProntos = resolve; });
+
+function montarIndiceCartoes(lista) {
+    const tipos = ['mega', 'lotofacil', 'quina', 'maismilionaria'];
+    const ultimosConcursos = {}, concursosMap = {}, boloesMap = {};
+    tipos.forEach(t => { ultimosConcursos[t] = null; concursosMap[t] = []; boloesMap[t] = {}; });
+    lista.forEach(c => {
+        if (!c || !c.concurso || !tipos.includes(c.tipo)) return;
+        const n = parseInt(c.concurso);
+        const bolao = c.bolao || 'Sem Bolão';
+        if (ultimosConcursos[c.tipo] === null || n > ultimosConcursos[c.tipo]) ultimosConcursos[c.tipo] = n;
+        if (!concursosMap[c.tipo].includes(n)) concursosMap[c.tipo].push(n);
+        const porConcurso = boloesMap[c.tipo];
+        if (!porConcurso[n]) porConcurso[n] = [];
+        if (!porConcurso[n].includes(bolao)) porConcurso[n].push(bolao);
+    });
+    tipos.forEach(t => concursosMap[t].sort((a, b) => b - a));
+    return { ultimosConcursos, concursosMap, boloesMap };
+}
+
+function _abrirCacheCartoes() {
+    return new Promise((resolve, reject) => {
+        const pedido = indexedDB.open('boloes_admin_cache', 1);
+        pedido.onupgradeneeded = () => pedido.result.createObjectStore('kv');
+        pedido.onsuccess = () => resolve(pedido.result);
+        pedido.onerror = () => reject(pedido.error);
+    });
+}
+
+async function lerCacheCartoes() {
+    try {
+        const banco = await _abrirCacheCartoes();
+        return await new Promise((resolve, reject) => {
+            const pedido = banco.transaction('kv').objectStore('kv').get('cartoes');
+            pedido.onsuccess = () => resolve(pedido.result || null);
+            pedido.onerror = () => reject(pedido.error);
+        });
+    } catch (e) {
+        console.warn('Cache local de cartões indisponível:', e);
+        return null;
+    }
+}
+
+async function salvarCacheCartoes(versao) {
+    try {
+        const banco = await _abrirCacheCartoes();
+        await new Promise((resolve, reject) => {
+            const tx = banco.transaction('kv', 'readwrite');
+            tx.objectStore('kv').put({ versao, docs: cartoes }, 'cartoes');
+            tx.oncomplete = resolve;
+            tx.onerror = () => reject(tx.error);
+        });
+    } catch (e) {
+        console.warn('Não foi possível guardar o cache de cartões:', e);
+    }
+}
+
+async function buscarTodosCartoesDoServidor() {
+    const snapshot = await db.collection('cartoes').get();
+    cartoes = [];
+    snapshot.forEach(doc => cartoes.push({ id: doc.id, ...doc.data() }));
+}
+
+// Chamar sempre DEPOIS de atualizar o array `cartoes` em memória. A marca
+// no localStorage garante republicar no próximo boot se a página fechar
+// ou a cota acabar antes de o índice ser gravado.
+function cartoesMudaram() {
+    try { localStorage.setItem(CHAVE_INDICE_SUJO, '1'); } catch (e) { /* modo privado */ }
+    return publicarIndiceCartoes();
+}
+
+async function publicarIndiceCartoes() {
+    if (_publicandoIndice) { _publicarIndiceDeNovo = true; return; }
+    _publicandoIndice = true;
+    try {
+        do {
+            _publicarIndiceDeNovo = false;
+            const atual = await REF_INDICE_CARTOES().get();
+            // Outro dispositivo publicou depois da nossa leitura: a memória
+            // daqui pode estar sem os cartões dele.
+            if (atual.exists && atual.data().versao !== _versaoCartoes) {
+                await buscarTodosCartoesDoServidor();
+                atualizarUIComCartoesLocais();
+            }
+            const versao = Date.now();
+            await REF_INDICE_CARTOES().set({
+                versao, total: cartoes.length, ...montarIndiceCartoes(cartoes), atualizadoEm: new Date()
+            });
+            _versaoCartoes = versao;
+            await salvarCacheCartoes(versao);
+        } while (_publicarIndiceDeNovo);
+        try { localStorage.removeItem(CHAVE_INDICE_SUJO); } catch (e) { /* modo privado */ }
+    } catch (e) {
+        console.warn('Índice de cartões não publicado (será refeito na próxima abertura):', e);
+    } finally {
+        _publicandoIndice = false;
+    }
+}
+
+async function obterCartoesComCache() {
+    let indice = null;
+    try {
+        const doc = await REF_INDICE_CARTOES().get();
+        indice = doc.exists ? doc.data() : null;
+    } catch (e) {
+        console.warn('Erro ao ler meta/cartoes_indice:', e);
+    }
+    let sujo = false;
+    try { sujo = !!localStorage.getItem(CHAVE_INDICE_SUJO); } catch (e) { /* modo privado */ }
+
+    if (indice && !sujo) {
+        const cache = await lerCacheCartoes();
+        if (cache && cache.versao === indice.versao && cache.docs.length === indice.total) {
+            cartoes = cache.docs;
+            _versaoCartoes = indice.versao;
+            return;
+        }
+    }
+
+    await buscarTodosCartoesDoServidor();
+    _versaoCartoes = indice ? indice.versao : null;
+    if (!indice || sujo || indice.total !== cartoes.length) {
+        await publicarIndiceCartoes();
+    } else {
+        await salvarCacheCartoes(indice.versao);
+    }
+}
+
 async function carregarDadosAdmin() {
     try {
-        const snapshot = await db.collection('cartoes').get();
-        cartoes = [];
-        snapshot.forEach(doc => {
-            cartoes.push({ id: doc.id, ...doc.data() });
-        });
-        
+        await obterCartoesComCache();
+
         try {
             const snapshotParticipantes = await db.collection('participantes').get();
             boloes = [];
@@ -1794,6 +1929,8 @@ async function carregarDadosAdmin() {
     } catch (error) {
         console.error('Erro:', error);
         showToast('❌ Erro ao carregar: ' + error.message, 'error');
+    } finally {
+        _resolverCartoesProntos();
     }
 }
 
@@ -2955,12 +3092,15 @@ async function verificarDuplicados() {
                 db.collection('cartoes').doc(id).delete()
                     .then(() => {
                         excluidos++;
+                        cartoes = cartoes.filter(c => c.id !== id);
                         console.log('✅ ' + id + ' excluído');
                         if (excluidos + erros === idsParaExcluir.length) {
                             hideLoading();
                             showToast('✅ ' + excluidos + ' cartões duplicados excluídos com sucesso!', 'success');
                             container.style.display = 'none';
-                            carregarDadosAdmin();
+                            cartoesMudaram();
+                            atualizarUIComCartoesLocais();
+                            atualizarBadgeTotalCartoes();
                         }
                     })
                     .catch(err => {
@@ -2969,6 +3109,11 @@ async function verificarDuplicados() {
                         if (excluidos + erros === idsParaExcluir.length) {
                             hideLoading();
                             showToast('✅ ' + excluidos + ' excluídos, ⚠️ ' + erros + ' erros', 'warning');
+                            if (excluidos > 0) {
+                                cartoesMudaram();
+                                atualizarUIComCartoesLocais();
+                                atualizarBadgeTotalCartoes();
+                            }
                         }
                     });
             });
@@ -3232,6 +3377,7 @@ async function editarCartao(id) {
                 await db.collection('cartoes').doc(id).update(camposAtualizados);
                 const idxLocal = cartoes.findIndex(c => c.id === id);
                 if (idxLocal !== -1) cartoes[idxLocal] = { ...cartoes[idxLocal], ...camposAtualizados };
+                cartoesMudaram();
 
                 showToast('✅ Cartão atualizado com sucesso!', 'success');
                 modal.remove();
@@ -3273,7 +3419,9 @@ async function excluirCartaoUnico(id) {
         cartoes = cartoes.filter(c => c.id !== id);
         hideLoading();
         showToast('✅ Cartão excluído!', 'success');
-        await carregarDadosAdmin();
+        cartoesMudaram();
+        atualizarUIComCartoesLocais();
+        atualizarBadgeTotalCartoes();
     } catch (error) {
         hideLoading();
         console.error('Erro ao excluir cartão:', error);
@@ -3325,10 +3473,9 @@ async function excluirSelecionados() {
     if (excluidos > 0) {
         showToast(`✅ ${excluidos} cartão(ões) excluído(s)! ${erros > 0 ? `⚠️ ${erros} erro(s)` : ''}`, 'success');
         cartoes = cartoes.filter(c => !idsExcluidos.includes(c.id));
-        // carregarDadosAdmin() já chama atualizarBadgeTotalCartoes() — não
-        // precisa repetir aqui (e repetir filtrando por loteriaAdmin era
-        // justamente o bug: ver comentário em atualizarBadgeTotalCartoes).
-        await carregarDadosAdmin();
+        cartoesMudaram();
+        atualizarUIComCartoesLocais();
+        atualizarBadgeTotalCartoes();
         atualizarContadorSelecionados();
     } else {
         showToast('❌ Nenhum cartão foi excluído', 'error');
@@ -3403,11 +3550,14 @@ async function aplicarAlteracaoTipo(novoTipo) {
     for (const cb of selecionados) {
         const id = cb.dataset.id;
         try {
-            await db.collection('cartoes').doc(id).update({
+            const camposTipo = {
                 tipoParticipacao: novoTipo,
                 admin: true,
                 dataAtualizacao: new Date().toISOString()
-            });
+            };
+            await db.collection('cartoes').doc(id).update(camposTipo);
+            const idx = cartoes.findIndex(c => c.id === id);
+            if (idx !== -1) cartoes[idx] = { ...cartoes[idx], ...camposTipo };
             atualizados++;
         } catch (error) {
             erros++;
@@ -3419,7 +3569,8 @@ async function aplicarAlteracaoTipo(novoTipo) {
     if (atualizados > 0) {
         const label = novoTipo === 'cota' ? 'Cota de Bolão' : 'Grupo Exclusivo';
         showToast(`✅ ${atualizados} cartão(ões) alterado(s) para ${label}!${erros > 0 ? ` ⚠️ ${erros} erro(s)` : ''}`, 'success');
-        await carregarDadosAdmin();
+        cartoesMudaram();
+        atualizarUIComCartoesLocais();
     } else {
         showToast('❌ Nenhum cartão foi alterado', 'error');
     }
@@ -3843,7 +3994,7 @@ async function gerarLote() {
             for (let c = 0; c < qtdConcursos; c++) {
                 const concurso = concursoInicial + c;
                 try {
-                    await db.collection('cartoes').add({
+                    const cartaoLote = {
                         concurso: concurso.toString(),
                         bolao: bolaoNome,
                         numeros: numeros,
@@ -3852,7 +4003,9 @@ async function gerarLote() {
                         admin: true,
                         dataCadastro: new Date().toISOString(),
                         totalNumeros: numeros.length
-                    });
+                    };
+                    const refLote = await db.collection('cartoes').add(cartaoLote);
+                    cartoes.push({ id: refLote.id, ...cartaoLote });
                     adicionados++;
                 } catch (error) {
                     erros++;
@@ -3866,7 +4019,9 @@ async function gerarLote() {
             cartaoAtualIndex = 0;
             document.getElementById('qtdCartoes').value = 20;
             navegarCartao(0);
-            carregarDadosAdmin();
+            cartoesMudaram();
+            atualizarUIComCartoesLocais();
+            atualizarBadgeTotalCartoes();
         } else {
             showToast('❌ Nenhum cartão foi gerado', 'error');
         }
@@ -3992,6 +4147,7 @@ async function adicionarCartaoIndividual() {
         if (trevos) novoCartao.trevos = trevos;
         const docRef = await db.collection('cartoes').add(novoCartao);
         cartoes.push({ id: docRef.id, ...novoCartao });
+        cartoesMudaram();
         showToast(`✅ Cartão adicionado à ${label}!`, 'success');
         document.getElementById('numerosIndividual').value = '';
         const campoTrevos = document.getElementById('trevosIndividual');
@@ -4082,6 +4238,7 @@ async function adicionarCartaoIndividualSelecao() {
         if (trevos) novoCartao.trevos = trevos;
         const docRef = await db.collection('cartoes').add(novoCartao);
         cartoes.push({ id: docRef.id, ...novoCartao });
+        cartoesMudaram();
         showToast(`✅ Cartão adicionado à ${label}!`, 'success');
         numerosSelecionados = [];
         atualizarGradeSelecaoVisual();
@@ -5658,13 +5815,9 @@ async function carregarEstatisticasDashboard() {
     console.log('📊 Carregando estatísticas avançadas...');
     
     try {
-        // Buscar todos os cartões
-        const snapshot = await db.collection('cartoes').get();
-        const todosCartoes = [];
-        snapshot.forEach(doc => {
-            todosCartoes.push({ id: doc.id, ...doc.data() });
-        });
-        
+        await _cartoesProntos;
+        const todosCartoes = cartoes;
+
         if (todosCartoes.length === 0) {
             console.log('⚠️ Nenhum cartão encontrado');
             atualizarDashboardEstatisticasVazio();

@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v7.6
+SISTEMA DE GESTÃO DE BOLÕES PRO v7.7
+Correções v7.7 (espelho local preso numa leitura cortada):
+- O carimbo por pessoa foi gravado pela v7.5, quando o ledger ainda
+  vinha cortado em 100 documentos; como o carimbo bate com o remoto,
+  a sincronização incremental pulava essas pessoas e o espelho nunca
+  se corrigia. Coluna nova (vazia): força 1 releitura completa, 1 vez.
+
 Correções v7.6 (achado crítico: leitura do ledger cortava em ~100 docs):
 - Achado real do usuário (08/11): um depósito de R$100,00 feito pela
   web não aparecia no desktop pro Cosme. Causa raiz: a API REST do
@@ -26,7 +32,7 @@ Correções v7.5 (solução definitiva contra estouro de cota do Firestore):
   qualquer lugar), em vez de só de quem mudou.
 - Reconciliação virou incremental: compara o `dataAtualizacao` remoto
   de cada pessoa com o último conhecido localmente (nova coluna
-  firebase_data_atualizacao) e só rebusca o ledger de quem de fato
+  firebase_ts_ledger_completo) e só rebusca o ledger de quem de fato
   mudou. Intervalo do laço de 7s pra 20s (margem extra).
 
 Correções v7.4 (saldo cacheado da reserva divergindo do ledger — 3ª
@@ -1859,7 +1865,7 @@ class Database:
             # remoto conhecido de cada pessoa, pra o laço de sincronização
             # só reler o ledger de quem de fato mudou, não de todo mundo a
             # cada evento. Ver _rsv_buscar_estado_atual/_rsv_reconciliar.
-            "ALTER TABLE reservas_pessoas ADD COLUMN firebase_data_atualizacao TEXT",
+            "ALTER TABLE reservas_pessoas ADD COLUMN firebase_ts_ledger_completo TEXT",
         ]
         for m in migs:
             try: c.execute(m)
@@ -2485,7 +2491,7 @@ def _rsv_buscar_estado_atual(local_timestamps=None):
     com o tamanho do sistema inteiro, não com o que de fato mudou.
     Agora compara o `dataAtualizacao` remoto de cada pessoa (gravado em
     toda gravação, já existia) com o último valor conhecido localmente
-    (`local_timestamps`, vindo da coluna firebase_data_atualizacao) —
+    (`local_timestamps`, vindo da coluna firebase_ts_ledger_completo) —
     só busca `movimentos` de quem o carimbo mudou. `local_timestamps`
     None ou vazio (1ª sincronização de sempre) busca tudo, igual antes.
 
@@ -3025,7 +3031,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v7.6")
+        self.root.title("Sistema de Gestão de Bolões PRO v7.7")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -3130,9 +3136,9 @@ class BolaoApp:
         # dict simples de strings, leitura/escrita atômica o bastante
         # pra esse uso (mesmo padrão já aceito em _rsv_sync_ultima_versao).
         self._rsv_local_data_atualizacao = {
-            row["firebase_doc_id"]: row["firebase_data_atualizacao"]
+            row["firebase_doc_id"]: row["firebase_ts_ledger_completo"]
             for row in self.db.fetchall(
-                "SELECT firebase_doc_id, firebase_data_atualizacao FROM reservas_pessoas "
+                "SELECT firebase_doc_id, firebase_ts_ledger_completo FROM reservas_pessoas "
                 "WHERE firebase_doc_id IS NOT NULL")
         }
 
@@ -3191,14 +3197,14 @@ class BolaoApp:
             if existente:
                 self.db.execute(
                     "UPDATE reservas_pessoas SET nome=?,telefone=?,chave_pix=?,observacoes=?,ativo=?,"
-                    "firebase_data_atualizacao=? WHERE id=?",
+                    "firebase_ts_ledger_completo=? WHERE id=?",
                     (p["nome"], p["telefone"], p["chave_pix"], p["observacoes"],
                      1 if p["ativo"] else 0, p["data_atualizacao"], existente["id"]))
                 pid_local = existente["id"]
             else:
                 self.db.execute(
                     "INSERT INTO reservas_pessoas "
-                    "(nome,telefone,chave_pix,observacoes,ativo,firebase_doc_id,firebase_data_atualizacao) "
+                    "(nome,telefone,chave_pix,observacoes,ativo,firebase_doc_id,firebase_ts_ledger_completo) "
                     "VALUES (?,?,?,?,?,?,?)",
                     (p["nome"], p["telefone"], p["chave_pix"], p["observacoes"],
                      1 if p["ativo"] else 0, p["doc_id"], p["data_atualizacao"]))
@@ -3505,7 +3511,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v7.6",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v7.7",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -7623,7 +7629,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v7.6</span>
+        <span>Sistema de Gestão de Bolões v7.7</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -9929,7 +9935,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v7.6</span>
+        <span>Sistema de Gestão de Bolões v7.7</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>

@@ -1258,18 +1258,28 @@ async function carregarDados() {
     showLoading('Carregando bolões...');
     
     try {
-        const concursosSnapshot = await db.collection('cartoes').get();
-        
-        const ultimosConcursos = {
+        // 1 leitura em vez de todos os cartões a cada visita; a leitura
+        // completa só roda se o índice ainda não existir.
+        let indiceCartoes = null;
+        try {
+            const docIndice = await db.collection('meta').doc('cartoes_indice').get();
+            if (docIndice.exists) indiceCartoes = docIndice.data();
+        } catch (e) {
+            console.warn('Índice de cartões indisponível, lendo a coleção:', e);
+        }
+
+        const ultimosConcursos = indiceCartoes ? indiceCartoes.ultimosConcursos : {
             mega: null,
             lotofacil: null,
             quina: null,
             maismilionaria: null
         };
 
-        const concursosMap = { mega: [], lotofacil: [], quina: [], maismilionaria: [] };
-        const boloesMap = { mega: {}, lotofacil: {}, quina: {}, maismilionaria: {} };
-        
+        const concursosMap = indiceCartoes ? indiceCartoes.concursosMap : { mega: [], lotofacil: [], quina: [], maismilionaria: [] };
+        const boloesMap = indiceCartoes ? indiceCartoes.boloesMap : { mega: {}, lotofacil: {}, quina: {}, maismilionaria: {} };
+
+        const concursosSnapshot = indiceCartoes ? [] : await db.collection('cartoes').get();
+
         concursosSnapshot.forEach(doc => {
             const d = doc.data();
             if (d && d.concurso && d.tipo) {
@@ -1291,7 +1301,7 @@ async function carregarDados() {
         
         for (const loteria of ['mega', 'lotofacil', 'quina', 'maismilionaria']) {
             for (const concurso in boloesMap[loteria]) {
-                boloesMap[loteria][concurso] = Array.from(boloesMap[loteria][concurso]);
+                boloesMap[loteria][concurso] = Array.from(boloesMap[loteria][concurso] || []);
             }
         }
 

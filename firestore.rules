@@ -202,6 +202,13 @@ service cloud.firestore {
     // verificando em segundo plano (a cada poucos segundos) pra saber
     // "mudou algo, hora de buscar de novo", em vez de reler a coleção
     // inteira toda hora.
+    // Índice de concursos/bolões derivado de `cartoes` (que já é público):
+    // o site lê só este documento em vez da coleção inteira.
+    match /meta/cartoes_indice {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /meta/reservas_version {
       allow read: if isAdmin();
       allow write: if isAdmin()
