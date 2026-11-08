@@ -5387,6 +5387,12 @@ function abrirModalLancamentoLote() {
     const contadorEl = document.getElementById('loteContadorSelecao');
     const resumoEl = document.getElementById('loteResumoSessao');
     let totalRegistradoSessao = 0;
+    // Achado real (08/11): o resumo que fica FIXO na tela só mostrava o
+    // total de sucesso — quem falhava só aparecia no toast, que some
+    // sozinho em 3s. Num lote com várias pessoas, é fácil não notar e
+    // achar que todo mundo foi gravado. Acumula as falhas de TODAS as
+    // rodadas desta sessão do modal e mantém visíveis até fechar.
+    let falhasAcumuladasSessao = [];
 
     function checkboxesVisiveis() {
         return Array.from(listaEl.querySelectorAll('.lote-linha-pessoa'))
@@ -5465,11 +5471,15 @@ function abrirModalLancamentoLote() {
 
         try {
             totalRegistradoSessao += sucesso;
+            falhasAcumuladasSessao.push(...falhas);
             resumoEl.style.display = '';
-            resumoEl.textContent = `✅ ${totalRegistradoSessao} movimento(s) registrado(s) nesta sessão`;
-            if (falhas.length === 0) {
+            if (falhasAcumuladasSessao.length === 0) {
+                resumoEl.style.color = '';
+                resumoEl.textContent = `✅ ${totalRegistradoSessao} movimento(s) registrado(s) nesta sessão`;
                 showToast(`✅ ${sucesso} movimento(s) registrado(s) — já valendo no saldo! Continue marcando outro grupo ou feche.`, 'success');
             } else {
+                resumoEl.style.color = '#dc2626';
+                resumoEl.textContent = `✅ ${totalRegistradoSessao} ok — ⚠️ FALHOU pra: ${falhasAcumuladasSessao.join(', ')} (confira e relance manualmente)`;
                 showToast(`⚠️ ${sucesso} ok, ${falhas.length} falharam: ${falhas.join(', ')}`, 'warning');
             }
             if (sucesso > 0) carregarReservas();

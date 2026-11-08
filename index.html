@@ -336,6 +336,18 @@
                     .then(registration => console.log('✅ Service Worker registrado'))
                     .catch(error => console.log('❌ Service Worker falhou:', error));
             });
+            // Achado real (08/11, investigando reservas no admin): skipWaiting()
+            // + clients.claim() no sw.js só valem pra PRÓXIMA navegação — uma
+            // aba/app já aberto (ex.: PWA suspenso no celular por horas) fica
+            // preso rodando o JS antigo até ser fechado manualmente, mesmo com
+            // o SW novo já ativo. Força reload automático assim que isso
+            // acontecer, pra nunca mais depender do usuário perceber sozinho.
+            let swAtualizando = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (swAtualizando) return;
+                swAtualizando = true;
+                window.location.reload();
+            });
         }
 
         // Forçar recarregamento dos bolões especiais

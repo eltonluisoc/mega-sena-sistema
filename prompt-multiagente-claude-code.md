@@ -1886,6 +1886,21 @@ Investigação com 2 agentes de exploração (admin.js e bolao_pro_v3.py) mapeou
 
 `sw.js` v98 → v99. `node --check admin.js` e `python -m py_compile bolao_pro_v3.py` + 35 testes, todos OK.
 
+## Rodada 135 — Paginação cortava o ledger + admin.html nunca atualizava sozinho (v100 web, v7.6 desktop)
+
+No dia seguinte à Rodada 134, novos relatos reais: "no desktop não consta o crédito de 100,00 de Cosme... fiz via web" e "na web não consta os usos de 7,00 que lancei ontem via web". Pedido: **"investigue as soluções web e desktop com 10 agentes e crie a solução.... essa saldo não pode falhar."**
+
+4 agentes de exploração em paralelo (transação do Firestore, cache do PWA/service worker, revisão crítica da reconciliação incremental recém-escrita, e varredura por outros caminhos de gravação) + auditoria com paginação corrigida acharam 2 causas reais, distintas:
+
+1. **Causa do "crédito sumiu no desktop"**: a API REST do Firestore, sem `pageSize` explícito, corta `listDocuments` em ~100 documentos **sem avisar** (nem erro, nem indicação). O Cosme tem 106 movimentos — toda leitura do ledger dele pela API crua (usada só pelo desktop; a web usa o SDK, que não tem esse problema) vinha sempre incompleta, inclusive dentro do próprio recálculo absoluto do saldo a cada gravação (`_rsv_somar_ledger_pessoa`). Corrigido com um novo helper `_rsv_get_all_docs` que pagina via `nextPageToken`, usado em todo lugar que lê uma coleção do Firestore no desktop.
+2. **Causa mais provável do "saque sumiu na web"**: `admin.html` **nunca registrava o service worker** (só o `index.html` fazia isso) — o painel podia ficar rodando uma sessão/JS velho indefinidamente, com token de login vencido, sem nenhuma atualização automática. Combinado com isso, o resumo fixo do lançamento em lote só mostrava o total de SUCESSO — quem falhava aparecia só no toast, que some sozinho em 3s; fácil de não notar no meio de um lote com várias pessoas. A transação em si foi auditada a fundo (atômica, tudo-ou-nada, qualquer falha sempre aparece como erro) — não existe caminho que finja sucesso gravando errado.
+
+**Corrigido**: `admin.html` passa a registrar o service worker igual o site público, e os dois (`admin.html` e `index.html`) ganham um listener de `controllerchange` que força `location.reload()` assim que uma versão nova assume — sem isso, `skipWaiting()`+`clients.claim()` só valiam pra próxima navegação, uma aba já aberta ficava presa na versão antiga até fechar manualmente. O resumo do lote agora acumula e mostra PERSISTENTEMENTE (vermelho, sem fechar sozinho) os nomes de quem falhou, em vez de só no toast.
+
+Script novo de auditoria (`auditoria_saque_07_11.py`, paginado) criado pra conferir pessoa por pessoa quem já tem o saque de R$7 de 07/11 e quem não tem, evitando lançar em dobro em quem já foi descontado certo.
+
+`sw.js` v99 → v100, desktop v7.5 → v7.6. `node --check admin.js`, `python -m py_compile bolao_pro_v3.py` + 35 testes, todos OK.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

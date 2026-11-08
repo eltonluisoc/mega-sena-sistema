@@ -1,5 +1,5 @@
 // Service Worker para Bolões Aleatórios PWA
-const CACHE_NAME = 'boloes-aleatorios-v99';  // ← VERSÃO ATUALIZADA
+const CACHE_NAME = 'boloes-aleatorios-v100';  // ← VERSÃO ATUALIZADA
 const BASE_PATH = '/mega-sena-sistema/';
 
 // Lista de arquivos locais para cache

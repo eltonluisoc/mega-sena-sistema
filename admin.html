@@ -2202,5 +2202,32 @@
 
         document.getElementById('ultimaAtualizacao').textContent = new Date().toLocaleString('pt-BR');
     </script>
+
+    <!-- Achado real (08/11): o admin.html NUNCA registrava o service
+         worker (só o index.html fazia isso) — ou seja, o painel podia
+         ficar rodando uma versão velha de admin.js indefinidamente, sem
+         nenhuma atualização automática, mesmo com deploys novos no ar.
+         Suspeita direta de lançamentos de reserva que pareciam sumir:
+         sessão velha, token de login vencido, validação desatualizada.
+         Registra aqui igual o site público já faz, e força um reload
+         automático assim que uma versão nova assumir o controle (sem
+         isso, skipWaiting()+clients.claim() no sw.js só valem pra
+         próxima navegação — uma aba/app já aberto continuava preso na
+         versão antiga até ser fechado manualmente). -->
+    <script>
+        if ('serviceWorker' in navigator && window.location.hostname !== '127.0.0.1' && window.location.hostname !== 'localhost') {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/mega-sena-sistema/sw.js')
+                    .then(() => console.log('✅ Service Worker registrado (admin)'))
+                    .catch(error => console.log('❌ Service Worker falhou (admin):', error));
+            });
+            let swAtualizando = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (swAtualizando) return;
+                swAtualizando = true;
+                window.location.reload();
+            });
+        }
+    </script>
 </body>
 </html>

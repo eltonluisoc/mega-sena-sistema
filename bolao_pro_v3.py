@@ -1,7 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v7.5
+SISTEMA DE GESTÃO DE BOLÕES PRO v7.6
+Correções v7.6 (achado crítico: leitura do ledger cortava em ~100 docs):
+- Achado real do usuário (08/11): um depósito de R$100,00 feito pela
+  web não aparecia no desktop pro Cosme. Causa raiz: a API REST do
+  Firestore, sem `pageSize` explícito, corta `listDocuments` em ~100
+  documentos SEM avisar (nem erro, nem nextPageToken omitido por
+  acaso — só devolve menos do que existe). O Cosme tem 106 movimentos
+  — qualquer leitura do ledger dele pela API crua (usada só no
+  desktop, a web usa o SDK que não tem esse problema) vinha sempre
+  incompleta, inclusive dentro do próprio recálculo absoluto do saldo
+  a cada gravação.
+- Novo helper `_rsv_get_all_docs` pagina (nextPageToken) toda leitura
+  de coleção do Firestore — usado agora em `_rsv_somar_ledger_pessoa` e
+  `_rsv_buscar_estado_atual`. Ninguém mais lê um ledger cortado, não
+  importa quantos lançamentos a pessoa já tenha.
+
 Correções v7.5 (solução definitiva contra estouro de cota do Firestore):
 - Achado real do usuário: depois de várias rodadas de correção do saldo
   de reserva, ficou "muito tempo sem poder usar o Firebase" — o projeto
@@ -2266,19 +2281,48 @@ def _rsv_commit_atomico(writes, timeout=20):
         corpo_erro = ex.read().decode("utf-8", "replace")[:500] if ex.fp else ""
         raise RuntimeError(f"HTTP {ex.code}: {corpo_erro}") from ex
 
+def _rsv_get_all_docs(path, page_size=300):
+    """GET de uma coleção do Firestore seguindo `nextPageToken` até
+    esgotar — usado por toda leitura de reservas que precisa do
+    resultado COMPLETO.
+
+    Achado real (08/11): a API REST do Firestore, sem `pageSize`
+    explícito, corta a resposta de `listDocuments` num limite (~100
+    documentos) sem avisar — nem erro, nem sinal nenhum, simplesmente
+    devolve menos do que existe. Isso corrompeu o saldo do Cosme (106
+    movimentos reais, só 100 eram lidos) toda vez que um lançamento
+    dele passava pelo desktop: `_rsv_somar_ledger_pessoa` recalculava o
+    saldo absoluto em cima de um ledger CORTADO. Com `pageSize`
+    explícito (e seguindo `nextPageToken` se ainda sobrar mais que
+    isso), a leitura fica sempre completa, não importa quantos
+    movimentos a pessoa já tenha."""
+    import urllib.request, json, urllib.parse as up
+    documentos = []
+    page_token = None
+    while True:
+        params = {"pageSize": page_size}
+        if page_token:
+            params["pageToken"] = page_token
+        url = (f"https://firestore.googleapis.com/v1/{FIREBASE_RESERVAS_BASE}/{path}"
+               f"?{up.urlencode(params)}")
+        req = urllib.request.Request(url, method="GET", headers=_firebase_headers())
+        with urllib.request.urlopen(req, timeout=20) as r:
+            dados = json.loads(r.read().decode("utf-8"))
+        documentos.extend(dados.get("documents", []))
+        page_token = dados.get("nextPageToken")
+        if not page_token:
+            break
+    return documentos
+
 def _rsv_somar_ledger_pessoa(pessoa_doc_id):
     """Soma o ledger INTEIRO (reservas_participantes/{id}/movimentos) de
     uma pessoa, lendo direto do Firestore — usado por
     _rsv_registrar_movimento_firestore pra gravar saldoReserva como
     valor absoluto (recalculado), não mais um incremento acumulado que
     pode arrastar um erro antigo pra sempre (achado real 07/11)."""
-    import urllib.request, json
-    url = f"https://firestore.googleapis.com/v1/{FIREBASE_RESERVAS_BASE}/reservas_participantes/{pessoa_doc_id}/movimentos"
-    req = urllib.request.Request(url, method="GET", headers=_firebase_headers())
-    with urllib.request.urlopen(req, timeout=20) as r:
-        dados = json.loads(r.read().decode("utf-8"))
+    docs = _rsv_get_all_docs(f"reservas_participantes/{pessoa_doc_id}/movimentos")
     soma = 0.0
-    for doc in dados.get("documents", []):
+    for doc in docs:
         fields = doc.get("fields", {})
         tipo_mov = fields.get("tipo", {}).get("stringValue", "")
         valor_mov = float(fields.get("valor", {}).get("doubleValue")
@@ -2461,8 +2505,7 @@ def _rsv_buscar_estado_atual(local_timestamps=None):
         return fields.get(nome, {}).get(tipo, default)
 
     pessoas = []
-    dados_pessoas = _get("reservas_participantes")
-    for doc in dados_pessoas.get("documents", []):
+    for doc in _rsv_get_all_docs("reservas_participantes"):
         fields = doc.get("fields", {})
         doc_id = doc.get("name", "").split("/")[-1]
         pessoas.append({
@@ -2483,9 +2526,9 @@ def _rsv_buscar_estado_atual(local_timestamps=None):
         ts_remoto = p["data_atualizacao"]
         if ts_local and ts_remoto and ts_local == ts_remoto:
             continue  # essa pessoa não mudou desde a última vez — não rebusca o ledger dela
-        dados_mov = _get(f"reservas_participantes/{p['doc_id']}/movimentos")
+        docs_mov = _rsv_get_all_docs(f"reservas_participantes/{p['doc_id']}/movimentos")
         movs = []
-        for doc in dados_mov.get("documents", []):
+        for doc in docs_mov:
             fields = doc.get("fields", {})
             mov_id = doc.get("name", "").split("/")[-1]
             movs.append({
@@ -2982,7 +3025,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v7.5")
+        self.root.title("Sistema de Gestão de Bolões PRO v7.6")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -3462,7 +3505,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v7.5",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v7.6",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -7580,7 +7623,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v7.5</span>
+        <span>Sistema de Gestão de Bolões v7.6</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -9886,7 +9929,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v7.5</span>
+        <span>Sistema de Gestão de Bolões v7.6</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
