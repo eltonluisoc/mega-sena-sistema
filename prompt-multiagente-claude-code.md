@@ -1901,6 +1901,16 @@ Script novo de auditoria (`auditoria_saque_07_11.py`, paginado) criado pra confe
 
 `sw.js` v99 → v100, desktop v7.5 → v7.6. `node --check admin.js`, `python -m py_compile bolao_pro_v3.py` + 35 testes, todos OK.
 
+## Rodada 136 — App Check travando gravações de reserva de verdade (v102)
+
+Com o service worker do admin corrigido (Rodada 135), o usuário testou um lançamento individual real (R$4,00 pro Francisco) e levou um erro novo, reproduzível: `FirebaseError: Expected type 'Vd', but it was: a custom Bd object`. Pedi pra abrir o Console do navegador — o log revelou a causa de verdade, escondida atrás desse erro confuso: `@firebase/app-check: AppCheck: Requests throttled due to 400 error`, numa troca de token falhando em loop contra `exchangeRecaptchaEnterpriseToken`.
+
+`app-check-config.js` ativa o App Check com `ReCaptchaEnterpriseProvider` desde uma rodada anterior (pedido do usuário: "não queria que pegassem no firebase"), mas o comentário do próprio arquivo já registrava que a chave NUNCA tinha sido registrada de verdade no Firebase Console nem a exigência ativada do lado do servidor — ou seja, essa proteção não bloqueava ninguém, só estava tentando (e falhando) trocar token toda hora. reCAPTCHA Enterprise normalmente exige conta de faturamento vinculada no Google Cloud mesmo dentro do nível gratuito — nunca foi habilitada (usuário recusa qualquer plano pago) — explicando o 400 constante.
+
+**Corrigido**: App Check desativado (`APP_CHECK_ATIVO = false` em `app-check-config.js`) até existir uma forma gratuita e funcional de reativar — sem perda de segurança real, já que a exigência nunca chegou a ser exigida do lado do servidor.
+
+`sw.js` v101 → v102. `node --check app-check-config.js`, OK.
+
 ## Agentes a utilizar
 
 1. **Agente Arquiteto** — analisa a estrutura atual do código, mapeia dependências e propõe o desenho técnico da nova versão (módulos, fluxo de dados, pontos de risco).

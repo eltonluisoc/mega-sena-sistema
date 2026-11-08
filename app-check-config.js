@@ -29,15 +29,30 @@
 // só por este arquivo existir).
 const APP_CHECK_SITE_KEY = "6LdYxv0tAAAAAGN2kq_SW53OMe3OdX09NJ2VcyzQ";
 
+// DESATIVADO (08/11) — achado real do usuário: a troca de token com o
+// reCAPTCHA Enterprise passou a voltar "400 Bad Request" sempre, o App
+// Check entra em estado "throttled", e isso quebrava de verdade a
+// gravação de lançamentos de reserva no Firestore (erro confuso
+// "Expected type 'Vd', but it was: a custom Bd object" — sintoma
+// indireto do App Check travado, não um bug no código de gravação).
+// Causa provável: reCAPTCHA Enterprise normalmente exige uma conta de
+// faturamento vinculada no Google Cloud mesmo dentro do nível
+// gratuito — nunca foi habilitada (usuário recusa qualquer plano
+// pago). Como a exigência de verdade NUNCA chegou a ser ativada do
+// lado do servidor (ver comentário antigo abaixo), essa proteção não
+// estava bloqueando ninguém mesmo — só quebrando gravações reais.
+// Desativada até existir uma forma gratuita e funcional de reativar.
+const APP_CHECK_ATIVO = false;
+
 try {
-    if (APP_CHECK_SITE_KEY && !APP_CHECK_SITE_KEY.startsWith("COLOQUE_AQUI") && firebase.appCheck) {
+    if (APP_CHECK_ATIVO && APP_CHECK_SITE_KEY && !APP_CHECK_SITE_KEY.startsWith("COLOQUE_AQUI") && firebase.appCheck) {
         firebase.appCheck().activate(
             new firebase.appCheck.ReCaptchaEnterpriseProvider(APP_CHECK_SITE_KEY),
             true // atualiza o token sozinho antes de expirar
         );
         console.log('🔒 App Check ativado');
     } else {
-        console.log('ℹ️ App Check: chave do Fraud Defense ainda não configurada (ver app-check-config.js)');
+        console.log('ℹ️ App Check: desativado (ver app-check-config.js)');
     }
 } catch (e) {
     console.warn('App Check não pôde ser ativado:', e);
