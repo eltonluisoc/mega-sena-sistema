@@ -6287,7 +6287,10 @@ function exibirOtimizadorCotas() {
 
     const ordenadas = [...filtradas].sort(compararPorDataDesc);
 
-    const CORES_LOTERIA = { 'Mega-Sena': '#0071e3', 'Lotofácil': '#1b6b2e', 'Quina': '#5856d6' };
+    // (data) : '+Milionária' usa a mesma cor (magenta) do app desktop
+    // (ver self.cores['milionaria'] em otimizador_cotas.py), pra manter
+    // a mesma identidade visual entre os dois.
+    const CORES_LOTERIA = { 'Mega-Sena': '#0071e3', 'Lotofácil': '#1b6b2e', 'Quina': '#5856d6', '+Milionária': '#a3157a' };
 
     let html = '';
     ordenadas.forEach(g => {
@@ -6346,9 +6349,13 @@ function alternarItensOtimizador(id, btn) {
         if (!itens || itens.length === 0) continue;
         html += `<div style="font-weight:700; margin-bottom:6px;">${rotulos[chave]}</div>`;
         itens.forEach(item => {
+            // (data) : "+ N trevos" quando o item tem essa chave -- só a
+            // +Milionária grava 'trevos' (ver _extrair_itens_cotas no app
+            // desktop); aditivo, não muda nada pras outras 3 loterias.
+            const trevosTxt = item.trevos != null ? ` + ${item.trevos} trevos` : '';
             const desc = item.cotas != null
-                ? `${item.qtd}x ${item.numeros} números · ${item.cartoes} cartões · ${item.cotas} cotas · R$ ${Number(item.preco).toFixed(2)}/cota`
-                : `${item.qtd}x aposta de ${item.numeros} números · R$ ${Number(item.preco).toFixed(2)}/aposta`;
+                ? `${item.qtd}x ${item.numeros} números${trevosTxt} · ${item.cartoes} cartões · ${item.cotas} cotas · R$ ${Number(item.preco).toFixed(2)}/cota`
+                : `${item.qtd}x aposta de ${item.numeros} números${trevosTxt} · R$ ${Number(item.preco).toFixed(2)}/aposta`;
             const marcado = item.marcado ? '✅' : '⬜';
             html += `<div style="padding:4px 0; border-bottom:1px solid #f1f5f9;">${marcado} ${escapeHtml(desc)}</div>`;
         });
