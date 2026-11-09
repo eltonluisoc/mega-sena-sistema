@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v7.7
+SISTEMA DE GESTÃO DE BOLÕES PRO v7.8
+Correções v7.8 (lançamento em lote contado duas vezes no desktop):
+- A sincronização em segundo plano trazia parte do lote enquanto ele
+  ainda gravava, e o fim do lote inseria tudo de novo. Índice único por
+  firebase_doc_id + INSERT OR IGNORE; duplicados existentes são removidos.
+
 Correções v7.7 (espelho local preso numa leitura cortada):
 - O carimbo por pessoa foi gravado pela v7.5, quando o ledger ainda
   vinha cortado em 100 documentos; como o carimbo bate com o remoto,
@@ -1870,6 +1875,18 @@ class Database:
         for m in migs:
             try: c.execute(m)
             except: pass
+        # A sincronização pode trazer um lançamento enquanto o lote ainda
+        # grava: o índice único impede contar o mesmo lançamento duas vezes.
+        try:
+            c.execute(
+                "DELETE FROM reservas_movimentos WHERE firebase_doc_id IS NOT NULL AND id NOT IN "
+                "(SELECT MIN(id) FROM reservas_movimentos WHERE firebase_doc_id IS NOT NULL "
+                "GROUP BY firebase_doc_id)")
+            c.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ux_reservas_mov_firebase "
+                "ON reservas_movimentos(firebase_doc_id) WHERE firebase_doc_id IS NOT NULL")
+        except Exception as ex:
+            print("Falha ao remover duplicados de reservas_movimentos:", ex)
         # reservas_fila_decisoes só existia pra sustentar o modelo de
         # fila antigo (idempotência de importação) — sem objeto nenhum
         # sob o modelo novo (o próprio movId gerado no Firestore já é a
@@ -3031,7 +3048,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v7.7")
+        self.root.title("Sistema de Gestão de Bolões PRO v7.8")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -3511,7 +3528,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v7.7",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v7.8",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
@@ -7629,7 +7646,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v7.7</span>
+        <span>Sistema de Gestão de Bolões v7.8</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -9312,7 +9329,7 @@ class BolaoApp:
                     pid_local = self.db.fetchone("SELECT last_insert_rowid() as id")["id"]
                 tipo_db = "CRÉDITO" if tipo == "deposito" else "DÉBITO"
                 self.db.execute(
-                    "INSERT INTO reservas_movimentos "
+                    "INSERT OR IGNORE INTO reservas_movimentos "
                     "(pessoa_id, tipo, valor, data_mov, loteria, concurso, descricao, firebase_doc_id) "
                     "VALUES (?,?,?,?,?,?,?,?)",
                     (pid_local, tipo_db, valor, data_mov, loteria, concurso, descricao, mov_id))
@@ -9631,7 +9648,7 @@ class BolaoApp:
                     self._status("")
                     for pid_, mov_id in sucesso:
                         self.db.execute(
-                            "INSERT INTO reservas_movimentos "
+                            "INSERT OR IGNORE INTO reservas_movimentos "
                             "(pessoa_id, tipo, valor, data_mov, loteria, concurso, descricao, firebase_doc_id) "
                             "VALUES (?,?,?,?,?,?,?,?)",
                             (pid_, tipo_db, v, dt_iso, lot, conc, desc, mov_id))
@@ -9935,7 +9952,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v7.7</span>
+        <span>Sistema de Gestão de Bolões v7.8</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
