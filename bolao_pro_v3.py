@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v7.8
+SISTEMA DE GESTÃO DE BOLÕES PRO v7.9
+Novidade v7.9 (conferência automática das reservas):
+- A cada sincronização, compara o saldo local de cada pessoa com o que o
+  site exibe e alerta em vermelho, por nome, qualquer diferença de 1
+  centavo ou mais. Usa dados já lidos, sem custo extra de cota.
+
 Correções v7.8 (lançamento em lote contado duas vezes no desktop):
 - A sincronização em segundo plano trazia parte do lote enquanto ele
   ainda gravava, e o fim do lote inseria tudo de novo. Índice único por
@@ -2577,6 +2582,31 @@ def _rsv_buscar_estado_atual(local_timestamps=None):
 
     return pessoas, movimentos_por_pessoa, versao
 
+def _rsv_comparar_saldos(pessoas, saldos_locais):
+    """Compara, por pessoa ativa, o saldo do histórico local com o saldo
+    que o site exibe (saldoReserva). Retorna (divergencias, total_local,
+    total_site); a tolerância é menor que 1 centavo."""
+    divergencias = []
+    total_local = total_site = 0.0
+    for p in pessoas:
+        if not p.get("ativo", True):
+            continue
+        local = float(saldos_locais.get(p["doc_id"], 0) or 0)
+        site = float(p.get("saldo") or 0)
+        total_local += local
+        total_site += site
+        if round(local - site, 2) != 0:
+            divergencias.append({"nome": p.get("nome", ""), "local": local, "site": site})
+    return divergencias, round(total_local, 2), round(total_site, 2)
+
+def _rsv_texto_divergencias(divergencias, limite=8):
+    partes = [f"{d['nome']}: desktop {fmt_brl(d['local'])} / site {fmt_brl(d['site'])}"
+              for d in divergencias[:limite]]
+    resto = len(divergencias) - limite
+    if resto > 0:
+        partes.append(f"e mais {resto}")
+    return "; ".join(partes)
+
 def _rsv_criar_pessoa_firestore(doc_id, nome, telefone, chave_pix, observacoes):
     """Cria uma pessoa nova em reservas_participantes, saldo inicial
     zero — síncrono, levanta exceção se não confirmar. Create-only
@@ -3048,7 +3078,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v7.8")
+        self.root.title("Sistema de Gestão de Bolões PRO v7.9")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -3145,6 +3175,8 @@ class BolaoApp:
         self._rsv_sync_stop = threading.Event()
         self._rsv_sync_poke = threading.Event()
         self._rsv_sync_ultima_versao = None
+        self._rsv_reconferindo = False
+        self._rsv_ultima_divergencia = ""
         # Carimbo de dataAtualizacao remoto já conhecido de cada pessoa
         # (solução definitiva 07/11 contra estouro de cota) — permite ao
         # laço de fundo (thread separada) saber quem NÃO mudou sem
@@ -3270,6 +3302,42 @@ class BolaoApp:
 
         self._rsv_load()
         self._rsv_status_sincronizado()
+        self._rsv_conferir_saldos(pessoas)
+
+    def _rsv_conferir_saldos(self, pessoas):
+        """Compara cada saldo local com o do site usando dados já lidos.
+        Uma divergência dispara 1 releitura antes de alertar, porque uma
+        gravação em andamento pode separar os dois valores por instantes."""
+        saldos_locais = {d["doc_id"]: d["saldo"] for d in self._rsv_dados}
+        divergencias, total_local, total_site = _rsv_comparar_saldos(pessoas, saldos_locais)
+
+        if not divergencias:
+            self._rsv_reconferindo = False
+            self._rsv_ultima_divergencia = ""
+            self._rsv_alerta_hdr.pack_forget()
+            self._rsv_conf_banner.pack_forget()
+            from datetime import datetime as _dt
+            self._rsv_conf_lbl.configure(
+                text=f"✅ Saldos conferidos com o site: {fmt_brl(total_local)} às {_dt.now():%H:%M}",
+                fg="#7ee2b0")
+            return
+
+        if not self._rsv_reconferindo:
+            self._rsv_reconferindo = True
+            self._rsv_sync_ultima_versao = None
+            self._rsv_conf_lbl.configure(text="⏳ Conferindo saldos de novo...", fg="#ffd27a")
+            return
+
+        texto = _rsv_texto_divergencias(divergencias)
+        if texto != self._rsv_ultima_divergencia:
+            self._rsv_ultima_divergencia = texto
+            self._log("Divergência de saldo de reserva", texto)
+        self._rsv_conf_lbl.configure(
+            text=f"🔴 Totais: desktop {fmt_brl(total_local)} / site {fmt_brl(total_site)}", fg="#ff9d97")
+        self._rsv_conf_banner.configure(
+            text=f"⚠ SALDO DIVERGENTE ({len(divergencias)}): {texto}. Confira antes de novos lançamentos.")
+        self._rsv_conf_banner.pack(fill="x", after=self._rsv_barra_status)
+        self._rsv_alerta_hdr.pack(side="left", padx=8)
 
     def _rsv_status_sincronizado(self):
         try:
@@ -3528,9 +3596,11 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v7.8",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v7.9",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
+        self._rsv_alerta_hdr = tk.Label(hdr, text="⚠ Saldo divergente: veja a aba Reservas",
+                                        bg="#b3261e", fg="white", font=("Arial",10,"bold"), padx=10, pady=3)
         right = tk.Frame(hdr, bg=CORES["header_bg"])
         right.pack(side="right", padx=18)
         tk.Label(right, text="Bolão Ativo:", bg=CORES["header_bg"],
@@ -7646,7 +7716,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v7.8</span>
+        <span>Sistema de Gestão de Bolões v7.9</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -9013,6 +9083,11 @@ class BolaoApp:
         self._pub_status_rsv = tk.Label(bsf, text="🔄 Sincronizando...", bg="#1a3a5a",
             fg="#aad4f5", font=("Arial",9,"bold"))
         self._pub_status_rsv.pack(side="left", padx=4)
+        self._rsv_barra_status = bsf
+        self._rsv_conf_lbl = tk.Label(bsf, text="", bg="#1a3a5a", fg="#aad4f5", font=("Arial",9,"bold"))
+        self._rsv_conf_lbl.pack(side="left", padx=16)
+        self._rsv_conf_banner = tk.Label(p, text="", bg="#b3261e", fg="white", font=("Arial",10,"bold"),
+                                         wraplength=1150, justify="left", anchor="w", padx=12, pady=8)
 
         # ── Cards de totais ──────────────────────────────────────
         krow = tk.Frame(p, bg=CORES["bg_frame"]); krow.pack(fill="x", padx=20, pady=(14,6))
@@ -9204,7 +9279,8 @@ class BolaoApp:
                 "WHERE pessoa_id=? ORDER BY id DESC LIMIT 1", (pid,))
             ult_dt = ult["data_mov"] if ult else "-"
             self._rsv_dados.append({
-                "pid": pid, "nome": ps["nome"], "saldo": saldo, "ult": ult_dt
+                "pid": pid, "nome": ps["nome"], "saldo": saldo, "ult": ult_dt,
+                "doc_id": ps["firebase_doc_id"]
             })
             nomes_combo.append(f"{ps['nome']} (ID: {pid})")
 
@@ -9952,7 +10028,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v7.8</span>
+        <span>Sistema de Gestão de Bolões v7.9</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
