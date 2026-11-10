@@ -1,7 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v7.9
+SISTEMA DE GESTÃO DE BOLÕES PRO v8.0
+Novidade v8.0 (inscrições e parcelas lançadas pelo site):
+- Inscrição e pagamento de parcela feitos no admin web ficam numa fila
+  (lancamentos_pendentes) que o desktop importa ao abrir e a cada minuto.
+  Cada item é gravado uma vez só (índice único por origem), conflitos
+  (cota esgotada, já inscrito) nunca entram sozinhos, e o bolão afetado
+  é republicado na hora. A publicação passa a levar cotas livres e o
+  valor da parcela, que o site usa pra validar antes de lançar.
+
 Novidade v7.9 (conferência automática das reservas):
 - A cada sincronização, compara o saldo local de cada pessoa com o que o
   site exibe e alerta em vermelho, por nome, qualquer diferença de 1
@@ -1876,10 +1884,21 @@ class Database:
             # só reler o ledger de quem de fato mudou, não de todo mundo a
             # cada evento. Ver _rsv_buscar_estado_atual/_rsv_reconciliar.
             "ALTER TABLE reservas_pessoas ADD COLUMN firebase_ts_ledger_completo TEXT",
+            # v8.0: id do item da fila lancamentos_pendentes que gerou a
+            # inscrição/pagamento; o índice único abaixo impede importar
+            # o mesmo lançamento do site duas vezes.
+            "ALTER TABLE participantes ADD COLUMN origem_doc_id TEXT",
+            "ALTER TABLE pagamentos ADD COLUMN origem_doc_id TEXT",
         ]
         for m in migs:
             try: c.execute(m)
             except: pass
+        for idx in ("CREATE UNIQUE INDEX IF NOT EXISTS ux_participantes_origem "
+                    "ON participantes(origem_doc_id) WHERE origem_doc_id IS NOT NULL",
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ux_pagamentos_origem "
+                    "ON pagamentos(origem_doc_id) WHERE origem_doc_id IS NOT NULL"):
+            try: c.execute(idx)
+            except Exception as ex: print("Falha ao criar índice de origem:", ex)
         # A sincronização pode trazer um lançamento enquanto o lote ainda
         # grava: o índice único impede contar o mesmo lançamento duas vezes.
         try:
@@ -2607,6 +2626,249 @@ def _rsv_texto_divergencias(divergencias, limite=8):
         partes.append(f"e mais {resto}")
     return "; ".join(partes)
 
+
+# ─────────────────────────────────────────────
+#  LANÇAMENTOS FEITOS NO SITE (v8.0)
+#  Inscrições e pagamentos de parcela registrados no admin web ficam na
+#  fila lancamentos_pendentes até o desktop importar. O desktop continua
+#  sendo o dono dos bolões: o site nunca mexe na lista de participantes
+#  publicada, porque a próxima publicação do desktop a sobrescreveria.
+#  Estados do item: pendente (o site ainda pode cancelar), importando
+#  (o desktop reservou o item; o site não cancela mais) e recusado (o
+#  desktop achou um conflito; o site mostra e o admin cancela por lá).
+# ─────────────────────────────────────────────
+FIREBASE_FILA_LANCAMENTOS = (
+    "https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
+    "/databases/(default)/documents/lancamentos_pendentes"
+)
+
+
+def _cotas_ocupadas(db, bid):
+    """(cotas ocupadas, cotas totais) do bolão; db só precisa de fetchone/fetchall."""
+    b = db.fetchone(
+        "SELECT num_participantes, valor_total, adm_nome, adm_paga FROM boloes WHERE id=?", (bid,))
+    if not b: return 0, 0
+    vt        = float(b["valor_total"] or 0)
+    max_cotas = int(b["num_participantes"] or 0)
+    if vt <= 0: return 0, max_cotas
+    adm_nome = (b["adm_nome"] or "").strip()
+    adm_paga = b["adm_paga"] or 0
+    adm_low  = adm_nome.lower()
+    partic = db.fetchall(
+        "SELECT nome, valor_esperado, is_adm FROM participantes "
+        "WHERE bolao_id=? AND ativo=1", (bid,))
+    cotas = 0; adm_cad = False
+    for pt in partic:
+        ve = float(pt["valor_esperado"] or 0)
+        eh_adm = bool(pt["is_adm"]) or (adm_low and adm_low in pt["nome"].lower())
+        if eh_adm:
+            adm_cad = True
+            if not adm_paga:
+                cotas += 1; continue
+        cotas += max(1, round(ve/vt)) if ve > 0 else 0
+    adm_extra = 1 if (adm_nome and not adm_paga and not adm_cad) else 0
+    return cotas + adm_extra, max_cotas
+
+
+def _bolao_campos_extras(db, bid):
+    """Dados que o site precisa pra inscrever alguém sem o desktop:
+    cotas totais/ocupadas e valor da parcela."""
+    ocupadas, totais = _cotas_ocupadas(db, bid)
+    b = db.fetchone("SELECT valor_parcela FROM boloes WHERE id=?", (bid,))
+    parcela = float(b["valor_parcela"] or 0) if b else 0.0
+    return {"cotasTotais": int(totais), "cotasOcupadas": int(ocupadas),
+            "valorParcela": round(parcela, 2)}
+
+
+def _fila_ler_doc(doc):
+    """Documento REST da fila -> dict simples. Aceita integerValue e
+    doubleValue nos números (o site grava os dois conforme o valor)."""
+    f = doc.get("fields", {})
+    def s(nome):
+        return (f.get(nome, {}).get("stringValue") or "").strip()
+    def n(nome):
+        v = f.get(nome, {})
+        if "doubleValue" in v: return float(v["doubleValue"])
+        if "integerValue" in v: return float(int(v["integerValue"]))
+        return 0.0
+    def i(nome):
+        v = f.get(nome, {})
+        if "integerValue" in v: return int(v["integerValue"])
+        if "doubleValue" in v: return int(round(float(v["doubleValue"])))
+        return None
+    return {
+        "doc_id": doc.get("name", "").split("/")[-1],
+        "name": doc.get("name", ""),
+        "update_time": doc.get("updateTime", ""),
+        "tipo": s("tipo"), "status": s("status") or "pendente",
+        "bolaoDocId": s("bolaoDocId"), "bolaoTitulo": s("bolaoTitulo"),
+        "nome": s("nome"), "telefone": re.sub(r"\D", "", s("telefone")),
+        "chavePix": s("chavePix"), "cotas": i("cotas") or 0,
+        "participanteIdLocal": i("participanteIdLocal"),
+        "valorPago": round(n("valorPago"), 2), "dataPagamento": s("dataPagamento"),
+        "formaPagamento": s("formaPagamento"), "observacoes": s("observacoes"),
+        "criadoEm": s("criadoEm"), "motivoRecusa": s("motivoRecusa"),
+    }
+
+
+def _digitos(s):
+    return re.sub(r"\D", "", str(s or ""))
+
+
+def _participantes_ativos(db, bid):
+    return db.fetchall("SELECT id, nome, telefone, pessoa_id FROM participantes WHERE bolao_id=? AND ativo=1", (bid,))
+
+
+def _fila_validar(db, item):
+    """Confere um lançamento do site contra o banco local.
+    Retorna (situacao, motivo, contexto); situacao é 'ok', 'ja_importado'
+    ou 'conflito'. Conflito nunca é gravado sozinho: o admin decide."""
+    tabela = "participantes" if item["tipo"] == "inscricao" else "pagamentos"
+    if item["tipo"] not in ("inscricao", "pagamento"):
+        return "conflito", f"tipo desconhecido ({item['tipo']!r})", {}
+    if db.fetchone(f"SELECT id FROM {tabela} WHERE origem_doc_id=?", (item["doc_id"],)):
+        return "ja_importado", "", {}
+
+    b = db.fetchone("SELECT * FROM boloes WHERE firebase_doc_id=?", (item["bolaoDocId"],))
+    if not b:
+        return "conflito", f"bolão '{item['bolaoTitulo']}' não existe neste computador", {}
+    if b["encerrado"]:
+        return "conflito", f"bolão '{b['nome']}' está encerrado", {}
+    bid = b["id"]; vt = float(b["valor_total"] or 0)
+    ctx = {"bid": bid, "bolao_nome": b["nome"], "vt": vt}
+
+    if item["valorPago"] < 0:
+        return "conflito", "valor pago negativo", ctx
+
+    if item["tipo"] == "pagamento":
+        if item["valorPago"] <= 0:
+            return "conflito", "pagamento sem valor", ctx
+        pt = None
+        if item["participanteIdLocal"]:
+            pt = db.fetchone("SELECT id, nome FROM participantes WHERE id=? AND bolao_id=? AND ativo=1",
+                             (item["participanteIdLocal"], bid))
+        if not pt and item["telefone"]:
+            achados = [r for r in _participantes_ativos(db, bid) if _digitos(r["telefone"]) == item["telefone"]]
+            if len(achados) == 1:
+                pt = achados[0]
+        if not pt:
+            return "conflito", f"{item['nome']} não foi encontrado(a) em '{b['nome']}'", ctx
+        ctx["pid"] = pt["id"]; ctx["nome"] = pt["nome"]
+        return "ok", "", ctx
+
+    tel = item["telefone"]
+    if not item["nome"]:
+        return "conflito", "inscrição sem nome", ctx
+    if len(tel) < 10 or len(tel) > 11:
+        return "conflito", f"telefone '{tel}' inválido", ctx
+    if vt <= 0:
+        return "conflito", f"bolão '{b['nome']}' sem valor de cota", ctx
+    if item["cotas"] < 1:
+        return "conflito", "inscrição sem cotas", ctx
+    # Telefones antigos estão gravados com formatação ("61-98408-2442"):
+    # a comparação é sempre só pelos dígitos.
+    pessoa = next((p for p in db.fetchall("SELECT * FROM pessoas ORDER BY id")
+                   if _digitos(p["telefone"]) == tel), None)
+    ja = next((r for r in _participantes_ativos(db, bid)
+               if _digitos(r["telefone"]) == tel or (pessoa and r["pessoa_id"] == pessoa["id"])), None)
+    if ja:
+        return "conflito", f"{ja['nome']} já está inscrito(a) em '{b['nome']}'", ctx
+    ocupadas, totais = _cotas_ocupadas(db, bid)
+    if totais > 0 and ocupadas + item["cotas"] > totais:
+        return "conflito", (f"'{b['nome']}' tem {totais - ocupadas} cota(s) livre(s) e a inscrição "
+                            f"pede {item['cotas']}"), ctx
+    ctx["pessoa_id"] = pessoa["id"] if pessoa else None
+    ctx["nome"] = pessoa["nome"] if pessoa else item["nome"]
+    return "ok", "", ctx
+
+
+def _fila_obs_pagamento(item):
+    forma = {"reserva": "pago com a reserva", "pix": "PIX", "dinheiro": "dinheiro"}.get(
+        item["formaPagamento"], item["formaPagamento"])
+    partes = ["Via site"] + ([forma] if forma else []) + ([item["observacoes"]] if item["observacoes"] else [])
+    return " — ".join(partes)
+
+
+def _fila_aplicar(conn, item, ctx):
+    """Grava o lançamento no SQLite numa transação só (participante e
+    pagamento juntos ou nada). origem_doc_id tem índice único: repetir
+    a mesma importação não duplica."""
+    data_pg = item["dataPagamento"] or date.today().strftime("%d/%m/%Y")
+    try:
+        mes_ref = datetime.strptime(data_pg, "%d/%m/%Y").strftime("%m/%Y")
+    except ValueError:
+        mes_ref = ""
+    with conn:
+        c = conn.cursor()
+        if item["tipo"] == "inscricao":
+            pessoa_id = ctx.get("pessoa_id")
+            if pessoa_id is None:
+                c.execute("INSERT INTO pessoas (nome,telefone,chave_pix) VALUES (?,?,?)",
+                          (ctx["nome"], item["telefone"], item["chavePix"]))
+                pessoa_id = c.lastrowid
+            elif item["chavePix"]:
+                c.execute("UPDATE pessoas SET chave_pix=? WHERE id=? AND (chave_pix IS NULL OR chave_pix='')",
+                          (item["chavePix"], pessoa_id))
+            pix = c.execute("SELECT chave_pix FROM pessoas WHERE id=?", (pessoa_id,)).fetchone()[0] or ""
+            obs = "Inscrição via site" + (f" — {item['observacoes']}" if item["observacoes"] else "")
+            c.execute(
+                "INSERT INTO participantes (bolao_id,pessoa_id,nome,telefone,chave_pix,"
+                "valor_esperado,observacoes,is_adm,origem_doc_id) VALUES (?,?,?,?,?,?,?,0,?)",
+                (ctx["bid"], pessoa_id, ctx["nome"], item["telefone"], pix,
+                 round(item["cotas"] * ctx["vt"], 2), obs, item["doc_id"]))
+            pid = c.lastrowid
+        else:
+            pid = ctx["pid"]
+        if item["valorPago"] > 0:
+            c.execute(
+                "INSERT INTO pagamentos (participante_id,bolao_id,mes_referencia,valor,"
+                "data_pagamento,depositado,observacoes,origem_doc_id) VALUES (?,?,?,?,?,0,?,?)",
+                (pid, ctx["bid"], mes_ref, item["valorPago"], data_pg,
+                 _fila_obs_pagamento(item), item["doc_id"]))
+    return pid
+
+
+def _fila_listar():
+    """Todos os itens da fila (paginado). Levanta exceção se falhar."""
+    import urllib.request, urllib.parse, json
+    docs, token = [], None
+    while True:
+        params = {"pageSize": "300"}
+        if token: params["pageToken"] = token
+        req = urllib.request.Request(FIREBASE_FILA_LANCAMENTOS + "?" + urllib.parse.urlencode(params),
+                                     method="GET", headers=_firebase_headers())
+        with urllib.request.urlopen(req, timeout=15) as r:
+            dados = json.loads(r.read().decode("utf-8"))
+        docs.extend(dados.get("documents", []))
+        token = dados.get("nextPageToken")
+        if not token:
+            return docs
+
+
+def _fila_mudar_status(item, status, extras=None, exigir_versao=True):
+    """Muda o status de um item da fila. Com exigir_versao, só grava se o
+    documento ainda for exatamente o que foi lido (o site pode ter
+    cancelado nesse meio tempo). Retorna True se gravou."""
+    import urllib.request, urllib.error, urllib.parse, json
+    campos = {"status": status}
+    campos.update(extras or {})
+    params = [("updateMask.fieldPaths", k) for k in campos]
+    if exigir_versao and item.get("update_time"):
+        params.append(("currentDocument.updateTime", item["update_time"]))
+    else:
+        params.append(("currentDocument.exists", "true"))
+    corpo = json.dumps({"fields": {k: {"stringValue": str(v)} for k, v in campos.items()}}).encode("utf-8")
+    url = f"{FIREBASE_FILA_LANCAMENTOS}/{item['doc_id']}?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, data=corpo, method="PATCH", headers=_firebase_headers())
+    try:
+        with urllib.request.urlopen(req, timeout=15):
+            return True
+    except urllib.error.HTTPError as ex:
+        if ex.code in (400, 404, 409, 412):
+            return False
+        raise
+
+
 def _rsv_criar_pessoa_firestore(doc_id, nome, telefone, chave_pix, observacoes):
     """Cria uma pessoa nova em reservas_participantes, saldo inicial
     zero — síncrono, levanta exceção se não confirmar. Create-only
@@ -2774,8 +3036,35 @@ def _firebase_buscar_doc_por_titulo(titulo):
             return doc.get("name", "")  # ex: "projects/.../documents/participantes/bolao_abc"
     return None
 
+def _participante_firestore(p):
+    """Um participante no formato REST do documento do bolão."""
+    campos = {
+        "nome":            {"stringValue": str(p.get("nome",""))},
+        "telefone":        {"stringValue": re.sub(r"\D", "", str(p.get("telefone") or ""))},
+        "valorPago":       {"doubleValue": float(p.get("valorPago",0))},
+        "situacao":        {"stringValue": str(p.get("situacao","em_andamento"))},
+        "quantidadeCotas": {"integerValue": str(int(p.get("quantidadeCotas",1)))},
+        "dataCadastro":    {"stringValue": str(p.get("dataCadastro",""))},
+        "historicoPagamentos": _firestore_python_para_valor(p.get("historicoPagamentos") or []),
+    }
+    # v8.0: id local, pra o site apontar exatamente quem pagou a parcela
+    if p.get("id"):
+        campos["idLocal"] = {"integerValue": str(int(p["id"]))}
+    return {"mapValue": {"fields": campos}}
+
+
+def _extras_firestore(extras):
+    if not extras:
+        return {}
+    return {
+        "cotasTotais":   {"integerValue": str(int(extras["cotasTotais"]))},
+        "cotasOcupadas": {"integerValue": str(int(extras["cotasOcupadas"]))},
+        "valorParcela":  {"doubleValue": float(extras["valorParcela"])},
+    }
+
+
 def enviar_bolao_para_site(titulo, loteria, valor_cota,
-                           data_limite, participantes, doc_id_fixo=None):
+                           data_limite, participantes, doc_id_fixo=None, extras=None):
     """
     Envia dados do bolão para o Firebase Firestore.
 
@@ -2790,27 +3079,7 @@ def enviar_bolao_para_site(titulo, loteria, valor_cota,
     from datetime import datetime as _dt
 
     # Monta o documento Firestore
-    import re as _re_fb
-    valores_part = []
-    for p in participantes:
-        tel_digits = _re_fb.sub(r"\D", "", str(p.get("telefone") or ""))
-        # historicoPagamentos (Rodada 82): reaproveita o conversor
-        # genérico (_firestore_python_para_valor) só pra este campo —
-        # os outros seguem montados na mão, pra não arriscar mudar
-        # comportamento deles.
-        valores_part.append({
-            "mapValue": {
-                "fields": {
-                    "nome":            {"stringValue": str(p.get("nome",""))},
-                    "telefone":        {"stringValue": tel_digits},
-                    "valorPago":       {"doubleValue": float(p.get("valorPago",0))},
-                    "situacao":        {"stringValue": str(p.get("situacao","em_andamento"))},
-                    "quantidadeCotas": {"integerValue": str(int(p.get("quantidadeCotas",1)))},
-                    "dataCadastro":    {"stringValue": str(p.get("dataCadastro",""))},
-                    "historicoPagamentos": _firestore_python_para_valor(p.get("historicoPagamentos") or []),
-                }
-            }
-        })
+    valores_part = [_participante_firestore(p) for p in participantes]
 
     documento = {
         "fields": {
@@ -2824,10 +3093,11 @@ def enviar_bolao_para_site(titulo, loteria, valor_cota,
             }
         }
     }
+    documento["fields"].update(_extras_firestore(extras))
     corpo = json.dumps(documento, ensure_ascii=False).encode("utf-8")
     headers = _firebase_headers()
 
-    campos_doc = ["titulo","loteria","valorPorCota","dataLimite","admin","participantes"]
+    campos_doc = list(documento["fields"].keys())
     try:
         doc_id = doc_id_fixo or _bolao_doc_id(titulo)
         # Quando já existe um doc_id_fixo salvo, o bolão foi publicado
@@ -3078,7 +3348,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v7.9")
+        self.root.title("Sistema de Gestão de Bolões PRO v8.0")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -3151,6 +3421,8 @@ class BolaoApp:
         # cooldown, sem botão manual. O laço em segundo plano cuida de
         # tudo sozinho a partir daqui.
         self._rsv_sync_loop_iniciar()
+        # Inscrições e parcelas lançadas no admin web (v8.0)
+        self._fila_loop_iniciar()
         # Achado real do usuário: a barra de status geral (rodapé) ficava
         # presa em "Conectando ao Firebase..." pra sempre depois de um
         # login bem-sucedido — nada daqui pra baixo atualizava mais ela
@@ -3592,11 +3864,266 @@ class BolaoApp:
             try: self._load_prem()
             except Exception: pass
 
+    # ── LANÇAMENTOS FEITOS NO SITE (v8.0) ───────────────────────
+    #  Fluxo de cada ciclo (a cada 60s e ao abrir):
+    #   1. lê a fila (thread) e pré-valida cada item (thread principal);
+    #   2. reserva no Firestore os itens válidos (status importando, só se
+    #      o documento não mudou: se o site cancelou, a reserva falha);
+    #   3. valida de novo e grava no SQLite um por um (o 2º item do mesmo
+    #      bolão já enxerga as cotas ocupadas pelo 1º);
+    #   4. apaga da fila o que foi gravado e republica os bolões afetados.
+    #  Conflito nunca é gravado: volta pra pendente e aparece numa janela
+    #  pro admin recusar ou decidir depois.
+    def _fila_loop_iniciar(self):
+        import threading
+        self._fila_poke = threading.Event()
+        self._fila_ocupado = False
+        self._fila_conflitos = {}
+        self._fila_conflitos_vistos = set()
+        self._fila_janela = None
+        self._fila_ultimo_erro = ""
+
+        def _loop():
+            while True:
+                if not self._fila_ocupado:
+                    try:
+                        itens = [_fila_ler_doc(d) for d in _fila_listar()]
+                        self.root.after(0, lambda it=itens: self._fila_processar(it))
+                    except Exception as ex:
+                        msg = str(ex)[:300]
+                        self.root.after(0, lambda m=msg: self._fila_erro(m))
+                self._fila_poke.wait(timeout=60)
+                self._fila_poke.clear()
+
+        threading.Thread(target=_loop, daemon=True).start()
+
+    def _fila_erro(self, msg):
+        self._status("⚠ Não consegui ler os lançamentos do site (nova tentativa em 1 min)", cor="#f39c12")
+        if msg != self._fila_ultimo_erro:
+            self._fila_ultimo_erro = msg
+            self._log("Falha ao ler lançamentos do site", msg)
+
+    def _fila_processar(self, itens):
+        if self._fila_ocupado:
+            return
+        self._fila_ultimo_erro = ""
+        itens = sorted((i for i in itens if i["status"] != "recusado"), key=lambda i: i["criadoEm"])
+        presentes = {i["doc_id"] for i in itens}
+        self._fila_conflitos = {k: v for k, v in self._fila_conflitos.items() if k in presentes}
+
+        candidatos, apagar = [], []
+        for it in itens:
+            sit, motivo, _ = _fila_validar(self.db, it)
+            if sit == "ja_importado":
+                apagar.append(it["doc_id"])
+            elif sit == "conflito":
+                self._fila_conflitos[it["doc_id"]] = (it, motivo)
+            else:
+                self._fila_conflitos.pop(it["doc_id"], None)
+                candidatos.append(it)
+
+        if apagar:
+            self._apagar_fila_em_lote("lancamentos_pendentes", apagar)
+        if not candidatos:
+            self._fila_mostrar_conflitos()
+            return
+
+        self._fila_ocupado = True
+        import threading
+
+        def _reservar():
+            reservados, erro = [], ""
+            agora = datetime.now().isoformat(timespec="seconds")
+            for it in candidatos:
+                try:
+                    if it["status"] == "importando" or _fila_mudar_status(it, "importando", {"importadoEm": agora}):
+                        reservados.append(it)
+                except Exception as ex:
+                    erro = str(ex)[:300]
+            self.root.after(0, lambda: self._fila_gravar(reservados, erro))
+
+        threading.Thread(target=_reservar, daemon=True).start()
+
+    def _fila_gravar(self, reservados, erro_reserva):
+        if erro_reserva:
+            self._log("Falha ao reservar lançamento do site", erro_reserva)
+        gravados, apagar, devolver, falhas = [], [], [], []
+        for it in reservados:
+            sit, motivo, ctx = _fila_validar(self.db, it)
+            if sit == "ja_importado":
+                apagar.append(it["doc_id"]); continue
+            if sit == "conflito":
+                devolver.append(it); self._fila_conflitos[it["doc_id"]] = (it, motivo); continue
+            try:
+                _fila_aplicar(self.db.conn, it, ctx)
+            except Exception as ex:
+                if _fila_validar(self.db, it)[0] == "ja_importado":
+                    apagar.append(it["doc_id"]); continue
+                # Fica como "importando" na fila: o próximo ciclo tenta de novo
+                falhas.append(f"{it['nome']}: {ex}")
+                continue
+            gravados.append((it, ctx))
+            apagar.append(it["doc_id"])
+            if it["tipo"] == "inscricao":
+                desc = (f"Inscrição de {ctx['nome']} em {ctx['bolao_nome']}: {it['cotas']} cota(s), "
+                        f"pago {fmt_brl(it['valorPago'])} ({it['formaPagamento'] or '-'})")
+            else:
+                desc = (f"Pagamento de {ctx['nome']} em {ctx['bolao_nome']}: {fmt_brl(it['valorPago'])} "
+                        f"({it['formaPagamento'] or '-'})")
+            self._log("Importado do site", f"{desc} — item {it['doc_id']}, registrado {it['criadoEm']}")
+        for f in falhas:
+            self._log("Falha ao importar lançamento do site", f)
+
+        bids = sorted({ctx["bid"] for _, ctx in gravados})
+        publicar = [d for d in (self._dados_publicacao_bolao(b) for b in bids) if d]
+
+        if gravados:
+            try: self._refresh_all()
+            except Exception: pass
+            self._status(f"📥 {len(gravados)} lançamento(s) do site importado(s) às "
+                         f"{datetime.now().strftime('%H:%M')}", cor="#1D9E75")
+
+        import threading
+
+        def _depois():
+            for it in devolver:
+                try: _fila_mudar_status(it, "pendente", exigir_versao=False)
+                except Exception: pass
+            erros_pub = []
+            for d in publicar:
+                try:
+                    r = enviar_bolao_para_site(
+                        titulo=d["titulo"], loteria=d["loteria"], valor_cota=d["valorPorCota"],
+                        data_limite=d["dataLimite"], participantes=d["participantes"],
+                        doc_id_fixo=d["_firebase_doc_id"], extras=d["_extras"])
+                    if not r.get("sucesso"):
+                        erros_pub.append(f"{d['titulo']}: {r.get('erro')}"); continue
+                    conn = sqlite3.connect(DB_FILE)
+                    try:
+                        def _ler(pid):
+                            row = conn.execute("SELECT busca_sync_hash FROM participantes WHERE id=?", (pid,)).fetchone()
+                            return row[0] if row else None
+                        def _salvar(pid, h):
+                            conn.execute("UPDATE participantes SET busca_sync_hash=? WHERE id=?", (h, pid))
+                            conn.commit()
+                        atualizar_busca_participante(
+                            r["doc_id"], d["titulo"], d["loteria"], d["valorPorCota"], d["dataLimite"],
+                            d["participantes"], ler_hash_fn=_ler, salvar_hash_fn=_salvar)
+                    finally:
+                        conn.close()
+                except Exception as ex:
+                    erros_pub.append(f"{d['titulo']}: {ex}")
+            self.root.after(0, lambda: self._fila_concluir(erros_pub))
+
+        if apagar:
+            self._apagar_fila_em_lote("lancamentos_pendentes", apagar)
+        threading.Thread(target=_depois, daemon=True).start()
+
+        if gravados:
+            linhas = []
+            for it, ctx in gravados:
+                quando = fmt_hora_web(it["criadoEm"])
+                if it["tipo"] == "inscricao":
+                    linhas.append(f"  • Inscrição: {ctx['nome']} em {ctx['bolao_nome']} — {it['cotas']} cota(s), "
+                                  f"pago {fmt_brl(it['valorPago'])}" + (f" ({quando})" if quando else ""))
+                else:
+                    linhas.append(f"  • Parcela: {ctx['nome']} em {ctx['bolao_nome']} — {fmt_brl(it['valorPago'])}"
+                                  + (f" ({quando})" if quando else ""))
+            texto = f"{len(gravados)} lançamento(s) feito(s) no site foram gravados aqui:\n\n" + "\n".join(linhas)
+            if falhas:
+                texto += "\n\n⚠ Não gravados (nova tentativa em 1 min):\n  " + "\n  ".join(falhas)
+            messagebox.showinfo("Lançamentos do site importados", texto)
+        elif falhas:
+            messagebox.showwarning("Lançamentos do site",
+                "Não consegui gravar:\n  " + "\n  ".join(falhas) + "\n\nNova tentativa em 1 minuto.")
+        self._fila_mostrar_conflitos()
+
+    def _fila_concluir(self, erros_pub):
+        self._fila_ocupado = False
+        if erros_pub:
+            self._log("Falha ao republicar bolão após importar do site", "; ".join(erros_pub))
+            self._status("⚠ Importado, mas o site ainda não mostra (republica ao fechar o programa)",
+                         cor="#f39c12")
+
+    def _fila_mostrar_conflitos(self):
+        """Janela com os lançamentos do site que não puderam ser gravados.
+        Abre sozinha só quando aparece um conflito novo."""
+        n = len(self._fila_conflitos)
+        if n:
+            self._status(f"⚠ {n} lançamento(s) do site aguardando sua decisão", cor="#f39c12")
+        novos = set(self._fila_conflitos) - self._fila_conflitos_vistos
+        janela_aberta = self._fila_janela is not None and self._fila_janela.winfo_exists()
+        if not novos and not janela_aberta:
+            return
+        self._fila_conflitos_vistos |= set(self._fila_conflitos)
+        if janela_aberta:
+            win = self._fila_janela
+            for w in win.winfo_children(): w.destroy()
+        else:
+            win = tk.Toplevel(self.root)
+            win.title("Lançamentos do site com conflito")
+            win.configure(bg=CORES["bg_section"])
+            win.geometry("720x420")
+            self._fila_janela = win
+        if not self._fila_conflitos:
+            win.destroy(); self._fila_janela = None
+            return
+
+        tk.Label(win, text="Estes lançamentos feitos no site NÃO foram gravados:",
+                 bg=CORES["bg_section"], fg="white", font=("Arial",11,"bold")
+                 ).pack(anchor="w", padx=16, pady=(14,2))
+        tk.Label(win, text="Corrija aqui (ex.: aumente as cotas do bolão) e eles entram sozinhos no "
+                           "próximo minuto, ou recuse. Item recusado aparece no site para você cancelar.",
+                 bg=CORES["bg_section"], fg="#aad4f5", font=("Arial",9), wraplength=680, justify="left"
+                 ).pack(anchor="w", padx=16, pady=(0,10))
+        corpo = tk.Frame(win, bg=CORES["bg_section"]); corpo.pack(fill="both", expand=True, padx=16)
+        for doc_id, (it, motivo) in list(self._fila_conflitos.items()):
+            linha = tk.Frame(corpo, bg="#22324a", pady=6, padx=8); linha.pack(fill="x", pady=3)
+            tipo = "Inscrição" if it["tipo"] == "inscricao" else "Parcela"
+            txt = (f"{tipo}: {it['nome']} — {it['bolaoTitulo']} — {fmt_brl(it['valorPago'])}"
+                   + (" (pago com a reserva)" if it["formaPagamento"] == "reserva" else "")
+                   + f"\nMotivo: {motivo}")
+            tk.Label(linha, text=txt, bg="#22324a", fg="white", font=("Arial",9),
+                     justify="left", anchor="w").pack(side="left", fill="x", expand=True)
+            btn(linha, "Recusar", CORES["btn_vermelho"],
+                lambda i=it, m=motivo: self._fila_recusar(i, m), width=10).pack(side="right")
+        btn(win, "Decidir depois", CORES["btn_cinza"], win.destroy, width=16).pack(pady=10)
+
+    def _fila_recusar(self, item, motivo):
+        aviso = ""
+        if item["formaPagamento"] == "reserva":
+            aviso = (f"\n\nO valor de {fmt_brl(item['valorPago'])} já saiu da reserva de {item['nome']}. "
+                     "Ao cancelar o item no site, ele volta para a reserva.")
+        if not messagebox.askyesno("Recusar lançamento do site",
+                f"Recusar {item['nome']} — {item['bolaoTitulo']}?\nMotivo: {motivo}{aviso}"):
+            return
+        import threading
+
+        def _run():
+            try:
+                ok = _fila_mudar_status(item, "recusado", {
+                    "motivoRecusa": motivo,
+                    "recusadoEm": datetime.now().isoformat(timespec="seconds")}, exigir_versao=False)
+                erro = "" if ok else "o item não está mais na fila (talvez já cancelado no site)"
+            except Exception as ex:
+                erro = str(ex)[:200]
+            self.root.after(0, lambda: _fim(erro))
+
+        def _fim(erro):
+            if erro:
+                messagebox.showwarning("Recusar", "Não recusou: " + erro)
+            else:
+                self._log("Lançamento do site recusado", f"{item['nome']} — {item['bolaoTitulo']}: {motivo}")
+            self._fila_conflitos.pop(item["doc_id"], None)
+            self._fila_mostrar_conflitos()
+
+        threading.Thread(target=_run, daemon=True).start()
+
     # ── HEADER ──────────────────────────────────────────────────
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v7.9",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v8.0",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         self._rsv_alerta_hdr = tk.Label(hdr, text="⚠ Saldo divergente: veja a aba Reservas",
@@ -3839,29 +4366,7 @@ class BolaoApp:
     #  HELPERS CENTRALIZADOS — status e cotas
     # ════════════════════════════════════════════════════════════
     def _get_cotas_ocupadas(self, bid):
-        b = self.db.fetchone(
-            "SELECT num_participantes, valor_total, adm_nome, adm_paga FROM boloes WHERE id=?", (bid,))
-        if not b: return 0, 0
-        vt        = float(b["valor_total"] or 0)
-        max_cotas = int(b["num_participantes"] or 0)
-        if vt <= 0: return 0, max_cotas
-        adm_nome = (b["adm_nome"] or "").strip()
-        adm_paga = b["adm_paga"] or 0
-        adm_low  = adm_nome.lower()
-        partic = self.db.fetchall(
-            "SELECT nome, valor_esperado, is_adm FROM participantes "
-            "WHERE bolao_id=? AND ativo=1", (bid,))
-        cotas = 0; adm_cad = False
-        for pt in partic:
-            ve = float(pt["valor_esperado"] or 0)
-            eh_adm = bool(pt["is_adm"]) or (adm_low and adm_low in pt["nome"].lower())
-            if eh_adm:
-                adm_cad = True
-                if not adm_paga:
-                    cotas += 1; continue
-            cotas += max(1, round(ve/vt)) if ve > 0 else 0
-        adm_extra = 1 if (adm_nome and not adm_paga and not adm_cad) else 0
-        return cotas + adm_extra, max_cotas
+        return _cotas_ocupadas(self.db, bid)
 
     def _status_part_adm(self, pt_d, pago, ve, parc_esp, parc, adm_paga):
         """
@@ -7716,7 +8221,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v7.9</span>
+        <span>Sistema de Gestão de Bolões v8.0</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -10028,7 +10533,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v7.9</span>
+        <span>Sistema de Gestão de Bolões v8.0</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -10451,6 +10956,16 @@ class BolaoApp:
                 "Este bolão não tem valor de cota configurado. Edite o bolão e "
                 "informe o valor antes de publicar.")
             return None
+        return self._dados_publicacao_bolao(bid)
+
+    def _dados_publicacao_bolao(self, bid):
+        """Dados prontos pra enviar_bolao_para_site (sem diálogos), ou None
+        se o bolão não existe ou não tem valor de cota."""
+        b = self.db.fetchone("SELECT * FROM boloes WHERE id=?", (bid,))
+        if not b: return None
+        bd = dict(b)
+        vt = float(bd.get("valor_total", 0) or 0)
+        if vt <= 0: return None
         lista_part = self._montar_lista_part_firestore(bid, vt, bd)
         # Loteria inferida do nome do bolão
         nome_lower = bd["nome"].lower()
@@ -10476,7 +10991,7 @@ class BolaoApp:
             except: pass
         return {"titulo":bd["nome"],"loteria":loteria,"valorPorCota":round(vt, 2),
                 "dataLimite":data_limite,"participantes":lista_part,
-                "_bolao_id":bid,"_firebase_doc_id":bd.get("firebase_doc_id") or None}
+                "_bolao_id":bid,"_extras":_bolao_campos_extras(self.db, bid),"_firebase_doc_id":bd.get("firebase_doc_id") or None}
 
     def _pub_preview(self):
         dados = self._pub_montar_dados()
@@ -10508,7 +11023,8 @@ class BolaoApp:
                     titulo=dados["titulo"], loteria=dados["loteria"],
                     valor_cota=dados["valorPorCota"], data_limite=dados["dataLimite"],
                     participantes=dados["participantes"],
-                    doc_id_fixo=dados.get("_firebase_doc_id"))
+                    doc_id_fixo=dados.get("_firebase_doc_id"),
+                    extras=dados.get("_extras"))
                 # Primeira publicação deste bolão: guarda o ID gerado pra
                 # sempre reaproveitar dele em diante, mesmo se o nome mudar
                 if resultado.get("sucesso") and not dados.get("_firebase_doc_id") and resultado.get("doc_id"):
@@ -11642,18 +12158,7 @@ class BolaoApp:
                         chave = slug(nome_b).replace("_"," ")
                         doc_id_b = FIREBASE_IDS.get(chave, "bolao_"+slug(nome_b))
 
-                    valores_part = []
-                    for p in lista:
-                        tel_fb = _re_c.sub(r"\D","",str(p.get("telefone") or ""))
-                        valores_part.append({"mapValue":{"fields":{
-                            "nome":{"stringValue":p["nome"]},
-                            "telefone":{"stringValue":tel_fb},
-                            "valorPago":{"doubleValue":float(p["valorPago"])},
-                            "situacao":{"stringValue":p["situacao"]},
-                            "quantidadeCotas":{"integerValue":str(int(p["quantidadeCotas"]))},
-                            "dataCadastro":{"stringValue":p["dataCadastro"]},
-                            "historicoPagamentos":_firestore_python_para_valor(p.get("historicoPagamentos") or []),
-                        }}})
+                    valores_part = [_participante_firestore(p) for p in lista]
 
                     doc_b = {"fields":{
                         "titulo":{"stringValue":nome_b},"loteria":{"stringValue":lot},
@@ -11661,6 +12166,7 @@ class BolaoApp:
                         "admin":{"booleanValue":True},
                         "participantes":{"arrayValue":{"values":valores_part}},
                     }}
+                    doc_b["fields"].update(_extras_firestore(_bolao_campos_extras(db2, bid)))
 
                     corpo_b = json.dumps(doc_b, ensure_ascii=False).encode("utf-8")
                     win.after(0, lambda did=doc_id_b: log(
@@ -11669,7 +12175,7 @@ class BolaoApp:
                     # antes: exige que o documento ainda exista no Firestore,
                     # pra não recriar um bolão que o admin excluiu no site.
                     url_b = _firestore_patch_url(FIREBASE_BASE+doc_id_b,
-                        ["titulo","loteria","valorPorCota","dataLimite","admin","participantes"],
+                        list(doc_b["fields"].keys()),
                         exigir_existente=bool(doc_id_salvo))
                     try:
                         req = urllib.request.Request(url_b, data=corpo_b,

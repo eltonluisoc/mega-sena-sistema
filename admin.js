@@ -84,7 +84,11 @@ function makePartId(nome, telefone) {
 // coleção lança "Expected type 'Vd', but it was: a custom Bd object".
 // Por isso o ledger é somado ANTES da transação, e o saldo gravado
 // continua sendo a soma real, nunca o campo cacheado + delta.
-async function registrarMovimentoNoFirestore({ pessoaId, pessoaNova, nome, telefone, chavePix, tipo, valor, data, descricao, loteria, concurso }) {
+// extraTx (v106): função opcional (tx, movRef) chamada dentro da mesma
+// transação, depois das leituras e antes das gravações; pode ler com
+// tx.get e devolve uma função que faz as gravações extras. Usada pra
+// gravar o saque da reserva e o item da fila de inscrições juntos.
+async function registrarMovimentoNoFirestore({ pessoaId, pessoaNova, nome, telefone, chavePix, tipo, valor, data, descricao, loteria, concurso, extraTx }) {
     const personRef = db.collection('reservas_participantes').doc(pessoaId);
     const movRef = personRef.collection('movimentos').doc();
     const valorNum = Number(valor);
@@ -102,6 +106,7 @@ async function registrarMovimentoNoFirestore({ pessoaId, pessoaNova, nome, telef
 
     await db.runTransaction(async (tx) => {
         const personSnap = await tx.get(personRef);
+        const gravarExtra = extraTx ? await extraTx(tx, movRef) : null;
         let saldoAtual = 0;
 
         if (pessoaNova) {
@@ -136,6 +141,7 @@ async function registrarMovimentoNoFirestore({ pessoaId, pessoaNova, nome, telef
             // gatilho (config_geral/alertas), pedido do usuário (03/11).
             ...(tipo === 'deposito' && valorNum > limiteAlertaSaldoBaixo ? { qualificaAlertaSaldoBaixo: true } : {})
         });
+        if (gravarExtra) gravarExtra();
     });
 
     // Aviso do contador global fora da transação (08/11) — não precisa
@@ -6645,3 +6651,473 @@ document.addEventListener('DOMContentLoaded', () => {
     // página. Removida a cópia daqui; a de 1500ms (já contabilizada no
     // contador de progresso) é a única que roda agora.
 });
+
+// ============================================
+// INSCRIÇÕES E PARCELAS PELO SITE (v106)
+// Pedido do usuário: inscrever alguém ou receber parcela quando está na
+// rua, sem o desktop. O site NÃO mexe na lista de participantes
+// publicada (o desktop a reescreve inteira ao publicar): grava um item
+// em lancamentos_pendentes, que o desktop v8.0 importa ao abrir e a cada
+// minuto, e depois republica o bolão. Pago com reserva: o saque e o item
+// da fila entram na MESMA transação (ou os dois, ou nenhum).
+// Custo: abrir a tela lê os bolões publicados (poucos documentos) e a
+// fila (normalmente vazia).
+// ============================================
+let _inscModo = 'inscricao';
+let _inscPendentes = [];
+let _inscIniciado = false;
+let _inscGravando = false;
+
+function _brl(v) {
+    return 'R$ ' + Number(v || 0).toFixed(2).replace('.', ',');
+}
+function _soDigitos(s) { return String(s || '').replace(/\D/g, ''); }
+function _hojeISO() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function _isoParaBR(iso) {
+    const [a, m, d] = String(iso || '').split('-');
+    return a && m && d ? `${d}/${m}/${a}` : '';
+}
+
+// Bolão apto: publicado por um desktop v8.0 (traz cotasTotais).
+function _inscBolaoApto(b) { return b && typeof b.cotasTotais === 'number'; }
+function _inscBolaoSel() { return boloes.find(b => b.id === document.getElementById('inscBolao').value) || null; }
+
+function _inscCotasPendentes(bolaoId) {
+    return _inscPendentes
+        .filter(p => p.tipo === 'inscricao' && p.bolaoDocId === bolaoId && p.status !== 'recusado')
+        .reduce((s, p) => s + (Number(p.cotas) || 0), 0);
+}
+function _inscCotasLivres(b) {
+    if (!b || !(b.cotasTotais > 0)) return Infinity;
+    return b.cotasTotais - (b.cotasOcupadas || 0) - _inscCotasPendentes(b.id);
+}
+
+// Pessoas conhecidas (participantes dos bolões + reservas), por telefone.
+function _inscPessoasConhecidas() {
+    const mapa = {};
+    for (const b of boloes) {
+        for (const p of (b.participantes || [])) {
+            const tel = _soDigitos(p.telefone);
+            if (tel.length >= 10 && !mapa[tel]) mapa[tel] = { nome: p.nome, telefone: tel };
+        }
+    }
+    for (const r of reservasCarregadas) {
+        const tel = _soDigitos(r.telefone);
+        if (tel.length >= 10 && !mapa[tel]) mapa[tel] = { nome: r.nome, telefone: tel, chavePix: r.chavePix || '' };
+    }
+    return mapa;
+}
+
+async function abrirInscricoes() {
+    if (!_inscIniciado) { _inscIniciado = true; _inscLigarEventos(); }
+    if (!document.getElementById('inscData').value) document.getElementById('inscData').value = _hojeISO();
+    try {
+        const snap = await db.collection('participantes').get();
+        boloes = [];
+        snap.forEach(doc => boloes.push({ id: doc.id, ...doc.data() }));
+    } catch (e) {
+        console.error('Erro ao ler bolões:', e);
+        showToast('❌ Não consegui ler os bolões: ' + e.message, 'error');
+    }
+    await carregarLancamentosPendentes();
+    _inscPreencherBoloes();
+    _inscPreencherReservas();
+    _inscPreencherNomes();
+    _inscPreencherParticipantes();
+    _inscAtualizar();
+}
+
+function _inscLigarEventos() {
+    document.querySelectorAll('.insc-aba').forEach(aba => aba.addEventListener('click', () => {
+        _inscModo = aba.dataset.modo;
+        document.querySelectorAll('.insc-aba').forEach(a => {
+            a.classList.toggle('ativa', a === aba);
+            a.setAttribute('aria-selected', a === aba ? 'true' : 'false');
+        });
+        document.getElementById('inscPainelInscricao').style.display = _inscModo === 'inscricao' ? '' : 'none';
+        document.getElementById('inscPainelPagamento').style.display = _inscModo === 'pagamento' ? '' : 'none';
+        document.getElementById('btnRegistrarInscricao').textContent =
+            _inscModo === 'inscricao' ? '✅ REGISTRAR INSCRIÇÃO' : '✅ REGISTRAR PAGAMENTO';
+        document.querySelector('.insc-atalhos [data-atalho="zero"]').style.display = _inscModo === 'inscricao' ? '' : 'none';
+        document.querySelector('.insc-atalhos [data-atalho="integral"]').textContent = _inscModo === 'inscricao' ? 'Integral' : 'Quitar';
+        document.getElementById('inscValor').value = '';
+        _inscPreencherParticipantes();
+        _inscAtualizar();
+    }));
+    document.getElementById('inscBolao').addEventListener('change', () => {
+        _inscPreencherParticipantes();
+        _inscAtualizar();
+    });
+    document.getElementById('inscTelefone').addEventListener('input', () => {
+        const tel = _soDigitos(document.getElementById('inscTelefone').value);
+        const pessoa = _inscPessoasConhecidas()[tel];
+        const nomeEl = document.getElementById('inscNome');
+        if (pessoa && !nomeEl.value.trim()) nomeEl.value = pessoa.nome;
+        if (pessoa && pessoa.chavePix && !document.getElementById('inscPix').value) document.getElementById('inscPix').value = pessoa.chavePix;
+        _inscSelecionarReservaPorTelefone(tel);
+        _inscAtualizar();
+    });
+    document.getElementById('inscNome').addEventListener('change', () => {
+        const nome = document.getElementById('inscNome').value.trim().toLowerCase();
+        const telEl = document.getElementById('inscTelefone');
+        if (!_soDigitos(telEl.value)) {
+            const achado = Object.values(_inscPessoasConhecidas()).find(p => p.nome.toLowerCase() === nome);
+            if (achado) { telEl.value = achado.telefone; telEl.dispatchEvent(new Event('input')); }
+        }
+        _inscAtualizar();
+    });
+    document.getElementById('inscParticipante').addEventListener('change', () => {
+        const p = _inscParticipanteSel();
+        if (p) _inscSelecionarReservaPorTelefone(_soDigitos(p.telefone));
+        _inscAtualizar();
+    });
+    ['inscCotas', 'inscValor', 'inscData', 'inscObs'].forEach(id =>
+        document.getElementById(id).addEventListener('input', _inscAtualizar));
+    document.getElementById('inscForma').addEventListener('change', () => {
+        document.getElementById('inscReservaGrupo').style.display =
+            document.getElementById('inscForma').value === 'reserva' ? '' : 'none';
+        _inscAtualizar();
+    });
+    document.getElementById('inscReservaPessoa').addEventListener('change', _inscAtualizar);
+    document.querySelectorAll('.insc-atalhos button').forEach(b => b.addEventListener('click', () => {
+        const bolao = _inscBolaoSel();
+        if (!bolao) { showToast('⚠️ Selecione o bolão', 'warning'); return; }
+        const cotas = parseInt(document.getElementById('inscCotas').value, 10) || 1;
+        let v = 0;
+        if (b.dataset.atalho === 'parcela') {
+            const parcela = bolao.valorParcela || bolao.valorPorCota || 0;
+            if (_inscModo === 'inscricao') v = parcela * cotas;
+            else {
+                const p = _inscParticipanteSel();
+                v = parcela * (p ? (Number(p.quantidadeCotas) || 1) : 1);
+            }
+        }
+        if (b.dataset.atalho === 'integral') {
+            if (_inscModo === 'inscricao') v = cotas * (bolao.valorPorCota || 0);
+            else {
+                const p = _inscParticipanteSel();
+                v = p ? Math.max(0, _inscEsperado(p, bolao) - _inscPagoComPendentes(p, bolao)) : 0;
+            }
+        }
+        document.getElementById('inscValor').value = v ? v.toFixed(2) : '0';
+        _inscAtualizar();
+    }));
+    document.getElementById('btnRegistrarInscricao').addEventListener('click', registrarLancamentoSite);
+    document.getElementById('btnAtualizarPendentesInsc').addEventListener('click', async () => {
+        await carregarLancamentosPendentes();
+        _inscPreencherBoloes();
+        _inscAtualizar();
+    });
+}
+
+function _inscPreencherBoloes() {
+    const sel = document.getElementById('inscBolao');
+    const atual = sel.value;
+    const aptos = boloes.filter(_inscBolaoApto).sort((a, b) => (a.titulo || '').localeCompare(b.titulo || '', 'pt-BR'));
+    let html = `<option value="">${aptos.length ? 'Selecione o bolão' : 'Nenhum bolão disponível ainda'}</option>`;
+    for (const b of aptos) {
+        const livres = _inscCotasLivres(b);
+        const txtLivres = livres === Infinity ? '' : ` · ${Math.max(0, livres)} cota(s) livre(s)`;
+        html += `<option value="${escapeHtml(b.id)}">${escapeHtml(b.titulo || b.id)} · ${_brl(b.valorPorCota)}/cota${txtLivres}</option>`;
+    }
+    sel.innerHTML = html;
+    if (aptos.some(b => b.id === atual)) sel.value = atual;
+}
+
+function _inscPreencherReservas() {
+    const sel = document.getElementById('inscReservaPessoa');
+    const atual = sel.value;
+    const lista = reservasCarregadas.slice().sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
+    sel.innerHTML = '<option value="">Selecione a pessoa</option>' + lista.map(r =>
+        `<option value="${escapeHtml(r.id)}">${escapeHtml(r.nome)} · saldo ${_brl(r.saldo)}</option>`).join('');
+    if (lista.some(r => r.id === atual)) sel.value = atual;
+}
+
+function _inscPreencherNomes() {
+    document.getElementById('inscNomesConhecidos').innerHTML = Object.values(_inscPessoasConhecidas())
+        .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+        .map(p => `<option value="${escapeHtml(p.nome)}"></option>`).join('');
+}
+
+function _inscSelecionarReservaPorTelefone(tel) {
+    if (tel.length < 10) return;
+    const r = reservasCarregadas.find(x => _soDigitos(x.telefone) === tel);
+    if (r) document.getElementById('inscReservaPessoa').value = r.id;
+}
+
+function _inscPreencherParticipantes() {
+    const sel = document.getElementById('inscParticipante');
+    const b = _inscBolaoSel();
+    if (!b) { sel.innerHTML = '<option value="">Selecione o bolão primeiro</option>'; return; }
+    const atual = sel.value;
+    const lista = (b.participantes || []).map((p, i) => ({ ...p, _i: i }))
+        .filter(p => p.idLocal || _soDigitos(p.telefone))
+        .sort((x, y) => (x.nome || '').localeCompare(y.nome || '', 'pt-BR'));
+    sel.innerHTML = '<option value="">Selecione o participante</option>' + lista.map(p => {
+        const falta = Math.max(0, _inscEsperado(p, b) - _inscPagoComPendentes(p, b));
+        return `<option value="${p._i}">${escapeHtml(p.nome)} · ${falta > 0 ? 'falta ' + _brl(falta) : 'quitado'}</option>`;
+    }).join('');
+    if (lista.some(p => String(p._i) === atual)) sel.value = atual;
+}
+
+function _inscParticipanteSel() {
+    const b = _inscBolaoSel();
+    const i = document.getElementById('inscParticipante').value;
+    return b && i !== '' ? (b.participantes || [])[Number(i)] || null : null;
+}
+function _inscEsperado(p, b) { return (Number(p.quantidadeCotas) || 1) * (b.valorPorCota || 0); }
+function _inscPagoComPendentes(p, b) {
+    const tel = _soDigitos(p.telefone);
+    const pend = _inscPendentes.filter(x => x.tipo === 'pagamento' && x.bolaoDocId === b.id && x.status !== 'recusado' &&
+        ((p.idLocal && x.participanteIdLocal === p.idLocal) || (!p.idLocal && _soDigitos(x.telefone) === tel)))
+        .reduce((s, x) => s + (Number(x.valorPago) || 0), 0);
+    return (p.valorPago || 0) + pend;
+}
+
+// Monta o lançamento a partir do formulário. Devolve { erro } ou
+// { dados, avisos, reserva, dataISO }: avisos pedem confirmação, erros bloqueiam.
+function _inscMontar() {
+    const b = _inscBolaoSel();
+    if (!b) return { erro: 'Selecione o bolão.' };
+    const valor = Math.round((parseFloat(document.getElementById('inscValor').value) || 0) * 100) / 100;
+    const dataISO = document.getElementById('inscData').value;
+    const forma = document.getElementById('inscForma').value;
+    const obs = document.getElementById('inscObs').value.trim();
+    const avisos = [];
+    if (valor < 0) return { erro: 'Valor inválido.' };
+    if (valor > 0 && !dataISO) return { erro: 'Informe a data do pagamento.' };
+
+    let dados;
+    if (_inscModo === 'inscricao') {
+        const tel = _soDigitos(document.getElementById('inscTelefone').value);
+        const nome = document.getElementById('inscNome').value.trim();
+        const cotas = parseInt(document.getElementById('inscCotas').value, 10) || 0;
+        if (tel.length < 10 || tel.length > 11) return { erro: 'Telefone precisa de DDD + número (10 ou 11 dígitos).' };
+        if (!nome) return { erro: 'Informe o nome.' };
+        if (cotas < 1) return { erro: 'Informe pelo menos 1 cota.' };
+        const jaNoBolao = (b.participantes || []).find(p => _soDigitos(p.telefone) === tel);
+        if (jaNoBolao) return { erro: `${jaNoBolao.nome} já está neste bolão. Use "Pagar parcela".` };
+        if (_inscPendentes.some(p => p.tipo === 'inscricao' && p.bolaoDocId === b.id && p.status !== 'recusado' && _soDigitos(p.telefone) === tel)) {
+            return { erro: 'Já existe uma inscrição desse telefone neste bolão aguardando o desktop.' };
+        }
+        const livres = _inscCotasLivres(b);
+        if (cotas > livres) return { erro: `Este bolão tem ${Math.max(0, livres)} cota(s) livre(s).` };
+        const esperado = Math.round(cotas * (b.valorPorCota || 0) * 100) / 100;
+        if (valor > esperado * 1.05) avisos.push(`O valor pago (${_brl(valor)}) é maior que o total da inscrição (${_brl(esperado)}).`);
+        dados = {
+            tipo: 'inscricao', bolaoDocId: b.id, bolaoTitulo: b.titulo || b.id, nome, telefone: tel,
+            chavePix: document.getElementById('inscPix').value.trim(), cotas, valorEsperado: esperado
+        };
+    } else {
+        const p = _inscParticipanteSel();
+        if (!p) return { erro: 'Selecione o participante.' };
+        if (valor <= 0) return { erro: 'Informe o valor pago.' };
+        const falta = _inscEsperado(p, b) - _inscPagoComPendentes(p, b);
+        if (valor > falta + 0.01) avisos.push(`Falta só ${_brl(Math.max(0, falta))} para quitar e o pagamento é de ${_brl(valor)}.`);
+        dados = {
+            tipo: 'pagamento', bolaoDocId: b.id, bolaoTitulo: b.titulo || b.id,
+            nome: p.nome || '', telefone: _soDigitos(p.telefone)
+        };
+        if (p.idLocal) dados.participanteIdLocal = p.idLocal;
+    }
+
+    let reserva = null;
+    if (valor > 0 && forma === 'reserva') {
+        reserva = reservasCarregadas.find(r => r.id === document.getElementById('inscReservaPessoa').value) || null;
+        if (!reserva) return { erro: 'Escolha de qual reserva sai o valor.' };
+        const depois = (reserva.saldo || 0) - valor;
+        if (depois < 0) avisos.push(`A reserva de ${reserva.nome} ficará negativa (${_brl(depois)}).`);
+    }
+    Object.assign(dados, {
+        valorPago: valor,
+        dataPagamento: valor > 0 ? _isoParaBR(dataISO) : '',
+        formaPagamento: valor > 0 ? forma : 'nenhum',
+        observacoes: obs
+    });
+    return { dados, avisos, reserva, dataISO };
+}
+
+function _inscAtualizar() {
+    const b = _inscBolaoSel();
+    const info = document.getElementById('inscBolaoInfo');
+    if (b) {
+        const livres = _inscCotasLivres(b);
+        const pend = _inscCotasPendentes(b.id);
+        info.className = 'insc-info' + (livres <= 0 ? ' erro' : '');
+        info.textContent = `${_brl(b.valorPorCota)} por cota` +
+            (b.valorParcela ? ` · parcela ${_brl(b.valorParcela)}` : '') +
+            (livres === Infinity ? '' : ` · ${b.cotasOcupadas || 0} de ${b.cotasTotais} cotas ocupadas` +
+                (pend ? ` + ${pend} aguardando o desktop` : '') + ` · ${Math.max(0, livres)} livre(s)`);
+    } else if (!boloes.some(_inscBolaoApto) && boloes.length) {
+        info.className = 'insc-info alerta';
+        info.textContent = 'Abra e feche o desktop v8.0 uma vez: ele publica os bolões com as cotas livres e eles aparecem aqui.';
+    } else {
+        info.textContent = '';
+    }
+
+    const pessoaInfo = document.getElementById('inscPessoaInfo');
+    const tel = _soDigitos(document.getElementById('inscTelefone').value);
+    const conhecida = tel.length >= 10 ? _inscPessoasConhecidas()[tel] : null;
+    const jaNoBolao = b && tel.length >= 10 ? (b.participantes || []).find(p => _soDigitos(p.telefone) === tel) : null;
+    if (jaNoBolao) { pessoaInfo.className = 'insc-info erro'; pessoaInfo.textContent = `${jaNoBolao.nome} já está neste bolão: use "Pagar parcela".`; }
+    else if (conhecida) { pessoaInfo.className = 'insc-info'; pessoaInfo.textContent = `Pessoa já cadastrada: ${conhecida.nome}.`; }
+    else pessoaInfo.textContent = '';
+
+    const partInfo = document.getElementById('inscParticipanteInfo');
+    const p = _inscModo === 'pagamento' ? _inscParticipanteSel() : null;
+    if (p && b) {
+        const esperado = _inscEsperado(p, b), pago = _inscPagoComPendentes(p, b);
+        partInfo.className = 'insc-info';
+        partInfo.textContent = `${p.quantidadeCotas || 1} cota(s) · total ${_brl(esperado)} · pago ${_brl(pago)}` +
+            (pago > (p.valorPago || 0) ? ' (inclui o que aguarda o desktop)' : '') + ` · falta ${_brl(Math.max(0, esperado - pago))}`;
+    } else partInfo.textContent = '';
+
+    const resInfo = document.getElementById('inscReservaInfo');
+    const r = reservasCarregadas.find(x => x.id === document.getElementById('inscReservaPessoa').value);
+    const valor = parseFloat(document.getElementById('inscValor').value) || 0;
+    if (r) {
+        const depois = (r.saldo || 0) - valor;
+        resInfo.className = 'insc-info' + (depois < 0 ? ' erro' : '');
+        resInfo.textContent = `Saldo ${_brl(r.saldo)} → depois do lançamento ${_brl(depois)}`;
+    } else resInfo.textContent = '';
+
+    const m = _inscMontar();
+    const resumo = document.getElementById('inscResumo');
+    if (m.erro) { resumo.textContent = ''; return; }
+    const d = m.dados;
+    const formaTxt = { pix: 'PIX', dinheiro: 'dinheiro', reserva: `reserva de ${m.reserva ? m.reserva.nome : ''}`, nenhum: '' }[d.formaPagamento];
+    resumo.innerHTML = d.tipo === 'inscricao'
+        ? `<strong>${escapeHtml(d.nome)}</strong> em <strong>${escapeHtml(d.bolaoTitulo)}</strong>: ${d.cotas} cota(s), total ${_brl(d.valorEsperado)}` +
+          (d.valorPago > 0 ? `, pagando agora ${_brl(d.valorPago)} (${escapeHtml(formaTxt)}).` : ', sem pagamento agora.')
+        : `Parcela de <strong>${escapeHtml(d.nome)}</strong> em <strong>${escapeHtml(d.bolaoTitulo)}</strong>: ${_brl(d.valorPago)} (${escapeHtml(formaTxt)}).`;
+}
+
+async function registrarLancamentoSite() {
+    if (_inscGravando) return;
+    const m = _inscMontar();
+    if (m.erro) { showToast('⚠️ ' + m.erro, 'warning'); return; }
+    if (m.avisos.length && !confirm(m.avisos.join('\n\n') + '\n\nRegistrar mesmo assim?')) return;
+
+    const btn = document.getElementById('btnRegistrarInscricao');
+    const textoBtn = btn.textContent;
+    _inscGravando = true; btn.disabled = true; btn.textContent = '⏳ Gravando...';
+    const ref = db.collection('lancamentos_pendentes').doc();
+    const doc = { ...m.dados, status: 'pendente', criadoEm: new Date().toISOString() };
+    try {
+        if (m.reserva) {
+            const b = _inscBolaoSel();
+            await registrarMovimentoNoFirestore({
+                pessoaId: m.reserva.id, pessoaNova: false, nome: m.reserva.nome,
+                telefone: m.reserva.telefone || '', chavePix: m.reserva.chavePix || '',
+                tipo: 'saque', valor: m.dados.valorPago, data: m.dataISO,
+                descricao: `${m.dados.tipo === 'inscricao' ? 'Inscrição' : 'Parcela'} ${m.dados.bolaoTitulo}` +
+                    (m.dados.nome !== m.reserva.nome ? ` (${m.dados.nome})` : ''),
+                loteria: (b && b.loteria) || '',
+                extraTx: async (tx, movRef) => () => tx.set(ref, { ...doc, reservaPessoaId: m.reserva.id, reservaMovId: movRef.id })
+            });
+        } else {
+            await ref.set(doc);
+        }
+        showToast(m.dados.tipo === 'inscricao'
+            ? '✅ Inscrição registrada! O desktop grava ao abrir.'
+            : '✅ Pagamento registrado! O desktop grava ao abrir.', 'success');
+        ['inscTelefone', 'inscNome', 'inscPix', 'inscValor', 'inscObs'].forEach(id => { document.getElementById(id).value = ''; });
+        document.getElementById('inscCotas').value = '1';
+        document.getElementById('inscParticipante').value = '';
+        if (m.reserva) await carregarReservas();
+        await carregarLancamentosPendentes();
+        _inscPreencherBoloes();
+        _inscPreencherReservas();
+        _inscPreencherParticipantes();
+        _inscAtualizar();
+    } catch (e) {
+        console.error('Erro ao registrar lançamento:', e);
+        showToast('❌ Não gravou: ' + (e.message || e), 'error');
+    } finally {
+        _inscGravando = false; btn.disabled = false; btn.textContent = textoBtn;
+    }
+}
+
+async function carregarLancamentosPendentes() {
+    const container = document.getElementById('listaLancamentosPendentes');
+    try {
+        const snap = await db.collection('lancamentos_pendentes').get();
+        _inscPendentes = [];
+        snap.forEach(d => _inscPendentes.push({ id: d.id, ...d.data() }));
+        _inscPendentes.sort((a, b) => String(b.criadoEm || '').localeCompare(String(a.criadoEm || '')));
+    } catch (e) {
+        console.error('Erro ao ler lançamentos pendentes:', e);
+        if (container) container.innerHTML = `<div class="empty-state">Não consegui ler a fila: ${escapeHtml(e.message)}</div>`;
+        return;
+    }
+    if (!container) return;
+    if (!_inscPendentes.length) {
+        container.innerHTML = '<div class="empty-state">Nada aguardando: tudo já está no desktop.</div>';
+        return;
+    }
+    const rotulo = { pendente: 'aguardando', importando: 'sendo gravado', recusado: 'recusado no desktop' };
+    container.innerHTML = _inscPendentes.map(p => {
+        const quando = p.criadoEm ? new Date(p.criadoEm).toLocaleString('pt-BR') : '';
+        const forma = { pix: 'PIX', dinheiro: 'dinheiro', reserva: 'reserva', nenhum: 'sem pagamento' }[p.formaPagamento] || p.formaPagamento || '';
+        const titulo = (p.tipo === 'inscricao' ? '➕ ' : '💵 ') + escapeHtml(p.nome);
+        const det = p.tipo === 'inscricao'
+            ? `Inscrição em ${escapeHtml(p.bolaoTitulo)} · ${p.cotas} cota(s) · pago ${_brl(p.valorPago)} (${escapeHtml(forma)})`
+            : `Parcela de ${escapeHtml(p.bolaoTitulo)} · ${_brl(p.valorPago)} (${escapeHtml(forma)})`;
+        const motivo = p.status === 'recusado' && p.motivoRecusa ? `<br><strong>Motivo:</strong> ${escapeHtml(p.motivoRecusa)}` : '';
+        const podeCancelar = p.status !== 'importando';
+        return `<div class="insc-item ${p.status === 'recusado' ? 'recusado' : ''}">
+            <div>
+                <div class="insc-item-titulo">${titulo}<span class="insc-chip ${escapeHtml(p.status)}">${rotulo[p.status] || escapeHtml(p.status)}</span></div>
+                <div class="insc-item-det">${det}<br>${escapeHtml(quando)}${motivo}</div>
+            </div>
+            ${podeCancelar ? `<button type="button" class="insc-cancelar" data-id="${escapeHtml(p.id)}">${p.formaPagamento === 'reserva' ? 'Cancelar e devolver' : 'Cancelar'}</button>` : ''}
+        </div>`;
+    }).join('');
+    container.querySelectorAll('.insc-cancelar').forEach(b => b.addEventListener('click', () => cancelarLancamentoPendente(b.dataset.id)));
+}
+
+// Cancela um item que o desktop ainda não reservou. Pago com reserva: o
+// valor volta como depósito (o histórico da reserva nunca é apagado) na
+// mesma transação que remove o item da fila.
+async function cancelarLancamentoPendente(id) {
+    const p = _inscPendentes.find(x => x.id === id);
+    if (!p) return;
+    const devolver = p.formaPagamento === 'reserva' && p.reservaPessoaId && p.valorPago > 0;
+    const pessoaReserva = devolver ? (reservasCarregadas.find(r => r.id === p.reservaPessoaId) || { nome: p.nome }) : null;
+    if (!confirm(`Cancelar ${p.tipo === 'inscricao' ? 'a inscrição' : 'o pagamento'} de ${p.nome} em ${p.bolaoTitulo}?` +
+        (devolver ? `\n\n${_brl(p.valorPago)} volta para a reserva de ${pessoaReserva.nome}.` : ''))) return;
+
+    const ref = db.collection('lancamentos_pendentes').doc(id);
+    const conferir = async (tx) => {
+        const s = await tx.get(ref);
+        if (!s.exists) throw new Error('este lançamento já foi gravado pelo desktop.');
+        if (s.data().status === 'importando') throw new Error('o desktop está gravando este lançamento agora.');
+        return () => tx.delete(ref);
+    };
+    try {
+        if (devolver) {
+            await registrarMovimentoNoFirestore({
+                pessoaId: p.reservaPessoaId, pessoaNova: false, nome: pessoaReserva.nome,
+                telefone: pessoaReserva.telefone || '', chavePix: pessoaReserva.chavePix || '',
+                tipo: 'deposito', valor: p.valorPago, data: _hojeISO(),
+                descricao: `Estorno: ${p.tipo === 'inscricao' ? 'inscrição' : 'parcela'} ${p.bolaoTitulo} cancelada`,
+                extraTx: conferir
+            });
+            await carregarReservas();
+        } else {
+            await db.runTransaction(async tx => { (await conferir(tx))(); });
+        }
+        showToast('✅ Cancelado' + (devolver ? ' e devolvido à reserva.' : '.'), 'success');
+    } catch (e) {
+        console.error('Erro ao cancelar:', e);
+        showToast('❌ Não cancelou: ' + (e.message || e), 'error');
+    }
+    await carregarLancamentosPendentes();
+    _inscPreencherBoloes();
+    _inscPreencherReservas();
+    _inscPreencherParticipantes();
+    _inscAtualizar();
+}

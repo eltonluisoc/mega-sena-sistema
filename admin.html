@@ -1188,6 +1188,30 @@
         /* ============================================ */
         /* RESPONSIVO */
         /* ============================================ */
+        /* Inscrições (v106) */
+        .insc-abas { display: flex; gap: 6px; background: var(--cor-fundo); padding: 4px; border-radius: var(--raio); margin-bottom: 16px; }
+        .insc-aba { flex: 1; border: none; background: transparent; padding: 10px 8px; border-radius: var(--raio-pequeno); font-weight: 700; font-size: 14px; color: var(--cor-texto-sec); cursor: pointer; touch-action: manipulation; }
+        .insc-aba.ativa { background: var(--cor-superficie); color: var(--cor-primaria); box-shadow: var(--sombra); }
+        .insc-info { font-size: 12px; color: var(--cor-texto-sec); margin-top: 6px; min-height: 0; }
+        .insc-info:empty { display: none; }
+        .insc-info.alerta { color: #b45309; font-weight: 600; }
+        .insc-info.erro { color: var(--cor-erro); font-weight: 600; }
+        .insc-atalhos { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+        .insc-atalhos button { border: 1px solid var(--cor-borda); background: var(--cor-superficie); border-radius: var(--raio-pill); padding: 5px 12px; font-size: 12px; cursor: pointer; color: var(--cor-texto); touch-action: manipulation; }
+        .insc-atalhos button:hover { border-color: var(--cor-primaria); color: var(--cor-primaria); }
+        .insc-resumo { background: var(--cor-primaria-fundo); color: var(--cor-texto); border-radius: var(--raio); padding: 10px 12px; font-size: 13px; margin-bottom: 12px; line-height: 1.5; }
+        .insc-resumo:empty { display: none; }
+        .insc-link { border: none; background: none; color: var(--cor-primaria); font-weight: 600; font-size: 13px; cursor: pointer; padding: 4px; }
+        .insc-item { border: 1px solid var(--cor-borda); border-radius: var(--raio); padding: 10px 12px; margin-bottom: 8px; display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; background: var(--cor-superficie); }
+        .insc-item.recusado { border-color: var(--cor-erro); background: #fff5f5; }
+        .insc-item-titulo { font-weight: 700; font-size: 14px; color: var(--cor-texto); }
+        .insc-item-det { font-size: 12px; color: var(--cor-texto-sec); margin-top: 2px; line-height: 1.45; }
+        .insc-chip { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: var(--raio-pill); margin-left: 6px; vertical-align: middle; }
+        .insc-chip.pendente { background: #fff7e6; color: #b45309; }
+        .insc-chip.importando { background: var(--cor-primaria-fundo); color: var(--cor-primaria); }
+        .insc-chip.recusado { background: #ffe5e5; color: var(--cor-erro); }
+        .insc-cancelar { border: 1px solid var(--cor-borda); background: var(--cor-superficie); color: var(--cor-erro); border-radius: var(--raio-pequeno); padding: 6px 10px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; touch-action: manipulation; }
+
         @media (max-width: 1024px) {
             .sidebar {
                 flex: 0 0 204px;
@@ -1361,7 +1385,7 @@
     <!-- TOP BAR -->
     <!-- ============================================ -->
     <div class="top-bar">
-        <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">Administração · v105</span></div>
+        <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">Administração · v106</span></div>
         <div class="stats">
             <div class="stat" id="bootProgress" style="display:none;">⏳ Carregando… 0%</div>
             <div class="stat" id="totalCartoes">📊 0 cartões</div>
@@ -1408,6 +1432,10 @@
             <button type="button" class="sidebar-item destaque" data-section="financeiro-grupo" data-grupo="financeiro" data-sub="reservas">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h13v4"/><path d="M3 7v10a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1V10a1 1 0 0 0-1-1H5a2 2 0 0 1-2-2z"/><circle cx="17" cy="14" r="1"/></svg>
                 Reservas
+            </button>
+            <button type="button" class="sidebar-item destaque" data-section="inscricoes">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M16 11h6"/></svg>
+                Inscrições
             </button>
             <button type="button" class="sidebar-item destaque" data-section="cartoes" data-grupo="cartoes" data-sub="importar">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M12 18v-6M9 15l3-3 3 3"/></svg>
@@ -1881,6 +1909,107 @@
                  em admin.js), e ganhou botão próprio no menu em vez de
                  ficar escondida dentro de Cartões. -->
             <!-- ============================================ -->
+            <!-- ============================================ -->
+            <!-- SEÇÃO: INSCRIÇÕES (v106) — inscrever e receber parcela
+                 sem o desktop. Os lançamentos ficam na fila
+                 lancamentos_pendentes até o desktop importar. -->
+            <!-- ============================================ -->
+            <section id="section-inscricoes" class="section">
+                <div class="card">
+                    <div class="card-header">📝 INSCRIÇÕES E PARCELAS</div>
+                    <div style="font-size: 12px; color: var(--cor-texto-sec); margin-bottom: 14px;">
+                        O desktop grava tudo sozinho ao abrir (e a cada minuto enquanto estiver aberto)
+                        e republica o bolão no site. Até lá, o lançamento fica na lista "Aguardando o desktop" abaixo.
+                    </div>
+                    <div class="insc-abas" role="tablist">
+                        <button type="button" class="insc-aba ativa" data-modo="inscricao" role="tab" aria-selected="true">➕ Nova inscrição</button>
+                        <button type="button" class="insc-aba" data-modo="pagamento" role="tab" aria-selected="false">💵 Pagar parcela</button>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="inscBolao">👥 Bolão:</label>
+                        <select id="inscBolao" class="form-control"><option value="">Carregando...</option></select>
+                        <div id="inscBolaoInfo" class="insc-info"></div>
+                    </div>
+
+                    <div id="inscPainelInscricao">
+                        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                            <div class="form-group" style="flex:1; min-width:160px;">
+                                <label for="inscTelefone">📱 Telefone (DDD + número):</label>
+                                <input type="tel" id="inscTelefone" class="form-control" inputmode="numeric" placeholder="61999999999" autocomplete="off">
+                            </div>
+                            <div class="form-group" style="flex:2; min-width:200px;">
+                                <label for="inscNome">👤 Nome:</label>
+                                <input type="text" id="inscNome" class="form-control" list="inscNomesConhecidos" placeholder="Nome completo" autocomplete="off">
+                                <datalist id="inscNomesConhecidos"></datalist>
+                            </div>
+                        </div>
+                        <div id="inscPessoaInfo" class="insc-info"></div>
+                        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                            <div class="form-group" style="flex:1; min-width:110px;">
+                                <label for="inscCotas">🎟 Cotas:</label>
+                                <input type="number" id="inscCotas" class="form-control" min="1" step="1" value="1">
+                            </div>
+                            <div class="form-group" style="flex:2; min-width:200px;">
+                                <label for="inscPix">🔑 Chave PIX (opcional):</label>
+                                <input type="text" id="inscPix" class="form-control" autocomplete="off">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="inscPainelPagamento" style="display:none;">
+                        <div class="form-group">
+                            <label for="inscParticipante">👤 Participante:</label>
+                            <select id="inscParticipante" class="form-control"><option value="">Selecione o bolão primeiro</option></select>
+                            <div id="inscParticipanteInfo" class="insc-info"></div>
+                        </div>
+                    </div>
+
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <div class="form-group" style="flex:1; min-width:150px;">
+                            <label for="inscValor">💰 Valor pago agora (R$):</label>
+                            <input type="number" id="inscValor" class="form-control" step="0.01" min="0" placeholder="0,00">
+                            <div class="insc-atalhos">
+                                <button type="button" data-atalho="zero">Nada agora</button>
+                                <button type="button" data-atalho="parcela">1 parcela</button>
+                                <button type="button" data-atalho="integral">Integral</button>
+                            </div>
+                        </div>
+                        <div class="form-group" style="flex:1; min-width:150px;">
+                            <label for="inscData">📅 Data do pagamento:</label>
+                            <input type="date" id="inscData" class="form-control">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="inscForma">💳 Forma de pagamento:</label>
+                        <select id="inscForma" class="form-control">
+                            <option value="pix">PIX</option>
+                            <option value="dinheiro">Dinheiro</option>
+                            <option value="reserva">Usar a reserva da pessoa</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="inscReservaGrupo" style="display:none;">
+                        <label for="inscReservaPessoa">🏦 Reserva de:</label>
+                        <select id="inscReservaPessoa" class="form-control"></select>
+                        <div id="inscReservaInfo" class="insc-info"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="inscObs">📝 Observação (opcional):</label>
+                        <input type="text" id="inscObs" class="form-control" maxlength="200">
+                    </div>
+                    <div id="inscResumo" class="insc-resumo"></div>
+                    <button id="btnRegistrarInscricao" class="btn btn-success btn-block">✅ REGISTRAR INSCRIÇÃO</button>
+
+                    <div style="margin-top: 20px; border-top: 1px solid var(--cor-borda); padding-top: 14px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:8px;">
+                            <div style="font-weight:700; font-size:13px; color: var(--cor-texto);">⏳ Aguardando o desktop</div>
+                            <button type="button" id="btnAtualizarPendentesInsc" class="insc-link">🔄 Atualizar</button>
+                        </div>
+                        <div id="listaLancamentosPendentes"><div class="empty-state">Carregando...</div></div>
+                    </div>
+                </div>
+            </section>
+
             <section id="section-conferencia" class="section">
                 <!-- Achado real do usuário (07/11): a 1ª versão só mostrava
                      o concurso mais recente de cada loteria, sem filtro nem
@@ -2232,6 +2361,9 @@
             // admin ficou um tempo parado antes de abrir esta aba.
             if (sectionId === 'conferencia' && typeof atualizarPainelConferencia === 'function') {
                 atualizarPainelConferencia();
+            }
+            if (sectionId === 'inscricoes' && typeof abrirInscricoes === 'function') {
+                abrirInscricoes();
             }
 
             item.scrollIntoView({ block: 'nearest', inline: 'center' });

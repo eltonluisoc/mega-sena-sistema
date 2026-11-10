@@ -45,9 +45,10 @@ service cloud.firestore {
       allow read: if true;
       allow write, delete: if isAdmin();
     }
+    // Fila antiga sem uso (nada grava aqui desde que a sincronização
+    // de participantes foi removida do desktop): leitura só do admin.
     match /participantes_pendentes/{document} {
-      allow read: if true;
-      allow write, delete: if isAdmin();
+      allow read, write, delete: if isAdmin();
     }
 
     // Cache de resultados oficiais das loterias, hoje gravado só pelo
@@ -244,6 +245,30 @@ service cloud.firestore {
     // sistema desktop atualize a premiação na aba gestão premiações".
     match /premiacoes_pendentes/{document} {
       allow read, write: if isAdmin();
+    }
+
+    // v8.0: inscrições e pagamentos de parcela lançados no admin web,
+    // aguardando o desktop importar (o desktop é o dono dos bolões).
+    // status: pendente (site ainda pode cancelar), importando (desktop
+    // reservou) ou recusado (conflito; o admin cancela pelo site).
+    match /lancamentos_pendentes/{document} {
+      function camposOk(d) {
+        return d.keys().hasOnly(
+                 ['tipo','status','bolaoDocId','bolaoTitulo','nome','telefone','chavePix',
+                  'cotas','valorEsperado','participanteIdLocal','valorPago','dataPagamento',
+                  'formaPagamento','reservaPessoaId','reservaMovId','observacoes','criadoEm',
+                  'importadoEm','motivoRecusa','recusadoEm'])
+               && d.tipo in ['inscricao','pagamento']
+               && d.status in ['pendente','importando','recusado']
+               && d.bolaoDocId is string
+               && d.valorPago is number && d.valorPago >= 0;
+      }
+      allow read, delete: if isAdmin();
+      allow create: if isAdmin() && camposOk(request.resource.data)
+                    && request.resource.data.status == 'pendente';
+      allow update: if isAdmin() && camposOk(request.resource.data)
+                    && request.resource.data.tipo == resource.data.tipo
+                    && request.resource.data.valorPago == resource.data.valorPago;
     }
 
     // Gerações salvas do Otimizador de Cotas (app desktop separado,
