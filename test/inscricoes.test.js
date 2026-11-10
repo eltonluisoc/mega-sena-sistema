@@ -217,3 +217,49 @@ test('status do desktop: aberto recente, fechado e sinal antigo', () => {
   assert.match(run(`_textoStatusDesktop(${JSON.stringify({ aberto: false, ultimaVerificacao: agora, conflitos: 2 })}).txt`), /2 com conflito/);
   assert.equal(run('_textoStatusDesktop(null).cls'), 'alerta');
 });
+
+const CASOS_ATRASO = JSON.parse(fs.readFileSync(path.join(__dirname, 'casos_atraso.json'), 'utf8'));
+
+test('regra de atraso igual à do desktop (casos compartilhados)', () => {
+  for (const c of CASOS_ATRASO) {
+    const r = run(`_situacaoAtraso(${c.pago}, ${c.esperado}, ${c.cotas}, ${c.devidas}, ${c.parcela})`);
+    assert.deepEqual({ ...r }, { emAtraso: c.emAtraso, pagas: c.pagas, valor: c.valor }, c.caso);
+  }
+});
+
+test('parcelas vencidas: mês atual não conta e limita ao total', () => {
+  const b = { dataInicio: '2026-01-20', valorParcela: 75.1, parcelasTotal: 10 };
+  assert.equal(run(`_parcelasVencidasBolao(${JSON.stringify(b)}, new Date(2026, 10, 10))`), 10);
+  assert.equal(run(`_parcelasVencidasBolao(${JSON.stringify(b)}, new Date(2026, 2, 1))`), 2);
+  assert.equal(run(`_parcelasVencidasBolao(${JSON.stringify({ ...b, dataInicio: '' })}, new Date(2026, 10, 10))`), 0);
+});
+
+test('cobranças: atrasado entra, quitado/isento não, pagamento aguardando o desktop conta', () => {
+  const b = {
+    id: 'b1', titulo: 'Super', valorPorCota: 75, valorParcela: 25, cotasTotais: 10, cotasOcupadas: 3,
+    dataInicio: '2026-09-21', parcelasTotal: 3,
+    participantes: [
+      { nome: 'Atrasada', telefone: '61911110001', quantidadeCotas: 1, idLocal: 1, situacao: 'em_andamento', historicoPagamentos: [{ valor: 25, data: '21/09/2026' }] },
+      { nome: 'Em dia', telefone: '61911110002', quantidadeCotas: 1, idLocal: 2, situacao: 'em_andamento', historicoPagamentos: [{ valor: 50, data: '01/10/2026' }] },
+      { nome: 'ADM isento', telefone: '', quantidadeCotas: 1, situacao: 'quitado', valorPago: 0, historicoPagamentos: [] },
+      { nome: 'Pagou pelo site', telefone: '61911110004', quantidadeCotas: 1, idLocal: 4, situacao: 'em_andamento', historicoPagamentos: [] },
+    ],
+  };
+  run(`boloes = ${JSON.stringify([b])};
+       _inscPendentes = [{ tipo: 'pagamento', bolaoDocId: 'b1', status: 'pendente', participanteIdLocal: 4, valorPago: 50 }];`);
+  const r = run('_calcularCobrancas(new Date(2026, 10, 10))');
+  assert.deepEqual(JSON.parse(JSON.stringify(r.itens.map(i => [i.p.nome, i.valor]))), [['Atrasada', 25]]);
+  assert.equal(r.resumo[0].devidas, 2);
+  const msg = run('_cobMensagem(_calcularCobrancas(new Date(2026, 10, 10)).itens[0])');
+  assert.match(msg, /Oi Atrasada/);
+  assert.match(msg, /venceram 2 parcela\(s\) de R\$ 25,00/);
+  assert.match(msg, /em aberto \*R\$ 25,00\*/);
+});
+
+test('cobranças: bolão sem data válida ou ainda não publicado pelo v8.2 avisa em vez de calcular', () => {
+  run(`boloes = [{ id: 'x', titulo: 'X', cotasTotais: 5, cotasOcupadas: 1, valorPorCota: 10, valorParcela: 10, dataInicio: '', participantes: [] },
+                 { id: 'y', titulo: 'Y', cotasTotais: 5, cotasOcupadas: 1, valorPorCota: 10, valorParcela: 10, participantes: [] }]`);
+  const r = run('_calcularCobrancas()').resumo;
+  assert.equal(r[0].semData, true);
+  assert.equal(r[1].antigo, true);
+});

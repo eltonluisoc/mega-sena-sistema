@@ -1934,6 +1934,7 @@ async function carregarDadosAdmin() {
         try {
             await obterBoloesPublicados();
             console.log(`✅ ${boloes.length} bolões carregados`);
+            atualizarResumoBoloesAtivos();
         } catch (e) {
             console.log('⚠️ Nenhum bolão encontrado:', e);
             boloes = [];
@@ -6733,6 +6734,7 @@ async function abrirInscricoes() {
     _inscPreencherNomes();
     _inscPreencherParticipantes();
     _inscAtualizar();
+    _inscAplicarPreSelecao();
 }
 
 function _inscLigarEventos() {
@@ -7094,6 +7096,7 @@ async function carregarLancamentosPendentes() {
         snap.forEach(d => _inscPendentes.push({ id: d.id, ...d.data() }));
         _inscPendentes.sort((a, b) => String(b.criadoEm || '').localeCompare(String(a.criadoEm || '')));
         _atualizarBadgeInscricoes();
+        atualizarResumoBoloesAtivos();
     } catch (e) {
         console.error('Erro ao ler lançamentos pendentes:', e);
         if (container) container.innerHTML = `<div class="empty-state">Não consegui ler a fila: ${escapeHtml(e.message)}</div>`;
@@ -7170,5 +7173,255 @@ async function cancelarLancamentoPendente(id) {
     _inscPreencherBoloes();
     _inscPreencherReservas();
     _inscPreencherParticipantes();
+    _inscAtualizar();
+}
+
+// ============================================
+// COBRANÇAS E VAGAS (v108)
+// Parcelas em atraso calculadas no site com a MESMA regra do desktop
+// (bolao_pro_v3.py _parcelas_vencidas/_situacao_atraso; os dois testes
+// leem test/casos_atraso.json). Dados vêm dos bolões já publicados (zero
+// leitura extra); pagamentos lançados no site e ainda não importados
+// contam como pagos. "Cobrado em" fica em meta/cobrancas.
+// ============================================
+let _cobEnviadas = null;
+let _cobPix = null;
+let _cobIniciado = false;
+let _inscPreSelecao = null;
+
+function _parcelasVencidasBolao(b, hoje = new Date()) {
+    if (!b || !b.dataInicio || !(b.valorParcela > 0)) return 0;
+    const [ano, mes] = String(b.dataInicio).split('-').map(Number);
+    if (!ano || !mes) return 0;
+    const mesesTotal = (hoje.getFullYear() - ano) * 12 + (hoje.getMonth() + 1 - mes) + 1;
+    return Math.min(Math.max(0, mesesTotal - 1), b.parcelasTotal || 0);
+}
+
+function _situacaoAtraso(pago, esperado, cotas, devidas, parcela) {
+    const porParcela = (parcela || 0) * Math.max(1, cotas || 1);
+    if (porParcela <= 0 || devidas <= 0) return { emAtraso: false, pagas: 0, valor: 0 };
+    const pagas = Math.floor((pago || 0) / porParcela * 10 + 0.5) / 10;
+    if ((esperado || 0) - (pago || 0) <= 0.009 || pagas >= devidas) return { emAtraso: false, pagas, valor: 0 };
+    const devido = Math.min(devidas * porParcela, esperado || 0);
+    return { emAtraso: true, pagas, valor: Math.round(Math.max(0, devido - (pago || 0)) * 100) / 100 };
+}
+
+function _cobChave(b, p) { return `${b.id}__${p.idLocal || _soDigitos(p.telefone)}`; }
+
+function _cobPagoParticipante(p, b) {
+    const hist = Array.isArray(p.historicoPagamentos) ? p.historicoPagamentos : [];
+    const base = hist.length ? hist.reduce((s, h) => s + (Number(h.valor) || 0), 0) : (Number(p.valorPago) || 0);
+    const tel = _soDigitos(p.telefone);
+    const pend = _inscPendentes.filter(x => x.tipo === 'pagamento' && x.bolaoDocId === b.id && x.status !== 'recusado' &&
+        ((p.idLocal && x.participanteIdLocal === p.idLocal) || (!p.idLocal && tel && _soDigitos(x.telefone) === tel)))
+        .reduce((s, x) => s + (Number(x.valorPago) || 0), 0);
+    return { pago: Math.round((base + pend) * 100) / 100, pendente: pend, ultimo: hist.length ? hist[hist.length - 1].data : '' };
+}
+
+// Lista de quem está em atraso + situação de cada bolão ativo.
+function _calcularCobrancas(hoje = new Date()) {
+    const itens = [];
+    const resumo = [];
+    for (const b of boloes.filter(_inscBolaoApto)) {
+        const r = { bolao: b, devidas: 0, atrasados: 0, valor: 0, semData: false, antigo: false };
+        if (b.dataInicio === undefined) r.antigo = true;
+        else if (!b.dataInicio) r.semData = true;
+        r.devidas = _parcelasVencidasBolao(b, hoje);
+        for (const p of (b.participantes || [])) {
+            if (!p || p.situacao === 'quitado') continue;
+            const cotas = Number(p.quantidadeCotas) || 1;
+            const { pago, pendente, ultimo } = _cobPagoParticipante(p, b);
+            const sit = _situacaoAtraso(pago, cotas * (b.valorPorCota || 0), cotas, r.devidas, b.valorParcela);
+            if (!sit.emAtraso) continue;
+            r.atrasados++; r.valor += sit.valor;
+            itens.push({ bolao: b, p, cotas, pago, pendente, ultimo, devidas: r.devidas,
+                porParcela: (b.valorParcela || 0) * cotas, ...sit });
+        }
+        r.valor = Math.round(r.valor * 100) / 100;
+        resumo.push(r);
+    }
+    itens.sort((a, b) => b.valor - a.valor || (a.p.nome || '').localeCompare(b.p.nome || '', 'pt-BR'));
+    return { itens, resumo };
+}
+
+// Visão geral (só informação, sem botões) + contador do menu.
+function atualizarResumoBoloesAtivos() {
+    const { itens, resumo } = _calcularCobrancas();
+    const badge = document.getElementById('badgeCobrancas');
+    if (badge) {
+        badge.textContent = itens.length;
+        badge.style.display = itens.length ? '' : 'none';
+        badge.title = `${itens.length} participante(s) com parcela em atraso`;
+    }
+    const el = document.getElementById('dashboardBoloesAtivos');
+    if (!el) return;
+    if (!resumo.length) { el.innerHTML = ''; return; }
+    el.innerHTML = resumo.map(r => {
+        const b = r.bolao;
+        const livres = Math.max(0, (b.cotasTotais || 0) - (b.cotasOcupadas || 0));
+        const vagas = b.cotasTotais > 0
+            ? `🎟 ${b.cotasOcupadas || 0} de ${b.cotasTotais} cotas · <strong>${livres} livre(s)</strong>`
+            : `🎟 ${b.cotasOcupadas || 0} cotas ocupadas`;
+        let atraso;
+        if (r.antigo) atraso = '<span class="dash-bolao-aviso">Atrasos aparecem depois que o desktop v8.2 publicar este bolão</span>';
+        else if (r.semData) atraso = '<span class="dash-bolao-aviso">⚠ Data de início inválida no desktop: corrija para calcular atrasos</span>';
+        else if (!r.devidas) atraso = '✅ Nenhuma parcela vencida ainda';
+        else if (!r.atrasados) atraso = `✅ Todos em dia (${r.devidas} parcela(s) vencida(s))`;
+        else atraso = `⚠ <strong>${r.atrasados}</strong> em atraso · ${_brl(r.valor)}`;
+        return `<div class="dash-bolao">
+            <div class="dash-bolao-titulo">${escapeHtml(b.titulo || b.id)}</div>
+            <div class="dash-bolao-linha">${vagas}</div>
+            <div class="dash-bolao-linha">${atraso}</div>
+        </div>`;
+    }).join('');
+}
+
+async function abrirCobrancas() {
+    if (!_cobIniciado) {
+        _cobIniciado = true;
+        document.getElementById('cobFiltroBolao').addEventListener('change', _cobRenderizar);
+        document.getElementById('cobOcultarCobrados').addEventListener('change', _cobRenderizar);
+        document.getElementById('btnAtualizarCobrancas').addEventListener('click', () => abrirCobrancas());
+    }
+    const lista = document.getElementById('listaCobrancas');
+    lista.innerHTML = '<div class="empty-state">Carregando...</div>';
+    try {
+        await Promise.all([
+            obterBoloesPublicados(true),
+            carregarLancamentosPendentes(),
+            (async () => {
+                const doc = await db.collection('meta').doc('cobrancas').get();
+                _cobEnviadas = doc.exists ? (doc.data().enviadas || {}) : {};
+            })(),
+            (async () => {
+                if (_cobPix !== null) return;
+                const doc = await db.collection('config_geral').doc('pix').get();
+                _cobPix = doc.exists ? (doc.data().chave || '') : '';
+            })()
+        ]);
+    } catch (e) {
+        console.error('Erro ao carregar cobranças:', e);
+        showToast('❌ Não consegui carregar: ' + e.message, 'error');
+        if (_cobEnviadas === null) _cobEnviadas = {};
+    }
+    const sel = document.getElementById('cobFiltroBolao');
+    const atual = sel.value;
+    sel.innerHTML = '<option value="">Todos os bolões</option>' + boloes.filter(_inscBolaoApto)
+        .map(b => `<option value="${escapeHtml(b.id)}">${escapeHtml(b.titulo || b.id)}</option>`).join('');
+    if (boloes.some(b => b.id === atual)) sel.value = atual;
+    atualizarResumoBoloesAtivos();
+    _cobRenderizar();
+}
+
+function _cobMensagem(it) {
+    const primeiro = String(it.p.nome || '').trim().split(/\s+/)[0] || '';
+    let msg = `👋 Oi ${primeiro}! Tudo bem?\n`;
+    msg += `Passando para lembrar do bolão *${it.bolao.titulo}*: até agora venceram ${it.devidas} parcela(s) de ${_brl(it.porParcela)}`;
+    msg += ` e ficou em aberto *${_brl(it.valor)}*.`;
+    if (_cobPix) msg += `\n\n💰 Chave PIX: ${_cobPix}`;
+    msg += `\n\nSe já pagou, me avise que eu atualizo aqui. Obrigado! 🍀`;
+    return msg;
+}
+
+function _cobRenderizar() {
+    const lista = document.getElementById('listaCobrancas');
+    const filtro = document.getElementById('cobFiltroBolao').value;
+    const ocultar = document.getElementById('cobOcultarCobrados').checked;
+    const { itens, resumo } = _calcularCobrancas();
+    const hojeTxt = new Date().toLocaleDateString('pt-BR');
+
+    const avisos = resumo.filter(r => (!filtro || r.bolao.id === filtro) && (r.semData || r.antigo)).map(r => r.semData
+        ? `⚠ <strong>${escapeHtml(r.bolao.titulo)}</strong>: a data de início está inválida no desktop. Corrija em Gerenciar Bolões → Editar para os atrasos aparecerem.`
+        : `<strong>${escapeHtml(r.bolao.titulo)}</strong>: abra e feche o desktop v8.2 para os atrasos deste bolão aparecerem.`);
+    document.getElementById('cobAvisos').innerHTML = avisos.map(a => `<div class="insc-status alerta">${a}</div>`).join('');
+
+    let visiveis = itens.filter(it => !filtro || it.bolao.id === filtro);
+    const total = visiveis.reduce((s, it) => s + it.valor, 0);
+    if (ocultar) visiveis = visiveis.filter(it => {
+        const env = (_cobEnviadas || {})[_cobChave(it.bolao, it.p)];
+        return !(env && new Date(env).toLocaleDateString('pt-BR') === hojeTxt);
+    });
+    document.getElementById('cobResumo').innerHTML = itens.length
+        ? `<strong>${itens.filter(it => !filtro || it.bolao.id === filtro).length}</strong> participante(s) em atraso · total em aberto <strong>${_brl(total)}</strong>`
+        : '';
+
+    if (!visiveis.length) {
+        lista.innerHTML = `<div class="empty-state">${itens.length ? 'Nada para mostrar com esse filtro.' : '🎉 Ninguém com parcela em atraso.'}</div>`;
+        return;
+    }
+    lista.innerHTML = visiveis.map((it, i) => {
+        const env = (_cobEnviadas || {})[_cobChave(it.bolao, it.p)];
+        const envTxt = env ? `<span class="insc-chip importando">cobrado ${new Date(env).toLocaleDateString('pt-BR')}</span>` : '';
+        const tel = _soDigitos(it.p.telefone);
+        return `<div class="insc-item">
+            <div style="min-width:0;">
+                <div class="insc-item-titulo">${escapeHtml(it.p.nome)}${envTxt}</div>
+                <div class="insc-item-det">${escapeHtml(it.bolao.titulo)} · ${it.cotas} cota(s)<br>
+                    Pagou ${it.pagas.toString().replace('.', ',')} de ${it.devidas} parcela(s) vencida(s) · em aberto <strong>${_brl(it.valor)}</strong>
+                    ${it.ultimo ? `<br>Último pagamento: ${escapeHtml(it.ultimo)}` : ''}
+                    ${it.pendente ? `<br>Inclui ${_brl(it.pendente)} lançado no site, aguardando o desktop` : ''}</div>
+            </div>
+            <div class="cob-acoes">
+                ${tel.length >= 10 ? `<button type="button" class="cob-btn whats" data-acao="whats" data-i="${i}">📲 WhatsApp</button>` : ''}
+                <button type="button" class="cob-btn" data-acao="copiar" data-i="${i}">📋 Copiar</button>
+                <button type="button" class="cob-btn" data-acao="pagar" data-i="${i}">💵 Pagamento</button>
+            </div>
+        </div>`;
+    }).join('');
+    lista.querySelectorAll('.cob-btn').forEach(btn => btn.addEventListener('click', () => _cobAcao(btn.dataset.acao, visiveis[Number(btn.dataset.i)])));
+}
+
+async function _cobMarcarCobrado(it) {
+    const chave = _cobChave(it.bolao, it.p);
+    const agora = new Date().toISOString();
+    try {
+        await db.collection('meta').doc('cobrancas').set({ enviadas: { [chave]: agora } }, { merge: true });
+        _cobEnviadas = { ...(_cobEnviadas || {}), [chave]: agora };
+    } catch (e) {
+        console.warn('Não marcou como cobrado:', e);
+    }
+}
+
+async function _cobAcao(acao, it) {
+    if (!it) return;
+    if (acao === 'pagar') {
+        _inscPreSelecao = { bolaoId: it.bolao.id, idLocal: it.p.idLocal || null, telefone: _soDigitos(it.p.telefone) };
+        const item = document.querySelector('.sidebar-item[data-section="inscricoes"]');
+        if (item && typeof abrirItemMenu === 'function') abrirItemMenu(item);
+        return;
+    }
+    const msg = _cobMensagem(it);
+    if (acao === 'whats') {
+        window.open(`https://wa.me/55${_soDigitos(it.p.telefone)}?text=${encodeURIComponent(msg)}`, '_blank');
+    } else {
+        try {
+            await navigator.clipboard.writeText(msg);
+            showToast('✅ Mensagem copiada! Cole no WhatsApp', 'success');
+        } catch (e) {
+            prompt('Copie a mensagem abaixo:', msg);
+        }
+    }
+    await _cobMarcarCobrado(it);
+    _cobRenderizar();
+}
+
+// Chamado no fim de abrirInscricoes: abre direto "Pagar parcela" da pessoa
+// escolhida na tela de Cobranças.
+function _inscAplicarPreSelecao() {
+    const pre = _inscPreSelecao;
+    _inscPreSelecao = null;
+    if (!pre) return;
+    const aba = document.querySelector('.insc-aba[data-modo="pagamento"]');
+    if (aba) aba.click();
+    document.getElementById('inscBolao').value = pre.bolaoId;
+    _inscPreencherParticipantes();
+    const b = _inscBolaoSel();
+    const idx = b ? (b.participantes || []).findIndex(p =>
+        (pre.idLocal && p.idLocal === pre.idLocal) || (!pre.idLocal && _soDigitos(p.telefone) === pre.telefone)) : -1;
+    if (idx >= 0) {
+        document.getElementById('inscParticipante').value = String(idx);
+        const p = b.participantes[idx];
+        _inscSelecionarReservaPorTelefone(_soDigitos(p.telefone));
+    }
     _inscAtualizar();
 }

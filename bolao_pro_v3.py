@@ -1,7 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v8.1
+SISTEMA DE GESTÃO DE BOLÕES PRO v8.2
+Novidade v8.2 (parcelas em atraso):
+- Regra de atraso numa função só (_situacao_atraso), considerando as cotas
+  de cada pessoa; o Dashboard ("Participantes atrasados") passa a usá-la.
+  Antes ele dividia o pago por 1 parcela, então quem tem 2 cotas e paga
+  1 parcela por mês aparecia em dia.
+- A publicação do bolão leva a data de início e o total de parcelas, pra o
+  site calcular os atrasos com a mesma regra (tela Cobranças).
+
 Novidade v8.1 (transparência e menos gravações):
 - Informa ao site se está aberto, quando sincronizou e se há conflito
   esperando decisão (meta/desktop_status; 1 gravação a cada 10 min aberto).
@@ -1528,6 +1536,7 @@ from tkinter import ttk, messagebox, filedialog
 import sqlite3
 import os, shutil, sys
 from datetime import datetime, date, timedelta
+import math
 import re
 
 # ─────────────────────────────────────────────
@@ -2679,14 +2688,56 @@ def _cotas_ocupadas(db, bid):
     return cotas + adm_extra, max_cotas
 
 
+def _data_inicio_iso(texto):
+    """'DD/MM/AAAA' ou 'AAAA-MM-DD' -> 'AAAA-MM-DD'; '' se não der pra ler."""
+    for fmt in ("%d/%m/%Y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(str(texto or "").strip(), fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            pass
+    return ""
+
+
+def _parcelas_vencidas(bolao_d, hoje=None):
+    """(meses desde o início contando o atual, parcelas já vencidas, valor
+    da parcela). O mês corrente ainda está em aberto e não conta. Data de
+    início ilegível = trata como hoje (nada vencido), como sempre foi."""
+    hoje = hoje or datetime.now()
+    iso = _data_inicio_iso(bolao_d.get("data_inicio"))
+    di = datetime.strptime(iso, "%Y-%m-%d") if iso else hoje
+    meses_total = (hoje.year - di.year) * 12 + (hoje.month - di.month) + 1
+    meses_vencidos = max(0, meses_total - 1)
+    parc = bolao_d.get("valor_parcela", 0) or 0
+    total = bolao_d.get("valor_total", 0) or 0
+    n_parcelas_total = round(total / parc) if parc > 0 else 0
+    return meses_total, min(meses_vencidos, n_parcelas_total), parc
+
+
+def _situacao_atraso(pago, valor_esperado, cotas, parc_devidas, parc_val):
+    """Mesma regra do site (admin.js _situacaoAtraso). Parcela da pessoa =
+    valor da parcela x cotas. Retorna (em_atraso, parcelas_pagas, valor_em_atraso)."""
+    por_parcela = (parc_val or 0) * max(1, cotas or 1)
+    if por_parcela <= 0 or parc_devidas <= 0:
+        return False, 0.0, 0.0
+    # arredonda pra 1 casa "metade pra cima", igual ao Math.round do site
+    pagas = math.floor((pago or 0) / por_parcela * 10 + 0.5) / 10
+    if (valor_esperado or 0) - (pago or 0) <= 0.009 or pagas >= parc_devidas:
+        return False, pagas, 0.0
+    devido = min(parc_devidas * por_parcela, valor_esperado or 0)
+    return True, pagas, round(max(0.0, devido - (pago or 0)), 2)
+
+
 def _bolao_campos_extras(db, bid):
-    """Dados que o site precisa pra inscrever alguém sem o desktop:
-    cotas totais/ocupadas e valor da parcela."""
+    """Dados que o site precisa pra inscrever alguém e calcular atrasos sem
+    o desktop: cotas totais/ocupadas, parcela, data de início, nº de parcelas."""
     ocupadas, totais = _cotas_ocupadas(db, bid)
-    b = db.fetchone("SELECT valor_parcela FROM boloes WHERE id=?", (bid,))
+    b = db.fetchone("SELECT valor_parcela, valor_total, data_inicio FROM boloes WHERE id=?", (bid,))
     parcela = float(b["valor_parcela"] or 0) if b else 0.0
+    total = float(b["valor_total"] or 0) if b else 0.0
     return {"cotasTotais": int(totais), "cotasOcupadas": int(ocupadas),
-            "valorParcela": round(parcela, 2)}
+            "valorParcela": round(parcela, 2),
+            "dataInicio": _data_inicio_iso(b["data_inicio"]) if b else "",
+            "parcelasTotal": int(round(total / parcela)) if parcela > 0 else 0}
 
 
 def _fila_ler_doc(doc):
@@ -2854,7 +2905,7 @@ def _fila_listar():
             return docs
 
 
-VERSAO_DESKTOP = "v8.1"
+VERSAO_DESKTOP = "v8.2"
 FIREBASE_DESKTOP_STATUS = (
     "https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
     "/databases/(default)/documents/meta/desktop_status"
@@ -3097,6 +3148,8 @@ def _extras_firestore(extras):
         "cotasTotais":   {"integerValue": str(int(extras["cotasTotais"]))},
         "cotasOcupadas": {"integerValue": str(int(extras["cotasOcupadas"]))},
         "valorParcela":  {"doubleValue": float(extras["valorParcela"])},
+        "dataInicio":    {"stringValue": str(extras.get("dataInicio") or "")},
+        "parcelasTotal": {"integerValue": str(int(extras.get("parcelasTotal") or 0))},
     }
 
 
@@ -3385,7 +3438,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v8.1")
+        self.root.title("Sistema de Gestão de Bolões PRO v8.2")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -4183,7 +4236,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v8.1",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v8.2",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         self._rsv_alerta_hdr = tk.Label(hdr, text="⚠ Saldo divergente: veja a aba Reservas",
@@ -6207,23 +6260,7 @@ class BolaoApp:
 
     def _calc_parcela_atual(self, bolao_d):
         """Calcula parcelas esperadas até o fim do mês ANTERIOR (mês atual está em aberto)."""
-        try:
-            di = datetime.strptime(bolao_d.get("data_inicio","2025-01-01"),"%Y-%m-%d")
-        except:
-            try:
-                di = datetime.strptime(bolao_d.get("data_inicio","01/01/2025"),"%d/%m/%Y")
-            except:
-                di = datetime.now()
-        hoje  = datetime.now()
-        # Meses encerrados = do início até o mês ANTERIOR ao atual
-        # O mês atual ainda está em aberto → não conta como vencido
-        meses_total   = (hoje.year - di.year)*12 + (hoje.month - di.month) + 1
-        meses_vencidos = max(0, meses_total - 1)   # exclui o mês corrente
-        parc  = bolao_d.get("valor_parcela",0) or 0
-        total = bolao_d.get("valor_total",0)  or 0
-        n_parcelas_total = round(total/parc) if parc>0 else 0
-        parc_esperada = min(meses_vencidos, n_parcelas_total)
-        return meses_total, parc_esperada, parc
+        return _parcelas_vencidas(bolao_d)
 
     def _n_cotas_participante(self, valor_esperado, valor_total_bolao):
         """Quantas cotas uma pessoa tem, a partir do valor esperado dela e
@@ -8281,7 +8318,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v8.1</span>
+        <span>Sistema de Gestão de Bolões v8.2</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -9444,16 +9481,19 @@ class BolaoApp:
                     (pt_d["id"], bol["id"]))
                 pago = pago_row["t"] or 0
 
-                n_pagas = round(pago / parc_val) if parc_val > 0 else 0
-                if n_pagas < parc_devidas:
-                    saldo_dev = (parc_devidas - n_pagas) * parc_val
+                # v8.2: considera as cotas (mesma regra do site)
+                ve_pt = float(pt_d.get("valor_esperado") or 0)
+                cotas_pt = self._n_cotas_participante(ve_pt, float(bd_loop.get("valor_total") or 0))
+                em_atraso, n_pagas, saldo_dev = _situacao_atraso(
+                    pago, ve_pt, cotas_pt, parc_devidas, parc_val)
+                if em_atraso:
                     atrasados.append({
                         "nome":      pt_d["nome"],
                         "bolao":     bd_loop["nome"],
-                        "pagas":     n_pagas,
+                        "pagas":     f"{n_pagas:g}",
                         "devidas":   parc_devidas,
                         "saldo":     saldo_dev,
-                        "gravidade": parc_devidas - n_pagas,
+                        "gravidade": round(parc_devidas - n_pagas, 1),
                     })
 
         # Ordena: mais atrasados primeiro
@@ -9465,7 +9505,7 @@ class BolaoApp:
             # da coluna "Faltam" em _build_dashboard.
             self.adm_tree_atr.insert("","end", tags=(tag,), values=(
                 a["nome"], a["bolao"],
-                a["pagas"], a["gravidade"], fmt_brl(a["saldo"])))
+                a["pagas"], f"{a['gravidade']:g}", fmt_brl(a["saldo"])))
 
         n_atr = len(atrasados)
         self._adm_atr_lbl.configure(
@@ -10593,7 +10633,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v8.1</span>
+        <span>Sistema de Gestão de Bolões v8.2</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>

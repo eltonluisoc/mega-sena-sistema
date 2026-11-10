@@ -1,0 +1,11 @@
+[
+  {"caso": "pagou 2 de 10 parcelas vencidas", "pago": 150.2, "esperado": 751, "cotas": 1, "devidas": 10, "parcela": 75.1, "emAtraso": true, "pagas": 2.0, "valor": 600.8},
+  {"caso": "quitado", "pago": 751, "esperado": 751, "cotas": 1, "devidas": 10, "parcela": 75.1, "emAtraso": false, "pagas": 10.0, "valor": 0},
+  {"caso": "2 cotas pagando 1 parcela por mes", "pago": 50, "esperado": 150, "cotas": 2, "devidas": 2, "parcela": 25, "emAtraso": true, "pagas": 1.0, "valor": 50},
+  {"caso": "2 cotas em dia", "pago": 100, "esperado": 150, "cotas": 2, "devidas": 2, "parcela": 25, "emAtraso": false, "pagas": 2.0, "valor": 0},
+  {"caso": "nada vencido ainda", "pago": 0, "esperado": 75, "cotas": 1, "devidas": 0, "parcela": 25, "emAtraso": false, "pagas": 0, "valor": 0},
+  {"caso": "nunca pagou", "pago": 0, "esperado": 75, "cotas": 1, "devidas": 2, "parcela": 25, "emAtraso": true, "pagas": 0.0, "valor": 50},
+  {"caso": "arredondamento de centavos conta como em dia", "pago": 225, "esperado": 751, "cotas": 1, "devidas": 3, "parcela": 75.1, "emAtraso": false, "pagas": 3.0, "valor": 0},
+  {"caso": "adiantado", "pago": 300.4, "esperado": 751, "cotas": 1, "devidas": 3, "parcela": 75.1, "emAtraso": false, "pagas": 4.0, "valor": 0},
+  {"caso": "devido limitado ao total esperado", "pago": 10, "esperado": 60, "cotas": 1, "devidas": 3, "parcela": 25, "emAtraso": true, "pagas": 0.4, "valor": 50}
+]

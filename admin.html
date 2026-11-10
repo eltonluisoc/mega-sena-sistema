@@ -1213,6 +1213,17 @@
         .insc-status { font-size: 12px; color: var(--cor-texto-sec); background: var(--cor-fundo); border-radius: var(--raio-pequeno); padding: 8px 10px; margin-bottom: 14px; line-height: 1.45; }
         .insc-status.alerta { color: #b45309; background: #fff7e6; font-weight: 600; }
         .menu-badge { display: inline-block; min-width: 18px; padding: 1px 6px; margin-left: auto; border-radius: var(--raio-pill); background: var(--cor-aviso); color: #fff; font-size: 11px; font-weight: 700; text-align: center; line-height: 16px; }
+        .cob-acoes { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+        .cob-btn { border: 1px solid var(--cor-borda); background: var(--cor-superficie); color: var(--cor-texto); border-radius: var(--raio-pequeno); padding: 6px 10px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; touch-action: manipulation; }
+        .cob-btn.whats { background: #25D366; border-color: #25D366; color: #fff; }
+        .cob-check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--cor-texto-sec); margin-bottom: 14px; cursor: pointer; }
+        .dash-boloes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 14px; }
+        .dash-boloes:empty { display: none; }
+        .dash-bolao { background: var(--cor-superficie); border: 1px solid var(--cor-borda); border-radius: var(--raio); padding: 14px 16px; box-shadow: var(--sombra); }
+        .dash-bolao-titulo { font-weight: 700; font-size: 15px; color: var(--cor-texto); margin-bottom: 6px; }
+        .dash-bolao-linha { font-size: 13px; color: var(--cor-texto-sec); line-height: 1.6; }
+        .dash-bolao-aviso { color: #b45309; }
+        @media (max-width: 480px) { .insc-item { flex-direction: column; } .cob-acoes { flex-direction: row; flex-wrap: wrap; } }
         .insc-cancelar { border: 1px solid var(--cor-borda); background: var(--cor-superficie); color: var(--cor-erro); border-radius: var(--raio-pequeno); padding: 6px 10px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; touch-action: manipulation; }
 
         @media (max-width: 1024px) {
@@ -1388,7 +1399,7 @@
     <!-- TOP BAR -->
     <!-- ============================================ -->
     <div class="top-bar">
-        <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">Administração · v107</span></div>
+        <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">Administração · v108</span></div>
         <div class="stats">
             <div class="stat" id="bootProgress" style="display:none;">⏳ Carregando… 0%</div>
             <div class="stat" id="totalCartoes">📊 0 cartões</div>
@@ -1439,6 +1450,10 @@
             <button type="button" class="sidebar-item destaque" data-section="inscricoes">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M16 11h6"/></svg>
                 Inscrições <span id="badgeInscricoes" class="menu-badge" style="display:none;"></span>
+            </button>
+            <button type="button" class="sidebar-item" data-section="cobrancas">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 7v4M12 14h.01"/></svg>
+                Cobranças <span id="badgeCobrancas" class="menu-badge" style="display:none;"></span>
             </button>
             <button type="button" class="sidebar-item destaque" data-section="cartoes" data-grupo="cartoes" data-sub="importar">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M12 18v-6M9 15l3-3 3 3"/></svg>
@@ -1516,6 +1531,8 @@
             </div>
         </div>
 
+        <!-- Bolões em andamento (v108): vagas e atrasos, só informação -->
+        <div id="dashboardBoloesAtivos" class="dash-boloes"></div>
         <!-- Totais Gerais (cada card já traz o total geral + o detalhamento
              por loteria, sem repetir o mesmo número num card à parte) -->
         <div class="dashboard-cards" style="margin-top: 14px;">
@@ -2014,6 +2031,32 @@
                 </div>
             </section>
 
+            <!-- ============================================ -->
+            <!-- SEÇÃO: COBRANÇAS (v108) — parcelas em atraso, mesma
+                 regra do desktop, com mensagem pronta pro WhatsApp. -->
+            <!-- ============================================ -->
+            <section id="section-cobrancas" class="section">
+                <div class="card">
+                    <div class="card-header">💬 PARCELAS EM ATRASO</div>
+                    <div style="font-size: 12px; color: var(--cor-texto-sec); margin-bottom: 14px;">
+                        Conta como vencida cada parcela até o mês passado (o mês atual ainda está em aberto),
+                        multiplicada pelas cotas da pessoa: a mesma regra do desktop. Pagamentos lançados no site
+                        e ainda não importados já contam.
+                    </div>
+                    <div id="cobAvisos"></div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+                        <div class="form-group" style="flex:2; min-width:200px; margin-bottom:8px;">
+                            <label for="cobFiltroBolao">👥 Bolão:</label>
+                            <select id="cobFiltroBolao" class="form-control"><option value="">Todos os bolões</option></select>
+                        </div>
+                        <label class="cob-check"><input type="checkbox" id="cobOcultarCobrados"> Esconder quem já cobrei hoje</label>
+                        <button type="button" id="btnAtualizarCobrancas" class="insc-link">🔄 Atualizar</button>
+                    </div>
+                    <div id="cobResumo" class="insc-resumo"></div>
+                    <div id="listaCobrancas"><div class="empty-state">Carregando...</div></div>
+                </div>
+            </section>
+
             <section id="section-conferencia" class="section">
                 <!-- Achado real do usuário (07/11): a 1ª versão só mostrava
                      o concurso mais recente de cada loteria, sem filtro nem
@@ -2368,6 +2411,9 @@
             }
             if (sectionId === 'inscricoes' && typeof abrirInscricoes === 'function') {
                 abrirInscricoes();
+            }
+            if (sectionId === 'cobrancas' && typeof abrirCobrancas === 'function') {
+                abrirCobrancas();
             }
 
             item.scrollIntoView({ block: 'nearest', inline: 'center' });

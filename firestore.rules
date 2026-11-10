@@ -219,6 +219,12 @@ service cloud.firestore {
                         ['versao','aberto','abertoEm','ultimaVerificacao','ultimaImportacao','conflitos']);
     }
 
+    // v108: quando cada parcela em atraso foi cobrada pelo admin (mapa
+    // `enviadas`, chave bolão+participante -> data).
+    match /meta/cobrancas {
+      allow read, write: if isAdmin();
+    }
+
     match /meta/reservas_version {
       allow read: if isAdmin();
       allow write: if isAdmin()

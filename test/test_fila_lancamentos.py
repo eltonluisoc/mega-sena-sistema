@@ -165,7 +165,8 @@ class TestExtras(Base):
     def test_campos_extras(self):
         self.importar(inscricao(cotas=2))
         self.assertEqual(m._bolao_campos_extras(self.db, self.bid),
-                         {"cotasTotais": 3, "cotasOcupadas": 2, "valorParcela": 25.0})
+                         {"cotasTotais": 3, "cotasOcupadas": 2, "valorParcela": 25.0,
+                          "dataInicio": "", "parcelasTotal": 4})
 
     def test_id_local_no_participante(self):
         campos = m._participante_firestore({"id": 7, "nome": "A", "telefone": "61 9"})["mapValue"]["fields"]
