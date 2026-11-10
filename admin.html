@@ -1210,6 +1210,9 @@
         .insc-chip.pendente { background: #fff7e6; color: #b45309; }
         .insc-chip.importando { background: var(--cor-primaria-fundo); color: var(--cor-primaria); }
         .insc-chip.recusado { background: #ffe5e5; color: var(--cor-erro); }
+        .insc-status { font-size: 12px; color: var(--cor-texto-sec); background: var(--cor-fundo); border-radius: var(--raio-pequeno); padding: 8px 10px; margin-bottom: 14px; line-height: 1.45; }
+        .insc-status.alerta { color: #b45309; background: #fff7e6; font-weight: 600; }
+        .menu-badge { display: inline-block; min-width: 18px; padding: 1px 6px; margin-left: auto; border-radius: var(--raio-pill); background: var(--cor-aviso); color: #fff; font-size: 11px; font-weight: 700; text-align: center; line-height: 16px; }
         .insc-cancelar { border: 1px solid var(--cor-borda); background: var(--cor-superficie); color: var(--cor-erro); border-radius: var(--raio-pequeno); padding: 6px 10px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; touch-action: manipulation; }
 
         @media (max-width: 1024px) {
@@ -1385,7 +1388,7 @@
     <!-- TOP BAR -->
     <!-- ============================================ -->
     <div class="top-bar">
-        <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">Administração · v106</span></div>
+        <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">Administração · v107</span></div>
         <div class="stats">
             <div class="stat" id="bootProgress" style="display:none;">⏳ Carregando… 0%</div>
             <div class="stat" id="totalCartoes">📊 0 cartões</div>
@@ -1435,7 +1438,7 @@
             </button>
             <button type="button" class="sidebar-item destaque" data-section="inscricoes">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M16 11h6"/></svg>
-                Inscrições
+                Inscrições <span id="badgeInscricoes" class="menu-badge" style="display:none;"></span>
             </button>
             <button type="button" class="sidebar-item destaque" data-section="cartoes" data-grupo="cartoes" data-sub="importar">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M12 18v-6M9 15l3-3 3 3"/></svg>
@@ -1921,6 +1924,7 @@
                         O desktop grava tudo sozinho ao abrir (e a cada minuto enquanto estiver aberto)
                         e republica o bolão no site. Até lá, o lançamento fica na lista "Aguardando o desktop" abaixo.
                     </div>
+                    <div id="inscStatusDesktop" class="insc-status">Verificando o desktop...</div>
                     <div class="insc-abas" role="tablist">
                         <button type="button" class="insc-aba ativa" data-modo="inscricao" role="tab" aria-selected="true">➕ Nova inscrição</button>
                         <button type="button" class="insc-aba" data-modo="pagamento" role="tab" aria-selected="false">💵 Pagar parcela</button>

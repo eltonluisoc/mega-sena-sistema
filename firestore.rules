@@ -210,6 +210,15 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // v107: o desktop informa se está aberto e quando sincronizou; o
+    // admin web mostra isso na tela de Inscrições.
+    match /meta/desktop_status {
+      allow read: if isAdmin();
+      allow write: if isAdmin()
+                   && request.resource.data.keys().hasOnly(
+                        ['versao','aberto','abertoEm','ultimaVerificacao','ultimaImportacao','conflitos']);
+    }
+
     match /meta/reservas_version {
       allow read: if isAdmin();
       allow write: if isAdmin()

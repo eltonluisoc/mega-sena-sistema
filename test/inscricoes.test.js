@@ -193,3 +193,27 @@ test('não cancela o que o desktop já está gravando, e não mexe na reserva', 
   assert.equal(movs.length, 2);
   assert.ok(sb.__toasts.some(([t, m]) => t === 'error' && /gravando/.test(m)));
 });
+
+test('bolões publicados são lidos uma vez só por carregamento', async () => {
+  let leituras = 0;
+  const original = db.collection;
+  db.collection = (c) => {
+    const ref = original(c);
+    if (c === 'participantes') { const g = ref.get; ref.get = async () => { leituras++; return g(); }; }
+    return ref;
+  };
+  await Promise.all([run('obterBoloesPublicados()'), run('obterBoloesPublicados()'), run('obterBoloesPublicados()')]);
+  assert.equal(leituras, 1);
+  await run('obterBoloesPublicados(true)');
+  assert.equal(leituras, 2);
+  assert.equal(run('boloes.length'), 1);
+});
+
+test('status do desktop: aberto recente, fechado e sinal antigo', () => {
+  const agora = new Date().toISOString();
+  const velho = new Date(Date.now() - 60 * 60000).toISOString();
+  assert.match(run(`_textoStatusDesktop(${JSON.stringify({ aberto: true, ultimaVerificacao: agora, versao: 'v8.1' })}).txt`), /Desktop aberto/);
+  assert.match(run(`_textoStatusDesktop(${JSON.stringify({ aberto: true, ultimaVerificacao: velho })}).txt`), /Desktop fechado/);
+  assert.match(run(`_textoStatusDesktop(${JSON.stringify({ aberto: false, ultimaVerificacao: agora, conflitos: 2 })}).txt`), /2 com conflito/);
+  assert.equal(run('_textoStatusDesktop(null).cls'), 'alerta');
+});

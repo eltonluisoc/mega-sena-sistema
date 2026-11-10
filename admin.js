@@ -406,6 +406,8 @@ function verificarAutenticacao() {
             // 7/7 do mesmo jeito.
             _bootTrack(carregarPixConfig);
             _bootTrack(carregarDadosAdmin);
+            // Contador de lançamentos aguardando o desktop no menu (v107)
+            carregarLancamentosPendentes();
         } else {
             if (user) {
                 console.warn('⛔ Conta sem permissão de acesso:', user.email);
@@ -1908,16 +1910,29 @@ async function obterCartoesComCache() {
     }
 }
 
+// v107: as telas de bolões (Gestão, Participantes, Pagamentos, Inscrições)
+// liam a coleção `participantes` inteira cada uma por conta própria, ~5
+// vezes a cada abertura do admin. Agora é 1 leitura compartilhada por
+// carregamento; forcar=true relê (excluir bolão, abrir Inscrições).
+let _boloesPromise = null;
+function obterBoloesPublicados(forcar = false) {
+    if (forcar || !_boloesPromise) {
+        _boloesPromise = db.collection('participantes').get().then(snap => {
+            const lista = [];
+            snap.forEach(doc => lista.push({ id: doc.id, ...doc.data() }));
+            boloes = lista;
+            return lista;
+        }).catch(e => { _boloesPromise = null; throw e; });
+    }
+    return _boloesPromise;
+}
+
 async function carregarDadosAdmin() {
     try {
         await obterCartoesComCache();
 
         try {
-            const snapshotParticipantes = await db.collection('participantes').get();
-            boloes = [];
-            snapshotParticipantes.forEach(doc => {
-                boloes.push({ id: doc.id, ...doc.data() });
-            });
+            await obterBoloesPublicados();
             console.log(`✅ ${boloes.length} bolões carregados`);
         } catch (e) {
             console.log('⚠️ Nenhum bolão encontrado:', e);
@@ -2630,6 +2645,7 @@ async function excluirBolao(bolaoId, bolaoTitulo) {
         }
         
         showToast(`✅ Bolão "${bolaoTitulo}" excluído com sucesso!`, 'success');
+        _boloesPromise = null;
         carregarDadosAdmin();
         carregarBoloesParaGerenciar();
         
@@ -2645,13 +2661,9 @@ async function excluirBolao(bolaoId, bolaoTitulo) {
 async function carregarBoloesParaGerenciar() {
     const container = document.getElementById('listaBoloes');
     if (!container) return;
-    
+
     try {
-        const snapshot = await db.collection('participantes').get();
-        const boloes = [];
-        snapshot.forEach(doc => {
-            boloes.push({ id: doc.id, ...doc.data() });
-        });
+        const boloes = (await obterBoloesPublicados()).slice();
         
         if (boloes.length === 0) {
             container.innerHTML = '<div class="empty-state">Nenhum bolão encontrado.</div>';
@@ -4269,13 +4281,9 @@ async function adicionarCartaoIndividualSelecao() {
 async function carregarBoloesSelectParticipantes() {
     const select = document.getElementById('bolaoSelectParticipantes');
     if (!select) return;
-    
+
     try {
-        const snapshot = await db.collection('participantes').get();
-        const boloes = [];
-        snapshot.forEach(doc => {
-            boloes.push({ id: doc.id, ...doc.data() });
-        });
+        const boloes = (await obterBoloesPublicados()).slice();
         
         select.innerHTML = '<option value="">Selecione um bolão</option>';
         for (const bolao of boloes) {
@@ -4591,11 +4599,10 @@ async function carregarParticipantesSelectFinanceiro() {
     if (!select) return;
 
     try {
-        const snapshot = await db.collection('participantes').get();
+        const listaBoloes = await obterBoloesPublicados();
         _pessoasFinanceiroCache = {};
 
-        snapshot.forEach(doc => {
-            const bolao = doc.data();
+        listaBoloes.forEach(bolao => {
             const valorPorCota = bolao.valorPorCota || 0;
             const participantes = bolao.participantes || [];
             participantes.forEach(p => {
@@ -4605,7 +4612,7 @@ async function carregarParticipantesSelectFinanceiro() {
                     _pessoasFinanceiroCache[chave] = { nome: p.nome, telefone: p.telefone || '', boloes: [] };
                 }
                 _pessoasFinanceiroCache[chave].boloes.push({
-                    bolaoId: doc.id,
+                    bolaoId: bolao.id,
                     bolaoTitulo: bolao.titulo || 'Bolão',
                     loteria: bolao.loteria || '',
                     valorPago: p.valorPago || 0,
@@ -6715,14 +6722,12 @@ async function abrirInscricoes() {
     if (!_inscIniciado) { _inscIniciado = true; _inscLigarEventos(); }
     if (!document.getElementById('inscData').value) document.getElementById('inscData').value = _hojeISO();
     try {
-        const snap = await db.collection('participantes').get();
-        boloes = [];
-        snap.forEach(doc => boloes.push({ id: doc.id, ...doc.data() }));
+        await obterBoloesPublicados(true);
     } catch (e) {
         console.error('Erro ao ler bolões:', e);
         showToast('❌ Não consegui ler os bolões: ' + e.message, 'error');
     }
-    await carregarLancamentosPendentes();
+    await Promise.all([carregarLancamentosPendentes(), carregarStatusDesktop()]);
     _inscPreencherBoloes();
     _inscPreencherReservas();
     _inscPreencherNomes();
@@ -6807,7 +6812,7 @@ function _inscLigarEventos() {
     }));
     document.getElementById('btnRegistrarInscricao').addEventListener('click', registrarLancamentoSite);
     document.getElementById('btnAtualizarPendentesInsc').addEventListener('click', async () => {
-        await carregarLancamentosPendentes();
+        await Promise.all([carregarLancamentosPendentes(), carregarStatusDesktop()]);
         _inscPreencherBoloes();
         _inscAtualizar();
     });
@@ -7041,6 +7046,46 @@ async function registrarLancamentoSite() {
     }
 }
 
+// Status do desktop (v107): o desktop grava meta/desktop_status ao abrir,
+// a cada 10 minutos aberto, ao importar e ao fechar. Aberto há mais de 15
+// minutos sem sinal = considerado fechado (queda/desligamento sem fechar).
+function _textoStatusDesktop(st) {
+    if (!st || !st.ultimaVerificacao) return { txt: 'O desktop ainda não informou o status (abra o desktop v8.1).', cls: 'alerta' };
+    const ult = new Date(st.ultimaVerificacao);
+    const min = (Date.now() - ult.getTime()) / 60000;
+    const quando = ult.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const imp = st.ultimaImportacao ? ` · última importação ${new Date(st.ultimaImportacao).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : '';
+    const conf = st.conflitos ? ` · ⚠ ${st.conflitos} com conflito esperando você no desktop` : '';
+    if (st.aberto && min <= 15) return { txt: `🟢 Desktop aberto (${st.versao || ''}) · confere a fila a cada minuto · último sinal ${quando}${imp}${conf}`, cls: st.conflitos ? 'alerta' : '' };
+    return { txt: `⚪ Desktop fechado · última sincronização ${quando}${imp}${conf}`, cls: st.conflitos ? 'alerta' : '' };
+}
+
+async function carregarStatusDesktop() {
+    let st = null;
+    try {
+        const doc = await db.collection('meta').doc('desktop_status').get();
+        st = doc.exists ? doc.data() : null;
+    } catch (e) {
+        console.warn('Status do desktop indisponível:', e);
+    }
+    const el = document.getElementById('inscStatusDesktop');
+    if (el) {
+        const { txt, cls } = _textoStatusDesktop(st);
+        el.textContent = txt;
+        el.className = 'insc-status' + (cls ? ' ' + cls : '');
+    }
+    return st;
+}
+
+function _atualizarBadgeInscricoes() {
+    const badge = document.getElementById('badgeInscricoes');
+    if (!badge) return;
+    const n = _inscPendentes.length;
+    badge.textContent = n;
+    badge.style.display = n ? '' : 'none';
+    badge.title = `${n} lançamento(s) aguardando o desktop`;
+}
+
 async function carregarLancamentosPendentes() {
     const container = document.getElementById('listaLancamentosPendentes');
     try {
@@ -7048,6 +7093,7 @@ async function carregarLancamentosPendentes() {
         _inscPendentes = [];
         snap.forEach(d => _inscPendentes.push({ id: d.id, ...d.data() }));
         _inscPendentes.sort((a, b) => String(b.criadoEm || '').localeCompare(String(a.criadoEm || '')));
+        _atualizarBadgeInscricoes();
     } catch (e) {
         console.error('Erro ao ler lançamentos pendentes:', e);
         if (container) container.innerHTML = `<div class="empty-state">Não consegui ler a fila: ${escapeHtml(e.message)}</div>`;
@@ -7061,7 +7107,12 @@ async function carregarLancamentosPendentes() {
     const rotulo = { pendente: 'aguardando', importando: 'sendo gravado', recusado: 'recusado no desktop' };
     container.innerHTML = _inscPendentes.map(p => {
         const quando = p.criadoEm ? new Date(p.criadoEm).toLocaleString('pt-BR') : '';
-        const forma = { pix: 'PIX', dinheiro: 'dinheiro', reserva: 'reserva', nenhum: 'sem pagamento' }[p.formaPagamento] || p.formaPagamento || '';
+        const donoReserva = p.formaPagamento === 'reserva'
+            ? ((reservasCarregadas.find(r => r.id === p.reservaPessoaId) || {}).nome || p.reservaPessoaId || '')
+            : '';
+        const forma = p.formaPagamento === 'reserva'
+            ? `reserva de ${donoReserva}`
+            : ({ pix: 'PIX', dinheiro: 'dinheiro', nenhum: 'sem pagamento' }[p.formaPagamento] || p.formaPagamento || '');
         const titulo = (p.tipo === 'inscricao' ? '➕ ' : '💵 ') + escapeHtml(p.nome);
         const det = p.tipo === 'inscricao'
             ? `Inscrição em ${escapeHtml(p.bolaoTitulo)} · ${p.cotas} cota(s) · pago ${_brl(p.valorPago)} (${escapeHtml(forma)})`

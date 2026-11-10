@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v8.0
+SISTEMA DE GESTÃO DE BOLÕES PRO v8.1
+Novidade v8.1 (transparência e menos gravações):
+- Informa ao site se está aberto, quando sincronizou e se há conflito
+  esperando decisão (meta/desktop_status; 1 gravação a cada 10 min aberto).
+- Ao fechar, só publica os bolões que mudaram desde a última publicação
+  (impressão digital do documento em boloes.publicado_hash).
+
 Novidade v8.0 (inscrições e parcelas lançadas pelo site):
 - Inscrição e pagamento de parcela feitos no admin web ficam numa fila
   (lancamentos_pendentes) que o desktop importa ao abrir e a cada minuto.
@@ -1889,6 +1895,9 @@ class Database:
             # o mesmo lançamento do site duas vezes.
             "ALTER TABLE participantes ADD COLUMN origem_doc_id TEXT",
             "ALTER TABLE pagamentos ADD COLUMN origem_doc_id TEXT",
+            # v8.1: impressão digital do último documento publicado ao
+            # fechar; igual = nada mudou, não publica de novo.
+            "ALTER TABLE boloes ADD COLUMN publicado_hash TEXT",
         ]
         for m in migs:
             try: c.execute(m)
@@ -2845,6 +2854,34 @@ def _fila_listar():
             return docs
 
 
+VERSAO_DESKTOP = "v8.1"
+FIREBASE_DESKTOP_STATUS = (
+    "https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
+    "/databases/(default)/documents/meta/desktop_status"
+)
+
+
+def _agora_utc_iso():
+    from datetime import timezone
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _desktop_status_gravar(campos):
+    """Grava só os campos informados de meta/desktop_status (o site mostra
+    se o desktop está aberto e quando sincronizou). Levanta exceção se falhar."""
+    import urllib.request, urllib.parse, json
+    def val(v):
+        if isinstance(v, bool): return {"booleanValue": v}
+        if isinstance(v, int): return {"integerValue": str(v)}
+        return {"stringValue": str(v)}
+    campos = dict(campos, versao=VERSAO_DESKTOP)
+    params = [("updateMask.fieldPaths", k) for k in campos]
+    corpo = json.dumps({"fields": {k: val(v) for k, v in campos.items()}}).encode("utf-8")
+    req = urllib.request.Request(FIREBASE_DESKTOP_STATUS + "?" + urllib.parse.urlencode(params),
+                                 data=corpo, method="PATCH", headers=_firebase_headers())
+    urllib.request.urlopen(req, timeout=15).close()
+
+
 def _fila_mudar_status(item, status, extras=None, exigir_versao=True):
     """Muda o status de um item da fila. Com exigir_versao, só grava se o
     documento ainda for exatamente o que foi lido (o site pode ter
@@ -3348,7 +3385,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v8.0")
+        self.root.title("Sistema de Gestão de Bolões PRO v8.1")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -3883,6 +3920,22 @@ class BolaoApp:
         self._fila_janela = None
         self._fila_ultimo_erro = ""
 
+        import time as _t
+        status = {"enviado_em": 0.0, "conflitos": None, "primeiro": True}
+
+        def _status_se_preciso():
+            n = len(self._fila_conflitos)
+            if not status["primeiro"] and n == status["conflitos"] and _t.time() - status["enviado_em"] < 600:
+                return
+            campos = {"aberto": True, "ultimaVerificacao": _agora_utc_iso(), "conflitos": n}
+            if status["primeiro"]:
+                campos["abertoEm"] = campos["ultimaVerificacao"]
+            try:
+                _desktop_status_gravar(campos)
+                status.update(enviado_em=_t.time(), conflitos=n, primeiro=False)
+            except Exception as ex:
+                print("Status do desktop não gravado:", ex)
+
         def _loop():
             while True:
                 if not self._fila_ocupado:
@@ -3892,6 +3945,7 @@ class BolaoApp:
                     except Exception as ex:
                         msg = str(ex)[:300]
                         self.root.after(0, lambda m=msg: self._fila_erro(m))
+                _status_se_preciso()
                 self._fila_poke.wait(timeout=60)
                 self._fila_poke.clear()
 
@@ -3976,6 +4030,8 @@ class BolaoApp:
 
         bids = sorted({ctx["bid"] for _, ctx in gravados})
         publicar = [d for d in (self._dados_publicacao_bolao(b) for b in bids) if d]
+        for b in bids:
+            self.db.execute("UPDATE boloes SET publicado_hash=NULL WHERE id=?", (b,))
 
         if gravados:
             try: self._refresh_all()
@@ -3989,6 +4045,10 @@ class BolaoApp:
             for it in devolver:
                 try: _fila_mudar_status(it, "pendente", exigir_versao=False)
                 except Exception: pass
+            if gravados:
+                try: _desktop_status_gravar({"aberto": True, "ultimaImportacao": _agora_utc_iso(),
+                                             "ultimaVerificacao": _agora_utc_iso()})
+                except Exception as ex: print("Status do desktop não gravado:", ex)
             erros_pub = []
             for d in publicar:
                 try:
@@ -4123,7 +4183,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v8.0",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v8.1",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         self._rsv_alerta_hdr = tk.Label(hdr, text="⚠ Saldo divergente: veja a aba Reservas",
@@ -8221,7 +8281,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v8.0</span>
+        <span>Sistema de Gestão de Bolões v8.1</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -10533,7 +10593,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v8.0</span>
+        <span>Sistema de Gestão de Bolões v8.1</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -11015,6 +11075,7 @@ class BolaoApp:
     def _pub_enviar(self):
         dados = self._pub_montar_dados()
         if not dados: return
+        self.db.execute("UPDATE boloes SET publicado_hash=NULL WHERE id=?", (dados["_bolao_id"],))
         self._pub_status.configure(text="⏳ Publicando no Firebase...", fg="#aad4f5")
         self.root.update_idletasks()
         def _executar():
@@ -12059,6 +12120,11 @@ class BolaoApp:
 
                 # ═══ BOLÕES ══════════════════════════════════════════
                 win.after(0, lambda: log("", "dim"))
+                try:
+                    _desktop_status_gravar({"aberto": False, "ultimaVerificacao": _agora_utc_iso(),
+                                            "conflitos": len(getattr(self, "_fila_conflitos", {}) or {})})
+                except Exception as ex_st:
+                    print("Status do desktop não gravado:", ex_st)
                 win.after(0, lambda: log("  BOLOES NO SITE", "head"))
                 win.after(0, lambda: log("  "+"-"*50, "dim"))
                 win.after(0, lambda: sp(2))
@@ -12169,6 +12235,13 @@ class BolaoApp:
                     doc_b["fields"].update(_extras_firestore(_bolao_campos_extras(db2, bid)))
 
                     corpo_b = json.dumps(doc_b, ensure_ascii=False).encode("utf-8")
+                    import hashlib as _hl
+                    hash_b = _hl.sha1(corpo_b + doc_id_b.encode("utf-8")).hexdigest()
+                    if doc_id_salvo and hash_b == (bd.get("publicado_hash") or ""):
+                        ok_b += 1
+                        win.after(0, lambda: log("       sem mudança desde a última publicação — pulado", "dim"))
+                        win.after(0, lambda p=int(2 + 85*(idx_b+1)/max(total_b,1)): sp(p))
+                        continue
                     win.after(0, lambda did=doc_id_b: log(
                         "       enviando "+did+"...", "info"))
                     # Se já existe firebase_doc_id salvo, o bolão foi publicado
@@ -12183,6 +12256,8 @@ class BolaoApp:
                         with urllib.request.urlopen(req, timeout=20) as resp:
                             if resp.status == 200:
                                 ok_b += 1
+                                _conn.execute("UPDATE boloes SET publicado_hash=? WHERE id=?", (hash_b, bid))
+                                _conn.commit()
                                 if not doc_id_salvo:
                                     _conn.execute(
                                         "UPDATE boloes SET firebase_doc_id=? WHERE id=?",
