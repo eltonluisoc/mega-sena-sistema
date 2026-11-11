@@ -1,0 +1,22 @@
+{
+  "bolao": {"data_inicio": "2026-01-10", "valor_total": 1070, "valor_parcela": 107},
+  "cessoes": [
+    {"id": 1, "de": 1, "para": 2, "cotas": 1, "s": 7, "data": "2026-11-11", "valor": 428}
+  ],
+  "cessoes_cedo": [
+    {"id": 2, "de": 1, "para": 2, "cotas": 1, "s": 7, "data": "2026-07-15", "valor": 428}
+  ],
+  "cessoes_nova": [
+    {"id": 3, "de": 1, "para": 3, "cotas": 1, "s": 7, "data": "2026-11-11", "valor": 428}
+  ],
+  "casos": [
+    {"caso": "quem desistiu fica quitado com 0,6", "lista": "cessoes", "pid": 1, "ve": 642, "pago": 642, "hoje": "2026-11-20", "devido": 642, "emAtraso": false, "valor": 0},
+    {"caso": "quem assumiu fica em dia no mes da cessao", "lista": "cessoes", "pid": 2, "ve": 1498, "pago": 1070, "hoje": "2026-11-20", "devido": 1070, "emAtraso": false, "valor": 0},
+    {"caso": "no mes seguinte as 4 parcelas assumidas vencem", "lista": "cessoes", "pid": 2, "ve": 1498, "pago": 1070, "hoje": "2026-12-05", "devido": 1498, "emAtraso": true, "valor": 428},
+    {"caso": "quem assumiu e pagou tudo fica quitado", "lista": "cessoes", "pid": 2, "ve": 1498, "pago": 1498, "hoje": "2026-12-05", "devido": 1498, "emAtraso": false, "valor": 0},
+    {"caso": "pessoa nova so com a fracao: nada vence no mes da cessao", "lista": "cessoes_nova", "pid": 3, "ve": 428, "pago": 0, "hoje": "2026-11-20", "devido": 0, "emAtraso": false, "valor": 0},
+    {"caso": "pessoa nova so com a fracao: vence tudo no mes seguinte", "lista": "cessoes_nova", "pid": 3, "ve": 428, "pago": 0, "hoje": "2026-12-05", "devido": 428, "emAtraso": true, "valor": 428},
+    {"caso": "cessao no meio do bolao: quem assumiu deve so o que ja venceu", "lista": "cessoes_cedo", "pid": 2, "ve": 1498, "pago": 856, "hoje": "2026-09-10", "devido": 1070, "emAtraso": true, "valor": 214},
+    {"caso": "cessao no meio do bolao: quem cedeu deve so as 6 dele", "lista": "cessoes_cedo", "pid": 1, "ve": 642, "pago": 642, "hoje": "2026-09-10", "devido": 642, "emAtraso": false, "valor": 0}
+  ]
+}

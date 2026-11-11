@@ -1,7 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v8.2
+SISTEMA DE GESTÃO DE BOLÕES PRO v8.3
+Novidade v8.3 (cessão de parcelas / fração de cota):
+- Quem desiste fica com a fração que pagou (ex.: 6 de 10 parcelas = 0,6
+  cota) e outra pessoa assume as parcelas restantes (0,4 cota). Registro
+  em cessoes_cota; o valor esperado das duas pessoas é ajustado e as cotas
+  passam a aceitar fração em todo o sistema (0,6 / 1,4).
+- As parcelas assumidas só vencem a partir do mês seguinte à cessão
+  (decisão do usuário: nunca antes de a pessoa assumir).
+- Relatórios (tela, texto completo, WhatsApp, Excel) mostram as frações e a
+  lista de cessões; a publicação leva cotas fracionadas, valor esperado e
+  as cessões de cada pessoa, e o site calcula atrasos com a mesma regra.
+- Cessão pode ser desfeita (volta os valores esperados).
+
 Novidade v8.2 (parcelas em atraso):
 - Regra de atraso numa função só (_situacao_atraso), considerando as cotas
   de cada pessoa; o Dashboard ("Participantes atrasados") passa a usá-la.
@@ -1836,6 +1848,22 @@ class Database:
             tipo TEXT DEFAULT 'GANHO',
             FOREIGN KEY(bolao_id) REFERENCES boloes(id)
         );
+        CREATE TABLE IF NOT EXISTS cessoes_cota (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            bolao_id INTEGER NOT NULL,
+            de_participante_id INTEGER NOT NULL,
+            para_participante_id INTEGER NOT NULL,
+            cotas_cedidas REAL NOT NULL,
+            parcela_inicial INTEGER NOT NULL,
+            parcelas_total INTEGER NOT NULL,
+            valor_parcela REAL NOT NULL,
+            valor REAL NOT NULL,
+            data_cessao TEXT NOT NULL,
+            observacoes TEXT,
+            criado_em TEXT,
+            desfeita INTEGER DEFAULT 0,
+            desfeita_em TEXT
+        );
         CREATE TABLE IF NOT EXISTS log_auditoria (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             data_hora TEXT,
@@ -2683,9 +2711,10 @@ def _cotas_ocupadas(db, bid):
             adm_cad = True
             if not adm_paga:
                 cotas += 1; continue
-        cotas += max(1, round(ve/vt)) if ve > 0 else 0
+        cotas += _cotas_de(ve, vt) if ve > 0 else 0
     adm_extra = 1 if (adm_nome and not adm_paga and not adm_cad) else 0
-    return cotas + adm_extra, max_cotas
+    total = round(cotas + adm_extra, 2)
+    return (int(round(total)) if abs(total - round(total)) < 1e-9 else total), max_cotas
 
 
 def _data_inicio_iso(texto):
@@ -2725,6 +2754,199 @@ def _situacao_atraso(pago, valor_esperado, cotas, parc_devidas, parc_val):
         return False, pagas, 0.0
     devido = min(parc_devidas * por_parcela, valor_esperado or 0)
     return True, pagas, round(max(0.0, devido - (pago or 0)), 2)
+
+
+def _cotas_de(ve, vt):
+    """Cotas da pessoa a partir do valor esperado; aceita fração (0,6 / 1,4)."""
+    if vt and vt > 0 and ve and ve > 0:
+        q = round(ve / vt, 2)
+        return int(round(q)) if abs(q - round(q)) < 1e-9 else q
+    return 1
+
+
+def fmt_cotas(q):
+    """1 -> '1'; 1.4 -> '1,4'; 0.33 -> '0,33'."""
+    q = round(float(q or 0), 2)
+    if abs(q - round(q)) < 1e-9:
+        return str(int(round(q)))
+    return f"{q:.2f}".rstrip("0").replace(".", ",")
+
+
+def _mes_no_bolao(data_inicio, data):
+    """Número do mês de `data` contado a partir do início do bolão (início = 1)."""
+    di, dc = _data_inicio_iso(data_inicio), _data_inicio_iso(data)
+    if not di or not dc:
+        return 0
+    return (int(dc[:4]) - int(di[:4])) * 12 + (int(dc[5:7]) - int(di[5:7])) + 1
+
+
+def _cessoes_de(db, pid):
+    """Cessões ativas em que o participante cedeu ou assumiu parcelas."""
+    if not pid:
+        return []
+    return [dict(r) for r in db.fetchall(
+        "SELECT * FROM cessoes_cota WHERE desfeita=0 AND "
+        "(de_participante_id=? OR para_participante_id=?) ORDER BY id", (pid, pid))]
+
+
+def _devido_ate_agora(bd, pid, ve, cessoes, hoje=None):
+    """Quanto a pessoa já deveria ter pago até o mês passado, considerando as
+    cessões. Parcela j de um bloco assumido vence quando j já venceu E a
+    cessão é de um mês anterior ao atual. Mesma regra do site
+    (admin.js _devidoComCessoes)."""
+    meses_total, _, parc = _parcelas_vencidas(bd, hoje)
+    vt = float(bd.get("valor_total") or 0)
+    if parc <= 0 or vt <= 0:
+        return 0.0
+    n_total = int(round(vt / parc))
+    m = max(0, meses_total - 1)
+    k = min(m, n_total)
+    cedido = sum(c["valor"] for c in cessoes if c["de_participante_id"] == pid)
+    assumido = sum(c["valor"] for c in cessoes if c["para_participante_id"] == pid)
+    unid = (ve + cedido - assumido) / vt * k
+    for c in cessoes:
+        bloco = c["cotas_cedidas"] * max(0, k - c["parcela_inicial"] + 1)
+        if c["de_participante_id"] == pid:
+            unid -= bloco
+        if c["para_participante_id"] == pid and _mes_no_bolao(bd.get("data_inicio"), c["data_cessao"]) <= m:
+            unid += bloco
+    return round(max(0.0, unid * parc), 2)
+
+
+def _situacao_atraso_valor(pago, ve, devido, parc):
+    """Atraso pra quem tem cessão: compara em dinheiro. Tolerância de 5% de
+    uma parcela (mesma folga do arredondamento de _situacao_atraso).
+    Retorna (em_atraso, parcelas_pagas, parcelas_devidas, valor_em_atraso),
+    parcelas contadas em parcelas de 1 cota."""
+    un = lambda v: math.floor(v / parc * 10 + 0.5) / 10 if parc > 0 else 0.0
+    if (ve or 0) - (pago or 0) <= 0.009 or devido - (pago or 0) <= 0.05 * (parc or 0):
+        return False, un(pago or 0), un(devido), 0.0
+    return True, un(pago or 0), un(devido), round(max(0.0, min(devido, ve or 0) - (pago or 0)), 2)
+
+
+def _esp_parcela_status(db, bd, pid, ve, parc_esp, parc, n_cotas):
+    """(parcelas esperadas, valor por parcela) pra _status_part. Sem cessão é
+    o de sempre (parcela x cotas); com cessão, valores equivalentes ao que
+    a pessoa realmente devia até agora."""
+    ces = _cessoes_de(db, pid)
+    if not ces:
+        return parc_esp, parc * n_cotas
+    devido = _devido_ate_agora(bd, pid, ve, ces)
+    if devido <= 0.009:
+        return 0, (parc or 1)
+    esp = parc_esp or 1
+    return esp, devido / esp
+
+
+def _cessoes_publicacao(db, pid, bd):
+    """Cessões da pessoa no formato publicado no site."""
+    out = []
+    for c in _cessoes_de(db, pid):
+        sai = c["de_participante_id"] == pid
+        outro = db.fetchone("SELECT nome FROM participantes WHERE id=?",
+                            (c["para_participante_id"] if sai else c["de_participante_id"],))
+        out.append({
+            "tipo": "saida" if sai else "entrada",
+            "cotas": float(c["cotas_cedidas"]),
+            "parcelaInicial": int(c["parcela_inicial"]),
+            "mesCessao": int(_mes_no_bolao(bd.get("data_inicio"), c["data_cessao"])),
+            "valor": float(c["valor"]),
+            "outro": outro["nome"] if outro else "",
+            "data": _data_iso_para_br(c["data_cessao"]) if c["data_cessao"] else "",
+        })
+    return out
+
+
+def _texto_cessao(db, c):
+    de = db.fetchone("SELECT nome FROM participantes WHERE id=?", (c["de_participante_id"],))
+    para = db.fetchone("SELECT nome FROM participantes WHERE id=?", (c["para_participante_id"],))
+    fracao = c["cotas_cedidas"] * (c["parcelas_total"] - c["parcela_inicial"] + 1) / c["parcelas_total"]
+    return (f"{de['nome'] if de else '?'} → {para['nome'] if para else '?'}: {fmt_cotas(fracao)} cota "
+            f"(parcelas {c['parcela_inicial']} a {c['parcelas_total']}, {fmt_brl(c['valor'])}) "
+            f"em {_data_iso_para_br(c['data_cessao'])}")
+
+
+def _registrar_cessao(conn, bid, de_pid, para_pid, cotas_cedidas, parcela_inicial,
+                      data_cessao_iso, observacoes="", novo=None):
+    """Registra a cessão numa transação só: cria a pessoa nova (se `novo`),
+    grava a cessão e ajusta o valor esperado das duas partes. Levanta
+    ValueError com mensagem pro usuário se algo não fecha.
+    novo = {"nome":..., "telefone":...} quando quem assume ainda não está no bolão."""
+    conn.row_factory = __import__("sqlite3").Row
+    b = conn.execute("SELECT * FROM boloes WHERE id=?", (bid,)).fetchone()
+    if not b:
+        raise ValueError("Bolão não encontrado.")
+    vt = float(b["valor_total"] or 0); parc = float(b["valor_parcela"] or 0)
+    if vt <= 0 or parc <= 0:
+        raise ValueError("O bolão precisa ter valor da cota e valor da parcela.")
+    n_total = int(round(vt / parc))
+    if not (1 <= int(parcela_inicial) <= n_total):
+        raise ValueError(f"A parcela inicial precisa estar entre 1 e {n_total}.")
+    if cotas_cedidas <= 0:
+        raise ValueError("Informe quantas cotas estão sendo cedidas.")
+    if not _data_inicio_iso(data_cessao_iso):
+        raise ValueError("Data da cessão inválida.")
+    de = conn.execute("SELECT * FROM participantes WHERE id=? AND bolao_id=? AND ativo=1", (de_pid, bid)).fetchone()
+    if not de:
+        raise ValueError("Quem cede não está ativo neste bolão.")
+    valor = round(cotas_cedidas * parc * (n_total - int(parcela_inicial) + 1), 2)
+    if valor > float(de["valor_esperado"] or 0) + 0.009:
+        raise ValueError(f"{de['nome']} só tem {fmt_brl(de['valor_esperado'])} esperado; "
+                         f"não dá pra ceder {fmt_brl(valor)}.")
+    with conn:
+        c = conn.cursor()
+        if novo:
+            tel = _digitos(novo.get("telefone"))
+            if not novo.get("nome", "").strip() or not (10 <= len(tel) <= 11):
+                raise ValueError("Para pessoa nova, informe nome e telefone com DDD (10 ou 11 dígitos).")
+            pessoa = next((r for r in c.execute("SELECT * FROM pessoas").fetchall() if _digitos(r["telefone"]) == tel), None)
+            ja = next((r for r in c.execute(
+                "SELECT id, nome, telefone, pessoa_id FROM participantes WHERE bolao_id=? AND ativo=1", (bid,)).fetchall()
+                if _digitos(r["telefone"]) == tel or (pessoa and r["pessoa_id"] == pessoa["id"])), None)
+            if ja:
+                raise ValueError(f"{ja['nome']} já está neste bolão: escolha a pessoa na lista.")
+            if pessoa is None:
+                c.execute("INSERT INTO pessoas (nome,telefone,chave_pix) VALUES (?,?,'')", (novo["nome"].strip(), tel))
+                pessoa_id = c.lastrowid; nome = novo["nome"].strip()
+            else:
+                pessoa_id = pessoa["id"]; nome = pessoa["nome"]
+            c.execute("INSERT INTO participantes (bolao_id,pessoa_id,nome,telefone,chave_pix,valor_esperado,"
+                      "observacoes,is_adm) VALUES (?,?,?,?,'',0,'Entrou assumindo parcelas de outra pessoa',0)",
+                      (bid, pessoa_id, nome, tel))
+            para_pid = c.lastrowid
+        para = c.execute("SELECT * FROM participantes WHERE id=? AND bolao_id=? AND ativo=1", (para_pid, bid)).fetchone()
+        if not para:
+            raise ValueError("Quem assume não está ativo neste bolão.")
+        if para_pid == de_pid:
+            raise ValueError("Quem cede e quem assume precisam ser pessoas diferentes.")
+        c.execute("INSERT INTO cessoes_cota (bolao_id,de_participante_id,para_participante_id,cotas_cedidas,"
+                  "parcela_inicial,parcelas_total,valor_parcela,valor,data_cessao,observacoes,criado_em) "
+                  "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                  (bid, de_pid, para_pid, float(cotas_cedidas), int(parcela_inicial), n_total, parc, valor,
+                   _data_inicio_iso(data_cessao_iso), observacoes or "", datetime.now().strftime("%d/%m/%Y %H:%M:%S")))
+        cid = c.lastrowid
+        c.execute("UPDATE participantes SET valor_esperado=ROUND(valor_esperado-?,2) WHERE id=?", (valor, de_pid))
+        c.execute("UPDATE participantes SET valor_esperado=ROUND(valor_esperado+?,2) WHERE id=?", (valor, para_pid))
+        c.execute("UPDATE boloes SET publicado_hash=NULL WHERE id=?", (bid,))
+    return cid, para_pid, valor
+
+
+def _desfazer_cessao(conn, cid):
+    """Desfaz a cessão: devolve o valor esperado às duas partes. Pagamentos
+    não são mexidos (o que alguém já pagou continua registrado)."""
+    conn.row_factory = __import__("sqlite3").Row
+    c0 = conn.execute("SELECT * FROM cessoes_cota WHERE id=?", (cid,)).fetchone()
+    if not c0 or c0["desfeita"]:
+        raise ValueError("Cessão não encontrada ou já desfeita.")
+    with conn:
+        conn.execute("UPDATE participantes SET valor_esperado=ROUND(valor_esperado+?,2) WHERE id=?",
+                     (c0["valor"], c0["de_participante_id"]))
+        conn.execute("UPDATE participantes SET valor_esperado=ROUND(MAX(0, valor_esperado-?),2) WHERE id=?",
+                     (c0["valor"], c0["para_participante_id"]))
+        conn.execute("UPDATE cessoes_cota SET desfeita=1, desfeita_em=? WHERE id=?",
+                     (datetime.now().strftime("%d/%m/%Y %H:%M:%S"), cid))
+        conn.execute("UPDATE boloes SET publicado_hash=NULL WHERE id=?", (c0["bolao_id"],))
+    return dict(c0)
 
 
 def _bolao_campos_extras(db, bid):
@@ -2905,7 +3127,7 @@ def _fila_listar():
             return docs
 
 
-VERSAO_DESKTOP = "v8.2"
+VERSAO_DESKTOP = "v8.3"
 FIREBASE_DESKTOP_STATUS = (
     "https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
     "/databases/(default)/documents/meta/desktop_status"
@@ -3124,6 +3346,11 @@ def _firebase_buscar_doc_por_titulo(titulo):
             return doc.get("name", "")  # ex: "projects/.../documents/participantes/bolao_abc"
     return None
 
+def _cotas_num(q):
+    q = float(q or 1)
+    return int(round(q)) if abs(q - round(q)) < 1e-9 else round(q, 2)
+
+
 def _participante_firestore(p):
     """Um participante no formato REST do documento do bolão."""
     campos = {
@@ -3131,10 +3358,15 @@ def _participante_firestore(p):
         "telefone":        {"stringValue": re.sub(r"\D", "", str(p.get("telefone") or ""))},
         "valorPago":       {"doubleValue": float(p.get("valorPago",0))},
         "situacao":        {"stringValue": str(p.get("situacao","em_andamento"))},
-        "quantidadeCotas": {"integerValue": str(int(p.get("quantidadeCotas",1)))},
+        "quantidadeCotas": _firestore_python_para_valor(_cotas_num(p.get("quantidadeCotas", 1))),
         "dataCadastro":    {"stringValue": str(p.get("dataCadastro",""))},
         "historicoPagamentos": _firestore_python_para_valor(p.get("historicoPagamentos") or []),
     }
+    # v8.3: valor esperado exato (cota fracionada) e cessões da pessoa
+    if p.get("valorEsperado") is not None:
+        campos["valorEsperado"] = {"doubleValue": float(p["valorEsperado"])}
+    if p.get("cessoes"):
+        campos["cessoes"] = _firestore_python_para_valor(p["cessoes"])
     # v8.0: id local, pra o site apontar exatamente quem pagou a parcela
     if p.get("id"):
         campos["idLocal"] = {"integerValue": str(int(p["id"]))}
@@ -3356,7 +3588,7 @@ def atualizar_busca_participante(bolao_doc_id, titulo, loteria, valor_cota, data
                 "bolaoId": bolao_doc_id, "titulo": titulo, "loteria": loteria,
                 "valorPorCota": round(float(valor_cota), 2), "dataLimite": data_limite or "",
                 "situacao": p.get("situacao") or "em_andamento",
-                "quantidadeCotas": int(p.get("quantidadeCotas") or 1),
+                "quantidadeCotas": _cotas_num(p.get("quantidadeCotas") or 1),
                 "valorPago": float(p.get("valorPago") or 0),
             })
 
@@ -3438,7 +3670,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v8.2")
+        self.root.title("Sistema de Gestão de Bolões PRO v8.3")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -4236,7 +4468,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v8.2",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v8.3",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         self._rsv_alerta_hdr = tk.Label(hdr, text="⚠ Saldo divergente: veja a aba Reservas",
@@ -5587,7 +5819,8 @@ class BolaoApp:
             eh_adm = bool(pt_d.get("is_adm")) or (
                 adm_nome_lower and adm_nome_lower in pt_d["nome"].lower())
             status_raw, tag, _pago_f, saldo_f = self._status_part_adm(
-                {"is_adm": eh_adm}, pago, ve, parc_esp, parc*cotas, adm_paga)
+                {"is_adm": eh_adm}, pago, ve,
+                *_esp_parcela_status(self.db, bd, pt_d["id"], ve, parc_esp, parc, cotas), adm_paga)
             saldo = saldo_f if saldo_f is not None else max(0, ve - pago)
             self._fin_dados_full.append({
                 "id": pt_d["id"], "nome": pt_d["nome"], "telefone": pt_d["telefone"] or "-",
@@ -5657,7 +5890,7 @@ class BolaoApp:
         esq = tk.Frame(header, bg="#ffffff"); esq.pack(side="left", fill="x", expand=True)
         tk.Label(esq, text=dados["nome"], bg="#ffffff", fg="#1d1d1f",
                  font=("Arial",10,"bold")).pack(anchor="w")
-        cotas_txt = f"{dados['cotas']} cota" + ("s" if dados["cotas"] != 1 else "")
+        cotas_txt = f"{fmt_cotas(dados['cotas'])} cota" + ("s" if dados["cotas"] > 1 else "")
         tk.Label(esq, text=f"{cotas_txt} · Saldo {fmt_brl(dados['saldo'])}",
                  bg="#ffffff", fg="#6e6e73", font=("Arial",8)).pack(anchor="w")
 
@@ -5973,6 +6206,10 @@ class BolaoApp:
         bf = tk.Frame(sec3, bg=CORES["bg_section"]); bf.pack(fill="x", pady=8)
         btn(bf, "💳 Registrar Pagamento", CORES["btn_azul"],
             self._registrar_pag, width=22).pack(side="left")
+        btn(bf, "🔀 Ceder parcelas restantes", CORES["btn_laranja"],
+            self._abrir_cessao, width=26).pack(side="left", padx=8)
+        btn(bf, "↩ Cessões deste participante", CORES["btn_cinza"],
+            self._listar_cessoes_participante, width=26).pack(side="left")
 
         # ── Histórico de pagamentos deste participante — antes era a
         # aba separada "Visualizar / Recibo", que só existia por causa de
@@ -6029,7 +6266,8 @@ class BolaoApp:
             adm_nome_lower and adm_nome_lower in (pt["nome"] or "").lower())
         _, parc_esp, parc = self._calc_parcela_atual(bd)
         status_raw, status_tag, _pago_f, _saldo_f = self._status_part_adm(
-            {"is_adm": eh_adm}, pago, ve, parc_esp, parc*n_cotas_pt, adm_paga)
+            {"is_adm": eh_adm}, pago, ve,
+            *_esp_parcela_status(self.db, bd, pid, ve, parc_esp, parc, n_cotas_pt), adm_paga)
         quitado = status_tag == "quitado"
 
         # ── Linha 1: info do participante ─────────────────────────
@@ -6184,6 +6422,172 @@ class BolaoApp:
         btn(bf_, "Registrar", CORES["btn_verde"], _confirmar, width=14).pack(side="left", padx=6)
         btn(bf_, "Cancelar",  CORES["btn_cinza"], win.destroy, width=10).pack(side="left", padx=6)
 
+    # ── CESSÃO DE PARCELAS (v8.3) ───────────────────────────────
+    def _abrir_cessao(self):
+        """Quem desiste fica com a fração que pagou; outra pessoa (do bolão
+        ou nova) assume as parcelas restantes. Prévia exata antes de gravar."""
+        pid = getattr(self, "_pag_pid_atual", None)
+        bid = self.bid.get()
+        if not pid or not bid:
+            messagebox.showwarning("Atenção", "Selecione o participante que vai ceder."); return
+        de = self.db.fetchone("SELECT * FROM participantes WHERE id=? AND ativo=1", (pid,))
+        brow = self.db.fetchone("SELECT * FROM boloes WHERE id=?", (bid,))
+        if not de or not brow: return
+        b = dict(brow)
+        vt = float(b.get("valor_total") or 0); parc = float(b.get("valor_parcela") or 0)
+        if vt <= 0 or parc <= 0:
+            messagebox.showwarning("Atenção", "O bolão precisa ter valor da cota e da parcela."); return
+        n_total = int(round(vt / parc))
+        ve_de = float(de["valor_esperado"] or 0)
+        cotas_de = _cotas_de(ve_de, vt)
+        pago_de = self.db.fetchone("SELECT COALESCE(SUM(valor),0) t FROM pagamentos WHERE participante_id=?", (pid,))["t"]
+        pagas = pago_de / (parc * cotas_de) if cotas_de else 0
+        s_padrao = min(n_total, int(pagas + 1e-6) + 1)
+        outros = self.db.fetchall("SELECT id, nome, valor_esperado FROM participantes "
+                                  "WHERE bolao_id=? AND ativo=1 AND id<>? ORDER BY nome", (bid, pid))
+        NOVA = "➕ Pessoa nova (ainda não está no bolão)"
+        opcoes = [f"{r['nome']} — {fmt_cotas(_cotas_de(r['valor_esperado'] or 0, vt))} cota (ID: {r['id']})" for r in outros] + [NOVA]
+
+        win = tk.Toplevel(self.root); win.title("Ceder parcelas restantes")
+        win.configure(bg=CORES["bg_section"]); win.geometry("640x560"); win.grab_set(); win.lift()
+        tk.Label(win, text=f"🔀 Ceder parcelas restantes — {de['nome']}", bg=CORES["bg_section"],
+                 fg="white", font=("Arial",11,"bold")).pack(anchor="w", padx=16, pady=(14,2))
+        tk.Label(win, text=(f"{b['nome']}: cota de {fmt_brl(vt)} em {n_total} parcelas de {fmt_brl(parc)}.\n"
+                            f"{de['nome']} tem {fmt_cotas(cotas_de)} cota(s) e pagou {fmt_brl(pago_de)} "
+                            f"({fmt_cotas(round(pagas, 2))} parcela(s))."),
+                 bg=CORES["bg_section"], fg="#aad4f5", font=("Arial",9), justify="left").pack(anchor="w", padx=16)
+
+        frm = tk.Frame(win, bg=CORES["bg_section"]); frm.pack(fill="x", padx=16, pady=10)
+        def linha(rot):
+            r = tk.Frame(frm, bg=CORES["bg_section"]); r.pack(fill="x", pady=3)
+            tk.Label(r, text=rot, width=20, anchor="w", bg=CORES["bg_section"], fg=CORES["fg_label"],
+                     font=("Arial",9,"bold")).pack(side="left")
+            return r
+        cb = ttk.Combobox(linha("Quem assume:"), values=opcoes, state="readonly", width=52)
+        cb.pack(side="left")
+        r_novo = linha("Pessoa nova:")
+        e_nome = entry(r_novo, width=26); e_nome.pack(side="left")
+        tk.Label(r_novo, text=" Tel.:", bg=CORES["bg_section"], fg=CORES["fg_label"]).pack(side="left")
+        e_tel = entry(r_novo, width=14); e_tel.pack(side="left")
+        e_cotas = entry(linha("Cotas cedidas:"), width=8); e_cotas.insert(0, fmt_cotas(cotas_de))
+        e_cotas.pack(side="left")
+        e_ini = entry(linha("A partir da parcela:"), width=8); e_ini.insert(0, str(s_padrao)); e_ini.pack(side="left")
+        e_dt = entry(linha("Data da cessão:"), width=12); e_dt.insert(0, date.today().strftime("%d/%m/%Y")); e_dt.pack(side="left")
+        e_obs = entry(linha("Observação:"), width=52); e_obs.pack(side="left")
+
+        prev = tk.Label(win, text="", bg="#22324a", fg="white", font=("Arial",9), justify="left",
+                        anchor="w", padx=12, pady=10, wraplength=590)
+        prev.pack(fill="x", padx=16, pady=6)
+
+        def ler():
+            try:
+                cotas_c = float(e_cotas.get().replace(",", "."))
+                ini = int(e_ini.get())
+            except ValueError:
+                return None, "Cotas cedidas e parcela inicial precisam ser números."
+            if not (1 <= ini <= n_total):
+                return None, f"A parcela inicial precisa estar entre 1 e {n_total}."
+            if cotas_c <= 0:
+                return None, "Cotas cedidas precisa ser maior que zero."
+            sel = cb.get()
+            if not sel:
+                return None, "Escolha quem assume."
+            novo = None; para = None
+            if sel == NOVA:
+                novo = {"nome": e_nome.get().strip(), "telefone": e_tel.get()}
+            else:
+                para = int(re.search(r"\(ID: (\d+)\)$", sel).group(1))
+            valor = round(cotas_c * parc * (n_total - ini + 1), 2)
+            return {"cotas": cotas_c, "ini": ini, "para": para, "novo": novo, "valor": valor}, ""
+
+        def atualizar(*_):
+            d, erro = ler()
+            estado = "normal" if cb.get() == NOVA else "disabled"
+            e_nome.configure(state=estado); e_tel.configure(state=estado)
+            if not d:
+                prev.configure(text=erro, fg="#ffb4a8"); return
+            fracao = d["cotas"] * (n_total - d["ini"] + 1) / n_total
+            ve_de_novo = ve_de - d["valor"]
+            saldo_de = ve_de_novo - pago_de
+            if d["para"]:
+                r = next(x for x in outros if x["id"] == d["para"])
+                nome_para = r["nome"]; ve_para = float(r["valor_esperado"] or 0)
+            else:
+                nome_para = d["novo"]["nome"] or "Pessoa nova"; ve_para = 0.0
+            mes_txt = ""
+            mc = _mes_no_bolao(b.get("data_inicio"), _data_inicio_iso(e_dt.get()))
+            if mc:
+                di = datetime.strptime(_data_inicio_iso(b.get("data_inicio")), "%Y-%m-%d")
+                mm = di.month - 1 + mc  # mês seguinte à cessão (0-based a partir de jan do início)
+                mes_txt = f"{mm % 12 + 1:02d}/{di.year + mm // 12}"
+            txt = (f"• {de['nome']}: {fmt_cotas(cotas_de)} → {fmt_cotas(_cotas_de(ve_de_novo, vt) if ve_de_novo > 0 else 0)} cota "
+                   f"(esperado {fmt_brl(ve_de)} → {fmt_brl(ve_de_novo)}). ")
+            txt += ("Fica quitado(a)." if abs(saldo_de) < 0.01 else
+                    (f"Ainda deve {fmt_brl(saldo_de)}." if saldo_de > 0 else f"Pagou {fmt_brl(-saldo_de)} a mais (crédito)."))
+            txt += (f"\n• {nome_para}: {fmt_cotas(_cotas_de(ve_para, vt) if ve_para > 0 else 0)} → "
+                    f"{fmt_cotas(_cotas_de(ve_para + d['valor'], vt))} cota (+{fmt_cotas(fracao)}), "
+                    f"assume {n_total - d['ini'] + 1} parcela(s) de {fmt_brl(parc * d['cotas'])} = {fmt_brl(d['valor'])}.")
+            if mes_txt:
+                txt += f"\n• As parcelas assumidas contam como vencidas a partir de {mes_txt} (nunca antes da cessão)."
+            prev.configure(text=txt, fg="white")
+            return txt
+
+        for w in (e_cotas, e_ini, e_dt, e_nome, e_tel):
+            w.bind("<KeyRelease>", atualizar)
+        cb.bind("<<ComboboxSelected>>", atualizar)
+        atualizar()
+
+        def confirmar():
+            d, erro = ler()
+            if not d:
+                messagebox.showwarning("Cessão", erro, parent=win); return
+            resumo = atualizar()
+            if not messagebox.askyesno("Confirmar cessão", (resumo or "") + "\n\nGravar esta cessão?", parent=win):
+                return
+            try:
+                cid, para_pid, valor = _registrar_cessao(
+                    self.db.conn, bid, pid, d["para"], d["cotas"], d["ini"],
+                    _data_inicio_iso(e_dt.get()), e_obs.get().strip(), novo=d["novo"])
+            except ValueError as ex:
+                messagebox.showwarning("Cessão", str(ex), parent=win); return
+            c = dict(self.db.fetchone("SELECT * FROM cessoes_cota WHERE id=?", (cid,)))
+            self._log("Cessão de cota", f"{b['nome']}: {_texto_cessao(self.db, c)}")
+            win.destroy()
+            self._refresh_all()
+            messagebox.showinfo("Cessão registrada", _texto_cessao(self.db, c) +
+                                "\n\nO site é atualizado quando o programa fechar.")
+
+        bf = tk.Frame(win, bg=CORES["bg_section"]); bf.pack(pady=8)
+        btn(bf, "✅ Gravar cessão", CORES["btn_verde"], confirmar, width=18).pack(side="left", padx=6)
+        btn(bf, "Cancelar", CORES["btn_cinza"], win.destroy, width=12).pack(side="left", padx=6)
+
+    def _listar_cessoes_participante(self):
+        pid = getattr(self, "_pag_pid_atual", None)
+        if not pid:
+            messagebox.showwarning("Atenção", "Selecione um participante."); return
+        ces = _cessoes_de(self.db, pid)
+        if not ces:
+            messagebox.showinfo("Cessões", "Este participante não tem cessões ativas."); return
+        win = tk.Toplevel(self.root); win.title("Cessões do participante")
+        win.configure(bg=CORES["bg_section"]); win.geometry("680x320"); win.grab_set()
+        for c in ces:
+            fr = tk.Frame(win, bg="#22324a", padx=10, pady=8); fr.pack(fill="x", padx=12, pady=4)
+            tk.Label(fr, text=_texto_cessao(self.db, c), bg="#22324a", fg="white", font=("Arial",9),
+                     wraplength=500, justify="left").pack(side="left", fill="x", expand=True)
+            def desfazer(c=c):
+                if not messagebox.askyesno("Desfazer cessão",
+                        _texto_cessao(self.db, c) + "\n\nDesfazer? Os valores esperados voltam ao que eram; "
+                        "pagamentos já registrados não são alterados.", parent=win):
+                    return
+                try:
+                    _desfazer_cessao(self.db.conn, c["id"])
+                except ValueError as ex:
+                    messagebox.showwarning("Desfazer", str(ex), parent=win); return
+                self._log("Cessão desfeita", _texto_cessao(self.db, c))
+                win.destroy(); self._refresh_all()
+            btn(fr, "↩ Desfazer", CORES["btn_vermelho"], desfazer, width=12).pack(side="right")
+        btn(win, "Fechar", CORES["btn_cinza"], win.destroy, width=12).pack(pady=8)
+
     def _registrar_pag(self):
         pid = getattr(self, "_pag_pid_atual", None)
         if not pid: messagebox.showwarning("Atenção","Selecione um participante!"); return
@@ -6263,6 +6667,9 @@ class BolaoApp:
         return _parcelas_vencidas(bolao_d)
 
     def _n_cotas_participante(self, valor_esperado, valor_total_bolao):
+        return _cotas_de(valor_esperado or 0, valor_total_bolao or 0)
+
+    def _n_cotas_participante_antigo(self, valor_esperado, valor_total_bolao):
         """Quantas cotas uma pessoa tem, a partir do valor esperado dela e
         do valor_total (preço de 1 cota) do bolão. Usar SEMPRE que for
         comparar quanto a pessoa já pagou contra parcelas — do contrário
@@ -6326,11 +6733,13 @@ class BolaoApp:
             tp  += pago
             ts  += max(0,saldo)
             n_cotas = self._n_cotas_participante(pt_d["valor_esperado"] or 0, vt)
-            status,tag = self._status_part(pago,pt_d["valor_esperado"] or 0,parc_esp,parc*n_cotas)
+            status,tag = self._status_part(pago,pt_d["valor_esperado"] or 0,
+                *_esp_parcela_status(self.db, b, pt_d["id"], pt_d["valor_esperado"] or 0, parc_esp, parc, n_cotas))
             n_pago = round(pago/parc,1) if parc>0 else 0
             n_tot  = round((pt_d["valor_esperado"] or 0)/parc,0) if parc>0 else 0
+            nome_rel = pt_d["nome"] + (f"  ({fmt_cotas(n_cotas)} cota)" if n_cotas != int(n_cotas) else "")
             self.rel_tree.insert("","end",tags=(tag,),values=(
-                pt_d["id"],pt_d["nome"],pt_d["telefone"] or "-",
+                pt_d["id"],nome_rel,pt_d["telefone"] or "-",
                 fmt_brl(pt_d["valor_esperado"]),fmt_brl(pago),
                 fmt_brl(max(0,saldo)),status,f"{n_pago}/{int(n_tot)}"))
 
@@ -6363,7 +6772,12 @@ class BolaoApp:
             f"💰 Esperado: {fmt_brl(te)}  |  "
             f"✅ Arrecadado: {fmt_brl(tp)}  |  "
             f"⚠ Pendente: {fmt_brl(ts)}"
+            + "".join(f"\n🔀 Cessão: {t}" for t in self._textos_cessoes(bid))
         ))
+
+    def _textos_cessoes(self, bid):
+        rows = self.db.fetchall("SELECT * FROM cessoes_cota WHERE bolao_id=? AND desfeita=0 ORDER BY id", (bid,))
+        return [_texto_cessao(self.db, dict(r)) for r in rows]
 
     # ─── Relatório completo estilo texto ────────────────────────
     def _rel_whatsapp(self):
@@ -6400,7 +6814,7 @@ class BolaoApp:
                 saldo = max(0, ve - pago)
                 n_cotas = self._n_cotas_participante(ve, vt)
                 if saldo <= 0 or pago >= parc*n_cotas:
-                    confirmados.append(pt_d["nome"])
+                    confirmados.append(pt_d["nome"] + (f" ({fmt_cotas(n_cotas)} cota)" if n_cotas != int(n_cotas) else ""))
 
         # ADM não cadastrado mas confirmado
         if adm_nome and not adm_paga:
@@ -6558,13 +6972,15 @@ class BolaoApp:
                 n_p   = round(pago/parc,1) if parc>0 else 0
                 n_tot = round(ve/parc,0)   if parc>0 else 0
                 n_cotas = self._n_cotas_participante(ve, vt)
-                st,_  = self._status_part(pago,ve,parc_esp,parc*n_cotas)
+                st,_  = self._status_part(pago,ve,*_esp_parcela_status(self.db, b, pt_d["id"], ve, parc_esp, parc, n_cotas))
                 status= st.replace("✅ ","").replace("⚠ ","").replace("🟦 ","")
                 if status=="QUITADO": quitados+=1
                 elif status=="EM DIA": em_dia+=1
                 else: pendentes_cnt+=1
                 pago_show=pago; saldo_show=max(0,saldo); n_tot=round(ve/parc,0) if parc>0 else 0
-            dados_pt.append((pt_d["nome"],n_p,n_tot,pago_show,ve,saldo_show,status))
+            q_pt = self._n_cotas_participante(ve, vt)
+            nome_pt = pt_d["nome"] + (f" ({fmt_cotas(q_pt)})" if q_pt != int(q_pt) else "")
+            dados_pt.append((nome_pt,n_p,n_tot,pago_show,ve,saldo_show,status))
 
         linhas = []
         def A(s=""): linhas.append(s)
@@ -6617,6 +7033,12 @@ class BolaoApp:
             prog = f"{np}/{int(nt)}"
             A(f"{nome:<26}{prog:<12}{fmt_brl(pago):<14}{fmt_brl(ve):<14}{fmt_brl(saldo):<14}{status}")
         A(sep)
+        cessoes_txt = self._textos_cessoes(bid)
+        if cessoes_txt:
+            A("CESSÕES DE COTA (quem desistiu ficou com a fração paga):")
+            for t in cessoes_txt:
+                A(f"• {t}")
+            A(sep)
         A("OBSERVAÇÕES ADMINISTRATIVAS:")
         A(f"• {n_pend} pagamento(s) aguardando depósito no valor total de {fmt_brl(pend_dep)}")
         A(f"• Valor da parcela deste bolão: {fmt_brl(parc)}")
@@ -6684,12 +7106,14 @@ class BolaoApp:
             else:
                 saldo=max(0,ve-pago)
                 n_cotas=self._n_cotas_participante(ve, vt)
-                st,_=self._status_part(pago,ve,parc_esp,parc*n_cotas)
+                st,_=self._status_part(pago,ve,*_esp_parcela_status(self.db, b, pt_d["id"], ve, parc_esp, parc, n_cotas))
                 status=st;bg=("D5F5E3" if "QUITADO" in st else ("D6EAF8" if "DIA" in st else "FDE8D8"))
             te+=ve;tp+=pago;ts+=saldo
             n_p=round(pago/parc,1) if parc>0 else 0
             n_t=round(ve/parc,0) if parc>0 else 0
-            ws.append([i,pt_d["nome"],pt_d["telefone"] or "-",ve,pago,saldo,status,f"{n_p}/{int(n_t)}"])
+            q_x = self._n_cotas_participante(ve, vt)
+            nome_x = pt_d["nome"] + (f" ({fmt_cotas(q_x)} cota)" if q_x != int(q_x) else "")
+            ws.append([i,nome_x,pt_d["telefone"] or "-",ve,pago,saldo,status,f"{n_p}/{int(n_t)}"])
             r=ws.max_row
             for c in range(1,9):
                 cell=ws.cell(r,c)
@@ -6766,7 +7190,8 @@ class BolaoApp:
 
             n_cotas = self._n_cotas_participante(ve, vt)
             status, tag, pago_f, saldo_f = self._status_part_adm(
-                {"is_adm": eh_adm}, pago, ve, parc_esp, parc*n_cotas, adm_paga)
+                {"is_adm": eh_adm}, pago, ve,
+                *_esp_parcela_status(self.db, b, pt_d["id"], ve, parc_esp, parc, n_cotas), adm_paga)
 
             if   "QUITADO" in status: q  += 1
             elif "EM DIA"  in status: em += 1
@@ -7974,7 +8399,8 @@ class BolaoApp:
                 adm_ja_listado = True
 
             status_txt, tag, pago_f, saldo_f = self._status_part_adm(
-                {"is_adm": eh_adm}, pago, ve, parc_esp_d, parc_d * n_cotas, adm_paga)
+                {"is_adm": eh_adm}, pago, ve,
+                *_esp_parcela_status(self.db, bd, pt_d["id"], ve, parc_esp_d, parc_d, n_cotas), adm_paga)
 
             # ADM isento não entra em NENHUM total financeiro (nem esperado,
             # nem arrecadado, nem pendente) — ele não paga, então o
@@ -8139,7 +8565,7 @@ class BolaoApp:
                 continue
             kwargs = {"iid": f"p{pid_row}"} if pid_row is not None else {}
             self._dash_tree_sit.insert("","end", tags=(tag,), values=(
-                nome, f"{n_cotas}x", fmt_brl(pago), fmt_brl(saldo), status), **kwargs)
+                nome, f"{fmt_cotas(n_cotas)}x", fmt_brl(pago), fmt_brl(saldo), status), **kwargs)
 
     def _dash_sit_dblclick(self, event):
         """Duplo clique numa linha de 'Situação dos Participantes' — abre
@@ -8318,7 +8744,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v8.2</span>
+        <span>Sistema de Gestão de Bolões v8.3</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -9484,16 +9910,22 @@ class BolaoApp:
                 # v8.2: considera as cotas (mesma regra do site)
                 ve_pt = float(pt_d.get("valor_esperado") or 0)
                 cotas_pt = self._n_cotas_participante(ve_pt, float(bd_loop.get("valor_total") or 0))
-                em_atraso, n_pagas, saldo_dev = _situacao_atraso(
-                    pago, ve_pt, cotas_pt, parc_devidas, parc_val)
+                ces_pt = _cessoes_de(self.db, pt_d["id"])
+                if ces_pt:
+                    em_atraso, n_pagas, parc_devidas_pt, saldo_dev = _situacao_atraso_valor(
+                        pago, ve_pt, _devido_ate_agora(bd_loop, pt_d["id"], ve_pt, ces_pt), parc_val)
+                else:
+                    em_atraso, n_pagas, saldo_dev = _situacao_atraso(
+                        pago, ve_pt, cotas_pt, parc_devidas, parc_val)
+                    parc_devidas_pt = parc_devidas
                 if em_atraso:
                     atrasados.append({
                         "nome":      pt_d["nome"],
                         "bolao":     bd_loop["nome"],
                         "pagas":     f"{n_pagas:g}",
-                        "devidas":   parc_devidas,
+                        "devidas":   parc_devidas_pt,
                         "saldo":     saldo_dev,
-                        "gravidade": round(parc_devidas - n_pagas, 1),
+                        "gravidade": round(parc_devidas_pt - n_pagas, 1),
                     })
 
         # Ordena: mais atrasados primeiro
@@ -10633,7 +11065,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v8.2</span>
+        <span>Sistema de Gestão de Bolões v8.3</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -10998,7 +11430,7 @@ class BolaoApp:
             if eh_adm and not adm_paga:
                 n_cotas=1; situacao="quitado"; valorPago=0
             else:
-                n_cotas  = max(1, round(ve/vt)) if vt>0 and ve>0 else 1
+                n_cotas  = _cotas_de(ve, vt)
                 saldo    = max(0, ve-pago)
                 situacao = "quitado" if saldo<=0 else "em_andamento"
                 valorPago= int(round(pago))
@@ -11009,7 +11441,9 @@ class BolaoApp:
             lista_part.append({"id":pid,"nome":pt_d["nome"],"telefone":tel_digits,
                 "valorPago":valorPago,"situacao":situacao,
                 "quantidadeCotas":n_cotas,"dataCadastro":dt_cad,
-                "historicoPagamentos":itens_map.get(pid, [])})
+                "historicoPagamentos":itens_map.get(pid, []),
+                "valorEsperado": None if (eh_adm and not adm_paga) else round(ve, 2),
+                "cessoes": _cessoes_publicacao(self.db, pid, bd)})
         if adm_nome and not adm_paga and not adm_cadastrado:
             lista_part.append({"id":None,"nome":adm_nome,"telefone":"","valorPago":0,
                 "situacao":"quitado","quantidadeCotas":1,"dataCadastro":"",
@@ -12230,7 +12664,7 @@ class BolaoApp:
                         if eh_adm and not adm_pg:
                             n_c=1; sit="quitado"; vp=0
                         else:
-                            n_c = max(1,round(ve/vt)) if vt>0 and ve>0 else 1
+                            n_c = _cotas_de(ve, vt)
                             sit = "quitado" if pago>=ve else "em_andamento"
                             vp  = int(round(pago))
                         tel3 = _re_c.sub(r"\D","",str(pt_d.get("telefone") or ""))
@@ -12238,7 +12672,9 @@ class BolaoApp:
                         lista.append({"id":pid3,"nome":pt_d["nome"],"telefone":tel3,
                             "valorPago":vp,"situacao":sit,
                             "quantidadeCotas":n_c,"dataCadastro":dt_c,
-                            "historicoPagamentos":itens_map.get(pid3, [])})
+                            "historicoPagamentos":itens_map.get(pid3, []),
+                            "valorEsperado": None if (eh_adm and not adm_pg) else round(ve, 2),
+                            "cessoes": _cessoes_publicacao(db2, pid3, bd)})
                         win.after(0, lambda nm=pt_d["nome"], s=sit_ic, v=vp: log(
                             "       ["+s+"] "+nm+" R$"+str(v), "dim"))
 

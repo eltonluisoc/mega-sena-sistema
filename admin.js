@@ -4353,7 +4353,7 @@ function _calcularKpisFinanceiro(participantesFormatados) {
     const lista = participantesFormatados || [];
     const totalArrecadado = lista.reduce((s, p) => s + (p.valorPago || 0), 0);
     const totalPendente = lista.reduce((s, p) => {
-        const esperado = p.valorPorCota * p.quantidadeCotas;
+        const esperado = typeof p.valorEsperado === 'number' ? p.valorEsperado : p.valorPorCota * p.quantidadeCotas;
         return s + Math.max(0, esperado - (p.valorPago || 0));
     }, 0);
     return { totalParticipantes: lista.length, totalArrecadado, totalPendente };
@@ -4489,6 +4489,8 @@ async function carregarParticipantesAdmin(bolaoId) {
                 quantidadeCotas: quantidadeCotas,
                 valorPago: valorPago,
                 valorPorCota: valorPorCota,
+                valorEsperado: _esperadoParticipante(p, valorPorCota),
+                cessoes: p.cessoes || [],
                 // Pedido do usuário: resumo completo de quantas cotas o
                 // participante pagou, EM DETALHES, com data — antes só
                 // existia o total agregado (valorPago), sem nenhum jeito
@@ -4515,14 +4517,14 @@ async function carregarParticipantesAdmin(bolaoId) {
         html += '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">';
 
         participantesFormatados.forEach((p, i) => {
-            const totalEsperado = p.valorPorCota * p.quantidadeCotas;
+            const totalEsperado = p.valorEsperado;
             html += _renderCardFinanceiroHtml({
                 idHist: `histPagAdmin${i}`,
-                titulo: p.nome,
+                titulo: p.nome + (p.cessoes.length ? ` 🔀` : ''),
                 statusClass: p.statusClass,
                 statusText: p.statusText,
                 linha1Esq: `📞 ${p.telefone}`,
-                linha1Dir: `🎟️ ${p.quantidadeCotas} cota${p.quantidadeCotas > 1 ? 's' : ''}`,
+                linha1Dir: `🎟️ ${_txtCotas(p.quantidadeCotas)}` + (p.cessoes.length ? ` · ${escapeHtml(_txtCessoes(p))}` : ''),
                 valorPago: p.valorPago,
                 totalEsperado,
                 historico: p.historicoPagamentos,
@@ -4556,9 +4558,9 @@ function copiarListaParticipantesWhatsApp() {
     texto += `💰 Valor por cota: R$ ${valorPorCota.toFixed(2)}\n\n`;
 
     _participantesAdminAtuais.forEach((p, i) => {
-        const totalEsperado = p.valorPorCota * p.quantidadeCotas;
+        const totalEsperado = p.valorEsperado;
         const icone = p.statusClass === 'pago' ? '✅' : '⚠️';
-        texto += `${i + 1}. ${icone} *${p.nome}* — ${p.quantidadeCotas} cota${p.quantidadeCotas > 1 ? 's' : ''} — `
+        texto += `${i + 1}. ${icone} *${p.nome}* — ${_txtCotas(p.quantidadeCotas)} — `
                + `R$ ${p.valorPago.toFixed(2)} de R$ ${totalEsperado.toFixed(2)}\n`;
     });
 
@@ -4618,7 +4620,7 @@ async function carregarParticipantesSelectFinanceiro() {
                     loteria: bolao.loteria || '',
                     valorPago: p.valorPago || 0,
                     quantidadeCotas: p.quantidadeCotas || 1,
-                    totalEsperado: valorPorCota * (p.quantidadeCotas || 1),
+                    totalEsperado: _esperadoParticipante(p, valorPorCota),
                     situacao: p.situacao,
                     historicoPagamentos: p.historicoPagamentos || [],
                 });
@@ -4681,7 +4683,7 @@ function handleParticipanteFinanceiroChange(event) {
             titulo: b.bolaoTitulo,
             statusClass, statusText,
             linha1Esq: `🎰 ${loteriaLabel}`,
-            linha1Dir: `🎟️ ${b.quantidadeCotas} cota${b.quantidadeCotas > 1 ? 's' : ''}`,
+            linha1Dir: `🎟️ ${_txtCotas(b.quantidadeCotas)}`,
             valorPago: b.valorPago,
             totalEsperado: b.totalEsperado,
             historico: b.historicoPagamentos,
@@ -6875,7 +6877,7 @@ function _inscParticipanteSel() {
     const i = document.getElementById('inscParticipante').value;
     return b && i !== '' ? (b.participantes || [])[Number(i)] || null : null;
 }
-function _inscEsperado(p, b) { return (Number(p.quantidadeCotas) || 1) * (b.valorPorCota || 0); }
+function _inscEsperado(p, b) { return _esperadoParticipante(p, b.valorPorCota); }
 function _inscPagoComPendentes(p, b) {
     const tel = _soDigitos(p.telefone);
     const pend = _inscPendentes.filter(x => x.tipo === 'pagamento' && x.bolaoDocId === b.id && x.status !== 'recusado' &&
@@ -6978,7 +6980,7 @@ function _inscAtualizar() {
     if (p && b) {
         const esperado = _inscEsperado(p, b), pago = _inscPagoComPendentes(p, b);
         partInfo.className = 'insc-info';
-        partInfo.textContent = `${p.quantidadeCotas || 1} cota(s) · total ${_brl(esperado)} · pago ${_brl(pago)}` +
+        partInfo.textContent = `${_txtCotas(_cotasNum(p))} · total ${_brl(esperado)} · pago ${_brl(pago)}` +
             (pago > (p.valorPago || 0) ? ' (inclui o que aguarda o desktop)' : '') + ` · falta ${_brl(Math.max(0, esperado - pago))}`;
     } else partInfo.textContent = '';
 
@@ -7189,6 +7191,53 @@ let _cobPix = null;
 let _cobIniciado = false;
 let _inscPreSelecao = null;
 
+// v109: cota pode ser fração (0,6 / 1,4) depois de uma cessão de parcelas.
+function _cotasNum(p) { const q = Number(p && p.quantidadeCotas); return q > 0 ? q : 1; }
+function _fmtCotas(q) {
+    const v = Math.round((Number(q) || 0) * 100) / 100;
+    return Number.isInteger(v) ? String(v) : String(v).replace('.', ',');
+}
+function _txtCotas(q) { return `${_fmtCotas(q)} cota${Number(q) > 1 ? 's' : ''}`; }
+// Valor esperado exato publicado pelo desktop (v8.3); antigo = cotas x valor.
+function _esperadoParticipante(p, valorPorCota) {
+    return typeof p.valorEsperado === 'number' ? p.valorEsperado : _cotasNum(p) * (valorPorCota || 0);
+}
+function _txtCessoes(p) {
+    return (p.cessoes || []).map(c => c.tipo === 'saida'
+        ? `cedeu as parcelas ${c.parcelaInicial} em diante para ${c.outro} em ${c.data}`
+        : `assumiu as parcelas ${c.parcelaInicial} em diante de ${c.outro} em ${c.data}`).join(' · ');
+}
+
+// Mesma regra do desktop (_devido_ate_agora): parcela assumida só vence
+// depois do mês da cessão. Casos compartilhados em test/casos_cessao.json.
+function _devidoComCessoes(b, p, hoje = new Date()) {
+    const parc = b.valorParcela || 0, vt = b.valorPorCota || 0;
+    if (!(parc > 0) || !(vt > 0) || !b.dataInicio) return 0;
+    const [ano, mes] = String(b.dataInicio).split('-').map(Number);
+    const m = Math.max(0, (hoje.getFullYear() - ano) * 12 + (hoje.getMonth() + 1 - mes));
+    const k = Math.min(m, b.parcelasTotal || Math.round(vt / parc));
+    const ve = _esperadoParticipante(p, vt);
+    const ces = p.cessoes || [];
+    const cedido = ces.filter(c => c.tipo === 'saida').reduce((s, c) => s + c.valor, 0);
+    const assumido = ces.filter(c => c.tipo === 'entrada').reduce((s, c) => s + c.valor, 0);
+    let unid = (ve + cedido - assumido) / vt * k;
+    for (const c of ces) {
+        const bloco = c.cotas * Math.max(0, k - c.parcelaInicial + 1);
+        if (c.tipo === 'saida') unid -= bloco;
+        else if (c.mesCessao <= m) unid += bloco;
+    }
+    return Math.round(Math.max(0, unid * parc) * 100) / 100;
+}
+
+function _situacaoAtrasoValor(pago, ve, devido, parc) {
+    const un = v => parc > 0 ? Math.floor(v / parc * 10 + 0.5) / 10 : 0;
+    if ((ve || 0) - (pago || 0) <= 0.009 || devido - (pago || 0) <= 0.05 * (parc || 0)) {
+        return { emAtraso: false, pagas: un(pago || 0), devidas: un(devido), valor: 0 };
+    }
+    return { emAtraso: true, pagas: un(pago || 0), devidas: un(devido),
+        valor: Math.round(Math.max(0, Math.min(devido, ve || 0) - (pago || 0)) * 100) / 100 };
+}
+
 function _parcelasVencidasBolao(b, hoje = new Date()) {
     if (!b || !b.dataInicio || !(b.valorParcela > 0)) return 0;
     const [ano, mes] = String(b.dataInicio).split('-').map(Number);
@@ -7229,13 +7278,21 @@ function _calcularCobrancas(hoje = new Date()) {
         r.devidas = _parcelasVencidasBolao(b, hoje);
         for (const p of (b.participantes || [])) {
             if (!p || p.situacao === 'quitado') continue;
-            const cotas = Number(p.quantidadeCotas) || 1;
+            const cotas = _cotasNum(p);
             const { pago, pendente, ultimo } = _cobPagoParticipante(p, b);
-            const sit = _situacaoAtraso(pago, cotas * (b.valorPorCota || 0), cotas, r.devidas, b.valorParcela);
+            const esperado = _esperadoParticipante(p, b.valorPorCota);
+            let sit, devidas = r.devidas, devido = null;
+            if ((p.cessoes || []).length) {
+                devido = _devidoComCessoes(b, p, hoje);
+                sit = _situacaoAtrasoValor(pago, esperado, devido, b.valorParcela);
+                devidas = sit.devidas;
+            } else {
+                sit = _situacaoAtraso(pago, esperado, cotas, r.devidas, b.valorParcela);
+            }
             if (!sit.emAtraso) continue;
             r.atrasados++; r.valor += sit.valor;
-            itens.push({ bolao: b, p, cotas, pago, pendente, ultimo, devidas: r.devidas,
-                porParcela: (b.valorParcela || 0) * cotas, ...sit });
+            itens.push({ bolao: b, p, cotas, pago, pendente, ultimo, devidas, devido,
+                porParcela: (b.valorParcela || 0) * cotas, ...sit, devidas });
         }
         r.valor = Math.round(r.valor * 100) / 100;
         resumo.push(r);
@@ -7316,7 +7373,11 @@ async function abrirCobrancas() {
 function _cobMensagem(it) {
     const primeiro = String(it.p.nome || '').trim().split(/\s+/)[0] || '';
     let msg = `👋 Oi ${primeiro}! Tudo bem?\n`;
-    msg += `Passando para lembrar do bolão *${it.bolao.titulo}*: até agora venceram ${it.devidas} parcela(s) de ${_brl(it.porParcela)}`;
+    if (it.devido !== null && it.devido !== undefined) {
+        msg += `Passando para lembrar do bolão *${it.bolao.titulo}* (${_txtCotas(it.cotas)}): até agora venceu ${_brl(it.devido)}`;
+    } else {
+        msg += `Passando para lembrar do bolão *${it.bolao.titulo}*: até agora venceram ${it.devidas} parcela(s) de ${_brl(it.porParcela)}`;
+    }
     msg += ` e ficou em aberto *${_brl(it.valor)}*.`;
     if (_cobPix) msg += `\n\n💰 Chave PIX: ${_cobPix}`;
     msg += `\n\nSe já pagou, me avise que eu atualizo aqui. Obrigado! 🍀`;
@@ -7356,7 +7417,7 @@ function _cobRenderizar() {
         return `<div class="insc-item">
             <div style="min-width:0;">
                 <div class="insc-item-titulo">${escapeHtml(it.p.nome)}${envTxt}</div>
-                <div class="insc-item-det">${escapeHtml(it.bolao.titulo)} · ${it.cotas} cota(s)<br>
+                <div class="insc-item-det">${escapeHtml(it.bolao.titulo)} · ${_txtCotas(it.cotas)}${(it.p.cessoes || []).length ? ` · 🔀 ${escapeHtml(_txtCessoes(it.p))}` : ''}<br>
                     Pagou ${it.pagas.toString().replace('.', ',')} de ${it.devidas} parcela(s) vencida(s) · em aberto <strong>${_brl(it.valor)}</strong>
                     ${it.ultimo ? `<br>Último pagamento: ${escapeHtml(it.ultimo)}` : ''}
                     ${it.pendente ? `<br>Inclui ${_brl(it.pendente)} lançado no site, aguardando o desktop` : ''}</div>

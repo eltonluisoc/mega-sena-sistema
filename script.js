@@ -1885,7 +1885,7 @@ async function carregarBolaoAtivo() {
                             <div class="participante-card">
                                 <div style="display: flex; flex-direction: column; gap: 2px;">
                                     <span class="participante-nome">${escapeHtml(p.nome)}</span>
-                                    <span style="font-size: 9px; color: #64748b;">🎟️ ${p.quantidadeCotas} cota${p.quantidadeCotas > 1 ? 's' : ''}</span>
+                                    <span style="font-size: 9px; color: #64748b;">🎟️ ${fmtCotasPublico(p.quantidadeCotas)}</span>
                                 </div>
                                 <span class="participante-status ${p.statusClass}">${p.statusText}</span>
                             </div>
@@ -2244,3 +2244,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('✅ Sistema carregado (versão otimizada)');
     showToast('🎲 Sistema Bolões Aleatórios carregado!', 'success');
 });
+
+// v109: cota pode ser fração (0,6 / 1,4) após cessão de parcelas.
+function fmtCotasPublico(q) { const v = Math.round((Number(q) || 0) * 100) / 100; return (Number.isInteger(v) ? String(v) : String(v).replace('.', ',')) + ' cota' + (v > 1 ? 's' : ''); }

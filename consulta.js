@@ -208,7 +208,7 @@ async function consultarBoloes() {
                             </div>
                             <div class="bolao-info">
                                 <span>💰 R$ ${bolao.valorPorCota.toFixed(2)} / cota</span>
-                                <span>🎟️ ${quantidadeCotas} cota${quantidadeCotas > 1 ? 's' : ''}</span>
+                                <span>🎟️ ${fmtCotasPublico(quantidadeCotas)}</span>
                             </div>
                             <div>
                                 <span class="bolao-status ${situacaoClass}">${situacao}</span>
@@ -288,3 +288,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Focus no input ao carregar
     input.focus();
 });
+
+// v109: cota pode ser fração (0,6 / 1,4) após cessão de parcelas.
+function fmtCotasPublico(q) { const v = Math.round((Number(q) || 0) * 100) / 100; return (Number.isInteger(v) ? String(v) : String(v).replace('.', ',')) + ' cota' + (v > 1 ? 's' : ''); }

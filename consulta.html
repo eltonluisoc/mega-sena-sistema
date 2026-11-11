@@ -240,7 +240,7 @@
                                     <span class="bolao-status ${statusBolaoClass}">${statusBolaoText}</span>
                                 </div>
                                 <div style="font-size: 13px; margin-top: 5px;">💰 R$ ${(bolao.valorPorCota || 0).toFixed(2).replace('.', ',')} / cota</div>
-                                <div class="cotas-info">🎟️ ${bolao.minhasCotas} cota(s) | 💵 Valor Pago: R$ ${(bolao.meuValorPago || 0).toFixed(2).replace('.', ',')}</div>
+                                <div class="cotas-info">🎟️ ${String(Math.round(bolao.minhasCotas * 100) / 100).replace('.', ',')} cota(s) | 💵 Valor Pago: R$ ${(bolao.meuValorPago || 0).toFixed(2).replace('.', ',')}</div>
                                 <div style="margin-top: 8px;">
                                     <span class="${statusClass}">${statusText}</span>
                                 </div>

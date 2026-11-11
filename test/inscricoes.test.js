@@ -263,3 +263,61 @@ test('cobranças: bolão sem data válida ou ainda não publicado pelo v8.2 avis
   assert.equal(r[0].semData, true);
   assert.equal(r[1].antigo, true);
 });
+
+const CESSAO = JSON.parse(fs.readFileSync(path.join(__dirname, 'casos_cessao.json'), 'utf8'));
+
+function mesNoBolao(inicio, data) {
+  const [a0, m0] = inicio.split('-').map(Number);
+  const [a, m] = data.split('-').map(Number);
+  return (a - a0) * 12 + (m - m0) + 1;
+}
+
+test('cessão: regra igual à do desktop (casos compartilhados)', () => {
+  const bc = CESSAO.bolao;
+  const b = { dataInicio: bc.data_inicio, valorPorCota: bc.valor_total, valorParcela: bc.valor_parcela,
+    parcelasTotal: Math.round(bc.valor_total / bc.valor_parcela) };
+  for (const c of CESSAO.casos) {
+    const cessoes = CESSAO[c.lista].filter(x => x.de === c.pid || x.para === c.pid).map(x => ({
+      tipo: x.de === c.pid ? 'saida' : 'entrada', cotas: x.cotas, parcelaInicial: x.s,
+      mesCessao: mesNoBolao(bc.data_inicio, x.data), valor: x.valor, outro: 'X', data: x.data }));
+    const p = { valorEsperado: c.ve, quantidadeCotas: c.ve / bc.valor_total, cessoes };
+    const [a, m, d] = c.hoje.split('-').map(Number);
+    const devido = run(`_devidoComCessoes(${JSON.stringify(b)}, ${JSON.stringify(p)}, new Date(${a}, ${m - 1}, ${d}))`);
+    assert.equal(devido, c.devido, c.caso);
+    const sit = run(`_situacaoAtrasoValor(${c.pago}, ${c.ve}, ${devido}, ${bc.valor_parcela})`);
+    assert.equal(sit.emAtraso, c.emAtraso, c.caso);
+    assert.equal(sit.valor, c.valor, c.caso);
+  }
+});
+
+test('cotas fracionadas: formato e valor esperado exato', () => {
+  assert.equal(run('_txtCotas(1.4)'), '1,4 cotas');
+  assert.equal(run('_txtCotas(0.6)'), '0,6 cota');
+  assert.equal(run('_txtCotas(2)'), '2 cotas');
+  assert.equal(run('_esperadoParticipante({ quantidadeCotas: 0.33, valorEsperado: 25 }, 75)'), 25);
+  assert.equal(run('_esperadoParticipante({ quantidadeCotas: 2 }, 75)'), 150);
+});
+
+test('cobranças: quem assumiu parcelas aparece com o valor em dinheiro', () => {
+  const b = {
+    id: 'mv', titulo: 'Mega da Virada 2026', valorPorCota: 1070, valorParcela: 107, cotasTotais: 47, cotasOcupadas: 47,
+    dataInicio: '2026-01-10', parcelasTotal: 10,
+    participantes: [
+      { nome: 'Marcelo Cambraia', telefone: '61900000001', idLocal: 1, quantidadeCotas: 0.6, valorEsperado: 642,
+        situacao: 'quitado', historicoPagamentos: Array(6).fill({ valor: 107, data: '01/06/2026' }),
+        cessoes: [{ tipo: 'saida', cotas: 1, parcelaInicial: 7, mesCessao: 11, valor: 428, outro: 'Fulano', data: '11/11/2026' }] },
+      { nome: 'Fulano', telefone: '61900000002', idLocal: 2, quantidadeCotas: 1.4, valorEsperado: 1498,
+        situacao: 'em_andamento', historicoPagamentos: Array(10).fill({ valor: 107, data: '01/10/2026' }),
+        cessoes: [{ tipo: 'entrada', cotas: 1, parcelaInicial: 7, mesCessao: 11, valor: 428, outro: 'Marcelo Cambraia', data: '11/11/2026' }] },
+    ],
+  };
+  run(`boloes = ${JSON.stringify([b])}; _inscPendentes = [];`);
+  assert.equal(run('_calcularCobrancas(new Date(2026, 10, 20)).itens.length'), 0);
+  const it = run('_calcularCobrancas(new Date(2026, 11, 5)).itens[0]');
+  assert.equal(it.p.nome, 'Fulano');
+  assert.equal(it.valor, 428);
+  const msg = run('_cobMensagem(_calcularCobrancas(new Date(2026, 11, 5)).itens[0])');
+  assert.match(msg, /1,4 cotas/);
+  assert.match(msg, /venceu R\$ 1498,00/);
+  assert.match(msg, /em aberto \*R\$ 428,00\*/);
+});

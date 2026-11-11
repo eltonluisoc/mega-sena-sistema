@@ -109,10 +109,13 @@ class TestNCotasParticipante(unittest.TestCase):
     def test_sem_valor_esperado_assume_uma_cota(self):
         self.assertEqual(self._n_cotas(0, 100), 1)
 
-    def test_nunca_retorna_menos_de_uma_cota(self):
-        # round(50/100) = 0 sem o max(1, ...) — participante ficaria com
-        # ZERO cotas, o que não existe na prática.
-        self.assertEqual(self._n_cotas(50, 100), 1)
+    def test_fracao_de_cota_e_valida(self):
+        # v8.3: cessão de parcelas — quem pagou 6 de 10 parcelas fica com
+        # 0,6 cota e quem assumiu as 4 restantes com 1,4. Antes a regra
+        # arredondava pra inteiro (mínimo 1), o que esconderia a fração.
+        self.assertEqual(self._n_cotas(50, 100), 0.5)
+        self.assertEqual(self._n_cotas(642, 1070), 0.6)
+        self.assertEqual(self._n_cotas(1498, 1070), 1.4)
 
 
 # ════════════════════════════════════════════════════════════
