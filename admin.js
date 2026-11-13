@@ -5103,6 +5103,22 @@ async function cancelarPremiacaoPendente(id) {
 // ============================================
 // RESERVAS
 // ============================================
+// v113: situação do aviso de saldo baixo no card da pessoa (só quando o
+// saldo está abaixo do limite ou há um aviso aberto) — mostra POR QUE o
+// aviso aparece ou não, sem nenhuma leitura extra.
+function _situacaoAvisoSaldoHtml(r) {
+    const status = r.alertaSaldoBaixoStatus || null;
+    const abaixo = (r.saldo || 0) < limiteAlertaSaldoBaixo;
+    if (!status && !abaixo) return '';
+    const quando = (ts) => ts && ts.toDate ? ' em ' + ts.toDate().toLocaleDateString('pt-BR') : '';
+    let texto;
+    if (status === 'enviado') texto = `🔔 Aviso de saldo baixo: já enviado${quando(r.alertaSaldoBaixoEnviadoEm)} (volta a avisar depois que o saldo passar de R$ ${limiteAlertaSaldoBaixo.toFixed(2)})`;
+    else if (status === 'pendente') texto = `🔔 Aviso de saldo baixo: pendente${quando(r.alertaSaldoBaixoDesde)}`;
+    else if (!r.qualificaAlertaSaldoBaixo) texto = `🔕 Sem aviso: nenhum depósito acima de R$ ${limiteAlertaSaldoBaixo.toFixed(2)} registrado`;
+    else texto = '🔔 Aviso de saldo baixo: será criado ao atualizar';
+    return `<div style="font-size: 11px; color: #9a3412; background: #fff7ed; border-radius: 6px; padding: 4px 8px; margin-bottom: 8px;">${texto}</div>`;
+}
+
 async function carregarReservas() {
     try {
         // Redesenho estrutural (07/11) — causa raiz do estouro de cota do
@@ -5171,6 +5187,7 @@ async function carregarReservas() {
                     <div style="font-size: 12px; color: #64748b; margin-bottom: 8px;">
                         🆔 ${reserva.participanteId || reserva.id.substring(0, 8)} • 📅 ${dataAtualizacao}
                     </div>
+                    ${_situacaoAvisoSaldoHtml(reserva)}
                     <button class="btn-ver-historico" data-id="${reserva.id}" data-nome="${escapeHtml(reserva.nome)}" style="background: #0071e3; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; width: 100%; touch-action: manipulation;">
                         📜 VER HISTÓRICO
                     </button>
