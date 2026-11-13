@@ -5264,35 +5264,43 @@ async function verificarAlertasSaldoBaixo() {
             inputLimite.value = limiteAlertaSaldoBaixo.toFixed(2);
         }
 
-        const batch = db.batch();
-        let houveMudanca = false;
-
+        // v112: uma gravação por pessoa (antes era 1 lote só — se o
+        // documento de UMA pessoa fosse recusado, o lote inteiro falhava
+        // em silêncio e nenhum aviso aparecia; achado real 13/11, Erika).
+        const gravacoes = [];
         for (const p of reservasCarregadas) {
             const saldo = p.saldo || 0;
             const status = p.alertaSaldoBaixoStatus || null;
             const crisesAberta = status === 'pendente' || status === 'enviado';
 
             if (p.qualificaAlertaSaldoBaixo && saldo < limiteAlertaSaldoBaixo && !crisesAberta) {
-                batch.update(db.collection('reservas_participantes').doc(p.id), {
+                gravacoes.push([p, db.collection('reservas_participantes').doc(p.id).update({
                     alertaSaldoBaixoStatus: 'pendente',
                     alertaSaldoBaixoDesde: firebase.firestore.FieldValue.serverTimestamp(),
                     alertaSaldoBaixoEnviadoEm: null
-                });
+                })]);
                 p.alertaSaldoBaixoStatus = 'pendente'; // reflete na mesma renderização, sem reler
-                houveMudanca = true;
             } else if (saldo >= limiteAlertaSaldoBaixo && crisesAberta) {
-                batch.update(db.collection('reservas_participantes').doc(p.id), {
+                gravacoes.push([p, db.collection('reservas_participantes').doc(p.id).update({
                     alertaSaldoBaixoStatus: null,
                     alertaSaldoBaixoEnviadoEm: null
-                });
+                })]);
                 p.alertaSaldoBaixoStatus = null;
-                houveMudanca = true;
             }
         }
-        if (houveMudanca) await batch.commit();
 
+        // O aviso aparece mesmo se alguma gravação falhar.
         const pendentes = reservasCarregadas.filter(p => p.alertaSaldoBaixoStatus === 'pendente');
         renderizarBannerAlertasSaldoBaixo(pendentes);
+
+        const resultados = await Promise.allSettled(gravacoes.map(([, promessa]) => promessa));
+        const falhas = resultados
+            .map((r, i) => r.status === 'rejected' ? `${gravacoes[i][0].nome}: ${r.reason && (r.reason.code || r.reason.message)}` : null)
+            .filter(Boolean);
+        if (falhas.length) {
+            console.error('Alerta de saldo baixo não gravado:', falhas);
+            showToast(`⚠️ Aviso de saldo baixo não gravado para ${falhas.join('; ')}`, 'error');
+        }
     } catch (e) {
         console.error('Erro ao verificar alertas de saldo baixo:', e);
     }
