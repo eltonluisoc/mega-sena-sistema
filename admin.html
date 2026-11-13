@@ -1399,7 +1399,7 @@
     <!-- TOP BAR -->
     <!-- ============================================ -->
     <div class="top-bar">
-        <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">Administração · v109</span></div>
+        <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">Administração · v110</span></div>
         <div class="stats">
             <div class="stat" id="bootProgress" style="display:none;">⏳ Carregando… 0%</div>
             <div class="stat" id="totalCartoes">📊 0 cartões</div>
@@ -1574,6 +1574,10 @@
                 <div class="rank-card-title">🍀 Top +Milionária</div>
                 <div class="rank-list" id="dashboardMelhorMilionariaDetalhes"><div class="rank-empty">Nenhum resultado ainda</div></div>
             </div>
+            <div class="dashboard-card" style="--stat-accent:#b45309;">
+                <div class="rank-card-title">📅 Top Dia de Sorte</div>
+                <div class="rank-list" id="dashboardMelhorDiaDeSorteDetalhes"><div class="rank-empty">Nenhum resultado ainda</div></div>
+            </div>
         </div>
 
     </div>
@@ -1605,11 +1609,12 @@
                 <!-- SELETOR DE LOTERIA -->
                 <div class="card" style="background: #f8fafc; border: 1px solid #e2e8f0;">
                     <div class="card-header" style="font-size: 15px;">🎯 SELECIONAR LOTERIA</div>
-                    <div class="loteria-selector-admin" style="display: flex; gap: 8px;">
+                    <div class="loteria-selector-admin" style="display: flex; gap: 8px; flex-wrap: wrap;">
                         <button id="adminBtnMega" class="loteria-btn-admin mega" style="flex:1; padding: 10px; border: 2px solid #8b5cf6; border-radius: 30px; font-weight: bold; background: #ede9fe; color: #6d28d9; cursor: pointer; transition: all 0.2s;">🎯 MEGA</button>
                         <button id="adminBtnLotofacil" class="loteria-btn-admin lotofacil active" style="flex:1; padding: 10px; border: 2px solid #10b981; border-radius: 30px; font-weight: bold; background: #d1fae5; color: #065f46; cursor: pointer; transition: all 0.2s;">🌟 LOTOFÁCIL</button>
                         <button id="adminBtnQuina" class="loteria-btn-admin quina" style="flex:1; padding: 10px; border: 2px solid #ef4444; border-radius: 30px; font-weight: bold; background: #fee2e2; color: #991b1b; cursor: pointer; transition: all 0.2s;">🎯 QUINA</button>
                         <button id="adminBtnMilionaria" class="loteria-btn-admin maismilionaria" style="flex:1; padding: 10px; border: 2px solid #16a34a; border-radius: 30px; font-weight: bold; background: #dcfce7; color: #166534; cursor: pointer; transition: all 0.2s;">🍀 +MILIONÁRIA</button>
+                        <button id="adminBtnDiaDeSorte" class="loteria-btn-admin diadesorte" style="flex:1; padding: 10px; border: 2px solid #b45309; border-radius: 30px; font-weight: bold; background: #fef3c7; color: #704214; cursor: pointer; transition: all 0.2s;">📅 DIA DE SORTE</button>
                     </div>
                     <div style="font-size: 12px; color: #64748b; margin-top: 8px; text-align: center;">Selecione a loteria para cadastrar cartões</div>
                 </div>
@@ -1661,6 +1666,11 @@
                             <label>🍀 Trevos (separados por espaço, 2 a 6)</label>
                             <input type="text" id="trevosIndividual" class="form-control" placeholder="Ex: 02 05">
                             <div style="font-size: 12px; color: #64748b; margin-top: 4px;">💡 Mínimo 2, máximo 6 trevos (1 a 6)</div>
+                        </div>
+                        <!-- Só Dia de Sorte usa: 1 Mês da Sorte por aposta. -->
+                        <div class="form-group" id="campoMesSorteDigitacao" style="display: none;">
+                            <label for="mesSorteIndividual">📅 Mês da Sorte</label>
+                            <select id="mesSorteIndividual" class="form-control"><option value="">Escolha o mês</option><option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option><option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option><option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select>
                         </div>
                         <button id="btnAdicionarIndividual" class="btn btn-success btn-block">➕ ADICIONAR CARTÃO</button>
                     </div>
@@ -1715,6 +1725,11 @@
                             <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px;" id="previaNumerosSelecionados">
                                 <span style="color: #94a3b8; font-size: 12px;">Nenhum número selecionado</span>
                             </div>
+                        </div>
+                        <!-- Só Dia de Sorte usa: 1 Mês da Sorte por aposta. -->
+                        <div style="margin-top: 20px; display: none;" id="campoMesSorteSelecao">
+                            <label for="mesSorteSelecao" style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 8px; color: #1e293b;">📅 Mês da Sorte deste cartão:</label>
+                            <select id="mesSorteSelecao" class="form-control" style="max-width: 260px;"><option value="">Escolha o mês</option><option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option><option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option><option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select>
                         </div>
                         <!-- Só +Milionária usa — segunda grade, separada da
                              de números, pros 6 trevos possíveis. -->
@@ -1843,6 +1858,7 @@
                                 <option value="lotofacil">Lotofácil</option>
                                 <option value="quina">Quina</option>
                                 <option value="maismilionaria">+Milionária</option>
+                                <option value="diadesorte">Dia de Sorte</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -1882,11 +1898,12 @@
                 <div class="card" style="background: #f8fafc; border: 1px solid #e2e8f0;">
                     <div class="card-header" style="font-size: 15px;">🎯 LOTERIA</div>
                     <div style="font-size: 12px; color: #64748b; margin-bottom: 8px;">A lista, os filtros de concurso e o "Verificar Duplicados" abaixo são só desta loteria.</div>
-                    <div class="loteria-selector-admin" style="display: flex; gap: 8px;">
+                    <div class="loteria-selector-admin" style="display: flex; gap: 8px; flex-wrap: wrap;">
                         <button id="cartoesBtnMega" class="loteria-btn-admin mega active" style="flex:1; padding: 10px; border: 2px solid #8b5cf6; border-radius: 30px; font-weight: bold; background: #ede9fe; color: #6d28d9; cursor: pointer; transition: all 0.2s; transform: scale(0.98); filter: brightness(0.9); box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);">🎯 MEGA</button>
                         <button id="cartoesBtnLotofacil" class="loteria-btn-admin lotofacil" style="flex:1; padding: 10px; border: 2px solid #10b981; border-radius: 30px; font-weight: bold; background: #d1fae5; color: #065f46; cursor: pointer; transition: all 0.2s;">🌟 LOTOFÁCIL</button>
                         <button id="cartoesBtnQuina" class="loteria-btn-admin quina" style="flex:1; padding: 10px; border: 2px solid #ef4444; border-radius: 30px; font-weight: bold; background: #fee2e2; color: #991b1b; cursor: pointer; transition: all 0.2s;">🎯 QUINA</button>
                         <button id="cartoesBtnMilionaria" class="loteria-btn-admin maismilionaria" style="flex:1; padding: 10px; border: 2px solid #16a34a; border-radius: 30px; font-weight: bold; background: #dcfce7; color: #166534; cursor: pointer; transition: all 0.2s;">🍀 +MILIONÁRIA</button>
+                        <button id="cartoesBtnDiaDeSorte" class="loteria-btn-admin diadesorte" style="flex:1; padding: 10px; border: 2px solid #b45309; border-radius: 30px; font-weight: bold; background: #fef3c7; color: #704214; cursor: pointer; transition: all 0.2s;">📅 DIA DE SORTE</button>
                     </div>
                 </div>
                 <div class="card">
@@ -2065,11 +2082,12 @@
                      (ver setLoteriaConferencia/atualizarPainelConferencia). -->
                 <div class="card" style="background: #f8fafc; border: 1px solid #e2e8f0;">
                     <div class="card-header" style="font-size: 15px;">🎯 SELECIONAR LOTERIA</div>
-                    <div class="loteria-selector-admin" style="display: flex; gap: 8px;">
+                    <div class="loteria-selector-admin" style="display: flex; gap: 8px; flex-wrap: wrap;">
                         <button id="confBtnMega" class="loteria-btn-admin mega active" style="flex:1; padding: 10px; border: 2px solid #8b5cf6; border-radius: 30px; font-weight: bold; background: #ede9fe; color: #6d28d9; cursor: pointer; transition: all 0.2s; transform: scale(0.98); filter: brightness(0.9); box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);">🎯 MEGA</button>
                         <button id="confBtnLotofacil" class="loteria-btn-admin lotofacil" style="flex:1; padding: 10px; border: 2px solid #10b981; border-radius: 30px; font-weight: bold; background: #d1fae5; color: #065f46; cursor: pointer; transition: all 0.2s;">🌟 LOTOFÁCIL</button>
                         <button id="confBtnQuina" class="loteria-btn-admin quina" style="flex:1; padding: 10px; border: 2px solid #ef4444; border-radius: 30px; font-weight: bold; background: #fee2e2; color: #991b1b; cursor: pointer; transition: all 0.2s;">🎯 QUINA</button>
                         <button id="confBtnMilionaria" class="loteria-btn-admin maismilionaria" style="flex:1; padding: 10px; border: 2px solid #16a34a; border-radius: 30px; font-weight: bold; background: #dcfce7; color: #166534; cursor: pointer; transition: all 0.2s;">🍀 +MILIONÁRIA</button>
+                        <button id="confBtnDiaDeSorte" class="loteria-btn-admin diadesorte" style="flex:1; padding: 10px; border: 2px solid #b45309; border-radius: 30px; font-weight: bold; background: #fef3c7; color: #704214; cursor: pointer; transition: all 0.2s;">📅 DIA DE SORTE</button>
                     </div>
                 </div>
                 <div id="painelConferencia" style="display:flex; flex-direction:column; gap:12px; margin-top:14px;">
@@ -2276,6 +2294,7 @@
                         <button class="btn btn-sm otm-filtro" data-loteria="Lotofácil">Lotofácil</button>
                         <button class="btn btn-sm otm-filtro" data-loteria="Quina">Quina</button>
                         <button class="btn btn-sm otm-filtro" data-loteria="+Milionária">+Milionária</button>
+                        <button class="btn btn-sm otm-filtro" data-loteria="Dia de Sorte">Dia de Sorte</button>
                         <button id="btnAtualizarOtimizador" class="btn btn-primary btn-sm" style="margin-left:auto;">🔄 Atualizar</button>
                     </div>
                     <div id="listaOtimizadorCotas" style="max-height: 650px; overflow-y: auto;">

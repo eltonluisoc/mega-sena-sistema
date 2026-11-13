@@ -183,7 +183,8 @@ async function consultarBoloes() {
                         'mega': 'MEGA-SENA',
                         'lotofacil': 'LOTOFÁCIL',
                         'quina': 'QUINA',
-                        'maismilionaria': '+MILIONÁRIA'
+                        'maismilionaria': '+MILIONÁRIA',
+                        'diadesorte': 'DIA DE SORTE'
                     };
                     const loteriaNome = loteriaNomes[bolao.loteria] || bolao.loteria.toUpperCase();
                     

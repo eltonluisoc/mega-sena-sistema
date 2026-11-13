@@ -84,13 +84,14 @@ service cloud.firestore {
       // documentos das outras 3 loterias (sem trevos) continuam válidos.
       allow create: if isAdmin()
                     && request.resource.data.keys().hasOnly(
-                        ['loteria','concurso','numeros','trevos','dataConferencia','dataSorteio','conferido','admin','publicado','dataPublicacao'])
-                    && request.resource.data.loteria in ['mega','lotofacil','quina','maismilionaria']
+                        ['loteria','concurso','numeros','trevos','mesSorte','dataConferencia','dataSorteio','conferido','admin','publicado','dataPublicacao'])
+                    && request.resource.data.loteria in ['mega','lotofacil','quina','maismilionaria','diadesorte']
                     && request.resource.data.numeros is list
                     && request.resource.data.numeros.size() > 0
                     && request.resource.data.numeros.size() <= 20
                     && (!('trevos' in request.resource.data) || (request.resource.data.trevos is list && request.resource.data.trevos.size() == 2))
                     && request.resource.data.conferido == true
+                    && (!('mesSorte' in request.resource.data) || (request.resource.data.mesSorte is int && request.resource.data.mesSorte >= 1 && request.resource.data.mesSorte <= 12))
                     && request.resource.data.publicado is bool;
       allow update, delete: if isAdmin();
     }

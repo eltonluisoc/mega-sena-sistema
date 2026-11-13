@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v8.3
+SISTEMA DE GESTÃO DE BOLÕES PRO v8.4
+Novidade v8.4 (Dia de Sorte):
+- Bolão de Dia de Sorte (pelo nome ou pela loteria escolhida) é publicado
+  no site como "diadesorte"; premiação lançada no site para Dia de Sorte
+  entra no desktop com a loteria "Dia de Sorte".
+
 Novidade v8.3 (cessão de parcelas / fração de cota):
 - Quem desiste fica com a fração que pagou (ex.: 6 de 10 parcelas = 0,6
   cota) e outra pessoa assume as parcelas restantes (0,4 cota). Registro
@@ -1594,8 +1599,15 @@ LOTERIAS = ["Mega-Sena","Lotofácil","Quina","+Milionária","Lotomania","Loteca"
 LOTERIA_WEB_PARA_DESKTOP = {
     "mega": "Mega-Sena", "lotofacil": "Lotofácil",
     "quina": "Quina", "maismilionaria": "+Milionária",
-    "lotomania": "Lotomania",
+    "lotomania": "Lotomania", "diadesorte": "Dia de Sorte",
 }
+
+
+def _eh_dia_de_sorte(bd):
+    """Bolão de Dia de Sorte: pelo nome ou pela loteria escolhida no cadastro."""
+    nome = (bd.get("nome") or "").lower()
+    return ("dia de sorte" in nome or "dia da sorte" in nome
+            or (bd.get("loteria") or "").strip().lower() == "dia de sorte")
 
 # ─────────────────────────────────────────────
 def to_float(s):
@@ -3127,7 +3139,7 @@ def _fila_listar():
             return docs
 
 
-VERSAO_DESKTOP = "v8.3"
+VERSAO_DESKTOP = "v8.4"
 FIREBASE_DESKTOP_STATUS = (
     "https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
     "/databases/(default)/documents/meta/desktop_status"
@@ -3670,7 +3682,7 @@ if False:
 class BolaoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sistema de Gestão de Bolões PRO v8.3")
+        self.root.title("Sistema de Gestão de Bolões PRO v8.4")
         self.root.geometry("1300x800")
         self.root.minsize(1050, 680)
         self.root.configure(bg=CORES["header_bg"])
@@ -4468,7 +4480,7 @@ class BolaoApp:
     def _build_header(self):
         hdr = tk.Frame(self.root, bg=CORES["header_bg"], pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v8.3",
+        tk.Label(hdr, text="🎰  SISTEMA DE GESTÃO DE BOLÕES PRO v8.4",
                  bg=CORES["header_bg"], fg="white",
                  font=("Arial",15,"bold")).pack(side="left", padx=18)
         self._rsv_alerta_hdr = tk.Label(hdr, text="⚠ Saldo divergente: veja a aba Reservas",
@@ -8744,7 +8756,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v8.3</span>
+        <span>Sistema de Gestão de Bolões v8.4</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -11065,7 +11077,7 @@ class BolaoApp:
         </table>
       </div>
       <div class="footer">
-        <span>Sistema de Gestão de Bolões v8.3</span>
+        <span>Sistema de Gestão de Bolões v8.4</span>
         <span class="brand">✨ Desenvolvido por Elton Luis</span>
       </div>
     </div></div>
@@ -11505,6 +11517,8 @@ class BolaoApp:
         nome_lower = bd["nome"].lower()
         if "lotofacil" in nome_lower or "lotofácil" in nome_lower:
             loteria = "lotofacil"
+        elif _eh_dia_de_sorte(bd):
+            loteria = "diadesorte"
         elif "milionaria" in nome_lower or "milionária" in nome_lower:
             loteria = "maismilionaria"
         elif "mega" in nome_lower:
@@ -11650,6 +11664,8 @@ class BolaoApp:
                 nome_lower = (bd.get("nome") or "").lower()
                 if "lotofacil" in nome_lower or "lotofácil" in nome_lower:
                     loteria = "lotofacil"
+                elif _eh_dia_de_sorte(bd):
+                    loteria = "diadesorte"
                 elif "milionaria" in nome_lower or "milionária" in nome_lower:
                     loteria = "maismilionaria"
                 elif "quina" in nome_lower:
@@ -12685,6 +12701,7 @@ class BolaoApp:
 
                     n_nome = nome_b.lower()
                     if "lotofacil" in n_nome or "lotofácil" in n_nome: lot="lotofacil"
+                    elif _eh_dia_de_sorte(bd): lot="diadesorte"
                     elif "milionaria" in n_nome or "milionária" in n_nome: lot="maismilionaria"
                     elif "quina" in n_nome: lot="quina"
                     elif "lotomania" in n_nome: lot="lotomania"
