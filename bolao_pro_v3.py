@@ -1947,6 +1947,9 @@ class Database:
             # v8.1: impressão digital do último documento publicado ao
             # fechar; igual = nada mudou, não publica de novo.
             "ALTER TABLE boloes ADD COLUMN publicado_hash TEXT",
+            # v8.5: 1 = já gravou qualificaAlertaSaldoBaixo no Firebase
+            # (ver _rsv_qualificar_alertas_pendentes).
+            "ALTER TABLE reservas_pessoas ADD COLUMN alerta_qualifica_ok INTEGER DEFAULT 0",
         ]
         for m in migs:
             try: c.execute(m)
@@ -2435,6 +2438,83 @@ def _rsv_somar_ledger_pessoa(pessoa_doc_id):
         soma += valor_mov if tipo_mov == "deposito" else -valor_mov
     return soma
 
+TIPOS_CREDITO_RESERVA = ("CRÉDITO", "CREDITO", "ENTRADA", "DEPOSITO", "DEPÓSITO")
+_RSV_LIMITE_ALERTA_CACHE = {}
+
+
+def _rsv_limite_alerta():
+    """Limite do alerta de saldo baixo (config_geral/alertas, o mesmo do
+    site). 1 leitura por sessão; sem config ou sem rede, 20."""
+    if "v" in _RSV_LIMITE_ALERTA_CACHE:
+        return _RSV_LIMITE_ALERTA_CACHE["v"]
+    import urllib.request, json
+    limite = 20.0
+    try:
+        url = f"https://firestore.googleapis.com/v1/{FIREBASE_RESERVAS_BASE}/config_geral/alertas"
+        req = urllib.request.Request(url, method="GET", headers=_firebase_headers())
+        with urllib.request.urlopen(req, timeout=15) as r:
+            campo = json.loads(r.read().decode("utf-8")).get("fields", {}).get("limiteSaldoBaixo", {})
+        v = float(campo.get("doubleValue") or campo.get("integerValue") or 0)
+        if v > 0:
+            limite = v
+        _RSV_LIMITE_ALERTA_CACHE["v"] = limite
+    except Exception as ex:
+        print("Limite do alerta de saldo baixo não lido, usando 20:", ex)
+    return limite
+
+
+def _rsv_qualificam_alerta(conn, limite):
+    """Pessoas que já depositaram mais que o limite alguma vez (pelo
+    histórico local, que espelha o ledger) e ainda não tiveram a marca
+    qualificaAlertaSaldoBaixo gravada no Firebase. [(id, firebase_doc_id)]
+
+    Achado real (13/11): a marca só era gravada em depósitos feitos pelo
+    site a partir de 06/11 — quem depositou antes, ou pelo desktop, nunca
+    recebia o aviso de saldo baixo (caso da Erika, zerada sem aviso)."""
+    marcadores = ",".join("?" * len(TIPOS_CREDITO_RESERVA))
+    return conn.execute(f"""
+        SELECT p.id, p.firebase_doc_id FROM reservas_pessoas p
+        WHERE p.ativo = 1 AND COALESCE(p.firebase_doc_id, '') <> ''
+          AND COALESCE(p.alerta_qualifica_ok, 0) = 0
+          AND EXISTS (SELECT 1 FROM reservas_movimentos m
+                      WHERE m.pessoa_id = p.id AND UPPER(m.tipo) IN ({marcadores})
+                        AND m.valor > ?)
+        ORDER BY p.id""", (*TIPOS_CREDITO_RESERVA, limite)).fetchall()
+
+
+def _rsv_marcar_qualifica_alerta(pessoa_doc_id):
+    """Grava só qualificaAlertaSaldoBaixo=true no doc da pessoa (sem mexer
+    em saldo nem dataAtualizacao). Levanta exceção se falhar."""
+    import urllib.request, json
+    doc_url = (f"https://firestore.googleapis.com/v1/{FIREBASE_RESERVAS_BASE}"
+               f"/reservas_participantes/{pessoa_doc_id}")
+    url = _firestore_patch_url(doc_url, ["qualificaAlertaSaldoBaixo"], exigir_existente=True)
+    corpo = json.dumps({"fields": {"qualificaAlertaSaldoBaixo": {"booleanValue": True}}}).encode("utf-8")
+    req = urllib.request.Request(url, data=corpo, method="PATCH", headers=_firebase_headers())
+    urllib.request.urlopen(req, timeout=15).close()
+
+
+def _rsv_qualificar_alertas_pendentes():
+    """Roda ao abrir (thread): grava a marca de quem falta. Cada pessoa só
+    é gravada uma vez (alerta_qualifica_ok); falha tenta de novo na
+    próxima abertura. Retorna quantas gravou."""
+    conn = sqlite3.connect(DB_FILE)
+    try:
+        gravadas = 0
+        for pid, doc_id in _rsv_qualificam_alerta(conn, _rsv_limite_alerta()):
+            try:
+                _rsv_marcar_qualifica_alerta(doc_id)
+            except Exception as ex:
+                print("Marca do alerta de saldo baixo não gravada:", doc_id, ex)
+                continue
+            conn.execute("UPDATE reservas_pessoas SET alerta_qualifica_ok = 1 WHERE id = ?", (pid,))
+            conn.commit()
+            gravadas += 1
+        return gravadas
+    finally:
+        conn.close()
+
+
 def _rsv_registrar_movimento_firestore(pessoa_doc_id, pessoa_nova, nome, telefone, chave_pix,
                                         tipo, valor, data_mov, descricao, loteria, concurso,
                                         origem="desktop"):
@@ -2533,11 +2613,13 @@ def _rsv_registrar_movimento_firestore(pessoa_doc_id, pessoa_nova, nome, telefon
     # write também já deu PERMISSION_DENIED num caso real; separado
     # sempre funcionou. Mais writes no mesmo commit não tem custo/risco —
     # ainda é tudo atômico, tudo ou nada.
+    campos_pessoa = {"saldoReserva": {"doubleValue": novo_saldo}}
+    if tipo == "deposito" and valor > _rsv_limite_alerta():
+        # mesma marca que o site grava (alerta de saldo baixo)
+        campos_pessoa["qualificaAlertaSaldoBaixo"] = {"booleanValue": True}
     writes.append({
-        "update": {"name": pessoa_path, "fields": {
-            "saldoReserva": {"doubleValue": novo_saldo},
-        }},
-        "updateMask": {"fieldPaths": ["saldoReserva"]},
+        "update": {"name": pessoa_path, "fields": campos_pessoa},
+        "updateMask": {"fieldPaths": list(campos_pessoa)},
     })
     writes.append({
         "update": {"name": pessoa_path, "fields": {}},
@@ -3139,7 +3221,7 @@ def _fila_listar():
             return docs
 
 
-VERSAO_DESKTOP = "v8.4"
+VERSAO_DESKTOP = "v8.5"
 FIREBASE_DESKTOP_STATUS = (
     "https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
     "/databases/(default)/documents/meta/desktop_status"
@@ -3757,6 +3839,11 @@ class BolaoApp:
         self._rsv_sync_loop_iniciar()
         # Inscrições e parcelas lançadas no admin web (v8.0)
         self._fila_loop_iniciar()
+        # v8.5: marca de alerta de saldo baixo de quem já depositou antes
+        import threading as _th
+        _th.Thread(target=lambda: print("Alerta de saldo baixo: marca gravada para",
+                                        _rsv_qualificar_alertas_pendentes(), "pessoa(s)"),
+                   daemon=True).start()
         # Achado real do usuário: a barra de status geral (rodapé) ficava
         # presa em "Conectando ao Firebase..." pra sempre depois de um
         # login bem-sucedido — nada daqui pra baixo atualizava mais ela
