@@ -1,7 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SISTEMA DE GESTÃO DE BOLÕES PRO v8.4
+SISTEMA DE GESTÃO DE BOLÕES PRO v8.6
+Novidade v8.6 (Dupla Sena):
+- Bolão de Dupla Sena (pelo nome ou pela loteria escolhida) é publicado
+  no site como "duplasena".
+
+Novidade v8.5 (alerta de saldo baixo):
+- Grava a marca qualificaAlertaSaldoBaixo em depósitos acima do limite e,
+  ao abrir, de quem já depositou acima do limite antes.
+
 Novidade v8.4 (Dia de Sorte):
 - Bolão de Dia de Sorte (pelo nome ou pela loteria escolhida) é publicado
   no site como "diadesorte"; premiação lançada no site para Dia de Sorte
@@ -1600,7 +1608,15 @@ LOTERIA_WEB_PARA_DESKTOP = {
     "mega": "Mega-Sena", "lotofacil": "Lotofácil",
     "quina": "Quina", "maismilionaria": "+Milionária",
     "lotomania": "Lotomania", "diadesorte": "Dia de Sorte",
+    "duplasena": "Dupla Sena",
 }
+
+
+def _eh_dupla_sena(bd):
+    """Bolão de Dupla Sena: pelo nome ou pela loteria escolhida no cadastro."""
+    nome = (bd.get("nome") or "").lower()
+    return ("dupla sena" in nome or "dupla-sena" in nome or "duplasena" in nome
+            or (bd.get("loteria") or "").strip().lower() == "dupla sena")
 
 
 def _eh_dia_de_sorte(bd):
@@ -3221,7 +3237,7 @@ def _fila_listar():
             return docs
 
 
-VERSAO_DESKTOP = "v8.5"
+VERSAO_DESKTOP = "v8.6"
 FIREBASE_DESKTOP_STATUS = (
     "https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
     "/databases/(default)/documents/meta/desktop_status"
@@ -11606,6 +11622,8 @@ class BolaoApp:
             loteria = "lotofacil"
         elif _eh_dia_de_sorte(bd):
             loteria = "diadesorte"
+        elif _eh_dupla_sena(bd):
+            loteria = "duplasena"
         elif "milionaria" in nome_lower or "milionária" in nome_lower:
             loteria = "maismilionaria"
         elif "mega" in nome_lower:
@@ -11753,6 +11771,8 @@ class BolaoApp:
                     loteria = "lotofacil"
                 elif _eh_dia_de_sorte(bd):
                     loteria = "diadesorte"
+                elif _eh_dupla_sena(bd):
+                    loteria = "duplasena"
                 elif "milionaria" in nome_lower or "milionária" in nome_lower:
                     loteria = "maismilionaria"
                 elif "quina" in nome_lower:
@@ -12789,6 +12809,7 @@ class BolaoApp:
                     n_nome = nome_b.lower()
                     if "lotofacil" in n_nome or "lotofácil" in n_nome: lot="lotofacil"
                     elif _eh_dia_de_sorte(bd): lot="diadesorte"
+                    elif _eh_dupla_sena(bd): lot="duplasena"
                     elif "milionaria" in n_nome or "milionária" in n_nome: lot="maismilionaria"
                     elif "quina" in n_nome: lot="quina"
                     elif "lotomania" in n_nome: lot="lotomania"

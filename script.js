@@ -12,12 +12,19 @@ let loteriaAtual = 'mega';
 // cada função. numerosPossiveis é só o universo de NÚMEROS (a
 // +Milionária também sorteia 2 trevos de 1-6, tratado à parte onde
 // precisa — ver LOTERIA_TREVOS).
-const LOTERIA_K = { mega: 6, lotofacil: 15, quina: 5, maismilionaria: 6, diadesorte: 7 };
-const LOTERIA_UNIVERSO = { mega: 60, lotofacil: 25, quina: 80, maismilionaria: 50, diadesorte: 31 };
+const LOTERIA_K = { mega: 6, lotofacil: 15, quina: 5, maismilionaria: 6, diadesorte: 7, duplasena: 6 };
+const LOTERIA_UNIVERSO = { mega: 60, lotofacil: 25, quina: 80, maismilionaria: 50, diadesorte: 31, duplasena: 50 };
 // Nome exibido por loteria (antes eram ternários "mega ? ... : QUINA" que
 // tratavam qualquer loteria nova como Quina).
-const NOME_LOTERIA = { mega: 'MEGA-SENA', lotofacil: 'LOTOFÁCIL', quina: 'QUINA', maismilionaria: '+MILIONÁRIA', diadesorte: 'DIA DE SORTE' };
-const TODAS_LOTERIAS = ['mega', 'lotofacil', 'quina', 'maismilionaria', 'diadesorte'];
+const NOME_LOTERIA = { mega: 'MEGA-SENA', lotofacil: 'LOTOFÁCIL', quina: 'QUINA', maismilionaria: '+MILIONÁRIA', diadesorte: 'DIA DE SORTE', duplasena: 'DUPLA SENA' };
+const TODAS_LOTERIAS = ['mega', 'lotofacil', 'quina', 'maismilionaria', 'diadesorte', 'duplasena'];
+// Dupla Sena: 2 sorteios de 6 dezenas (1-50) no mesmo concurso; o mesmo
+// cartão concorre nos dois. O resultado guarda numeros (1º) e numeros2 (2º).
+function acertosNoMelhorSorteio(cartao, sorteados, sorteados2 = null) {
+    const a1 = sorteados ? cartao.numeros.filter(n => sorteados.includes(n)).length : 0;
+    const a2 = sorteados2 ? cartao.numeros.filter(n => sorteados2.includes(n)).length : 0;
+    return Math.max(a1, a2);
+}
 // Dia de Sorte: além das 7 dezenas (de 31), sorteia 1 "Mês da Sorte" (1-12).
 const MESES_SORTE = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -330,6 +337,9 @@ function calcularChancesBolao(cartoesBolao, loteria) {
     } else if (loteria === 'diadesorte') {
         totalCombinacoesPossiveis = 2629575; // C(31,7)
         numerosPossiveis = 31;
+    } else if (loteria === 'duplasena') {
+        totalCombinacoesPossiveis = 15890700; // C(50,6), por sorteio
+        numerosPossiveis = 50;
     } else {
         totalCombinacoesPossiveis = 24040016;
         numerosPossiveis = 80;
@@ -390,7 +400,9 @@ function calcularChancesBolao(cartoesBolao, loteria) {
 
         cartao.numeros.forEach(n => numerosUtilizados.add(n));
     }
-    
+    // Dupla Sena: 2 sorteios por concurso — o mesmo cartão tem 2 chances.
+    if (loteria === 'duplasena') totalCombinacoesChance *= 2;
+
     const numerosCobertos = numerosUtilizados.size;
     const percentualCobertura = Math.round((numerosCobertos / numerosPossiveis) * 100);
     const vezesMelhor = Math.round(totalCombinacoesCobertas);
@@ -440,6 +452,9 @@ function calcularChancesBolao(cartoesBolao, loteria) {
         // ~19x menor que o da Mega e os bolões reais de Dia de Sorte têm
         // ~1 a 10 cartões de 7 a 10 dezenas (ver Otimizador de Cotas).
         diadesorte: { excelente: 5000, otimo: 2000, bom: 500, regular: 100 },
+        // Calibração inicial (sem histórico real): universo C(50,6) é ~1/3
+        // do da Mega, mas são 2 sorteios — faixas da Mega × ~0,6.
+        duplasena: { excelente: 6000, otimo: 3000, bom: 600, regular: 60 },
     };
 
     // "Chance real" = chance de pelo menos um cartão bater a faixa de
@@ -556,7 +571,7 @@ function calcularChancesBolao(cartoesBolao, loteria) {
 
 // trevosSorteados é opcional — só a +Milionária usa (desempate por
 // acertos de trevo quando dois cartões empatam em números).
-function ordenarCartoesPorAcertos(cartoesLista, numerosSorteados, trevosSorteados = null) {
+function ordenarCartoesPorAcertos(cartoesLista, numerosSorteados, trevosSorteados = null, numerosSorteados2 = null) {
     if (!numerosSorteados) {
         // Antes de conferir o resultado não existe "acertos" pra ordenar
         // por — mostra do cartão com MAIS dezenas pro com menos (o
@@ -579,8 +594,8 @@ function ordenarCartoesPorAcertos(cartoesLista, numerosSorteados, trevosSorteado
     }
 
     return [...cartoesLista].sort((a, b) => {
-        const acertosA = a.numeros.filter(n => numerosSorteados.includes(n)).length;
-        const acertosB = b.numeros.filter(n => numerosSorteados.includes(n)).length;
+        const acertosA = acertosNoMelhorSorteio(a, numerosSorteados, numerosSorteados2);
+        const acertosB = acertosNoMelhorSorteio(b, numerosSorteados, numerosSorteados2);
         if (acertosB !== acertosA) return acertosB - acertosA;
         if (trevosSorteados) {
             const trevosA = (a.trevos || []).filter(t => trevosSorteados.includes(t)).length;
@@ -670,8 +685,25 @@ function gerarResumoPremiosMilionaria(premios) {
 }
 
 // trevosSorteados só é usado (e obrigatório) pra +Milionária;
-// mesSorteSorteado só pra Dia de Sorte.
-function calcularPremios(cartoesLista, numerosSorteados, loteria, trevosSorteados = null, mesSorteSorteado = null) {
+// mesSorteSorteado só pra Dia de Sorte; numerosSorteados2 só pra Dupla Sena.
+function calcularPremios(cartoesLista, numerosSorteados, loteria, trevosSorteados = null, mesSorteSorteado = null, numerosSorteados2 = null) {
+    if (loteria === 'duplasena') {
+        // Faixas oficiais: 6, 5, 4 e 3 acertos em CADA sorteio (a Caixa paga
+        // separado: sena do 1º, sena do 2º...). Sufixo 2 = 2º sorteio.
+        const soma = { sena: 0, quina: 0, quadra: 0, terno: 0, sena2: 0, quina2: 0, quadra2: 0, terno2: 0 };
+        const nomes = { 6: 'sena', 5: 'quina', 4: 'quadra', 3: 'terno' };
+        cartoesLista.forEach(cartao => {
+            [[numerosSorteados, ''], [numerosSorteados2, '2']].forEach(([sorteados, suf]) => {
+                if (!sorteados) return;
+                const acertos = cartao.numeros.filter(n => sorteados.includes(n)).length;
+                const faixas = contarPremiosPorFaixa(cartao.numeros.length, acertos, 6);
+                for (const [j, qtd] of Object.entries(faixas)) {
+                    if (nomes[j]) soma[nomes[j] + suf] += qtd;
+                }
+            });
+        });
+        return soma;
+    }
     if (loteria === 'maismilionaria') {
         return calcularPremiosMilionaria(cartoesLista, numerosSorteados, trevosSorteados || []);
     }
@@ -847,10 +879,11 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
             .where('tipo', '==', loteria)
             .where('concurso', '==', concurso);
 
-        const [snapshot, trevosSorteados, mesSorteSorteado] = await Promise.all([
+        const [snapshot, trevosSorteados, mesSorteSorteado, numerosSorteados2] = await Promise.all([
             query.get(),
             buscarTrevosConferidos(loteria, concurso),
-            buscarMesSorteConferido(loteria, concurso)
+            buscarMesSorteConferido(loteria, concurso),
+            buscarSegundoSorteioConferido(loteria, concurso)
         ]);
 
         const cartoesFiltrados = [];
@@ -877,13 +910,15 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
             return;
         }
 
-        const cartoesOrdenados = ordenarCartoesPorAcertos(cartoesFiltrados, numerosSorteados, trevosSorteados);
+        const cartoesOrdenados = ordenarCartoesPorAcertos(cartoesFiltrados, numerosSorteados, trevosSorteados, numerosSorteados2);
         const chancesHtml = calcularChancesBolao(cartoesFiltrados, loteria);
 
-        const premios = calcularPremios(cartoesOrdenados, numerosSorteados, loteria, trevosSorteados, mesSorteSorteado);
+        const premios = calcularPremios(cartoesOrdenados, numerosSorteados, loteria, trevosSorteados, mesSorteSorteado, numerosSorteados2);
 
         const melhorCartaoSalvo = cartoesOrdenados[0];
-        const melhorAcertosSalvo = melhorCartaoSalvo ? melhorCartaoSalvo.numeros.filter(n => numerosSorteados.includes(n)).length : 0;
+        const melhorAcertosSalvo = melhorCartaoSalvo ? acertosNoMelhorSorteio(melhorCartaoSalvo, numerosSorteados, numerosSorteados2) : 0;
+        // Dupla Sena: destaque de número batido vale pra qualquer um dos 2 sorteios
+        const sorteadosQualquer = numerosSorteados2 ? [...new Set([...numerosSorteados, ...numerosSorteados2])] : numerosSorteados;
         const melhorAcertosTrevoSalvo = (melhorCartaoSalvo && trevosSorteados)
             ? (melhorCartaoSalvo.trevos || []).filter(t => trevosSorteados.includes(t)).length : 0;
 
@@ -895,7 +930,7 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         // em #cartoesArea, logo acima do primeiro cartão da lista ordenada
         // — ver mostrarCartoes(). Aqui mostra só o resumo (troféu/potencial/
         // prêmios), sem duplicar os números.
-        let html = gerarBannerTrofeu(melhorCartaoSalvo, melhorAcertosSalvo, loteria, numerosSorteados, trevosSorteados, melhorAcertosTrevoSalvo);
+        let html = gerarBannerTrofeu(melhorCartaoSalvo, melhorAcertosSalvo, loteria, sorteadosQualquer, trevosSorteados, melhorAcertosTrevoSalvo);
         html += chancesHtml;
         html += `<div class="resultado-resumo">`;
 
@@ -915,6 +950,14 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
                 <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#64748b">${premios.pontos11}</div><div class="resultado-resumo-label">11 PTS</div></div>`;
         } else if (loteria === 'maismilionaria') {
             html += gerarResumoPremiosMilionaria(premios);
+        } else if (loteria === 'duplasena') {
+            for (const [suf, rotulo] of [['', '1º'], ['2', '2º']]) {
+                html += `
+                <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#f59e0b">${premios['sena' + suf]}</div><div class="resultado-resumo-label">SENA ${rotulo}</div></div>
+                <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#eab308">${premios['quina' + suf]}</div><div class="resultado-resumo-label">QUINA ${rotulo}</div></div>
+                <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#a855f7">${premios['quadra' + suf]}</div><div class="resultado-resumo-label">QUADRA ${rotulo}</div></div>
+                <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#3b82f6">${premios['terno' + suf]}</div><div class="resultado-resumo-label">TERNO ${rotulo}</div></div>`;
+            }
         } else if (loteria === 'diadesorte') {
             html += `
                 <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#f59e0b">${premios.pontos7}</div><div class="resultado-resumo-label">7 PTS</div></div>
@@ -944,8 +987,12 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         // dentro deste mesmo bloco (não em #cartoesArea, que fica sem uso
         // neste fluxo de "resultado já salvo") — por isso entram aqui
         // dentro, não no topo do resumo lá em cima.
-        html += `<div class="numeros-sorteados-titulo">🎱 Números Sorteados</div>`;
+        html += `<div class="numeros-sorteados-titulo">🎱 ${numerosSorteados2 ? '1º Sorteio' : 'Números Sorteados'}</div>`;
         html += `<div class="numeros-sorteados" id="numerosSorteadosLista">${numerosSorteados.map(n => `<div class="numero-sorteado-card" id="sorteado-${n}">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`;
+        if (numerosSorteados2) {
+            html += `<div class="numeros-sorteados-titulo">🎱 2º Sorteio</div>`;
+            html += `<div class="numeros-sorteados">${numerosSorteados2.map(n => `<div class="numero-sorteado-card">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`;
+        }
         if (loteria === 'maismilionaria' && trevosSorteados) {
             html += `<div class="numeros-sorteados-titulo">🍀 Trevos Sorteados</div>`;
             html += `<div class="numeros-sorteados">${trevosSorteados.map(t => `<div class="numero-sorteado-card" style="background:#16a34a;">${t}</div>`).join('')}</div>`;
@@ -958,7 +1005,7 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         let _indiceCartao = -1;
         for (const cartao of cartoesOrdenados) {
             _indiceCartao++;
-            const acertos = cartao.numeros.filter(n => numerosSorteados.includes(n)).length;
+            const acertos = acertosNoMelhorSorteio(cartao, numerosSorteados, numerosSorteados2);
             const acertosTrevo = (loteria === 'maismilionaria' && trevosSorteados)
                 ? (cartao.trevos || []).filter(t => trevosSorteados.includes(t)).length : null;
             let corAcertos;
@@ -968,7 +1015,7 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
                 else if (acertos === 5) corAcertos = '#a855f7';
                 else if (acertos === 4) corAcertos = '#3b82f6';
                 else corAcertos = '#cbd5e1';
-            } else if (loteria === 'mega' || loteria === 'maismilionaria') {
+            } else if (loteria === 'mega' || loteria === 'maismilionaria' || loteria === 'duplasena') {
                 if (acertos >= 6) corAcertos = '#f59e0b';
                 else if (acertos === 5) corAcertos = '#eab308';
                 else if (acertos === 4) corAcertos = '#a855f7';
@@ -986,7 +1033,9 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
                 + (cartao.trevos ? ` + ${cartao.trevos.length} trevos` : '');
 
             const acertouMes = !!(mesSorteSorteado && cartao.mesSorte === mesSorteSorteado);
-            const rotuloAcertos = (acertosTrevo === null ? `${acertos} acertos` : `${acertos} núm + ${acertosTrevo} trevo${acertosTrevo === 1 ? '' : 's'}`)
+            const rotuloAcertos = numerosSorteados2
+                ? `1º: ${cartao.numeros.filter(n => numerosSorteados.includes(n)).length} · 2º: ${cartao.numeros.filter(n => numerosSorteados2.includes(n)).length} acertos`
+                : (acertosTrevo === null ? `${acertos} acertos` : `${acertos} núm + ${acertosTrevo} trevo${acertosTrevo === 1 ? '' : 's'}`)
                 + (acertouMes ? ' + mês' : '');
 
             // id no número só do MELHOR cartão (índice 0, o primeiro da
@@ -1000,7 +1049,7 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
                         </div>
                         <div class="cartao-numeros">
                             ${cartao.numeros.map(n => {
-                                const acertou = numerosSorteados.includes(n);
+                                const acertou = sorteadosQualquer.includes(n);
                                 const idAttr = _indiceCartao === 0 ? ` id="cartaonum-${n}"` : '';
                                 return `<span${idAttr} class="${acertou ? 'numero-acertado' : 'numero-normal'}">${n.toString().padStart(2,'0')}</span>`;
                             }).join('')}
@@ -1021,7 +1070,7 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         if (btnWhats) btnWhats.addEventListener('click', compartilharWhatsApp);
 
         ultimoResultadoConcurso = concurso;
-        ultimoResultadoDados = { numeros: numerosSorteados, trevos: trevosSorteados, mesSorte: mesSorteSorteado, premios };
+        ultimoResultadoDados = { numeros: numerosSorteados, numeros2: numerosSorteados2, trevos: trevosSorteados, mesSorte: mesSorteSorteado, premios };
 
         // Setas "quase acertou" — pedido do usuário, só na Mega por
         // enquanto ("na conferência da mega-sena... quando o número for
@@ -1569,6 +1618,8 @@ async function setLoteria(loteria) {
     const btnMilionaria = document.getElementById('btnMaisMilionaria');
     const btnDiaDeSorte = document.getElementById('btnDiaDeSorte');
     if (btnDiaDeSorte) btnDiaDeSorte.classList.remove('active');
+    const btnDuplaSena = document.getElementById('btnDuplaSena');
+    if (btnDuplaSena) btnDuplaSena.classList.remove('active');
 
     btnMega.classList.remove('active');
     btnLoto.classList.remove('active');
@@ -1587,6 +1638,9 @@ async function setLoteria(loteria) {
     } else if (loteria === 'diadesorte') {
         if (btnDiaDeSorte) btnDiaDeSorte.classList.add('active');
         document.getElementById('cardHeaderConferencia').innerHTML = '🎯 RESULTADO - DIA DE SORTE';
+    } else if (loteria === 'duplasena') {
+        if (btnDuplaSena) btnDuplaSena.classList.add('active');
+        document.getElementById('cardHeaderConferencia').innerHTML = '🎯 RESULTADO - DUPLA SENA';
     } else {
         btnQuina.classList.add('active');
         document.getElementById('cardHeaderConferencia').innerHTML = '🎯 RESULTADO - QUINA';
@@ -1693,11 +1747,12 @@ function compartilharWhatsApp() {
         showToast('⚠️ Nenhum resultado para compartilhar', 'warning');
         return;
     }
-    const { numeros, trevos, mesSorte, dataSorteio, premios } = ultimoResultadoDados;
+    const { numeros, numeros2, trevos, mesSorte, dataSorteio, premios } = ultimoResultadoDados;
     const linha = '──────────';
     let loteriaNome = NOME_LOTERIA[loteriaAtual] || 'QUINA';
 
-    let msg = `*🏆 RESULTADO - ${loteriaNome}* 🎲\n🏆 Rumo ao Grande Prêmio!\n${linha}\n📌 Concurso: ${ultimoResultadoConcurso}\n🎯 Números Sorteados:\n   ${numeros.join(' - ')}\n`;
+    let msg = `*🏆 RESULTADO - ${loteriaNome}* 🎲\n🏆 Rumo ao Grande Prêmio!\n${linha}\n📌 Concurso: ${ultimoResultadoConcurso}\n🎯 ${numeros2 ? '1º Sorteio' : 'Números Sorteados'}:\n   ${numeros.join(' - ')}\n`;
+    if (numeros2) msg += `🎯 2º Sorteio:\n   ${numeros2.join(' - ')}\n`;
     if (loteriaAtual === 'maismilionaria' && trevos) {
         msg += `🍀 Trevos Sorteados:\n   ${trevos.join(' - ')}\n`;
     }
@@ -1761,6 +1816,14 @@ function compartilharWhatsApp() {
         else if (premios.n5t2 > 0 || premios.n5t > 0) msg += `⭐ Quina! Quase lá!\n`;
         else if (premios.n4t2 > 0 || premios.n4t > 0) msg += `⚠️ Quadra! Estamos no caminho certo!\n`;
         else if (premios.n3t2 > 0 || premios.n3t1 > 0 || premios.n2t2 > 0 || premios.n2t1 > 0) msg += `🍀 Prêmio garantido nas faixas de 2 ou 3 números com trevo!\n`;
+        else msg += `💪 Vamos tentar novamente no próximo concurso.\n`;
+    } else if (loteriaAtual === 'duplasena') {
+        msg += `   1º sorteio — ✨ Sena: ${premios.sena} · Quina: ${premios.quina} · Quadra: ${premios.quadra} · ✅ Terno: ${premios.terno}\n`;
+        msg += `   2º sorteio — ✨ Sena: ${premios.sena2} · Quina: ${premios.quina2} · Quadra: ${premios.quadra2} · ✅ Terno: ${premios.terno2}\n\n`;
+        if (premios.sena + premios.sena2 > 0) msg += `🎉🎉🎉 SENA! PARABÉNS! 🎉🎉🎉\n`;
+        else if (premios.quina + premios.quina2 > 0) msg += `⭐ Quina! Quase lá!\n`;
+        else if (premios.quadra + premios.quadra2 > 0) msg += `⚠️ Quadra! Estamos no caminho certo!\n`;
+        else if (premios.terno + premios.terno2 > 0) msg += `✅ Terno premiado!\n`;
         else msg += `💪 Vamos tentar novamente no próximo concurso.\n`;
     } else if (loteriaAtual === 'diadesorte') {
         msg += `   ✨ 7 Pontos: ${premios.pontos7}\n   ✨ 6 Pontos: ${premios.pontos6}\n   ✅ 5 Pontos: ${premios.pontos5}\n   ✅ 4 Pontos: ${premios.pontos4}\n   📅 Mês da Sorte: ${premios.mes} cartão(ões)\n\n`;
@@ -2035,6 +2098,19 @@ async function buscarMesSorteConferido(loteria, concurso) {
     }
 }
 
+// Mesmo padrão, pro 2º sorteio (só Dupla Sena).
+async function buscarSegundoSorteioConferido(loteria, concurso) {
+    if (loteria !== 'duplasena') return null;
+    try {
+        const doc = await db.collection('resultados_conferidos').doc(`${loteria}_${concurso}`).get();
+        if (doc.exists && doc.data().conferido === true) return doc.data().numeros2 || null;
+        return null;
+    } catch (error) {
+        console.error('Erro ao buscar 2º sorteio conferido:', error);
+        return null;
+    }
+}
+
 // ========== CARREGAR BOLÃO ABERTO (COM DESTAQUE) ==========
 // ========== CARREGAR BOLÃO ABERTO (COM DESTAQUE CORRIGIDO) ==========
 async function carregarBolaoAberto() {
@@ -2131,7 +2207,8 @@ async function carregarBolaoAberto() {
             'lotofacil': 'LOTOFÁCIL',
             'quina': 'QUINA',
             'maismilionaria': '+MILIONÁRIA',
-            'diadesorte': 'DIA DE SORTE'
+            'diadesorte': 'DIA DE SORTE',
+            'duplasena': 'DUPLA SENA'
         };
         const loteriaNome = loteriaNomes[bolao.loteria] || bolao.loteria?.toUpperCase() || 'LOTERIA';
 
@@ -2261,6 +2338,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btnQuina').addEventListener('click', () => setLoteria('quina'));
     document.getElementById('btnMaisMilionaria')?.addEventListener('click', () => setLoteria('maismilionaria'));
     document.getElementById('btnDiaDeSorte')?.addEventListener('click', () => setLoteria('diadesorte'));
+    document.getElementById('btnDuplaSena')?.addEventListener('click', () => setLoteria('duplasena'));
     
     document.getElementById('concursoSelect').addEventListener('change', async () => {
         console.log('🔄 Concurso alterado, limpando estado...');

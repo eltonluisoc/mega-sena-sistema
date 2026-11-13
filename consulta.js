@@ -184,7 +184,8 @@ async function consultarBoloes() {
                         'lotofacil': 'LOTOFÁCIL',
                         'quina': 'QUINA',
                         'maismilionaria': '+MILIONÁRIA',
-                        'diadesorte': 'DIA DE SORTE'
+                        'diadesorte': 'DIA DE SORTE',
+                        'duplasena': 'DUPLA SENA'
                     };
                     const loteriaNome = loteriaNomes[bolao.loteria] || bolao.loteria.toUpperCase();
                     

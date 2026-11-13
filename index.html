@@ -111,13 +111,15 @@
             margin: 0 auto 26px;
             padding: 4px;
             background: #e8e8ed;
-            border-radius: var(--radius-pill);
+            /* 6 loterias (Dupla Sena, v111): 2 linhas de 3 — numa linha só
+               estourava a largura do celular. */
+            border-radius: 20px;
             display: flex;
             gap: 2px;
-            flex-wrap: nowrap;
+            flex-wrap: wrap;
         }
         .loteria-btn {
-            flex: 1;
+            flex: 1 1 30%;
             width: auto;
             background: transparent;
             border: none;
@@ -226,6 +228,10 @@
         <button id="btnDiaDeSorte" class="loteria-btn diadesorte">
             <span class="loteria-icon">📅</span>
             <span class="loteria-nome">DIA DE SORTE</span>
+        </button>
+        <button id="btnDuplaSena" class="loteria-btn duplasena">
+            <span class="loteria-icon">🎲</span>
+            <span class="loteria-nome">DUPLA SENA</span>
         </button>
     </div>
 
