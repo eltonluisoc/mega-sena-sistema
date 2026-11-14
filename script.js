@@ -368,14 +368,19 @@ function calcularChancesBolao(cartoesBolao, loteria) {
     // pediu terno (j=3), mais alcançável e que rende um % que já diz
     // algo por si só (ver também a classificação por estrelas abaixo,
     // que na Quina passou a usar esse mesmo % em vez de "bilhetes").
-    const acertosAlvoChance = loteria === 'lotofacil' ? 13 : (loteria === 'quina' ? 3 : 4);
+    // Dia de Sorte: 4 pontos (R$5,00 fixo) deixou de contar como prêmio
+    // de verdade no Otimizador de Cotas (decisão do usuário: "4 pontos é
+    // pouco... elimine" — valor menor que qualquer outro piso excluído no
+    // sistema). O piso real aqui é 5 pontos, igual o motor principal.
+    const acertosAlvoChance = loteria === 'lotofacil' ? 13 : (loteria === 'quina' ? 3
+        : (loteria === 'diadesorte' ? 5 : 4));
     // +Milionária: a "chance" mostrada é só da parte NÚMEROS (4 de 6) —
     // os dois sorteios (números/trevo) são independentes, então o trevo
     // não muda essa probabilidade; ele entra separado nas faixas de
     // prêmio reais (ver calcularPremios), não neste resumo rápido.
     const rotuloChance = loteria === 'lotofacil' ? '13 PTS'
         : (loteria === 'quina' ? 'TERNO' : (loteria === 'maismilionaria' ? '4 NÚMEROS'
-            : (loteria === 'diadesorte' ? '4 PONTOS' : 'QUADRA')));
+            : (loteria === 'diadesorte' ? '5 PONTOS' : 'QUADRA')));
 
     let totalCombinacoesCobertas = 0;
     let totalCombinacoesChance = 0;
