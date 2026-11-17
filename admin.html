@@ -1223,6 +1223,32 @@
         .dash-bolao-titulo { font-weight: 700; font-size: 15px; color: var(--cor-texto); margin-bottom: 6px; }
         .dash-bolao-linha { font-size: 13px; color: var(--cor-texto-sec); line-height: 1.6; }
         .dash-bolao-aviso { color: #b45309; }
+        .dash-bolao[role="button"] { cursor: pointer; transition: border-color 0.2s, box-shadow 0.2s; }
+        .dash-bolao[role="button"]:hover { border-color: var(--cor-primaria); }
+        .dash-bolao-link { color: var(--cor-primaria); font-weight: 600; }
+        /* v114: Detalhes do bolão */
+        .det-cabecalho { margin: 4px 0 14px; }
+        .det-titulo { font-size: 18px; font-weight: 800; color: var(--cor-texto); margin-bottom: 8px; }
+        .det-infos { display: flex; flex-wrap: wrap; gap: 6px; }
+        .det-info { font-size: 12px; background: var(--cor-fundo); color: var(--cor-texto); border-radius: var(--raio-pill); padding: 4px 10px; }
+        .det-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 12px; }
+        .det-kpi { border: 1px solid var(--cor-borda); border-radius: var(--raio); padding: 12px; background: var(--cor-superficie); }
+        .det-kpi.ok { border-color: #bbf7d0; background: #f0fdf4; }
+        .det-kpi.alerta { border-color: #fdba74; background: #fff7ed; }
+        .det-kpi-num { font-size: 20px; font-weight: 800; color: var(--cor-texto); }
+        .det-kpi.alerta .det-kpi-num { color: #b45309; }
+        .det-kpi-rot { font-size: 12px; color: var(--cor-texto-sec); margin-top: 2px; }
+        .det-barra { height: 6px; background: var(--cor-fundo); border-radius: var(--raio-pill); overflow: hidden; margin-top: 8px; }
+        .det-barra span { display: block; height: 100%; background: var(--cor-sucesso); border-radius: var(--raio-pill); }
+        .det-linhas { font-size: 13px; color: var(--cor-texto-sec); line-height: 1.7; background: var(--cor-fundo); border-radius: var(--raio); padding: 10px 12px; }
+        .det-aviso { color: #b45309; font-weight: 600; }
+        .det-filtros { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+        .det-filtro { border: 1px solid var(--cor-borda); background: var(--cor-superficie); color: var(--cor-texto); border-radius: var(--raio-pill); padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; }
+        .det-filtro.ativo { background: var(--cor-texto); color: #fff; border-color: var(--cor-texto); }
+        .det-item.atraso { border-color: #fdba74; background: #fffaf3; }
+        .insc-chip.det-quitado { background: #dcfce7; color: #166534; }
+        .det-hist { margin-top: 6px; }
+        .det-hist-linha { display: flex; justify-content: space-between; font-size: 12px; padding: 4px 0; border-bottom: 1px dashed var(--cor-borda); }
         @media (max-width: 480px) { .insc-item { flex-direction: column; } .cob-acoes { flex-direction: row; flex-wrap: wrap; } }
         .insc-cancelar { border: 1px solid var(--cor-borda); background: var(--cor-superficie); color: var(--cor-erro); border-radius: var(--raio-pequeno); padding: 6px 10px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; touch-action: manipulation; }
 
@@ -1399,7 +1425,7 @@
     <!-- TOP BAR -->
     <!-- ============================================ -->
     <div class="top-bar">
-        <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">Administração · v113</span></div>
+        <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">Administração · v114</span></div>
         <div class="stats">
             <div class="stat" id="bootProgress" style="display:none;">⏳ Carregando… 0%</div>
             <div class="stat" id="totalCartoes">📊 0 cartões</div>
@@ -1475,9 +1501,9 @@
             </button>
 
             <div class="menu-grupo">Bolões</div>
-            <button type="button" class="sidebar-item" data-section="boloes-grupo" data-grupo="boloes" data-sub="gestao">
+            <button type="button" class="sidebar-item" data-section="boloes-grupo" data-grupo="boloes" data-sub="detalhes">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                Gestão de bolões
+                Bolões
             </button>
             <button type="button" class="sidebar-item" data-section="financeiro-grupo" data-grupo="financeiro" data-sub="pagamentos">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
@@ -2110,11 +2136,41 @@
             <!-- ============================================ -->
             <section id="section-boloes-grupo" class="section">
                 <div class="subsecao-seletor" style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
-                    <button type="button" class="subsecao-btn" data-grupo="boloes" data-sub="gestao" style="flex:1; min-width:140px; padding:12px; border:none; border-radius:12px; font-weight:700; cursor:pointer; background:#0071e3; color:white;">👥 Gestão</button>
+                    <button type="button" class="subsecao-btn" data-grupo="boloes" data-sub="detalhes" style="flex:1; min-width:140px; padding:12px; border:none; border-radius:12px; font-weight:700; cursor:pointer; background:#0071e3; color:white;">🔎 Detalhes</button>
+                    <button type="button" class="subsecao-btn" data-grupo="boloes" data-sub="gestao" style="flex:1; min-width:140px; padding:12px; border:none; border-radius:12px; font-weight:700; cursor:pointer; background:#e2e8f0; color:#334155;">👥 Gestão</button>
                     <button type="button" class="subsecao-btn" data-grupo="boloes" data-sub="premiacoes" style="flex:1; min-width:140px; padding:12px; border:none; border-radius:12px; font-weight:700; cursor:pointer; background:#e2e8f0; color:#334155;">🏆 Premiações</button>
                 </div>
 
-                <div class="subsecao-painel" data-grupo="boloes" data-sub="gestao" style="display:block;">
+                <!-- DETALHES DO BOLÃO (v114): tudo de um bolão num lugar só —
+                     participantes, cotas, quem pagou, quem está em atraso. -->
+                <div class="subsecao-painel" data-grupo="boloes" data-sub="detalhes" style="display:block;">
+                <div class="card">
+                    <div class="card-header">🔎 DETALHES DO BOLÃO</div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+                        <div class="form-group" style="flex:2; min-width:220px; margin-bottom:8px;">
+                            <label for="detBolao">👥 Bolão:</label>
+                            <select id="detBolao" class="form-control"><option value="">Carregando...</option></select>
+                        </div>
+                        <button type="button" id="btnAtualizarDetalhes" class="insc-link" style="margin-bottom:12px;">🔄 Atualizar</button>
+                    </div>
+                    <div id="detConteudo"><div class="empty-state">Carregando...</div></div>
+                    <div id="detFerramentas" style="display:none; margin-top:14px;">
+                        <div class="det-filtros">
+                            <button type="button" class="det-filtro ativo" data-filtro="todos" data-rotulo="Todos">Todos</button>
+                            <button type="button" class="det-filtro" data-filtro="atraso" data-rotulo="⚠ Em atraso">⚠ Em atraso</button>
+                            <button type="button" class="det-filtro" data-filtro="emdia" data-rotulo="🟢 Em dia">🟢 Em dia</button>
+                            <button type="button" class="det-filtro" data-filtro="quitados" data-rotulo="✅ Quitados">✅ Quitados</button>
+                        </div>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+                            <input type="search" id="detBusca" class="form-control" placeholder="Buscar por nome ou telefone" style="flex:1; min-width:180px;">
+                            <button type="button" id="btnCopiarDetalhes" class="btn btn-success btn-sm">📱 Copiar lista</button>
+                        </div>
+                    </div>
+                    <div id="detLista"></div>
+                </div>
+                </div>
+
+                <div class="subsecao-painel" data-grupo="boloes" data-sub="gestao" style="display:none;">
                 <div class="card">
                     <div class="card-header">👥 GERENCIAR BOLÕES</div>
                     <div id="listaBoloes" style="max-height: 600px; overflow-y: auto;">

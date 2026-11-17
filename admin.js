@@ -2696,6 +2696,7 @@ function mostrarSubsecao(grupo, nome) {
         btn.style.background = ativo ? '#0071e3' : '#e2e8f0';
         btn.style.color = ativo ? 'white' : '#334155';
     });
+    if (grupo === 'boloes' && nome === 'detalhes' && typeof abrirDetalhesBoloes === 'function') abrirDetalhesBoloes();
 }
 
 // ============================================
@@ -7548,6 +7549,26 @@ function _cobPagoParticipante(p, b) {
     return { pago: Math.round((base + pend) * 100) / 100, pendente: pend, ultimo: hist.length ? hist[hist.length - 1].data : '' };
 }
 
+// Situação de pagamento de 1 participante — regra única das Cobranças e
+// dos Detalhes do bolão (v114). devidasBolao = _parcelasVencidasBolao(b).
+function _situacaoParticipante(b, p, devidasBolao, hoje = new Date()) {
+    const cotas = _cotasNum(p);
+    const { pago, pendente, ultimo } = _cobPagoParticipante(p, b);
+    const esperado = _esperadoParticipante(p, b.valorPorCota);
+    let sit, devidas = devidasBolao, devido = null;
+    if ((p.cessoes || []).length) {
+        devido = _devidoComCessoes(b, p, hoje);
+        sit = _situacaoAtrasoValor(pago, esperado, devido, b.valorParcela);
+        devidas = sit.devidas;
+    } else {
+        sit = _situacaoAtraso(pago, esperado, cotas, devidasBolao, b.valorParcela);
+    }
+    const quitado = p.situacao === 'quitado' || esperado - pago <= 0.009;
+    return { cotas, pago, pendente, ultimo, esperado, devido,
+        porParcela: (b.valorParcela || 0) * cotas, ...sit,
+        devidas, quitado, emAtraso: !quitado && sit.emAtraso };
+}
+
 // Lista de quem está em atraso + situação de cada bolão ativo.
 function _calcularCobrancas(hoje = new Date()) {
     const itens = [];
@@ -7559,21 +7580,10 @@ function _calcularCobrancas(hoje = new Date()) {
         r.devidas = _parcelasVencidasBolao(b, hoje);
         for (const p of (b.participantes || [])) {
             if (!p || p.situacao === 'quitado') continue;
-            const cotas = _cotasNum(p);
-            const { pago, pendente, ultimo } = _cobPagoParticipante(p, b);
-            const esperado = _esperadoParticipante(p, b.valorPorCota);
-            let sit, devidas = r.devidas, devido = null;
-            if ((p.cessoes || []).length) {
-                devido = _devidoComCessoes(b, p, hoje);
-                sit = _situacaoAtrasoValor(pago, esperado, devido, b.valorParcela);
-                devidas = sit.devidas;
-            } else {
-                sit = _situacaoAtraso(pago, esperado, cotas, r.devidas, b.valorParcela);
-            }
-            if (!sit.emAtraso) continue;
-            r.atrasados++; r.valor += sit.valor;
-            itens.push({ bolao: b, p, cotas, pago, pendente, ultimo, devidas, devido,
-                porParcela: (b.valorParcela || 0) * cotas, ...sit, devidas });
+            const s = _situacaoParticipante(b, p, r.devidas, hoje);
+            if (!s.emAtraso) continue;
+            r.atrasados++; r.valor += s.valor;
+            itens.push({ bolao: b, p, ...s });
         }
         r.valor = Math.round(r.valor * 100) / 100;
         resumo.push(r);
@@ -7606,12 +7616,17 @@ function atualizarResumoBoloesAtivos() {
         else if (!r.devidas) atraso = '✅ Nenhuma parcela vencida ainda';
         else if (!r.atrasados) atraso = `✅ Todos em dia (${r.devidas} parcela(s) vencida(s))`;
         else atraso = `⚠ <strong>${r.atrasados}</strong> em atraso · ${_brl(r.valor)}`;
-        return `<div class="dash-bolao">
+        return `<div class="dash-bolao" data-bolao="${escapeHtml(b.id)}" role="button" tabindex="0" title="Ver todos os detalhes deste bolão">
             <div class="dash-bolao-titulo">${escapeHtml(b.titulo || b.id)}</div>
             <div class="dash-bolao-linha">${vagas}</div>
             <div class="dash-bolao-linha">${atraso}</div>
+            <div class="dash-bolao-linha dash-bolao-link">Ver detalhes →</div>
         </div>`;
     }).join('');
+    el.querySelectorAll('.dash-bolao').forEach(d => {
+        d.onclick = () => abrirDetalhesDoBolao(d.dataset.bolao);
+        d.onkeydown = (e) => { if (e.key === 'Enter') abrirDetalhesDoBolao(d.dataset.bolao); };
+    });
 }
 
 async function abrirCobrancas() {
@@ -7745,6 +7760,274 @@ async function _cobAcao(acao, it) {
     }
     await _cobMarcarCobrado(it);
     _cobRenderizar();
+}
+
+// ============================================
+// DETALHES DO BOLÃO (v114) — pedido do usuário: "o admin deveria ser
+// completo e me mostrar todas as informações dos bolões... participantes,
+// cotas, quem pagou, quem está atrasado" (antes só o site público tinha
+// isso junto). Usa os documentos de bolão já carregados
+// (obterBoloesPublicados) + a fila do site + 1 leitura de config_boloes;
+// a regra de atraso é a mesma das Cobranças (_situacaoParticipante).
+// ============================================
+let _detIniciado = false;
+let _detStatus = {};
+let _detFiltro = 'todos';
+let _detItens = [];
+
+const _DET_STATUS = { aberto: '🟢 Aberto', andamento: '🟡 Em andamento', encerrado: '🔴 Encerrado' };
+
+// Resumo de 1 bolão + situação de cada participante (função pura, testável).
+function _detResumoBolao(b, hoje = new Date()) {
+    const devidas = _parcelasVencidasBolao(b, hoje);
+    const pessoas = (b.participantes || []).filter(Boolean).map(p => ({ p, ...(_situacaoParticipante(b, p, devidas, hoje)) }));
+    const soma = (f) => Math.round(pessoas.reduce((s, x) => s + f(x), 0) * 100) / 100;
+    const ordem = x => x.emAtraso ? 0 : x.quitado ? 2 : 1;
+    pessoas.sort((a, c) => ordem(a) - ordem(c) || c.valor - a.valor || (a.p.nome || '').localeCompare(c.p.nome || '', 'pt-BR'));
+    return {
+        devidas,
+        semData: !b.dataInicio,
+        pessoas,
+        cotas: Math.round(pessoas.reduce((s, x) => s + x.cotas, 0) * 100) / 100,
+        pago: soma(x => x.pago),
+        esperado: soma(x => x.esperado),
+        aberto: soma(x => x.quitado ? 0 : Math.max(0, x.esperado - x.pago)),
+        atrasados: pessoas.filter(x => x.emAtraso).length,
+        valorAtraso: soma(x => x.emAtraso ? x.valor : 0),
+        quitados: pessoas.filter(x => x.quitado).length,
+    };
+}
+
+async function abrirDetalhesBoloes(forcar = false) {
+    const sel = document.getElementById('detBolao');
+    if (!sel) return;
+    if (!_detIniciado) {
+        _detIniciado = true;
+        sel.addEventListener('change', _detRenderizar);
+        document.getElementById('detBusca').addEventListener('input', _detRenderizarLista);
+        document.getElementById('btnAtualizarDetalhes').addEventListener('click', () => abrirDetalhesBoloes(true));
+        document.getElementById('btnCopiarDetalhes').addEventListener('click', _detCopiarLista);
+        document.querySelectorAll('.det-filtro').forEach(btn => btn.addEventListener('click', () => {
+            _detFiltro = btn.dataset.filtro;
+            _detRenderizarLista();
+        }));
+        forcar = true;
+    }
+    if (forcar) {
+        document.getElementById('detConteudo').innerHTML = '<div class="empty-state">Carregando...</div>';
+        try {
+            await Promise.all([
+                obterBoloesPublicados(true),
+                carregarLancamentosPendentes(),
+                (async () => {
+                    const doc = await db.collection('config_boloes').doc('ativos').get();
+                    _detStatus = doc.exists ? (doc.data().status || {}) : {};
+                })()
+            ]);
+        } catch (e) {
+            console.error('Erro ao carregar detalhes dos bolões:', e);
+            showToast('❌ Não consegui carregar: ' + e.message, 'error');
+        }
+    }
+    const ordemStatus = { aberto: 0, andamento: 1, encerrado: 2 };
+    const lista = boloes.filter(b => b && (b.participantes || []).length)
+        .sort((a, c) => (ordemStatus[_detStatus[a.id] || 'andamento'] - ordemStatus[_detStatus[c.id] || 'andamento'])
+            || (a.titulo || '').localeCompare(c.titulo || '', 'pt-BR'));
+    const atual = sel.value;
+    const grupos = { aberto: [], andamento: [], encerrado: [] };
+    for (const b of lista) {
+        const r = _detResumoBolao(b);
+        const extra = r.atrasados ? ` · ⚠ ${r.atrasados} em atraso` : '';
+        (grupos[_detStatus[b.id] || 'andamento'] || grupos.andamento)
+            .push(`<option value="${escapeHtml(b.id)}">${escapeHtml(b.titulo || b.id)} — ${(b.participantes || []).length} pessoa(s)${extra}</option>`);
+    }
+    sel.innerHTML = '<option value="">Selecione um bolão</option>' + Object.entries(grupos)
+        .filter(([, ops]) => ops.length)
+        .map(([st, ops]) => `<optgroup label="${_DET_STATUS[st]}">${ops.join('')}</optgroup>`).join('');
+    if (_detPreSelecao && lista.some(b => b.id === _detPreSelecao)) sel.value = _detPreSelecao;
+    else if (lista.some(b => b.id === atual)) sel.value = atual;
+    else if (lista.length) sel.value = lista[0].id;
+    _detPreSelecao = null;
+    _detRenderizar();
+}
+
+// Abre os detalhes já num bolão (usado pelos quadros da Visão geral).
+let _detPreSelecao = null;
+function abrirDetalhesDoBolao(bolaoId) {
+    _detPreSelecao = bolaoId;
+    const item = document.querySelector('.sidebar-item[data-section="boloes-grupo"][data-sub="detalhes"]');
+    if (item && typeof abrirItemMenu === 'function') abrirItemMenu(item);
+}
+
+function _detBolaoAtual() {
+    const id = document.getElementById('detBolao').value;
+    return boloes.find(b => b.id === id) || null;
+}
+
+function _detRenderizar() {
+    const cont = document.getElementById('detConteudo');
+    const b = _detBolaoAtual();
+    document.getElementById('detFerramentas').style.display = b ? '' : 'none';
+    if (!b) {
+        cont.innerHTML = '<div class="empty-state">Selecione um bolão para ver todos os detalhes</div>';
+        _detItens = [];
+        document.getElementById('detLista').innerHTML = '';
+        return;
+    }
+
+    const r = _detResumoBolao(b);
+    _detItens = r.pessoas;
+    const status = _detStatus[b.id] || 'andamento';
+    const loteria = ROTULO_LOTERIA[b.loteria] || b.loteria || '—';
+    const pctPago = r.esperado > 0 ? Math.min(100, Math.round(r.pago / r.esperado * 100)) : 0;
+    const livres = b.cotasTotais > 0 ? Math.max(0, b.cotasTotais - (b.cotasOcupadas || 0)) : null;
+    const cartoesBolao = cartoes.filter(c => (c.bolao || '') === b.titulo);
+    const concursos = [...new Set(cartoesBolao.map(c => c.concurso).filter(Boolean))].sort((x, y) => y - x);
+    const pendSite = _inscPendentes.filter(x => x.bolaoDocId === b.id && x.status !== 'recusado');
+    const pendInsc = pendSite.filter(x => x.tipo === 'inscricao');
+    const pendPag = pendSite.filter(x => x.tipo === 'pagamento');
+    const dataInicio = b.dataInicio ? b.dataInicio.split('-').reverse().join('/') : '';
+
+    const infos = [
+        `🎯 ${escapeHtml(loteria)}`,
+        `${_DET_STATUS[status] || status}`,
+        `💰 Cota ${_brl(b.valorPorCota || 0)}`,
+        b.valorParcela > 0 ? `📆 ${b.parcelasTotal || '?'} parcela(s) de ${_brl(b.valorParcela)} por cota` : '',
+        dataInicio ? `▶ Início ${escapeHtml(dataInicio)}` : '',
+        b.dataLimite ? `⏰ Limite ${escapeHtml(String(b.dataLimite))}` : '',
+    ].filter(Boolean).map(t => `<span class="det-info">${t}</span>`).join('');
+
+    let parcelasTxt;
+    if (r.semData) parcelasTxt = b.dataInicio === undefined
+        ? 'Atrasos aparecem depois que o desktop publicar este bolão de novo'
+        : '⚠ Data de início inválida no desktop: corrija para calcular atrasos';
+    else parcelasTxt = `${r.devidas} de ${b.parcelasTotal || '?'} parcela(s) vencida(s) até agora (o mês atual ainda está em aberto)`;
+
+    cont.innerHTML = `
+        <div class="det-cabecalho">
+            <div class="det-titulo">${escapeHtml(b.titulo || b.id)}</div>
+            <div class="det-infos">${infos}</div>
+        </div>
+        <div class="det-kpis">
+            <div class="det-kpi"><div class="det-kpi-num">${(b.participantes || []).length}</div><div class="det-kpi-rot">pessoas · ${_fmtCotas(r.cotas)} cota(s)</div></div>
+            <div class="det-kpi"><div class="det-kpi-num">${b.cotasTotais > 0 ? `${b.cotasOcupadas || 0}/${b.cotasTotais}` : (b.cotasOcupadas || '—')}</div><div class="det-kpi-rot">cotas ocupadas${livres !== null ? ` · <strong>${livres} livre(s)</strong>` : ''}</div></div>
+            <div class="det-kpi ok"><div class="det-kpi-num">${_brl(r.pago)}</div><div class="det-kpi-rot">pago de ${_brl(r.esperado)} (${pctPago}%)</div><div class="det-barra"><span style="width:${pctPago}%"></span></div></div>
+            <div class="det-kpi ${r.atrasados ? 'alerta' : 'ok'}"><div class="det-kpi-num">${r.atrasados ? _brl(r.valorAtraso) : '✅'}</div><div class="det-kpi-rot">${r.atrasados ? `${r.atrasados} pessoa(s) em atraso` : 'ninguém em atraso'}</div></div>
+        </div>
+        <div class="det-linhas">
+            <div>📆 ${parcelasTxt}</div>
+            <div>💵 Falta receber até o fim do bolão: <strong>${_brl(r.aberto)}</strong> · ✅ ${r.quitados} quitado(s)</div>
+            <div>🎫 ${cartoesBolao.length ? `${cartoesBolao.length} cartão(ões) cadastrado(s) · concurso(s) ${concursos.slice(0, 6).join(', ')}${concursos.length > 6 ? '…' : ''}` : 'Nenhum cartão cadastrado no site para este bolão'}</div>
+            ${pendSite.length ? `<div class="det-aviso">⏳ Aguardando o desktop: ${[
+                pendInsc.length ? `${pendInsc.length} inscrição(ões) feita(s) no site (${pendInsc.map(x => escapeHtml(x.nome || '')).join(', ')}), que ainda não aparecem na lista` : '',
+                pendPag.length ? `${pendPag.length} pagamento(s) lançado(s) no site, que já contam nos valores` : ''
+            ].filter(Boolean).join(' · ')}</div>` : ''}
+        </div>`;
+    _detRenderizarLista();
+}
+
+function _detTextoSituacao(x) {
+    if (x.quitado) return { chip: '<span class="insc-chip det-quitado">✅ Quitado</span>', det: '' };
+    if (x.emAtraso) return {
+        chip: '<span class="insc-chip recusado">⚠ Em atraso</span>',
+        det: `Pagou ${String(x.pagas).replace('.', ',')} de ${x.devidas} parcela(s) vencida(s) · em atraso <strong>${_brl(x.valor)}</strong>`
+    };
+    return {
+        chip: '<span class="insc-chip importando">🟢 Em dia</span>',
+        det: x.devidas ? `Pagou ${String(x.pagas).replace('.', ',')} parcela(s) · ${x.devidas} vencida(s)` : ''
+    };
+}
+
+function _detRenderizarLista() {
+    const el = document.getElementById('detLista');
+    if (!el) return;
+    const busca = semAcento(document.getElementById('detBusca').value || '').toLowerCase().trim();
+    const cont = {
+        todos: _detItens.length,
+        atraso: _detItens.filter(x => x.emAtraso).length,
+        emdia: _detItens.filter(x => !x.emAtraso && !x.quitado).length,
+        quitados: _detItens.filter(x => x.quitado).length,
+    };
+    document.querySelectorAll('.det-filtro').forEach(btn => {
+        btn.classList.toggle('ativo', btn.dataset.filtro === _detFiltro);
+        btn.textContent = `${btn.dataset.rotulo} (${cont[btn.dataset.filtro]})`;
+    });
+    const visiveis = _detItens.filter(x =>
+        (_detFiltro === 'todos' || (_detFiltro === 'atraso' && x.emAtraso) || (_detFiltro === 'quitados' && x.quitado)
+            || (_detFiltro === 'emdia' && !x.emAtraso && !x.quitado))
+        && (!busca || semAcento(x.p.nome || '').toLowerCase().includes(busca) || _soDigitos(x.p.telefone).includes(_soDigitos(busca) || '§')));
+    if (!visiveis.length) { el.innerHTML = '<div class="empty-state">Ninguém com esse filtro.</div>'; return; }
+
+    const b = _detBolaoAtual();
+    el.innerHTML = visiveis.map((x, i) => {
+        const s = _detTextoSituacao(x);
+        const tel = _soDigitos(x.p.telefone);
+        const pct = x.quitado ? 100 : x.esperado > 0 ? Math.min(100, Math.round(x.pago / x.esperado * 100)) : 0;
+        const hist = [...(x.p.historicoPagamentos || [])].sort(_compararDataBR);
+        const histHtml = hist.map(h => `<div class="det-hist-linha"><span>📅 ${escapeHtml(h.data || '—')}${h.mesReferencia ? ` <span style="color:#94a3b8;">(ref. ${escapeHtml(h.mesReferencia)})</span>` : ''}</span><strong>${_brl(h.valor || 0)}</strong></div>`).join('');
+        return `<div class="insc-item det-item${x.emAtraso ? ' atraso' : ''}">
+            <div style="min-width:0; flex:1;">
+                <div class="insc-item-titulo">${escapeHtml(x.p.nome || '—')}${s.chip}</div>
+                <div class="insc-item-det">
+                    ${tel ? `📞 ${escapeHtml(tel)} · ` : ''}🎟 ${_txtCotas(x.cotas)}${(x.p.cessoes || []).length ? ` · 🔀 ${escapeHtml(_txtCessoes(x.p))}` : ''}<br>
+                    💵 Pagou <strong>${_brl(x.pago)}</strong>${x.quitado ? '' : ` de ${_brl(x.esperado)}`}${!x.quitado && x.esperado - x.pago > 0.009 ? ` · falta ${_brl(x.esperado - x.pago)}` : ''}
+                    ${s.det ? `<br>${s.det}` : ''}
+                    ${x.ultimo ? `<br>Último pagamento: ${escapeHtml(x.ultimo)}` : ''}
+                    ${x.pendente ? `<br>⏳ Inclui ${_brl(x.pendente)} lançado no site, aguardando o desktop` : ''}
+                </div>
+                <div class="det-barra"><span style="width:${pct}%"></span></div>
+                ${hist.length ? `<button type="button" class="insc-link det-hist-btn" data-i="${i}">📋 Ver ${hist.length} pagamento(s)</button><div class="det-hist" id="detHist${i}" style="display:none;">${histHtml}</div>` : ''}
+            </div>
+            <div class="cob-acoes">
+                ${tel.length >= 10 ? `<button type="button" class="cob-btn whats" data-acao="whats" data-i="${i}">📲 ${x.emAtraso ? 'Cobrar' : 'WhatsApp'}</button>` : ''}
+                ${x.emAtraso ? `<button type="button" class="cob-btn" data-acao="copiar" data-i="${i}">📋 Copiar cobrança</button>` : ''}
+                ${!x.quitado ? `<button type="button" class="cob-btn" data-acao="pagar" data-i="${i}">💵 Pagamento</button>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+
+    el.querySelectorAll('.det-hist-btn').forEach(btn => btn.addEventListener('click', () => {
+        const alvo = document.getElementById('detHist' + btn.dataset.i);
+        const abrir = alvo.style.display === 'none';
+        alvo.style.display = abrir ? 'block' : 'none';
+        btn.textContent = abrir ? '🙈 Ocultar pagamentos' : `📋 Ver ${alvo.children.length} pagamento(s)`;
+    }));
+    el.querySelectorAll('.cob-btn').forEach(btn => btn.addEventListener('click', () => {
+        const x = visiveis[Number(btn.dataset.i)];
+        if (!x) return;
+        if (btn.dataset.acao === 'whats' && !x.emAtraso) {
+            window.open(`https://wa.me/55${_soDigitos(x.p.telefone)}`, '_blank');
+            return;
+        }
+        _detAcaoCobranca(btn.dataset.acao, { bolao: b, ...x });
+    }));
+}
+
+async function _detAcaoCobranca(acao, it) {
+    if (acao !== 'pagar' && _cobPix === null) {
+        try {
+            const doc = await db.collection('config_geral').doc('pix').get();
+            _cobPix = doc.exists ? (doc.data().chave || '') : '';
+        } catch (e) { _cobPix = ''; }
+    }
+    if (acao !== 'pagar' && _cobEnviadas === null) _cobEnviadas = {};
+    await _cobAcao(acao, it);
+}
+
+function _detCopiarLista() {
+    const b = _detBolaoAtual();
+    if (!b || !_detItens.length) return;
+    const r = _detResumoBolao(b);
+    let t = `📋 *${b.titulo}*\n💰 Cota ${_brl(b.valorPorCota || 0)} · ${(b.participantes || []).length} participante(s) · ${_fmtCotas(r.cotas)} cota(s)\n\n`;
+    _detItens.forEach((x, i) => {
+        const icone = x.quitado ? '✅' : x.emAtraso ? '⚠️' : '🟢';
+        t += `${i + 1}. ${icone} *${x.p.nome}* — ${_txtCotas(x.cotas)} — ${_brl(x.pago)} de ${_brl(x.esperado)}`
+            + (x.emAtraso ? ` (em atraso ${_brl(x.valor)})` : '') + '\n';
+    });
+    t += `\n✅ ${r.quitados} quitado(s) · 🟢 ${_detItens.length - r.quitados - r.atrasados} em dia · ⚠️ ${r.atrasados} em atraso`;
+    navigator.clipboard.writeText(t)
+        .then(() => showToast('✅ Lista copiada! Já pode colar no WhatsApp.', 'success'))
+        .catch(() => prompt('Copie a lista abaixo:', t));
 }
 
 // Chamado no fim de abrirInscricoes: abre direto "Pagar parcela" da pessoa

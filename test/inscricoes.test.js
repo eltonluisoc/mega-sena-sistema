@@ -321,3 +321,30 @@ test('cobranças: quem assumiu parcelas aparece com o valor em dinheiro', () => 
   assert.match(msg, /venceu R\$ 1498,00/);
   assert.match(msg, /em aberto \*R\$ 428,00\*/);
 });
+
+test('detalhes do bolão (v114): mesma regra das cobranças, atrasados primeiro e totais', () => {
+  const b = {
+    id: 'b1', titulo: 'Super', valorPorCota: 75, valorParcela: 25, cotasTotais: 10, cotasOcupadas: 4,
+    dataInicio: '2026-09-21', parcelasTotal: 3,
+    participantes: [
+      { nome: 'Em dia', telefone: '61911110002', quantidadeCotas: 1, idLocal: 2, situacao: 'em_andamento', historicoPagamentos: [{ valor: 50, data: '01/10/2026' }] },
+      { nome: 'Quitada', telefone: '61911110003', quantidadeCotas: 1, idLocal: 3, situacao: 'quitado', historicoPagamentos: [{ valor: 75, data: '01/10/2026' }] },
+      { nome: 'Atrasada', telefone: '61911110001', quantidadeCotas: 2, idLocal: 1, situacao: 'em_andamento', historicoPagamentos: [{ valor: 50, data: '21/09/2026' }] },
+    ],
+  };
+  run(`boloes = ${JSON.stringify([b])}; _inscPendentes = [];`);
+  const r = JSON.parse(JSON.stringify(run(`_detResumoBolao(boloes[0], new Date(2026, 10, 10))`)));
+  assert.deepEqual(r.pessoas.map(x => [x.p.nome, x.emAtraso, x.quitado]),
+    [['Atrasada', true, false], ['Em dia', false, false], ['Quitada', false, true]]);
+  assert.equal(r.devidas, 2);
+  assert.equal(r.cotas, 4);
+  assert.equal(r.pago, 175);
+  assert.equal(r.esperado, 300);
+  assert.equal(r.aberto, 125);
+  assert.equal(r.atrasados, 1);
+  assert.equal(r.valorAtraso, 50);   // 2 cotas x 2 parcelas x 25 = 100, pagou 50
+  assert.equal(r.quitados, 1);
+  // mesma conta da tela Cobranças
+  const cob = JSON.parse(JSON.stringify(run('_calcularCobrancas(new Date(2026, 10, 10)).itens')));
+  assert.deepEqual(cob.map(i => [i.p.nome, i.valor]), [['Atrasada', 50]]);
+});
