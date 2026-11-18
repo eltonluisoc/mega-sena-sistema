@@ -405,9 +405,6 @@ function calcularChancesBolao(cartoesBolao, loteria) {
 
         cartao.numeros.forEach(n => numerosUtilizados.add(n));
     }
-    // Dupla Sena: 2 sorteios por concurso — o mesmo cartão tem 2 chances.
-    if (loteria === 'duplasena') totalCombinacoesChance *= 2;
-
     const numerosCobertos = numerosUtilizados.size;
     const percentualCobertura = Math.round((numerosCobertos / numerosPossiveis) * 100);
     const vezesMelhor = Math.round(totalCombinacoesCobertas);
@@ -464,9 +461,22 @@ function calcularChancesBolao(cartoesBolao, loteria) {
 
     // "Chance real" = chance de pelo menos um cartão bater a faixa de
     // prêmio mais alcançável (ver acertosAlvoChance acima).
-    const probabilidade = totalCombinacoesPossiveis > 0
+    const probabilidadeUmSorteio = totalCombinacoesPossiveis > 0
         ? totalCombinacoesChance / totalCombinacoesPossiveis
         : 0;
+    // Dupla Sena: 2 sorteios por concurso, o mesmo cartão vale pros dois --
+    // CORREÇÃO (achado real, 13 comprovantes do usuário, concurso 3034):
+    // o código antigo fazia `totalCombinacoesChance *= 2`, literalmente
+    // dobrando a probabilidade -- matematicamente errado (probabilidade
+    // não se soma assim) e que ESTOURAVA pra cima quanto maior a chance de
+    // 1 sorteio já fosse (ex.: 30,72% virava 61,44% em vez do correto
+    // ~52%, um erro de quase 10 pontos percentuais). A forma certa de
+    // combinar 2 chances independentes é 1-(1-p)², aplicada só UMA vez,
+    // por cima da probabilidade já agregada de 1 sorteio -- nunca somando
+    // ou multiplicando a probabilidade bruta.
+    const probabilidade = loteria === 'duplasena'
+        ? 1 - (1 - probabilidadeUmSorteio) ** 2
+        : probabilidadeUmSorteio;
 
     let estrelas = 0;
     let estrelasHtml = '';
