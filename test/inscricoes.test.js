@@ -328,7 +328,7 @@ test('detalhes do bolão (v114): mesma regra das cobranças, atrasados primeiro 
     dataInicio: '2026-09-21', parcelasTotal: 3,
     participantes: [
       { nome: 'Em dia', telefone: '61911110002', quantidadeCotas: 1, idLocal: 2, situacao: 'em_andamento', historicoPagamentos: [{ valor: 50, data: '01/10/2026' }] },
-      { nome: 'Quitada', telefone: '61911110003', quantidadeCotas: 1, idLocal: 3, situacao: 'quitado', historicoPagamentos: [{ valor: 75, data: '01/10/2026' }] },
+      { nome: 'Quitada', telefone: '61911110003', quantidadeCotas: 1, idLocal: 3, situacao: 'quitado', valorPago: 75, historicoPagamentos: [{ valor: 75, data: '01/10/2026' }] },
       { nome: 'Atrasada', telefone: '61911110001', quantidadeCotas: 2, idLocal: 1, situacao: 'em_andamento', historicoPagamentos: [{ valor: 50, data: '21/09/2026' }] },
     ],
   };
@@ -347,4 +347,17 @@ test('detalhes do bolão (v114): mesma regra das cobranças, atrasados primeiro 
   // mesma conta da tela Cobranças
   const cob = JSON.parse(JSON.stringify(run('_calcularCobrancas(new Date(2026, 10, 10)).itens')));
   assert.deepEqual(cob.map(i => [i.p.nome, i.valor]), [['Atrasada', 50]]);
+});
+
+test('ADM que não paga não entra no total previsto (Mega da Virada 2026: 49.220, não 50.290)', () => {
+  assert.equal(run(`_esperadoParticipante({ nome: 'Elton Luis', situacao: 'quitado', quantidadeCotas: 1, valorPago: 0 }, 1070)`), 0);
+  assert.equal(run(`_esperadoParticipante({ situacao: 'quitado', quantidadeCotas: 1, valorPago: 1070 }, 1070)`), 1070);
+  const pagantes = Array.from({ length: 46 }, (_, i) => ({ nome: 'P' + i, quantidadeCotas: 1, valorEsperado: 1070, valorPago: 1070, situacao: 'quitado' }));
+  const b = { id: 'v', titulo: 'Mega da Virada 2026', valorPorCota: 1070, valorParcela: 107, parcelasTotal: 10, dataInicio: '2026-01-10',
+    cotasTotais: 50, cotasOcupadas: 47,
+    participantes: [...pagantes, { nome: 'Elton Luis', telefone: '', valorPago: 0, situacao: 'quitado', quantidadeCotas: 1, historicoPagamentos: [] }] };
+  run(`boloes = ${JSON.stringify([b])}; _inscPendentes = [];`);
+  const r = JSON.parse(JSON.stringify(run('_detResumoBolao(boloes[0], new Date(2026, 10, 18))')));
+  assert.equal(r.esperado, 49220);
+  assert.equal(r.cotas, 47);
 });

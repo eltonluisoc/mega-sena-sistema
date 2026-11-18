@@ -7482,7 +7482,13 @@ function _fmtCotas(q) {
 function _txtCotas(q) { return `${_fmtCotas(q)} cota${Number(q) > 1 ? 's' : ''}`; }
 // Valor esperado exato publicado pelo desktop (v8.3); antigo = cotas x valor.
 function _esperadoParticipante(p, valorPorCota) {
-    return typeof p.valorEsperado === 'number' ? p.valorEsperado : _cotasNum(p) * (valorPorCota || 0);
+    if (typeof p.valorEsperado === 'number') return p.valorEsperado;
+    // ADM que não paga: o desktop publica sem valorEsperado, "quitado" e
+    // valorPago 0 — não deve nada. Antes caía em cotas x valor e somava
+    // 1 cota a mais no total previsto (achado real 18/11: Mega da Virada
+    // 2026 mostrava R$ 50.290 em vez de R$ 49.220).
+    if (p.situacao === 'quitado' && !(Number(p.valorPago) > 0)) return 0;
+    return _cotasNum(p) * (valorPorCota || 0);
 }
 function _txtCessoes(p) {
     return (p.cessoes || []).map(c => c.tipo === 'saida'
