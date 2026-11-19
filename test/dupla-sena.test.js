@@ -88,3 +88,19 @@ test('admin: painel soma as faixas dos 2 sorteios (6/5/4/3)', () => {
   assert.deepEqual(stats.top3PorLoteria.duplasena[0], { concurso: '3032', maxAcertos: 3, quantidade: 2, data: '14/11/2026' });
   assert.equal(admin.formatarTierAcerto('duplasena', 3, 2), '2 - ternos');
 });
+
+test('caso real 3034: cada sorteio numa linha, quadra do 2º não vira "quina"', () => {
+  const s1 = [8, 11, 15, 22, 28, 37], s2 = [19, 22, 23, 28, 30, 48];
+  const cartao = [5, 15, 19, 22, 30, 31, 47, 48];
+  const html = site.linhasDuplaSenaHtml(cartao, s1, s2);
+  assert.match(html, /1º sorteio: 2 acertos</);
+  assert.match(html, /2º sorteio: 4 acertos · <strong>QUADRA<\/strong> \(6 prêmios\)/);
+  assert.doesNotMatch(html, /QUINA/);
+  // cartões de 8 dezenas: 3 com quadra (2 no 1º, 1 no 2º) = 18 prêmios de quadra
+  const cartoes = [{ numeros: [4, 7, 8, 10, 15, 28, 32, 37] }, { numeros: [1, 3, 4, 11, 22, 28, 37, 46] }, { numeros: cartao }];
+  const p = plano(site.calcularPremios(cartoes, s1, 'duplasena', null, null, s2));
+  assert.equal(p.quadra, 12);
+  assert.equal(p.quadra2, 6);
+  assert.equal(site.cartoesNaFaixa(cartoes, s1, 4), 2);
+  assert.equal(site.cartoesNaFaixa(cartoes, s2, 4), 1);
+});

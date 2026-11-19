@@ -2248,7 +2248,47 @@ function melhorResultadoAdminHtml(loteria, concurso, dadosConferidos) {
     // na lista de Cartões, "Cartão #" + últimos 6 do id do Firestore) +
     // números do cartão, com os que bateram no sorteio destacados em
     // verde (mesmo padrão visual que o site público já usa).
+    // v117: Dupla Sena — 1 linha por sorteio, só com os acertos daquele
+    // sorteio, e a faixa com quantos prêmios rende (achado real 19/11).
+    const NOMES_FAIXA = { 6: 'SENA', 5: 'QUINA', 4: 'QUADRA', 3: 'TERNO' };
+    const linhaSorteioHtml = (nums, sorteados, rotulo, cor) => {
+        const a = nums.filter(n => sorteados.includes(n)).length;
+        const qtd = contarPremiosPorFaixaAdmin(nums.length, a, 6)[a] || 0;
+        const faixa = NOMES_FAIXA[a] ? ` · <strong>${NOMES_FAIXA[a]}</strong>${qtd > 1 ? ` (${qtd} prêmios)` : ''}` : '';
+        return `<div style="margin-top:4px;"><div style="font-size:11px; font-weight:600; color:${cor};">${rotulo}: ${a} acerto${a === 1 ? '' : 's'}${faixa}</div><div>${nums.map(n => {
+            const ac = sorteados.includes(n);
+            return `<span style="display:inline-block; padding:4px 8px; margin:2px; border-radius:6px; font-family:monospace; font-size:12px; font-weight:${ac ? '700' : '400'}; background:${ac ? cor : '#e2e8f0'}; color:${ac ? 'white' : '#334155'};">${n.toString().padStart(2,'0')}</span>`;
+        }).join('')}</div></div>`;
+    };
+    // Resumo de prêmios por sorteio: quantos prêmios e em quantos cartões.
+    let resumoDuplaHtml = '';
+    if (numeros2) {
+        const linhas = [[numeros, '1º sorteio', '#10b981'], [numeros2, '2º sorteio', '#0071e3']].map(([sorteados, rotulo, cor]) => {
+            const partes = [6, 5, 4, 3].map(j => {
+                let premiosJ = 0, cartoesJ = 0;
+                for (const c of cartoesDoConcurso) {
+                    const a = (c.numeros || []).filter(n => sorteados.includes(n)).length;
+                    const q = a >= j ? (contarPremiosPorFaixaAdmin((c.numeros || []).length, a, 6)[j] || 0) : 0;
+                    if (q) { premiosJ += q; cartoesJ++; }
+                }
+                return premiosJ ? `${premiosJ} ${NOMES_FAIXA[j].toLowerCase()}${premiosJ > 1 ? 's' : ''} em ${cartoesJ} ${cartoesJ === 1 ? 'cartão' : 'cartões'}` : '';
+            }).filter(Boolean);
+            return `<div><strong style="color:${cor};">${rotulo}:</strong> ${partes.length ? partes.join(' · ') : 'nenhum prêmio'}</div>`;
+        }).join('');
+        resumoDuplaHtml = `<div style="font-size:12px; color:#334155; background:white; border:1px solid #e2e8f0; border-radius:8px; padding:8px 10px; margin-top:8px; line-height:1.6;">
+            <div style="font-weight:700; margin-bottom:2px;">🎯 Prêmios do bolão neste concurso</div>${linhas}
+            <div style="font-size:11px; color:#64748b; margin-top:4px;">Cartão de 8 dezenas = 28 apostas simples: 4 acertos valem 6 quadras.</div></div>`;
+    }
+
     const cartoesTopoHtml = empatadosNoTopo.map(c => {
+        if (numeros2) {
+            return `
+            <div style="background:white; border:1px solid #e2e8f0; border-radius:8px; padding:8px 10px; margin-top:6px;">
+                <div style="font-size:11px; color:#64748b;">🆔 Cartão #${c.id ? c.id.slice(-6) : '???'} — ${c.bolao || 'Sem Bolão'}</div>
+                ${linhaSorteioHtml(c.numeros || [], numeros, '1º sorteio', '#10b981')}
+                ${linhaSorteioHtml(c.numeros || [], numeros2, '2º sorteio', '#0071e3')}
+            </div>`;
+        }
         const numsCartaoHtml = (c.numeros || []).map(n => {
             // Dupla Sena: cada sorteio com sua cor (achado real 19/11 —
             // verde pra qualquer sorteio fazia quadra do 2º + 1 do 1º
@@ -2276,7 +2316,7 @@ function melhorResultadoAdminHtml(loteria, concurso, dadosConferidos) {
             ${numeros2 ? '<div style="font-size:11px; color:#64748b; margin-bottom:2px;">1º sorteio</div>' : ''}
             <div class="numeros-cartao-lista">${numerosHtml}</div>
             ${numeros2 ? `<div style="font-size:11px; color:#64748b; margin:6px 0 2px;">2º sorteio</div><div class="numeros-cartao-lista">${numeros2Html}</div>
-                <div style="font-size:11px; color:#64748b; margin-top:6px;">Nos cartões: <span style="color:#10b981; font-weight:700;">■ 1º sorteio</span> · <span style="color:#0071e3; font-weight:700;">■ 2º sorteio</span> · cada sorteio é conferido à parte</div>` : ''}
+                ${resumoDuplaHtml}` : ''}
             ${trevosHtml ? `<div class="numeros-cartao-lista" style="margin-top:4px;">${trevosHtml}</div>` : ''}
             ${mesSorteSorteado ? `<div class="numeros-cartao-lista" style="margin-top:4px;">${_badgeMesSorte(mesSorteSorteado)}</div>` : ''}
             <div style="font-size:13px; color:#334155; margin-top:10px;">
@@ -4861,7 +4901,7 @@ async function carregarParticipantesSelectFinanceiro() {
             const pessoa = _pessoasFinanceiroCache[chave];
             const option = document.createElement('option');
             option.value = chave;
-            option.textContent = `${pessoa.nome} (${pessoa.boloes.length} bolão${pessoa.boloes.length > 1 ? 'ões' : ''})`;
+            option.textContent = `${pessoa.nome} (${pessoa.boloes.length} ${pessoa.boloes.length > 1 ? 'bolões' : 'bolão'})`;
             select.appendChild(option);
         }
 

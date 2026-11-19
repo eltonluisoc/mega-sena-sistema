@@ -20,6 +20,29 @@ const NOME_LOTERIA = { mega: 'MEGA-SENA', lotofacil: 'LOTOFÁCIL', quina: 'QUINA
 const TODAS_LOTERIAS = ['mega', 'lotofacil', 'quina', 'maismilionaria', 'diadesorte', 'duplasena'];
 // Dupla Sena: 2 sorteios de 6 dezenas (1-50) no mesmo concurso; o mesmo
 // cartão concorre nos dois. O resultado guarda numeros (1º) e numeros2 (2º).
+// v117: cada sorteio numa linha própria, só com os acertos DAQUELE sorteio
+// (achado real 19/11: os 2 sorteios pintados na mesma linha faziam uma
+// quadra do 2º + 1 número do 1º parecer quina) e o nome da faixa com
+// quantos prêmios ela rende (cartão de 8 dezenas = 28 apostas simples).
+const NOME_FAIXA_DUPLA = { 6: 'SENA', 5: 'QUINA', 4: 'QUADRA', 3: 'TERNO' };
+function linhasDuplaSenaHtml(numeros, sorteados, sorteados2) {
+    return [[sorteados, '1º sorteio', ''], [sorteados2, '2º sorteio', ' sorteio2']].map(([s, rotulo, cls]) => {
+        const a = numeros.filter(n => s.includes(n)).length;
+        const qtd = contarPremiosPorFaixa(numeros.length, a, 6)[a] || 0;
+        const faixa = NOME_FAIXA_DUPLA[a]
+            ? ` · <strong>${NOME_FAIXA_DUPLA[a]}</strong>${qtd > 1 ? ` (${qtd} prêmios)` : ''}` : '';
+        return `<div class="linha-sorteio${cls}">
+            <div class="linha-sorteio-rotulo">${rotulo}: ${a} acerto${a === 1 ? '' : 's'}${faixa}</div>
+            <div class="cartao-numeros">${numeros.map(n =>
+                `<span class="${s.includes(n) ? 'numero-acertado' + cls : 'numero-normal'}">${n.toString().padStart(2, '0')}</span>`).join('')}</div>
+        </div>`;
+    }).join('');
+}
+// Quantos cartões renderam prêmio na faixa j de um sorteio (acertos >= j).
+function cartoesNaFaixa(cartoes, sorteados, j) {
+    return cartoes.filter(c => c.numeros.filter(n => sorteados.includes(n)).length >= j).length;
+}
+
 function acertosNoMelhorSorteio(cartao, sorteados, sorteados2 = null) {
     const a1 = sorteados ? cartao.numeros.filter(n => sorteados.includes(n)).length : 0;
     const a2 = sorteados2 ? cartao.numeros.filter(n => sorteados2.includes(n)).length : 0;
@@ -976,12 +999,13 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         } else if (loteria === 'maismilionaria') {
             html += gerarResumoPremiosMilionaria(premios);
         } else if (loteria === 'duplasena') {
-            for (const [suf, rotulo] of [['', '1º'], ['2', '2º']]) {
-                html += `
-                <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#f59e0b">${premios['sena' + suf]}</div><div class="resultado-resumo-label">SENA ${rotulo}</div></div>
-                <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#eab308">${premios['quina' + suf]}</div><div class="resultado-resumo-label">QUINA ${rotulo}</div></div>
-                <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#a855f7">${premios['quadra' + suf]}</div><div class="resultado-resumo-label">QUADRA ${rotulo}</div></div>
-                <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#3b82f6">${premios['terno' + suf]}</div><div class="resultado-resumo-label">TERNO ${rotulo}</div></div>`;
+            // Número grande = PRÊMIOS; embaixo, em quantos cartões saíram.
+            for (const [suf, rotulo, sorteados] of [['', '1º', numerosSorteados], ['2', '2º', numerosSorteados2 || []]]) {
+                for (const [chave, j, cor] of [['sena', 6, '#f59e0b'], ['quina', 5, '#eab308'], ['quadra', 4, '#a855f7'], ['terno', 3, '#3b82f6']]) {
+                    const qtd = premios[chave + suf];
+                    const nc = qtd ? cartoesNaFaixa(cartoesOrdenados, sorteados, j) : 0;
+                    html += `<div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:${cor}">${qtd}</div><div class="resultado-resumo-label">${chave.toUpperCase()}${qtd === 1 ? '' : 'S'} ${rotulo}</div>${nc ? `<div class="resultado-resumo-sub">em ${nc} ${nc === 1 ? 'cartão' : 'cartões'}</div>` : ''}</div>`;
+                }
             }
         } else if (loteria === 'diadesorte') {
             html += `
@@ -1017,7 +1041,7 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         if (numerosSorteados2) {
             html += `<div class="numeros-sorteados-titulo">🎱 2º Sorteio</div>`;
             html += `<div class="numeros-sorteados">${numerosSorteados2.map(n => `<div class="numero-sorteado-card sorteio2">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`;
-            html += `<div class="legenda-sorteios"><span class="numero-acertado">00</span> 1º sorteio <span class="numero-acertado sorteio2">00</span> 2º sorteio <span class="numero-acertado ambos">00</span> nos dois</div>`;
+            html += `<div class="legenda-sorteios">Cada cartão é conferido em cada sorteio separadamente: <span class="numero-acertado">00</span> acerto no 1º <span class="numero-acertado sorteio2">00</span> acerto no 2º</div>`;
         }
         if (loteria === 'maismilionaria' && trevosSorteados) {
             html += `<div class="numeros-sorteados-titulo">🍀 Trevos Sorteados</div>`;
@@ -1073,15 +1097,13 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
                             <span class="cartao-bolao">${cartao.bolao} - ${tipoParticipacao}</span>
                             <span class="cartao-acertos" style="background:${corAcertos};">${rotuloAcertos}</span>
                         </div>
-                        <div class="cartao-numeros">
+                        ${numerosSorteados2 ? linhasDuplaSenaHtml(cartao.numeros, numerosSorteados, numerosSorteados2) : `<div class="cartao-numeros">
                             ${cartao.numeros.map(n => {
-                                const em1 = numerosSorteados.includes(n);
-                                const em2 = !!(numerosSorteados2 && numerosSorteados2.includes(n));
-                                const classe = em1 && em2 ? 'numero-acertado ambos' : em2 ? 'numero-acertado sorteio2' : em1 ? 'numero-acertado' : 'numero-normal';
+                                const acertou = numerosSorteados.includes(n);
                                 const idAttr = _indiceCartao === 0 ? ` id="cartaonum-${n}"` : '';
-                                return `<span${idAttr} class="${classe}">${n.toString().padStart(2,'0')}</span>`;
+                                return `<span${idAttr} class="${acertou ? 'numero-acertado' : 'numero-normal'}">${n.toString().padStart(2,'0')}</span>`;
                             }).join('')}
-                        </div>
+                        </div>`}
                         ${cartao.trevos ? `<div class="cartao-numeros" style="margin-top:4px;">
                             ${cartao.trevos.map(t => {
                                 const acertou = trevosSorteados && trevosSorteados.includes(t);
@@ -1098,7 +1120,15 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         if (btnWhats) btnWhats.addEventListener('click', compartilharWhatsApp);
 
         ultimoResultadoConcurso = concurso;
-        ultimoResultadoDados = { numeros: numerosSorteados, numeros2: numerosSorteados2, trevos: trevosSorteados, mesSorte: mesSorteSorteado, premios };
+        const cartoesFaixa = {};
+        if (numerosSorteados2) {
+            for (const [suf, sorteados] of [['', numerosSorteados], ['2', numerosSorteados2]]) {
+                for (const [chave, j] of [['sena', 6], ['quina', 5], ['quadra', 4], ['terno', 3]]) {
+                    cartoesFaixa[chave + suf] = cartoesNaFaixa(cartoesOrdenados, sorteados, j);
+                }
+            }
+        }
+        ultimoResultadoDados = { numeros: numerosSorteados, numeros2: numerosSorteados2, trevos: trevosSorteados, mesSorte: mesSorteSorteado, premios, cartoesFaixa };
 
         // Setas "quase acertou" — pedido do usuário, só na Mega por
         // enquanto ("na conferência da mega-sena... quando o número for
@@ -1775,7 +1805,7 @@ function compartilharWhatsApp() {
         showToast('⚠️ Nenhum resultado para compartilhar', 'warning');
         return;
     }
-    const { numeros, numeros2, trevos, mesSorte, dataSorteio, premios } = ultimoResultadoDados;
+    const { numeros, numeros2, trevos, mesSorte, dataSorteio, premios, cartoesFaixa } = ultimoResultadoDados;
     const linha = '──────────';
     let loteriaNome = NOME_LOTERIA[loteriaAtual] || 'QUINA';
 
@@ -1846,8 +1876,11 @@ function compartilharWhatsApp() {
         else if (premios.n3t2 > 0 || premios.n3t1 > 0 || premios.n2t2 > 0 || premios.n2t1 > 0) msg += `🍀 Prêmio garantido nas faixas de 2 ou 3 números com trevo!\n`;
         else msg += `💪 Vamos tentar novamente no próximo concurso.\n`;
     } else if (loteriaAtual === 'duplasena') {
-        msg += `   1º sorteio — ✨ Sena: ${premios.sena} · Quina: ${premios.quina} · Quadra: ${premios.quadra} · ✅ Terno: ${premios.terno}\n`;
-        msg += `   2º sorteio — ✨ Sena: ${premios.sena2} · Quina: ${premios.quina2} · Quadra: ${premios.quadra2} · ✅ Terno: ${premios.terno2}\n\n`;
+        const cf = cartoesFaixa || {};
+        const item = (nome, chave) => `${nome}: ${premios[chave]}${premios[chave] && cf[chave] ? ` (em ${cf[chave]} ${cf[chave] === 1 ? 'cartão' : 'cartões'})` : ''}`;
+        msg += `   1º sorteio — ✨ ${item('Sena', 'sena')} · ${item('Quina', 'quina')} · ${item('Quadra', 'quadra')} · ✅ ${item('Terno', 'terno')}\n`;
+        msg += `   2º sorteio — ✨ ${item('Sena', 'sena2')} · ${item('Quina', 'quina2')} · ${item('Quadra', 'quadra2')} · ✅ ${item('Terno', 'terno2')}\n`;
+        msg += `   _(cartão de 8 dezenas = 28 apostas: 4 acertos valem 6 quadras)_\n\n`;
         if (premios.sena + premios.sena2 > 0) msg += `🎉🎉🎉 SENA! PARABÉNS! 🎉🎉🎉\n`;
         else if (premios.quina + premios.quina2 > 0) msg += `⭐ Quina! Quase lá!\n`;
         else if (premios.quadra + premios.quadra2 > 0) msg += `⚠️ Quadra! Estamos no caminho certo!\n`;
