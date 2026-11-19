@@ -791,7 +791,7 @@ function nomeNivelAcerto(loteria, acertos, acertosTrevo = null) {
 // 13+ pontos na Lotofácil, 4+ números na +Milionária) — faixas menores
 // são comuns demais pra virar comemoração, banalizaria o destaque.
 // trevosSorteados/melhorAcertosTrevo só entram pra +Milionária.
-function gerarBannerTrofeu(melhorCartao, melhorAcertos, loteria, numerosSorteados, trevosSorteados = null, melhorAcertosTrevo = 0) {
+function gerarBannerTrofeu(melhorCartao, melhorAcertos, loteria, numerosSorteados, trevosSorteados = null, melhorAcertosTrevo = 0, rotuloSorteio = '') {
     if (!melhorCartao || !melhorAcertos) return '';
     const piso = loteria === 'lotofacil' ? 13 : 4;
     if (melhorAcertos < piso) return '';
@@ -846,8 +846,8 @@ function gerarBannerTrofeu(melhorCartao, melhorAcertos, loteria, numerosSorteado
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
                 <div style="font-size: 30px; line-height: 1;">🏆</div>
                 <div>
-                    <strong style="display: block; font-size: 15px; color: #78350f;">${melhorCartao.bolao || 'Bolão'} bateu ${nivel}!</strong>
-                    <span style="font-size: 11px; color: #92400e;">${melhorAcertos} números certos neste cartão</span>
+                    <strong style="display: block; font-size: 15px; color: #78350f;">${melhorCartao.bolao || 'Bolão'} bateu ${nivel}${rotuloSorteio}!</strong>
+                    <span style="font-size: 11px; color: #92400e;">${melhorAcertos} números certos neste cartão${rotuloSorteio}</span>
                 </div>
             </div>
             <div style="display: flex; gap: 5px; flex-wrap: wrap;">${numerosHtml}</div>
@@ -933,7 +933,17 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         const melhorCartaoSalvo = cartoesOrdenados[0];
         const melhorAcertosSalvo = melhorCartaoSalvo ? acertosNoMelhorSorteio(melhorCartaoSalvo, numerosSorteados, numerosSorteados2) : 0;
         // Dupla Sena: destaque de número batido vale pra qualquer um dos 2 sorteios
-        const sorteadosQualquer = numerosSorteados2 ? [...new Set([...numerosSorteados, ...numerosSorteados2])] : numerosSorteados;
+        // Dupla Sena: cada sorteio é conferido à parte (achado real 19/11:
+        // pintar de verde quem saiu em QUALQUER sorteio fazia uma quadra do
+        // 2º sorteio + 1 número do 1º parecer uma quina). O troféu usa só o
+        // sorteio em que o melhor cartão acertou mais.
+        let sorteadosTrofeu = numerosSorteados, rotuloSorteioTrofeu = '';
+        if (numerosSorteados2 && melhorCartaoSalvo) {
+            const a1 = melhorCartaoSalvo.numeros.filter(n => numerosSorteados.includes(n)).length;
+            const a2 = melhorCartaoSalvo.numeros.filter(n => numerosSorteados2.includes(n)).length;
+            if (a2 > a1) { sorteadosTrofeu = numerosSorteados2; rotuloSorteioTrofeu = ' no 2º sorteio'; }
+            else rotuloSorteioTrofeu = ' no 1º sorteio';
+        }
         const melhorAcertosTrevoSalvo = (melhorCartaoSalvo && trevosSorteados)
             ? (melhorCartaoSalvo.trevos || []).filter(t => trevosSorteados.includes(t)).length : 0;
 
@@ -945,7 +955,7 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         // em #cartoesArea, logo acima do primeiro cartão da lista ordenada
         // — ver mostrarCartoes(). Aqui mostra só o resumo (troféu/potencial/
         // prêmios), sem duplicar os números.
-        let html = gerarBannerTrofeu(melhorCartaoSalvo, melhorAcertosSalvo, loteria, sorteadosQualquer, trevosSorteados, melhorAcertosTrevoSalvo);
+        let html = gerarBannerTrofeu(melhorCartaoSalvo, melhorAcertosSalvo, loteria, sorteadosTrofeu, trevosSorteados, melhorAcertosTrevoSalvo, rotuloSorteioTrofeu);
         html += chancesHtml;
         html += `<div class="resultado-resumo">`;
 
@@ -1006,7 +1016,8 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         html += `<div class="numeros-sorteados" id="numerosSorteadosLista">${numerosSorteados.map(n => `<div class="numero-sorteado-card" id="sorteado-${n}">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`;
         if (numerosSorteados2) {
             html += `<div class="numeros-sorteados-titulo">🎱 2º Sorteio</div>`;
-            html += `<div class="numeros-sorteados">${numerosSorteados2.map(n => `<div class="numero-sorteado-card">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`;
+            html += `<div class="numeros-sorteados">${numerosSorteados2.map(n => `<div class="numero-sorteado-card sorteio2">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`;
+            html += `<div class="legenda-sorteios"><span class="numero-acertado">00</span> 1º sorteio <span class="numero-acertado sorteio2">00</span> 2º sorteio <span class="numero-acertado ambos">00</span> nos dois</div>`;
         }
         if (loteria === 'maismilionaria' && trevosSorteados) {
             html += `<div class="numeros-sorteados-titulo">🍀 Trevos Sorteados</div>`;
@@ -1064,9 +1075,11 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
                         </div>
                         <div class="cartao-numeros">
                             ${cartao.numeros.map(n => {
-                                const acertou = sorteadosQualquer.includes(n);
+                                const em1 = numerosSorteados.includes(n);
+                                const em2 = !!(numerosSorteados2 && numerosSorteados2.includes(n));
+                                const classe = em1 && em2 ? 'numero-acertado ambos' : em2 ? 'numero-acertado sorteio2' : em1 ? 'numero-acertado' : 'numero-normal';
                                 const idAttr = _indiceCartao === 0 ? ` id="cartaonum-${n}"` : '';
-                                return `<span${idAttr} class="${acertou ? 'numero-acertado' : 'numero-normal'}">${n.toString().padStart(2,'0')}</span>`;
+                                return `<span${idAttr} class="${classe}">${n.toString().padStart(2,'0')}</span>`;
                             }).join('')}
                         </div>
                         ${cartao.trevos ? `<div class="cartao-numeros" style="margin-top:4px;">

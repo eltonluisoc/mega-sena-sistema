@@ -478,6 +478,11 @@ button:hover {
     justify-content: center;
 }
 
+/* Dupla Sena: 2º sorteio em azul; número que saiu nos 2 sorteios, metade de cada */
+.numero-acertado.sorteio2, .numero-sorteado-card.sorteio2 { background: #0071e3; }
+.numero-acertado.ambos { background: linear-gradient(135deg, #2e7d32 50%, #0071e3 50%); }
+.legenda-sorteios { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; justify-content: center; font-size: 11px; color: #64748b; margin: 4px 0 12px; }
+.legenda-sorteios .numero-acertado { padding: 2px 6px; font-size: 10px; color: transparent; }
 .numero-acertado {
     background: #2e7d32;
     color: white;

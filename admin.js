@@ -2240,8 +2240,8 @@ function melhorResultadoAdminHtml(loteria, concurso, dadosConferidos) {
     const empatadosNoTopo = comAcertos.filter(c =>
         c.acertos === melhor.acertos && c.acertosTrevo === melhor.acertosTrevo);
 
-    const numerosHtml = numeros.map(n => `<span class="numero-cartao-badge">${n.toString().padStart(2,'0')}</span>`).join('');
-    const numeros2Html = numeros2 ? numeros2.map(n => `<span class="numero-cartao-badge">${n.toString().padStart(2,'0')}</span>`).join('') : '';
+    const numerosHtml = numeros.map(n => `<span class="numero-cartao-badge"${numeros2 ? ' style="background:#10b981;color:white;"' : ''}>${n.toString().padStart(2,'0')}</span>`).join('');
+    const numeros2Html = numeros2 ? numeros2.map(n => `<span class="numero-cartao-badge" style="background:#0071e3;color:white;">${n.toString().padStart(2,'0')}</span>`).join('') : '';
     const trevosHtml = trevos ? trevos.map(t => `<span class="numero-cartao-badge" style="background:#dcfce7;color:#166534;border-radius:50%;">🍀${t.toString().padStart(2,'0')}</span>`).join('') : '';
 
     // 1 bloco por cartão empatado no topo — código (mesmo padrão já usado
@@ -2250,8 +2250,13 @@ function melhorResultadoAdminHtml(loteria, concurso, dadosConferidos) {
     // verde (mesmo padrão visual que o site público já usa).
     const cartoesTopoHtml = empatadosNoTopo.map(c => {
         const numsCartaoHtml = (c.numeros || []).map(n => {
-            const acertou = numeros.includes(n) || !!(numeros2 && numeros2.includes(n));
-            return `<span style="display:inline-block; padding:4px 8px; margin:2px; border-radius:6px; font-family:monospace; font-size:12px; font-weight:${acertou ? '700' : '400'}; background:${acertou ? '#10b981' : '#e2e8f0'}; color:${acertou ? 'white' : '#334155'};">${n.toString().padStart(2,'0')}</span>`;
+            // Dupla Sena: cada sorteio com sua cor (achado real 19/11 —
+            // verde pra qualquer sorteio fazia quadra do 2º + 1 do 1º
+            // parecer quina).
+            const em1 = numeros.includes(n), em2 = !!(numeros2 && numeros2.includes(n));
+            const acertou = em1 || em2;
+            const fundo = em1 && em2 ? 'linear-gradient(135deg, #10b981 50%, #0071e3 50%)' : em2 ? '#0071e3' : em1 ? '#10b981' : '#e2e8f0';
+            return `<span style="display:inline-block; padding:4px 8px; margin:2px; border-radius:6px; font-family:monospace; font-size:12px; font-weight:${acertou ? '700' : '400'}; background:${fundo}; color:${acertou ? 'white' : '#334155'};">${n.toString().padStart(2,'0')}</span>`;
         }).join('');
         const trevosCartaoHtml = trevos && c.trevos ? c.trevos.map(t => {
             const acertou = trevos.includes(t);
@@ -2260,7 +2265,7 @@ function melhorResultadoAdminHtml(loteria, concurso, dadosConferidos) {
         const mesCartaoHtml = mesSorteSorteado && c.mesSorte ? _badgeMesSorte(c.mesSorte, c.mesSorte === mesSorteSorteado) : '';
         return `
             <div style="background:white; border:1px solid #e2e8f0; border-radius:8px; padding:8px 10px; margin-top:6px;">
-                <div style="font-size:11px; color:#64748b; margin-bottom:4px;">🆔 Cartão #${c.id ? c.id.slice(-6) : '???'} — ${c.bolao || 'Sem Bolão'}</div>
+                <div style="font-size:11px; color:#64748b; margin-bottom:4px;">🆔 Cartão #${c.id ? c.id.slice(-6) : '???'} — ${c.bolao || 'Sem Bolão'}${numeros2 ? ` · <strong style="color:#10b981;">1º sorteio: ${c.acertos1}</strong> · <strong style="color:#0071e3;">2º sorteio: ${c.acertos2}</strong>` : ''}</div>
                 <div>${numsCartaoHtml}${trevosCartaoHtml}${mesCartaoHtml}</div>
             </div>`;
     }).join('');
@@ -2270,11 +2275,12 @@ function melhorResultadoAdminHtml(loteria, concurso, dadosConferidos) {
             <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:6px;">🔢 NÚMEROS SORTEADOS</div>
             ${numeros2 ? '<div style="font-size:11px; color:#64748b; margin-bottom:2px;">1º sorteio</div>' : ''}
             <div class="numeros-cartao-lista">${numerosHtml}</div>
-            ${numeros2 ? `<div style="font-size:11px; color:#64748b; margin:6px 0 2px;">2º sorteio</div><div class="numeros-cartao-lista">${numeros2Html}</div>` : ''}
+            ${numeros2 ? `<div style="font-size:11px; color:#64748b; margin:6px 0 2px;">2º sorteio</div><div class="numeros-cartao-lista">${numeros2Html}</div>
+                <div style="font-size:11px; color:#64748b; margin-top:6px;">Nos cartões: <span style="color:#10b981; font-weight:700;">■ 1º sorteio</span> · <span style="color:#0071e3; font-weight:700;">■ 2º sorteio</span> · cada sorteio é conferido à parte</div>` : ''}
             ${trevosHtml ? `<div class="numeros-cartao-lista" style="margin-top:4px;">${trevosHtml}</div>` : ''}
             ${mesSorteSorteado ? `<div class="numeros-cartao-lista" style="margin-top:4px;">${_badgeMesSorte(mesSorteSorteado)}</div>` : ''}
             <div style="font-size:13px; color:#334155; margin-top:10px;">
-                🏆 <strong>Melhor resultado: ${melhor.acertos} acertos${trevos ? ` (+${melhor.acertosTrevo} trevo${melhor.acertosTrevo===1?'':'s'})` : ''}${numeros2 ? ` (1º sorteio: ${melhor.acertos1} · 2º: ${melhor.acertos2})` : ''}</strong>
+                🏆 <strong>Melhor resultado: ${melhor.acertos} acertos${trevos ? ` (+${melhor.acertosTrevo} trevo${melhor.acertosTrevo===1?'':'s'})` : ''}${numeros2 ? ' num mesmo sorteio' : ''}</strong>
                 ${empatadosNoTopo.length > 1 ? `<span style="color:#64748b;"> (${empatadosNoTopo.length} cartões empatados nesse topo)</span>` : ''}
                 ${mesSorteSorteado ? `<div style="margin-top:4px;">📅 Acertaram o Mês da Sorte: <strong>${comAcertos.filter(c => c.acertouMes).length}</strong> cartão(ões)</div>` : ''}
             </div>
