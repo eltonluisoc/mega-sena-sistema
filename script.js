@@ -982,7 +982,7 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         // prêmios), sem duplicar os números.
         let html = gerarBannerTrofeu(melhorCartaoSalvo, melhorAcertosSalvo, loteria, sorteadosTrofeu, trevosSorteados, melhorAcertosTrevoSalvo, rotuloSorteioTrofeu);
         html += chancesHtml;
-        html += `<div class="resultado-resumo">`;
+        html += `<div class="resultado-resumo${loteria === 'duplasena' ? ' dupla' : ''}">`;
 
         if (loteria === 'mega') {
             html += `
@@ -1002,11 +1002,12 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
             html += gerarResumoPremiosMilionaria(premios);
         } else if (loteria === 'duplasena') {
             // Número grande = PRÊMIOS; embaixo, em quantos cartões saíram.
-            for (const [suf, rotulo, sorteados] of [['', '1º', numerosSorteados], ['2', '2º', numerosSorteados2 || []]]) {
+            for (const [suf, rotulo, sorteados] of [['', '1º sorteio', numerosSorteados], ['2', '2º sorteio', numerosSorteados2 || []]]) {
+                html += `<div class="resultado-resumo-titulo${suf ? ' sorteio2' : ''}">${rotulo}</div>`;
                 for (const [chave, j, cor] of [['sena', 6, '#f59e0b'], ['quina', 5, '#eab308'], ['quadra', 4, '#a855f7'], ['terno', 3, '#3b82f6']]) {
                     const qtd = premios[chave + suf];
                     const nc = qtd ? cartoesNaFaixa(cartoesOrdenados, sorteados, j) : 0;
-                    html += `<div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:${cor}">${qtd}</div><div class="resultado-resumo-label">${chave.toUpperCase()}${qtd === 1 ? '' : 'S'} ${rotulo}</div>${nc ? `<div class="resultado-resumo-sub">em ${nc} ${nc === 1 ? 'cartão' : 'cartões'}</div>` : ''}</div>`;
+                    html += `<div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:${cor}">${qtd}</div><div class="resultado-resumo-label">${chave.toUpperCase()}${qtd === 1 ? '' : 'S'}</div>${nc ? `<div class="resultado-resumo-sub">em ${nc} ${nc === 1 ? 'cartão' : 'cartões'}</div>` : ''}</div>`;
                 }
             }
         } else if (loteria === 'diadesorte') {
@@ -1023,7 +1024,7 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
                 <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#3b82f6">${premios.terno}</div><div class="resultado-resumo-label">TERNO</div></div>
                 <div class="resultado-resumo-item"><div class="resultado-resumo-numero" style="color:#64748b">${premios.duque}</div><div class="resultado-resumo-label">DUQUE</div></div>`;
         }
-        html += `<div class="resultado-resumo-item"><div class="resultado-resumo-numero">${cartoesOrdenados.length}</div><div class="resultado-resumo-label">CARTÕES</div></div>`;
+        html += `<div class="resultado-resumo-item resumo-cartoes"><div class="resultado-resumo-numero">${cartoesOrdenados.length}</div><div class="resultado-resumo-label">CARTÕES</div></div>`;
         html += `</div>`;
         html += notaApostaMultiplaHtml(cartoesOrdenados, loteria);
 
@@ -1086,7 +1087,7 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
 
             const acertouMes = !!(mesSorteSorteado && cartao.mesSorte === mesSorteSorteado);
             const rotuloAcertos = numerosSorteados2
-                ? `1º: ${cartao.numeros.filter(n => numerosSorteados.includes(n)).length} · 2º: ${cartao.numeros.filter(n => numerosSorteados2.includes(n)).length} acertos`
+                ? `1º sorteio: ${cartao.numeros.filter(n => numerosSorteados.includes(n)).length} · 2º sorteio: ${cartao.numeros.filter(n => numerosSorteados2.includes(n)).length}`
                 : (acertosTrevo === null ? `${acertos} acertos` : `${acertos} núm + ${acertosTrevo} trevo${acertosTrevo === 1 ? '' : 's'}`)
                 + (acertouMes ? ' + mês' : '');
 

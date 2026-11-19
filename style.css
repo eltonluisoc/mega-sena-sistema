@@ -484,6 +484,12 @@ button:hover {
 .linha-sorteio-rotulo { font-size: 11px; font-weight: 600; color: #2e7d32; margin-bottom: 3px; }
 .linha-sorteio.sorteio2 .linha-sorteio-rotulo { color: #0071e3; }
 .resultado-resumo-sub { font-size: 10px; color: #64748b; margin-top: 2px; }
+.resultado-resumo-titulo { grid-column: 1 / -1; font-size: 12px; font-weight: 800; color: #2e7d32; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 2px; }
+.resultado-resumo-titulo.sorteio2 { color: #0071e3; margin-top: 6px; }
+/* Dupla Sena: 4 faixas por sorteio numa linha (Senas, Quinas, Quadras, Ternos) */
+.resultado-resumo.dupla { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding: 12px; }
+.resultado-resumo.dupla .resultado-resumo-item { padding: 8px 2px; }
+.resultado-resumo.dupla .resumo-cartoes { grid-column: 1 / -1; margin-top: 4px; }
 .legenda-sorteios { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; justify-content: center; font-size: 11px; color: #64748b; margin: 4px 0 12px; }
 .legenda-sorteios .numero-acertado { padding: 2px 6px; font-size: 10px; color: transparent; }
 .numero-acertado {
