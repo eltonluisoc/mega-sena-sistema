@@ -112,3 +112,11 @@ test('setas só com 3+ acertos no sorteio (v120)', () => {
   assert.equal(site.gruposComSetas([{ sorteados: [1, 2, 50, 51, 52, 53] }], [1, 2, 3, 4, 5, 6]).length, 0); // 2 acertos
   assert.equal(site.gruposComSetas([{ sorteados: [1, 2, 3, 51, 52, 53] }], [1, 2, 3, 4, 5, 6]).length, 1); // 3 acertos
 });
+
+test('sublinhado "quase" nos outros cartões: só com 3+ acertos e a até 2 (v121, concurso 3034)', () => {
+  const s1 = [8, 11, 15, 22, 28, 37];
+  const q = (numeros, s) => plano([...site.numerosQuase(numeros, s).entries()]);
+  assert.deepEqual(q([5, 11, 15, 18, 24, 31, 37, 42], s1), [[24, 22]]);   // KCIFyU: 3 acertos, 24 perto do 22
+  assert.deepEqual(q([5, 7, 15, 22, 28, 29, 47, 49], s1), [[7, 8]]);      // 5cAtcp: 07 perto do 08
+  assert.deepEqual(q([11, 16, 20, 25, 28, 29, 48, 50], s1), []);          // UNSRFL: só 2 acertos, sem sublinhado
+});

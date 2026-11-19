@@ -27,16 +27,34 @@ const TODAS_LOTERIAS = ['mega', 'lotofacil', 'quina', 'maismilionaria', 'diadeso
 const NOME_FAIXA_DUPLA = { 6: 'SENA', 5: 'QUINA', 4: 'QUADRA', 3: 'TERNO' };
 // comIds: só no melhor cartão — é nele que as setas "quase acertou" apontam
 // (cartaonum-N na linha do 1º sorteio, cartaonum2-N na do 2º).
-function linhasDuplaSenaHtml(numeros, sorteados, sorteados2, comIds = false) {
+// v121: números "quase" (a até 2 de um sorteado, mesma regra das setas,
+// só com 3+ acertos naquele sorteio). Devolve Map número do cartão ->
+// número sorteado de que ficou perto. Usado pra SUBLINHAR nos cartões que
+// não são o melhor (o melhor já tem as setas).
+function numerosQuase(numeros, sorteados) {
+    const quase = new Map();
+    if (!sorteados || numeros.filter(n => sorteados.includes(n)).length < MIN_ACERTOS_SETAS) return quase;
+    for (const [sorteado, doCartao] of calcularParesProximidade(sorteados, numeros)) quase.set(doCartao, sorteado);
+    return quase;
+}
+function _spanNumeroCartao(n, classeAcerto, acertou, quase, idAttr = '') {
+    const perto = !acertou && quase && quase.has(n);
+    const classe = acertou ? classeAcerto : 'numero-normal' + (perto ? ' numero-quase' : '');
+    const titulo = perto ? ` title="Ficou perto do ${String(quase.get(n)).padStart(2, '0')} sorteado"` : '';
+    return `<span${idAttr} class="${classe}"${titulo}>${n.toString().padStart(2, '0')}</span>`;
+}
+
+function linhasDuplaSenaHtml(numeros, sorteados, sorteados2, comIds = false, sublinhar = false) {
     return [[sorteados, '1º sorteio', '', 'cartaonum-'], [sorteados2, '2º sorteio', ' sorteio2', 'cartaonum2-']].map(([s, rotulo, cls, pref]) => {
         const a = numeros.filter(n => s.includes(n)).length;
+        const quase = sublinhar ? numerosQuase(numeros, s) : null;
         const qtd = contarPremiosPorFaixa(numeros.length, a, 6)[a] || 0;
         const faixa = NOME_FAIXA_DUPLA[a]
             ? ` · <strong>${NOME_FAIXA_DUPLA[a]}</strong>${qtd > 1 ? ` (${qtd} prêmios)` : ''}` : '';
         return `<div class="linha-sorteio${cls}">
             <div class="linha-sorteio-rotulo">${rotulo}: ${a} acerto${a === 1 ? '' : 's'}${faixa}</div>
-            <div class="cartao-numeros">${numeros.map(n =>
-                `<span${comIds ? ` id="${pref}${n}"` : ''} class="${s.includes(n) ? 'numero-acertado' + cls : 'numero-normal'}">${n.toString().padStart(2, '0')}</span>`).join('')}</div>
+            <div class="cartao-numeros${cls}">${numeros.map(n =>
+                _spanNumeroCartao(n, 'numero-acertado' + cls, s.includes(n), quase, comIds ? ` id="${pref}${n}"` : '')).join('')}</div>
         </div>`;
     }).join('');
 }
@@ -1055,6 +1073,9 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
             html += `<div class="numeros-sorteados"><div class="numero-sorteado-card" style="background:#b45309;width:auto;padding:0 14px;">${nomeMesSorte(mesSorteSorteado)}</div></div>`;
         }
 
+        // Sublinhado "quase" nos outros cartões: mesmas loterias das setas.
+        const comSublinhado = LOTERIAS_COM_SETAS.includes(loteria);
+        if (comSublinhado) html += `<div class="legenda-quase">🎯 <strong>Ficou perto:</strong> seta no melhor cartão e <span class="quase-exemplo">número sublinhado</span> nos outros, quando o cartão acertou 3 ou mais e o número ficou a até 2 de um sorteado.</div>`;
         let _indiceCartao = -1;
         for (const cartao of cartoesOrdenados) {
             _indiceCartao++;
@@ -1100,12 +1121,12 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
                             <span class="cartao-bolao">${cartao.bolao} - ${tipoParticipacao}</span>
                             <span class="cartao-acertos" style="background:${corAcertos};">${rotuloAcertos}</span>
                         </div>
-                        ${numerosSorteados2 ? linhasDuplaSenaHtml(cartao.numeros, numerosSorteados, numerosSorteados2, _indiceCartao === 0) : `<div class="cartao-numeros">
-                            ${cartao.numeros.map(n => {
-                                const acertou = numerosSorteados.includes(n);
-                                const idAttr = _indiceCartao === 0 ? ` id="cartaonum-${n}"` : '';
-                                return `<span${idAttr} class="${acertou ? 'numero-acertado' : 'numero-normal'}">${n.toString().padStart(2,'0')}</span>`;
-                            }).join('')}
+                        ${numerosSorteados2 ? linhasDuplaSenaHtml(cartao.numeros, numerosSorteados, numerosSorteados2, _indiceCartao === 0, comSublinhado && _indiceCartao > 0) : `<div class="cartao-numeros">
+                            ${(() => {
+                                const quase = comSublinhado && _indiceCartao > 0 ? numerosQuase(cartao.numeros, numerosSorteados) : null;
+                                return cartao.numeros.map(n => _spanNumeroCartao(n, 'numero-acertado', numerosSorteados.includes(n), quase,
+                                    _indiceCartao === 0 ? ` id="cartaonum-${n}"` : '')).join('');
+                            })()}
                         </div>`}
                         ${cartao.trevos ? `<div class="cartao-numeros" style="margin-top:4px;">
                             ${cartao.trevos.map(t => {

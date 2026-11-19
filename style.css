@@ -481,6 +481,11 @@ button:hover {
 /* Dupla Sena: 2º sorteio em azul; número que saiu nos 2 sorteios, metade de cada */
 .numero-acertado.sorteio2, .numero-sorteado-card.sorteio2 { background: #0071e3; }
 .linha-sorteio { margin-top: 6px; }
+/* v121: número que ficou perto de um sorteado (cartões que não são o melhor) */
+.numero-normal.numero-quase { box-shadow: inset 0 -3px 0 #991b1b; font-weight: 700; color: #991b1b; }
+.cartao-numeros.sorteio2 .numero-normal.numero-quase { box-shadow: inset 0 -3px 0 #1e3a8a; color: #1e3a8a; }
+.legenda-quase { font-size: 11px; color: #64748b; text-align: center; line-height: 1.5; margin: 2px 8px 12px; }
+.quase-exemplo { color: #991b1b; font-weight: 700; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
 .linha-sorteio-rotulo { font-size: 11px; font-weight: 600; color: #2e7d32; margin-bottom: 3px; }
 .linha-sorteio.sorteio2 .linha-sorteio-rotulo { color: #0071e3; }
 .resultado-resumo-sub { font-size: 10px; color: #64748b; margin-top: 2px; }
