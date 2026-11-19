@@ -1,0 +1,503 @@
+{
+ "origem": "Comprovante real Dupla Sena, concurso 3034, 10 jogos (nome, CPF e código removidos)",
+ "texto": "Loterias\nComprovante de Aposta Bolão Dupla Sena\nDados da Aposta\nTESTE\nNome: TESTE CPF: 000.000.000-00\nTESTE\nData da aposta: 16/11/2026 Subcanal da compra: WEB\nHora da aposta: 21:47:34 Data da compra: 18/11/2026\nValor total da\nR$ 22,68 Hora da compra: 17:09:00\naposta:\nValor da cota: R$ 16,80 Data do sorteio: 18/11/2026\nValor tarifa de\nR$ 5,88 Código E. Lotérico: 21.019334-4\nserviço:\nModalidade: Dupla Sena Terminal aposta: 4646\nCota: 6/50 Concurso: 3034\nSeus Números:\nJogo 1 Jogo 2\n03 | 05 | 09 | 32 | 39 | 41 | 46 | 50 02 | 03 | 05 | 06 | 12 | 24 | 28 | 47\nJogo 3 Jogo 4\n02 | 14 | 20 | 29 | 33 | 41 | 46 | 47 09 | 10 | 11 | 13 | 14 | 25 | 26 | 33\nJogo 5 Jogo 6\n13 | 14 | 15 | 27 | 32 | 34 | 38 | 49 01 | 07 | 14 | 21 | 30 | 42 | 47 | 48\nJogo 7 Jogo 8\n02 | 03 | 13 | 14 | 25 | 40 | 42 | 48 02 | 21 | 25 | 26 | 30 | 32 | 45 | 47\nJogo 9 Jogo 10\n03 | 09 | 12 | 15 | 30 | 37 | 38 | 44 04 | 07 | 08 | 10 | 15 | 28 | 32 | 37\nESTE RECIBO PARTICIPA COM 01 COTA DO TOTAL DE 50 COTAS\nValidade do prêmio: 90 dias\nCODIGO\n0800 726 0101 4004 0104 0800 104 0104 0800 726 0207 0800 725 7474\nAlô CAIXA:(Demais Atendimento CAIXA\nSAC(Sugestões, reclamações e elogios) Alô CAIXA:(Regiões Metropolitanas) Ouvidoria\nRegiões) Cidadão\nPágina: 1 de 1\n\n",
+ "itens": [
+  {
+   "str": "Dados da Aposta",
+   "x": 36,
+   "y": 731,
+   "width": 81.68,
+   "fontSize": 10
+  },
+  {
+   "str": "ESTE RECIBO PARTICIPA COM 01 COTA DO TOTAL DE 50 COTAS",
+   "x": 109.12,
+   "y": 325,
+   "width": 376.76,
+   "fontSize": 12
+  },
+  {
+   "str": "Validade do prêmio: 90 dias",
+   "x": 235.52,
+   "y": 305,
+   "width": 123.95,
+   "fontSize": 10
+  },
+  {
+   "str": "Loterias",
+   "x": 36,
+   "y": 786,
+   "width": 46.68,
+   "fontSize": 12
+  },
+  {
+   "str": "Comprovante de Aposta Bolão Dupla Sena",
+   "x": 36,
+   "y": 768,
+   "width": 244.04,
+   "fontSize": 12
+  },
+  {
+   "str": "Nome:",
+   "x": 50,
+   "y": 682,
+   "width": 31.11,
+   "fontSize": 10
+  },
+  {
+   "str": "CPF:",
+   "x": 299.5,
+   "y": 682,
+   "width": 23.33,
+   "fontSize": 10
+  },
+  {
+   "str": "Data da aposta:",
+   "x": 50,
+   "y": 663,
+   "width": 74.46,
+   "fontSize": 10
+  },
+  {
+   "str": "16/11/2026",
+   "x": 149.8,
+   "y": 663,
+   "width": 50.04,
+   "fontSize": 10
+  },
+  {
+   "str": "Subcanal da compra:",
+   "x": 299.5,
+   "y": 663,
+   "width": 101.14,
+   "fontSize": 10
+  },
+  {
+   "str": "WEB",
+   "x": 449.2,
+   "y": 663,
+   "width": 22.78,
+   "fontSize": 10
+  },
+  {
+   "str": "Hora da aposta:",
+   "x": 50,
+   "y": 649,
+   "width": 75.57,
+   "fontSize": 10
+  },
+  {
+   "str": "21:47:34",
+   "x": 149.8,
+   "y": 649,
+   "width": 38.92,
+   "fontSize": 10
+  },
+  {
+   "str": "Data da compra:",
+   "x": 299.5,
+   "y": 649,
+   "width": 78.35,
+   "fontSize": 10
+  },
+  {
+   "str": "18/11/2026",
+   "x": 449.2,
+   "y": 649,
+   "width": 50.04,
+   "fontSize": 10
+  },
+  {
+   "str": "Valor total da",
+   "x": 50,
+   "y": 635,
+   "width": 63.35,
+   "fontSize": 10
+  },
+  {
+   "str": "aposta:",
+   "x": 50,
+   "y": 625,
+   "width": 35.56,
+   "fontSize": 10
+  },
+  {
+   "str": "R$ 22,68",
+   "x": 149.8,
+   "y": 630,
+   "width": 40.58,
+   "fontSize": 10
+  },
+  {
+   "str": "Hora da compra:",
+   "x": 299.5,
+   "y": 630,
+   "width": 79.46,
+   "fontSize": 10
+  },
+  {
+   "str": "17:09:00",
+   "x": 449.2,
+   "y": 630,
+   "width": 38.92,
+   "fontSize": 10
+  },
+  {
+   "str": "Valor da cota:",
+   "x": 50,
+   "y": 611,
+   "width": 66.13,
+   "fontSize": 10
+  },
+  {
+   "str": "R$ 16,80",
+   "x": 149.8,
+   "y": 611,
+   "width": 40.58,
+   "fontSize": 10
+  },
+  {
+   "str": "Data do sorteio:",
+   "x": 299.5,
+   "y": 611,
+   "width": 76.12,
+   "fontSize": 10
+  },
+  {
+   "str": "18/11/2026",
+   "x": 449.2,
+   "y": 611,
+   "width": 50.04,
+   "fontSize": 10
+  },
+  {
+   "str": "Valor tarifa de",
+   "x": 50,
+   "y": 597,
+   "width": 66.69,
+   "fontSize": 10
+  },
+  {
+   "str": "serviço:",
+   "x": 50,
+   "y": 587,
+   "width": 38.35,
+   "fontSize": 10
+  },
+  {
+   "str": "R$ 5,88",
+   "x": 149.8,
+   "y": 592,
+   "width": 35.02,
+   "fontSize": 10
+  },
+  {
+   "str": "Código E. Lotérico:",
+   "x": 299.5,
+   "y": 592,
+   "width": 92.23,
+   "fontSize": 10
+  },
+  {
+   "str": "21.019334-4",
+   "x": 449.2,
+   "y": 592,
+   "width": 56.15,
+   "fontSize": 10
+  },
+  {
+   "str": "Modalidade:",
+   "x": 50,
+   "y": 573,
+   "width": 58.34,
+   "fontSize": 10
+  },
+  {
+   "str": "Dupla Sena",
+   "x": 149.8,
+   "y": 573,
+   "width": 52.25,
+   "fontSize": 10
+  },
+  {
+   "str": "Terminal aposta:",
+   "x": 299.5,
+   "y": 573,
+   "width": 80.02,
+   "fontSize": 10
+  },
+  {
+   "str": "4646",
+   "x": 449.2,
+   "y": 573,
+   "width": 22.24,
+   "fontSize": 10
+  },
+  {
+   "str": "Cota:",
+   "x": 50,
+   "y": 559,
+   "width": 25.55,
+   "fontSize": 10
+  },
+  {
+   "str": "6/50",
+   "x": 149.8,
+   "y": 559,
+   "width": 19.46,
+   "fontSize": 10
+  },
+  {
+   "str": "Concurso:",
+   "x": 299.5,
+   "y": 559,
+   "width": 50,
+   "fontSize": 10
+  },
+  {
+   "str": "3034",
+   "x": 449.2,
+   "y": 559,
+   "width": 22.24,
+   "fontSize": 10
+  },
+  {
+   "str": "Seus Números:",
+   "x": 38,
+   "y": 524,
+   "width": 73.35,
+   "fontSize": 10
+  },
+  {
+   "str": "Jogo 1",
+   "x": 38,
+   "y": 501,
+   "width": 32.23,
+   "fontSize": 10
+  },
+  {
+   "str": "03 | 05 | 09 | 32 | 39 | 41 | 46 | 50",
+   "x": 38,
+   "y": 487,
+   "width": 147.48,
+   "fontSize": 10
+  },
+  {
+   "str": "Jogo 2",
+   "x": 299.5,
+   "y": 501,
+   "width": 32.23,
+   "fontSize": 10
+  },
+  {
+   "str": "02 | 03 | 05 | 06 | 12 | 24 | 28 | 47",
+   "x": 299.5,
+   "y": 487,
+   "width": 147.48,
+   "fontSize": 10
+  },
+  {
+   "str": "Jogo 3",
+   "x": 38,
+   "y": 468,
+   "width": 32.23,
+   "fontSize": 10
+  },
+  {
+   "str": "02 | 14 | 20 | 29 | 33 | 41 | 46 | 47",
+   "x": 38,
+   "y": 454,
+   "width": 147.48,
+   "fontSize": 10
+  },
+  {
+   "str": "Jogo 4",
+   "x": 299.5,
+   "y": 468,
+   "width": 32.23,
+   "fontSize": 10
+  },
+  {
+   "str": "09 | 10 | 11 | 13 | 14 | 25 | 26 | 33",
+   "x": 299.5,
+   "y": 454,
+   "width": 147.48,
+   "fontSize": 10
+  },
+  {
+   "str": "Jogo 5",
+   "x": 38,
+   "y": 435,
+   "width": 32.23,
+   "fontSize": 10
+  },
+  {
+   "str": "13 | 14 | 15 | 27 | 32 | 34 | 38 | 49",
+   "x": 38,
+   "y": 421,
+   "width": 147.48,
+   "fontSize": 10
+  },
+  {
+   "str": "Jogo 6",
+   "x": 299.5,
+   "y": 435,
+   "width": 32.23,
+   "fontSize": 10
+  },
+  {
+   "str": "01 | 07 | 14 | 21 | 30 | 42 | 47 | 48",
+   "x": 299.5,
+   "y": 421,
+   "width": 147.48,
+   "fontSize": 10
+  },
+  {
+   "str": "Jogo 7",
+   "x": 38,
+   "y": 402,
+   "width": 32.23,
+   "fontSize": 10
+  },
+  {
+   "str": "02 | 03 | 13 | 14 | 25 | 40 | 42 | 48",
+   "x": 38,
+   "y": 388,
+   "width": 147.48,
+   "fontSize": 10
+  },
+  {
+   "str": "Jogo 8",
+   "x": 299.5,
+   "y": 402,
+   "width": 32.23,
+   "fontSize": 10
+  },
+  {
+   "str": "02 | 21 | 25 | 26 | 30 | 32 | 45 | 47",
+   "x": 299.5,
+   "y": 388,
+   "width": 147.48,
+   "fontSize": 10
+  },
+  {
+   "str": "Jogo 9",
+   "x": 38,
+   "y": 369,
+   "width": 32.23,
+   "fontSize": 10
+  },
+  {
+   "str": "03 | 09 | 12 | 15 | 30 | 37 | 38 | 44",
+   "x": 38,
+   "y": 355,
+   "width": 147.48,
+   "fontSize": 10
+  },
+  {
+   "str": "Jogo 10",
+   "x": 299.5,
+   "y": 369,
+   "width": 37.79,
+   "fontSize": 10
+  },
+  {
+   "str": "04 | 07 | 08 | 10 | 15 | 28 | 32 | 37",
+   "x": 299.5,
+   "y": 355,
+   "width": 147.48,
+   "fontSize": 10
+  },
+  {
+   "str": "0800 726 0101",
+   "x": 36,
+   "y": 50,
+   "width": 53.38,
+   "fontSize": 8
+  },
+  {
+   "str": "4004 0104",
+   "x": 189.85,
+   "y": 50,
+   "width": 37.81,
+   "fontSize": 8
+  },
+  {
+   "str": "0800 104 0104",
+   "x": 324.46,
+   "y": 50,
+   "width": 53.38,
+   "fontSize": 8
+  },
+  {
+   "str": "0800 726 0207",
+   "x": 401.38,
+   "y": 50,
+   "width": 53.38,
+   "fontSize": 8
+  },
+  {
+   "str": "0800 725 7474",
+   "x": 478.31,
+   "y": 50,
+   "width": 53.38,
+   "fontSize": 8
+  },
+  {
+   "str": "SAC(Sugestões, reclamações e elogios)",
+   "x": 36,
+   "y": 34,
+   "width": 143.61,
+   "fontSize": 8
+  },
+  {
+   "str": "Alô CAIXA:(Regiões Metropolitanas)",
+   "x": 189.85,
+   "y": 34,
+   "width": 129.38,
+   "fontSize": 8
+  },
+  {
+   "str": "Alô CAIXA:(Demais",
+   "x": 324.46,
+   "y": 38,
+   "width": 69.79,
+   "fontSize": 8
+  },
+  {
+   "str": "Regiões)",
+   "x": 324.46,
+   "y": 30,
+   "width": 32.01,
+   "fontSize": 8
+  },
+  {
+   "str": "Atendimento CAIXA",
+   "x": 401.38,
+   "y": 38,
+   "width": 71.14,
+   "fontSize": 8
+  },
+  {
+   "str": "Cidadão",
+   "x": 401.38,
+   "y": 30,
+   "width": 29.79,
+   "fontSize": 8
+  },
+  {
+   "str": "Ouvidoria",
+   "x": 478.31,
+   "y": 34,
+   "width": 34.23,
+   "fontSize": 8
+  },
+  {
+   "str": "Página: 1 de 1",
+   "x": 494.51,
+   "y": 11,
+   "width": 64.49,
+   "fontSize": 10
+  }
+ ]
+}

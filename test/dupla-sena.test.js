@@ -120,3 +120,19 @@ test('sublinhado "quase" nos outros cartões: só com 3+ acertos e a até 2 (v12
   assert.deepEqual(q([5, 7, 15, 22, 28, 29, 47, 49], s1), [[7, 8]]);      // 5cAtcp: 07 perto do 08
   assert.deepEqual(q([11, 16, 20, 25, 28, 29, 48, 50], s1), []);          // UNSRFL: só 2 acertos, sem sublinhado
 });
+
+test('PDF REAL (concurso 3034, 10 jogos em 2 colunas): extração por posição do pdf.js', () => {
+  const fx = require('./fixtures/dupla-sena-3034-real.json');
+  const ex = admin.extrairJogosDeItensPosicionados(fx.itens);
+  const r = admin.parsearComprovanteCaixa(fx.texto, { loteriaEsperada: 'duplasena', concursoEsperado: '3034', jogosPreExtraidos: ex.jogos });
+  assert.equal(r.status, 'ok', r.erro);
+  assert.equal(r.modalidade, 'duplasena');
+  assert.equal(r.concurso, '3034');
+  assert.deepEqual(plano(r.divergencias), []);
+  // a ordem segue as colunas do comprovante (esquerda, depois direita) — não importa pro cadastro
+  assert.deepEqual(plano(r.validacao.map(v => v.jogo.join('-')).sort()), [
+    '3-5-9-32-39-41-46-50', '2-3-5-6-12-24-28-47', '2-14-20-29-33-41-46-47', '9-10-11-13-14-25-26-33',
+    '13-14-15-27-32-34-38-49', '1-7-14-21-30-42-47-48', '2-3-13-14-25-40-42-48', '2-21-25-26-30-32-45-47',
+    '3-9-12-15-30-37-38-44', '4-7-8-10-15-28-32-37'].sort());
+  assert.ok(r.validacao.every(v => v.ok));
+});
