@@ -25,8 +25,10 @@ const TODAS_LOTERIAS = ['mega', 'lotofacil', 'quina', 'maismilionaria', 'diadeso
 // quadra do 2º + 1 número do 1º parecer quina) e o nome da faixa com
 // quantos prêmios ela rende (cartão de 8 dezenas = 28 apostas simples).
 const NOME_FAIXA_DUPLA = { 6: 'SENA', 5: 'QUINA', 4: 'QUADRA', 3: 'TERNO' };
-function linhasDuplaSenaHtml(numeros, sorteados, sorteados2) {
-    return [[sorteados, '1º sorteio', ''], [sorteados2, '2º sorteio', ' sorteio2']].map(([s, rotulo, cls]) => {
+// comIds: só no melhor cartão — é nele que as setas "quase acertou" apontam
+// (cartaonum-N na linha do 1º sorteio, cartaonum2-N na do 2º).
+function linhasDuplaSenaHtml(numeros, sorteados, sorteados2, comIds = false) {
+    return [[sorteados, '1º sorteio', '', 'cartaonum-'], [sorteados2, '2º sorteio', ' sorteio2', 'cartaonum2-']].map(([s, rotulo, cls, pref]) => {
         const a = numeros.filter(n => s.includes(n)).length;
         const qtd = contarPremiosPorFaixa(numeros.length, a, 6)[a] || 0;
         const faixa = NOME_FAIXA_DUPLA[a]
@@ -34,7 +36,7 @@ function linhasDuplaSenaHtml(numeros, sorteados, sorteados2) {
         return `<div class="linha-sorteio${cls}">
             <div class="linha-sorteio-rotulo">${rotulo}: ${a} acerto${a === 1 ? '' : 's'}${faixa}</div>
             <div class="cartao-numeros">${numeros.map(n =>
-                `<span class="${s.includes(n) ? 'numero-acertado' + cls : 'numero-normal'}">${n.toString().padStart(2, '0')}</span>`).join('')}</div>
+                `<span${comIds ? ` id="${pref}${n}"` : ''} class="${s.includes(n) ? 'numero-acertado' + cls : 'numero-normal'}">${n.toString().padStart(2, '0')}</span>`).join('')}</div>
         </div>`;
     }).join('');
 }
@@ -1040,7 +1042,7 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         html += `<div class="numeros-sorteados" id="numerosSorteadosLista">${numerosSorteados.map(n => `<div class="numero-sorteado-card" id="sorteado-${n}">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`;
         if (numerosSorteados2) {
             html += `<div class="numeros-sorteados-titulo">🎱 2º Sorteio</div>`;
-            html += `<div class="numeros-sorteados">${numerosSorteados2.map(n => `<div class="numero-sorteado-card sorteio2">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`;
+            html += `<div class="numeros-sorteados">${numerosSorteados2.map(n => `<div class="numero-sorteado-card sorteio2" id="sorteado2-${n}">${n.toString().padStart(2,'0')}</div>`).join('')}</div>`;
             html += `<div class="legenda-sorteios">Cada cartão é conferido em cada sorteio separadamente: <span class="numero-acertado">00</span> acerto no 1º <span class="numero-acertado sorteio2">00</span> acerto no 2º</div>`;
         }
         if (loteria === 'maismilionaria' && trevosSorteados) {
@@ -1097,7 +1099,7 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
                             <span class="cartao-bolao">${cartao.bolao} - ${tipoParticipacao}</span>
                             <span class="cartao-acertos" style="background:${corAcertos};">${rotuloAcertos}</span>
                         </div>
-                        ${numerosSorteados2 ? linhasDuplaSenaHtml(cartao.numeros, numerosSorteados, numerosSorteados2) : `<div class="cartao-numeros">
+                        ${numerosSorteados2 ? linhasDuplaSenaHtml(cartao.numeros, numerosSorteados, numerosSorteados2, _indiceCartao === 0) : `<div class="cartao-numeros">
                             ${cartao.numeros.map(n => {
                                 const acertou = numerosSorteados.includes(n);
                                 const idAttr = _indiceCartao === 0 ? ` id="cartaonum-${n}"` : '';
@@ -1135,8 +1137,16 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         // próximo"), focando sempre no melhor cartão (cartoesOrdenados[0]
         // — ver melhorCartaoSalvo acima). Espera o layout assentar
         // (requestAnimationFrame) antes de medir posição dos números.
-        if (loteria === 'mega' && melhorCartaoSalvo) {
-            requestAnimationFrame(() => desenharSetasProximidade(numerosSorteados, melhorCartaoSalvo.numeros));
+        // v118: também Quina, +Milionária e Dupla Sena (pedido do usuário:
+        // "fundamentais pra mostrar como perto ficamos"). Lotofácil (15 de
+        // 25) e Dia de Sorte (7 de 31) ficam de fora: dezenas tão densas
+        // que quase todo número fica a 2 de outro — as setas virariam ruído.
+        // Dupla Sena: 1 grupo de setas por sorteio, cada um apontando pra
+        // linha daquele sorteio no melhor cartão.
+        if (LOTERIAS_COM_SETAS.includes(loteria) && melhorCartaoSalvo) {
+            const grupos = [{ sorteados: numerosSorteados, idOrigem: 'sorteado-', idDestino: 'cartaonum-', cor: '#991b1b' }];
+            if (numerosSorteados2) grupos.push({ sorteados: numerosSorteados2, idOrigem: 'sorteado2-', idDestino: 'cartaonum2-', cor: '#1e3a8a' });
+            requestAnimationFrame(() => desenharSetasProximidade(grupos, melhorCartaoSalvo.numeros));
         }
 
         console.log(`✅ Resultado exibido com ${cartoesOrdenados.length} cartões ordenados`);
@@ -1157,6 +1167,7 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
 // distância, desenha uma seta ligando os dois — só no melhor cartão
 // (cartoesOrdenados[0]), não em todos, pra não poluir a tela.
 let _setasProximidadeResizeListener = null;
+const LOTERIAS_COM_SETAS = ['mega', 'quina', 'maismilionaria', 'duplasena'];
 
 // Função pura (sem DOM) — fácil de testar isolada. Pra cada número
 // sorteado que NÃO foi acerto, acha o número do cartão (também sem ser
@@ -1196,7 +1207,11 @@ function calcularParesProximidade(numerosSorteados, numerosCartao) {
     return pares;
 }
 
-function desenharSetasProximidade(numerosSorteados, numerosCartao) {
+function desenharSetasProximidade(grupos, numerosCartao) {
+    // Compatível com a chamada antiga (lista de números sorteados).
+    if (Array.isArray(grupos) && typeof grupos[0] === 'number') {
+        grupos = [{ sorteados: grupos, idOrigem: 'sorteado-', idDestino: 'cartaonum-', cor: '#991b1b' }];
+    }
     // Remove a seta antiga (se o usuário trocar de concurso/bolão e essa
     // função rodar de novo) antes de desenhar a nova.
     const svgAntigo = document.getElementById('svgSetasProximidade');
@@ -1206,8 +1221,9 @@ function desenharSetasProximidade(numerosSorteados, numerosCartao) {
     const container = document.getElementById('melhorCartaoContainer');
     if (!area || !container) return;
 
-    const pares = calcularParesProximidade(numerosSorteados, numerosCartao);
-    if (pares.length === 0) return;
+    const todosPares = grupos.flatMap(g => calcularParesProximidade(g.sorteados, numerosCartao)
+        .map(par => ({ par, g })));
+    if (todosPares.length === 0) return;
 
     const areaRect = area.getBoundingClientRect();
     area.style.position = area.style.position || 'relative';
@@ -1220,16 +1236,17 @@ function desenharSetasProximidade(numerosSorteados, numerosCartao) {
     svg.style.cssText = 'position:absolute; top:0; left:0; pointer-events:none; z-index:5; overflow:visible;';
 
     svg.innerHTML = `
-        <defs>
-            <marker id="setaProximidadePonta" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
-                <path d="M0,0 L8,4 L0,8 Z" fill="#991b1b"></path>
-            </marker>
+        <defs>${[...new Set(grupos.map(g => g.cor))].map((cor, i) => `
+            <marker id="setaProximidadePonta${i}" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+                <path d="M0,0 L8,4 L0,8 Z" fill="${cor}"></path>
+            </marker>`).join('')}
         </defs>`;
+    const coresMarcador = [...new Set(grupos.map(g => g.cor))];
 
     let setasDesenhadas = 0;
-    for (const [sorteado, doCartao] of pares) {
-        const elOrigem = document.getElementById(`sorteado-${sorteado}`);
-        const elDestino = document.getElementById(`cartaonum-${doCartao}`);
+    for (const { par: [sorteado, doCartao], g } of todosPares) {
+        const elOrigem = document.getElementById(`${g.idOrigem}${sorteado}`);
+        const elDestino = document.getElementById(`${g.idDestino}${doCartao}`);
         if (!elOrigem || !elDestino) continue;
 
         const rOrigem = elOrigem.getBoundingClientRect();
@@ -1249,10 +1266,10 @@ function desenharSetasProximidade(numerosSorteados, numerosCartao) {
         const meioY = (y1 + y2Final) / 2;
         const path = document.createElementNS(svgNS, 'path');
         path.setAttribute('d', `M ${x1} ${y1} C ${x1} ${meioY}, ${x2} ${meioY}, ${x2} ${y2Final}`);
-        path.setAttribute('stroke', '#991b1b');
+        path.setAttribute('stroke', g.cor);
         path.setAttribute('stroke-width', '3');
         path.setAttribute('fill', 'none');
-        path.setAttribute('marker-end', 'url(#setaProximidadePonta)');
+        path.setAttribute('marker-end', `url(#setaProximidadePonta${coresMarcador.indexOf(g.cor)})`);
         svg.appendChild(path);
         setasDesenhadas++;
     }
@@ -1266,7 +1283,7 @@ function desenharSetasProximidade(numerosSorteados, numerosCartao) {
     if (_setasProximidadeResizeListener) {
         window.removeEventListener('resize', _setasProximidadeResizeListener);
     }
-    _setasProximidadeResizeListener = () => desenharSetasProximidade(numerosSorteados, numerosCartao);
+    _setasProximidadeResizeListener = () => desenharSetasProximidade(grupos, numerosCartao);
     window.addEventListener('resize', _setasProximidadeResizeListener);
 }
 
