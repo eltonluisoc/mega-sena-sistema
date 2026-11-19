@@ -104,3 +104,11 @@ test('caso real 3034: cada sorteio numa linha, quadra do 2º não vira "quina"',
   assert.equal(site.cartoesNaFaixa(cartoes, s1, 4), 2);
   assert.equal(site.cartoesNaFaixa(cartoes, s2, 4), 1);
 });
+
+test('setas só com 3+ acertos no sorteio (v120)', () => {
+  const cartao = [4, 7, 8, 10, 15, 28, 32, 37];   // 1º: 4 acertos, 2º: 1 acerto (concurso 3034)
+  const grupos = [{ sorteados: [8, 11, 15, 22, 28, 37], id: 1 }, { sorteados: [19, 22, 23, 28, 30, 48], id: 2 }];
+  assert.deepEqual(plano(site.gruposComSetas(grupos, cartao).map(g => g.id)), [1]);
+  assert.equal(site.gruposComSetas([{ sorteados: [1, 2, 50, 51, 52, 53] }], [1, 2, 3, 4, 5, 6]).length, 0); // 2 acertos
+  assert.equal(site.gruposComSetas([{ sorteados: [1, 2, 3, 51, 52, 53] }], [1, 2, 3, 4, 5, 6]).length, 1); // 3 acertos
+});

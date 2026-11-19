@@ -1087,7 +1087,7 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
 
             const acertouMes = !!(mesSorteSorteado && cartao.mesSorte === mesSorteSorteado);
             const rotuloAcertos = numerosSorteados2
-                ? `1º sorteio: ${cartao.numeros.filter(n => numerosSorteados.includes(n)).length} · 2º sorteio: ${cartao.numeros.filter(n => numerosSorteados2.includes(n)).length}`
+                ? `<span style="white-space:nowrap">1º sorteio: ${cartao.numeros.filter(n => numerosSorteados.includes(n)).length}</span> · <span style="white-space:nowrap">2º sorteio: ${cartao.numeros.filter(n => numerosSorteados2.includes(n)).length}</span>`
                 : (acertosTrevo === null ? `${acertos} acertos` : `${acertos} núm + ${acertosTrevo} trevo${acertosTrevo === 1 ? '' : 's'}`)
                 + (acertouMes ? ' + mês' : '');
 
@@ -1169,6 +1169,13 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
 // (cartoesOrdenados[0]), não em todos, pra não poluir a tela.
 let _setasProximidadeResizeListener = null;
 const LOTERIAS_COM_SETAS = ['mega', 'quina', 'maismilionaria', 'duplasena'];
+// v120: pedido do usuário — seta só quando o cartão acertou pelo menos 3
+// números NAQUELE sorteio (aí o "quase" significa quadra/quina/sena);
+// com 1 ou 2 acertos não mostra seta nenhuma.
+const MIN_ACERTOS_SETAS = 3;
+function gruposComSetas(grupos, numerosCartao) {
+    return grupos.filter(g => numerosCartao.filter(n => g.sorteados.includes(n)).length >= MIN_ACERTOS_SETAS);
+}
 
 // Função pura (sem DOM) — fácil de testar isolada. Pra cada número
 // sorteado que NÃO foi acerto, acha o número do cartão (também sem ser
@@ -1222,7 +1229,7 @@ function desenharSetasProximidade(grupos, numerosCartao) {
     const container = document.getElementById('melhorCartaoContainer');
     if (!area || !container) return;
 
-    const todosPares = grupos.flatMap(g => calcularParesProximidade(g.sorteados, numerosCartao)
+    const todosPares = gruposComSetas(grupos, numerosCartao).flatMap(g => calcularParesProximidade(g.sorteados, numerosCartao)
         .map(par => ({ par, g })));
     if (todosPares.length === 0) return;
 
