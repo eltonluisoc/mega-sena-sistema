@@ -1441,7 +1441,17 @@
                 padding: 8px;
             }
         }
-    </style>
+        /* v123: lotérica do recibo na importação */
+    .imp-loterica { font-size: 13px; color: #334155; margin: 4px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+    .imp-loterica input.imp-loterica-input { flex: 1; min-width: 140px; max-width: 260px; padding: 4px 8px !important; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px !important; height: auto !important; margin: 0 !important; }
+    .imp-loterica-btn { padding: 4px 10px !important; font-size: 12px !important; }
+    .imp-aviso { border-radius: 8px; padding: 6px 10px; margin: 4px 0; font-size: 12px; }
+    .imp-aviso-alerta { background: #fee2e2; color: #991b1b; font-weight: 600; }
+    .imp-aviso-info { background: #e0f2fe; color: #075985; }
+    .imp-lotericas { border-left: 4px solid #6366f1; font-size: 13px; color: #334155; }
+    .imp-lotericas ul { margin: 0; padding-left: 4px; list-style: none; }
+    .imp-lotericas li { margin: 2px 0; }
+</style>
 </head>
 <body>
 
@@ -1449,7 +1459,7 @@
     <!-- TOP BAR -->
     <!-- ============================================ -->
     <div class="top-bar">
-        <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">Administração · v122</span></div>
+        <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">Administração · v123</span></div>
         <div class="stats">
             <div class="stat" id="bootProgress" style="display:none;">⏳ Carregando… 0%</div>
             <div class="stat" id="totalCartoes">📊 0 cartões</div>

@@ -903,6 +903,7 @@ function parsearComprovanteCaixa(texto, opts = {}) {
         trevos: [],  // só +Milionária preenche — trevos[i] casa com jogos[i]
         mesesSorte: [],  // só Dia de Sorte preenche — mesesSorte[i] casa com jogos[i]
         cotasRecibo: null,  // v122: { nossas, total, numero } — "PARTICIPA COM 01 COTA DO TOTAL DE 35 COTAS" / "Cota: 3/35"
+        loterica: null,  // v123: "Código E. Lotérico: 21.019334-4" (o recibo não traz o nome)
         validacao: [],
         divergencias: []
     };
@@ -969,6 +970,10 @@ function parsearComprovanteCaixa(texto, opts = {}) {
             numero: mCota ? mCota[1] : null
         };
     }
+    // v123: lotérica onde o bolão foi comprado — o recibo só traz o
+    // código; o nome o admin informa 1 vez (gerencial_lotericas).
+    const mLot = t.match(/C[oó]d(?:igo)?\.?\s*E\.?\s*Lot[eé]rico\s*:?\s*(\d[\d.\-\/]*\d)/i);
+    if (mLot) resultado.loterica = mLot[1];
 
     // Jogos: de preferência os já extraídos por posição (jogosPreExtraidos,
     // ver extrairJogosDeItensPosicionados) — o único jeito confiável de
@@ -1210,6 +1215,7 @@ async function processarPdfsImportacao(fileList) {
         }
         pdfImportEstado.push({ arquivo: file.name, resultado, override: false });
     }
+    await carregarContextoImportacao(cfg.loteria, cfg.concurso);
     hideLoading();
     renderImportacaoPdf();
 }
@@ -1240,8 +1246,10 @@ function renderImportacaoPdf() {
     if (pdfImportEstado.length === 0) { cont.innerHTML = ''; if (rodape) rodape.innerHTML = ''; return; }
 
     let totalValidos = 0, totalErros = 0, divergenciasPendentes = 0;
+    const cfgPrev = _importConfigAtual();
+    const avisosCompra = avisosCompraRepetida(pdfImportEstado, cartoes, pdfImportContexto, cfgPrev.loteria, cfgPrev.concurso);
 
-    cont.innerHTML = pdfImportEstado.map((item, idx) => {
+    cont.innerHTML = resumoLotericasConcursoHtml(pdfImportContexto) + pdfImportEstado.map((item, idx) => {
         const r = item.resultado;
         if (r.status === 'erro') {
             totalErros++;
@@ -1276,6 +1284,8 @@ function renderImportacaoPdf() {
         return `<div class="card" style="border-left:4px solid ${contam && jogosValidos > 0 ? '#22c55e' : '#f59e0b'};">
             <div style="font-weight:700;color:#166534;">✅ ${item.arquivo}</div>
             <div style="font-size:13px;color:#64748b;margin:4px 0;">${r.modalidadeLabel} · concurso ${r.concurso || '?'} · ${r.jogos.length} jogo(s) · ${jogosValidos} válido(s)${r.cotasRecibo ? ` · 🎟 ${r.cotasRecibo.nossas} de ${r.cotasRecibo.total} cotas` : ''}</div>
+            ${lotericaReciboHtml(r.loterica, idx, pdfImportContexto)}
+            ${(avisosCompra[idx] || []).map(av => `<div class="imp-aviso imp-aviso-${av.tipo}">${av.texto}</div>`).join('')}
             ${divergHtml}
             ${linhasJogos}
         </div>`;
@@ -1331,7 +1341,7 @@ async function confirmarImportacaoPdf() {
             aGravar.push({ numeros: v.jogo, trevos: v.trevo, mesSorte: v.mesSorte });
             chavesRecibo.push(_chaveCartaoGerencial({ numeros: v.jogo, trevos: v.trevo, mesSorte: v.mesSorte }));
         });
-        if (r.cotasRecibo && chavesRecibo.length) recibos.push({ chaves: chavesRecibo, cotas: r.cotasRecibo });
+        if (r.cotasRecibo && chavesRecibo.length) recibos.push({ chaves: chavesRecibo, cotas: r.cotasRecibo, loterica: r.loterica });
     }
     if (aGravar.length === 0) { showToast('⚠️ Nenhum jogo válido para cadastrar.', 'warning'); return; }
 
@@ -1399,7 +1409,7 @@ async function confirmarImportacaoPdf() {
     // reimportar um PDF antigo só completa as cotas, não duplica cartão).
     let gruposOk = 0;
     for (const rec of recibos) {
-        try { await gerencialRegistrarGrupo(cfg.loteria, cfg.concurso, rec.chaves, rec.cotas); gruposOk++; }
+        try { await gerencialRegistrarGrupo(cfg.loteria, cfg.concurso, rec.chaves, rec.cotas, null, rec.loterica); gruposOk++; }
         catch (e) { console.error('Cotas do recibo não gravadas:', e); }
     }
     hideLoading();
@@ -8185,14 +8195,16 @@ function _idGrupoCotas(loteria, concurso, chaves, total) {
 // recibo soma as suas cotas em `recibos` (chave = número da cota do
 // recibo), então importar o mesmo PDF 2x não conta 2x, e 2 recibos do
 // mesmo bolão somam 2/35.
-async function gerencialRegistrarGrupo(loteria, concurso, chaves, cotas, chaveRecibo = null) {
+async function gerencialRegistrarGrupo(loteria, concurso, chaves, cotas, chaveRecibo = null, loterica = null) {
     const ordenadas = [...new Set(chaves)].sort();
     const id = _idGrupoCotas(loteria, concurso, ordenadas, cotas.total);
     const recibo = chaveRecibo || (cotas.numero ? 'cota' + cotas.numero : 'r' + _hashTexto(ordenadas.join(';')));
-    await db.collection('gerencial_cotas').doc(id).set({
+    const doc = {
         loteria, concurso: String(concurso), chaves: ordenadas, cotasTotal: cotas.total,
         recibos: { [recibo]: cotas.nossas }, atualizadoEm: new Date().toISOString()
-    }, { merge: true });
+    };
+    if (loterica) doc.loterica = loterica;  // v123
+    await db.collection('gerencial_cotas').doc(id).set(doc, { merge: true });
 }
 
 async function gerencialSalvarRateio(loteria, concurso, listaRateio) {
@@ -8509,4 +8521,155 @@ async function _consConferirPendentes() {
     if (!confirm(`Conferir ${pendentes.length} concurso(s) pendente(s) de ${ROTULO_LOTERIA[loteria] || loteria} na Caixa?`)) return;
     for (const cc of pendentes) await conferirComoAdmin(loteria, cc, null);
     await abrirConsolidado(true);
+}
+
+// ============================================
+// v123: LOTÉRICA DO RECIBO (só admin)
+// ============================================
+// Pedido do usuário: ver na importação de qual lotérica é cada recibo,
+// pra não comprar 2 vezes o mesmo bolão. O comprovante da Caixa só traz
+// o "Código E. Lotérico"; o nome o admin digita 1 vez e fica em
+// gerencial_lotericas (regras: só admin). A lotérica de cada recibo fica
+// no grupo de gerencial_cotas — nada disso vai pro site público.
+
+let pdfImportContexto = { nomes: {}, grupos: {} };
+
+function _escTxt(t) { return String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+
+function _idLoterica(codigo) { return String(codigo || '').replace(/\D/g, ''); }
+
+function nomeLoterica(codigo, nomes) {
+    const n = (nomes || {})[_idLoterica(codigo)];
+    return n ? String(n) : '';
+}
+
+function rotuloLoterica(codigo, nomes) {
+    if (!codigo) return 'lotérica não informada';
+    const n = nomeLoterica(codigo, nomes);
+    return n ? `${n} (cód. ${codigo})` : `lotérica cód. ${codigo}`;
+}
+
+// 2 leituras pequenas por lote importado: os nomes das lotéricas e os
+// grupos (recibos) já registrados deste concurso.
+async function carregarContextoImportacao(loteria, concurso) {
+    const ctx = { nomes: {}, grupos: {} };
+    try {
+        const s = await db.collection('gerencial_lotericas').get();
+        s.forEach(d => { ctx.nomes[d.id] = (d.data() || {}).nome || ''; });
+    } catch (e) { console.warn('Nomes das lotéricas não carregados:', e); }
+    try {
+        const s = await db.collection('gerencial_cotas')
+            .where('loteria', '==', loteria).where('concurso', '==', String(concurso)).get();
+        s.forEach(d => { ctx.grupos[d.id] = d.data() || {}; });
+    } catch (e) { console.warn('Recibos já registrados não carregados:', e); }
+    pdfImportContexto = ctx;
+    return ctx;
+}
+
+// Avisos por PDF (puro, testável):
+//  - 'info'  : recibo já importado antes (mesma cota do mesmo bolão)
+//  - 'alerta': outra cota de um bolão que você JÁ tem (mesmos jogos)
+//  - 'alerta': 2 PDFs do mesmo bolão neste lote
+//  - 'alerta': jogos já cadastrados em outro cartão/bolão do concurso
+function avisosCompraRepetida(estado, cartoesLista, ctx, loteria, concurso) {
+    const nomes = (ctx && ctx.nomes) || {};
+    const grupos = (ctx && ctx.grupos) || {};
+    const avisos = estado.map(() => []);
+    const vistosNoLote = new Map();  // id do grupo → índice do 1º PDF
+    const existentes = new Map();    // chave do jogo → bolões
+    for (const c of cartoesLista || []) {
+        if (c.tipo !== loteria || String(c.concurso) !== String(concurso)) continue;
+        const ch = _chaveCartaoGerencial(c);
+        if (!existentes.has(ch)) existentes.set(ch, new Set());
+        existentes.get(ch).add(_nomeBolao(c.bolao));
+    }
+    estado.forEach((item, idx) => {
+        const r = item.resultado || {};
+        if (r.status !== 'ok') return;
+        const chaves = (r.validacao || []).filter(v => v.ok)
+            .map(v => _chaveCartaoGerencial({ numeros: v.jogo, trevos: v.trevo, mesSorte: v.mesSorte }));
+        if (!chaves.length) return;
+        let tratado = false;
+        if (r.cotasRecibo) {
+            const id = _idGrupoCotas(loteria, concurso, chaves, r.cotasRecibo.total);
+            const g = grupos[id];
+            const esteRecibo = r.cotasRecibo.numero ? 'cota' + r.cotasRecibo.numero : null;
+            if (g) {
+                const recibosG = Object.keys(g.recibos || {});
+                const lot = rotuloLoterica(g.loterica || r.loterica, nomes);
+                if (esteRecibo && recibosG.includes(esteRecibo)) {
+                    avisos[idx].push({ tipo: 'info', texto: `ℹ️ Este recibo (cota ${r.cotasRecibo.numero}/${r.cotasRecibo.total}) já foi importado antes — reimportar só completa os dados.` });
+                } else {
+                    const cotasJa = Object.values(g.recibos || {}).reduce((s, v) => s + (Number(v) || 0), 0);
+                    avisos[idx].push({ tipo: 'alerta', texto: `⚠️ Você já tem ${cotasJa} cota(s) deste MESMO bolão (${_escTxt(lot)}) — mesmos jogos. Confira se queria mesmo comprar outra cota.` });
+                }
+                tratado = true;
+            }
+            if (vistosNoLote.has(id)) {
+                avisos[idx].push({ tipo: 'alerta', texto: `⚠️ Mesmo bolão (mesmos jogos) do PDF "${_escTxt(estado[vistosNoLote.get(id)].arquivo)}" deste lote.` });
+                tratado = true;
+            } else vistosNoLote.set(id, idx);
+        }
+        if (!tratado) {
+            const repetidos = chaves.filter(ch => existentes.has(ch));
+            if (repetidos.length) {
+                const boloesRep = [...new Set(repetidos.flatMap(ch => [...existentes.get(ch)]))];
+                avisos[idx].push({ tipo: 'alerta', texto: `⚠️ ${repetidos.length} de ${chaves.length} jogo(s) já cadastrado(s) neste concurso (${boloesRep.map(_escTxt).join(', ')}).` });
+            }
+        }
+    });
+    return avisos;
+}
+
+// Lotéricas onde já há recibo registrado neste concurso (antes do lote).
+function resumoLotericasConcursoHtml(ctx) {
+    const grupos = Object.values((ctx && ctx.grupos) || {});
+    if (!grupos.length) return '';
+    const porLot = new Map();
+    for (const g of grupos) {
+        const k = g.loterica || '';
+        const cotas = Object.values(g.recibos || {}).reduce((s, v) => s + (Number(v) || 0), 0);
+        const atual = porLot.get(k) || { boloes: 0, cotas: 0 };
+        atual.boloes++; atual.cotas += cotas;
+        porLot.set(k, atual);
+    }
+    const itens = [...porLot.entries()].map(([cod, x]) =>
+        `<li>🏪 ${escapeHtml(cod ? rotuloLoterica(cod, ctx.nomes) : 'sem lotérica registrada (importado antes da v123)')} — ${x.boloes} ${x.boloes === 1 ? 'bolão' : 'bolões'}, ${x.cotas} ${x.cotas === 1 ? 'cota' : 'cotas'}</li>`).join('');
+    return `<div class="card imp-lotericas"><div style="font-weight:700;margin-bottom:4px;">Já comprados neste concurso</div><ul>${itens}</ul></div>`;
+}
+
+function lotericaReciboHtml(codigo, idx, ctx) {
+    if (!codigo) return `<div class="imp-loterica">🏪 lotérica não encontrada no recibo</div>`;
+    const nome = nomeLoterica(codigo, ctx && ctx.nomes);
+    if (nome) return `<div class="imp-loterica">🏪 <strong>${escapeHtml(nome)}</strong> · cód. ${escapeHtml(codigo)}
+        <button type="button" class="insc-link" onclick="editarNomeLoterica(${idx})">editar</button></div>`;
+    return `<div class="imp-loterica">🏪 Lotérica cód. <strong>${escapeHtml(codigo)}</strong>
+        <input type="text" id="lotNome-${idx}" class="imp-loterica-input" placeholder="nome da lotérica" maxlength="60">
+        <button type="button" class="btn btn-secondary imp-loterica-btn" onclick="salvarNomeLoterica(${idx})">Salvar nome</button></div>`;
+}
+
+function editarNomeLoterica(idx) {
+    const item = pdfImportEstado[idx];
+    if (!item || !item.resultado.loterica) return;
+    const cod = item.resultado.loterica;
+    delete pdfImportContexto.nomes[_idLoterica(cod)];
+    renderImportacaoPdf();
+}
+
+async function salvarNomeLoterica(idx) {
+    const item = pdfImportEstado[idx];
+    const inp = document.getElementById('lotNome-' + idx);
+    if (!item || !inp) return;
+    const cod = item.resultado.loterica;
+    const nome = inp.value.trim().replace(/\s+/g, ' ');
+    if (!nome) { showToast('⚠️ Digite o nome da lotérica.', 'warning'); return; }
+    try {
+        await db.collection('gerencial_lotericas').doc(_idLoterica(cod)).set({ codigo: cod, nome, atualizadoEm: new Date().toISOString() });
+        pdfImportContexto.nomes[_idLoterica(cod)] = nome;
+        showToast(`✅ Lotérica ${cod} = ${nome}`, 'success');
+        renderImportacaoPdf();
+    } catch (e) {
+        console.error('Nome da lotérica não gravado:', e);
+        showToast('❌ Não consegui gravar o nome da lotérica.', 'error');
+    }
 }

@@ -222,6 +222,10 @@ service cloud.firestore {
     match /gerencial_rateio/{id} {
       allow read, write: if isAdmin();
     }
+    // v123: nome de cada lotérica (o recibo só traz o código) — só admin.
+    match /gerencial_lotericas/{id} {
+      allow read, write: if isAdmin();
+    }
 
     // v107: o desktop informa se está aberto e quando sincronizou; o
     // admin web mostra isso na tela de Inscrições.
