@@ -1223,6 +1223,30 @@
         .dash-bolao-titulo { font-weight: 700; font-size: 15px; color: var(--cor-texto); margin-bottom: 6px; }
         .dash-bolao-linha { font-size: 13px; color: var(--cor-texto-sec); line-height: 1.6; }
         .dash-bolao-aviso { color: #b45309; }
+        /* v122: conferência consolidada */
+        .conf-visoes { display: flex; gap: 6px; margin-top: 14px; background: var(--cor-fundo); padding: 4px; border-radius: var(--raio); }
+        .conf-visao-btn { flex: 1; border: none; background: transparent; padding: 10px 8px; border-radius: var(--raio-pequeno); font-weight: 700; font-size: 14px; color: var(--cor-texto-sec); cursor: pointer; }
+        .conf-visao-btn.ativo { background: var(--cor-superficie); color: var(--cor-primaria); box-shadow: var(--sombra); }
+        .cons-topo { background: var(--cor-fundo); border-radius: var(--raio); padding: 12px; margin-bottom: 12px; }
+        .cons-sorteados { font-size: 13px; font-family: monospace; color: var(--cor-texto); margin-bottom: 8px; word-break: break-word; }
+        .cons-campeao { font-size: 14px; color: #78350f; background: #fef3c7; border-radius: var(--raio-pequeno); padding: 8px 10px; margin-bottom: 8px; }
+        .cons-total { background: var(--cor-superficie); border: 1px solid var(--cor-borda); border-radius: var(--raio-pequeno); padding: 10px; }
+        .cons-total-tit { font-weight: 800; font-size: 13px; color: var(--cor-texto); margin-bottom: 6px; }
+        .cons-acoes { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
+        .cons-bolao { border: 1px solid var(--cor-borda); border-radius: var(--raio); padding: 10px 12px; margin-bottom: 8px; }
+        .cons-bolao.campeao { border-color: #f59e0b; background: #fffbeb; }
+        .cons-bolao-cab { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+        .cons-pos { font-weight: 800; color: var(--cor-texto-sec); }
+        .cons-nome { font-size: 15px; color: var(--cor-texto); flex: 1; min-width: 120px; }
+        .cons-melhor { font-size: 13px; font-weight: 700; color: var(--cor-primaria); }
+        .cons-sub { font-size: 12px; color: var(--cor-texto-sec); margin: 2px 0 6px; }
+        .cons-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+        .cons-chip { font-size: 12px; background: #ede9fe; color: #5b21b6; border-radius: var(--raio-pill); padding: 2px 8px; font-weight: 600; }
+        .cons-chip.vazio { background: var(--cor-fundo); color: var(--cor-texto-sec); font-weight: 400; }
+        .cons-valores { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--cor-texto-sec); margin-top: 6px; }
+        .cons-nossa { color: #166534; }
+        .cons-aviso { font-size: 12px; color: #b45309; margin-top: 4px; }
+        .cons-bolao-acoes { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
         .dash-bolao[role="button"] { cursor: pointer; transition: border-color 0.2s, box-shadow 0.2s; }
         .dash-bolao[role="button"]:hover { border-color: var(--cor-primaria); }
         .dash-bolao-link { color: var(--cor-primaria); font-weight: 600; }
@@ -1425,7 +1449,7 @@
     <!-- TOP BAR -->
     <!-- ============================================ -->
     <div class="top-bar">
-        <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">Administração · v121</span></div>
+        <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">Administração · v122</span></div>
         <div class="stats">
             <div class="stat" id="bootProgress" style="display:none;">⏳ Carregando… 0%</div>
             <div class="stat" id="totalCartoes">📊 0 cartões</div>
@@ -2124,8 +2148,28 @@
                         <button id="confBtnDuplaSena" class="loteria-btn-admin duplasena" style="flex:1; padding: 10px; border: 2px solid #a61324; border-radius: 30px; font-weight: bold; background: #fee2e2; color: #a61324; cursor: pointer; transition: all 0.2s;">🎲 DUPLA SENA</button>
                     </div>
                 </div>
+                <!-- v122: por concurso (cards de sempre) ou consolidado (todos
+                     os bolões do concurso juntos, com a nossa parte — gerencial) -->
+                <div class="conf-visoes">
+                    <button type="button" class="conf-visao-btn ativo" data-visao="concurso">📋 Por concurso</button>
+                    <button type="button" class="conf-visao-btn" data-visao="consolidado">📊 Consolidado por bolão</button>
+                </div>
                 <div id="painelConferencia" style="display:flex; flex-direction:column; gap:12px; margin-top:14px;">
                     <div class="empty-state">Carregando...</div>
+                </div>
+                <div id="painelConsolidado" style="display:none; margin-top:14px;">
+                    <div class="card">
+                        <div class="card-header">📊 CONFERÊNCIA CONSOLIDADA</div>
+                        <div style="font-size:12px; color:var(--cor-texto-sec); margin-bottom:10px;">
+                            Todos os bolões do concurso de uma vez. Cotas e valores em R$ são só seus (gerencial): não aparecem no site.
+                        </div>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px;">
+                            <select id="consConcurso" class="form-control" style="flex:2; min-width:200px;"></select>
+                            <button type="button" id="btnConsAtualizar" class="insc-link">🔄 Atualizar</button>
+                        </div>
+                        <button type="button" id="btnConsConferirPendentes" class="btn btn-warning btn-block" style="margin-bottom:12px;">✅ Conferir todos os pendentes</button>
+                        <div id="consConteudo"><div class="empty-state">Carregando...</div></div>
+                    </div>
                 </div>
             </section>
 

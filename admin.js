@@ -902,6 +902,7 @@ function parsearComprovanteCaixa(texto, opts = {}) {
         jogos: [],
         trevos: [],  // só +Milionária preenche — trevos[i] casa com jogos[i]
         mesesSorte: [],  // só Dia de Sorte preenche — mesesSorte[i] casa com jogos[i]
+        cotasRecibo: null,  // v122: { nossas, total, numero } — "PARTICIPA COM 01 COTA DO TOTAL DE 35 COTAS" / "Cota: 3/35"
         validacao: [],
         divergencias: []
     };
@@ -954,6 +955,20 @@ function parsearComprovanteCaixa(texto, opts = {}) {
     // rótulo "Concurso:" desambigua).
     const mConc = t.match(/Concurso:\s*(\d{1,7})/i);
     if (mConc) resultado.concurso = mConc[1];
+
+    // v122: cotas do recibo (só pra conta GERENCIAL da nossa parte no
+    // prêmio — fica em gerencial_cotas, que só o admin lê). "Cota: 3/35"
+    // identifica o recibo dentro do bolão da Caixa (2 recibos do mesmo
+    // bolão têm números de cota diferentes).
+    const mPart = t.match(/PARTICIPA\s+COM\s+(\d+)\s+COTAS?\s+DO\s+TOTAL\s+DE\s+(\d+)\s+COTAS/i);
+    const mCota = t.match(/Cota:\s*(\d+)\s*\/\s*(\d+)/i);
+    if (mPart || mCota) {
+        resultado.cotasRecibo = {
+            nossas: mPart ? parseInt(mPart[1], 10) : 1,
+            total: parseInt(mPart ? mPart[2] : mCota[2], 10),
+            numero: mCota ? mCota[1] : null
+        };
+    }
 
     // Jogos: de preferência os já extraídos por posição (jogosPreExtraidos,
     // ver extrairJogosDeItensPosicionados) — o único jeito confiável de
@@ -1260,7 +1275,7 @@ function renderImportacaoPdf() {
 
         return `<div class="card" style="border-left:4px solid ${contam && jogosValidos > 0 ? '#22c55e' : '#f59e0b'};">
             <div style="font-weight:700;color:#166534;">✅ ${item.arquivo}</div>
-            <div style="font-size:13px;color:#64748b;margin:4px 0;">${r.modalidadeLabel} · concurso ${r.concurso || '?'} · ${r.jogos.length} jogo(s) · ${jogosValidos} válido(s)</div>
+            <div style="font-size:13px;color:#64748b;margin:4px 0;">${r.modalidadeLabel} · concurso ${r.concurso || '?'} · ${r.jogos.length} jogo(s) · ${jogosValidos} válido(s)${r.cotasRecibo ? ` · 🎟 ${r.cotasRecibo.nossas} de ${r.cotasRecibo.total} cotas` : ''}</div>
             ${divergHtml}
             ${linhasJogos}
         </div>`;
@@ -1305,11 +1320,18 @@ async function confirmarImportacaoPdf() {
     // Monta a fila de jogos a gravar (só PDFs ok, sem divergência
     // pendente, e só os jogos que passaram na validação).
     const aGravar = [];
+    const recibos = [];  // v122: 1 por PDF com cotas — vira um grupo em gerencial_cotas
     for (const item of pdfImportEstado) {
         const r = item.resultado;
         if (r.status !== 'ok') continue;
         if (r.divergencias.length > 0 && !item.override) continue;
-        r.validacao.forEach(v => { if (v.ok) aGravar.push({ numeros: v.jogo, trevos: v.trevo, mesSorte: v.mesSorte }); });
+        const chavesRecibo = [];
+        r.validacao.forEach(v => {
+            if (!v.ok) return;
+            aGravar.push({ numeros: v.jogo, trevos: v.trevo, mesSorte: v.mesSorte });
+            chavesRecibo.push(_chaveCartaoGerencial({ numeros: v.jogo, trevos: v.trevo, mesSorte: v.mesSorte }));
+        });
+        if (r.cotasRecibo && chavesRecibo.length) recibos.push({ chaves: chavesRecibo, cotas: r.cotasRecibo });
     }
     if (aGravar.length === 0) { showToast('⚠️ Nenhum jogo válido para cadastrar.', 'warning'); return; }
 
@@ -1373,9 +1395,16 @@ async function confirmarImportacaoPdf() {
             erro++;
         }
     }
+    // v122: cotas de cada recibo (inclusive de jogos que já existiam —
+    // reimportar um PDF antigo só completa as cotas, não duplica cartão).
+    let gruposOk = 0;
+    for (const rec of recibos) {
+        try { await gerencialRegistrarGrupo(cfg.loteria, cfg.concurso, rec.chaves, rec.cotas); gruposOk++; }
+        catch (e) { console.error('Cotas do recibo não gravadas:', e); }
+    }
     hideLoading();
     if (ok > 0) cartoesMudaram();
-    showToast(`✅ ${ok} cadastrado(s)` + (dup ? ` · ${dup} pulado(s) (duplicado)` : '') + (erro ? ` · ${erro} com erro` : ''), erro ? 'warning' : 'success');
+    showToast(`✅ ${ok} cadastrado(s)` + (dup ? ` · ${dup} já existia(m)` : '') + (gruposOk ? ` · cotas de ${gruposOk} recibo(s) registradas` : '') + (erro ? ` · ${erro} com erro` : ''), erro ? 'warning' : 'success');
 
     pdfImportEstado = [];
     const inp = document.getElementById('pdfImportInput');
@@ -2121,6 +2150,7 @@ function setLoteriaConferencia(loteria) {
         btnAtivo.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.1)';
     }
     atualizarPainelConferencia();
+    if (typeof _consVisivel !== 'undefined' && _consVisivel) abrirConsolidado(true);
 }
 
 // Pra loteria filtrada: pega TODOS os concursos distintos cadastrados
@@ -2211,14 +2241,15 @@ async function atualizarPainelConferencia() {
 // em dinheiro de calcularPremios/script.js, que é bem mais complexo e
 // loteria-específico — o admin já vê os valores reais no site/Dashboard
 // em seguida).
-function melhorResultadoAdminHtml(loteria, concurso, dadosConferidos) {
+function melhorResultadoAdminHtml(loteria, concurso, dadosConferidos, bolaoFiltro = null) {
     const numeros = (dadosConferidos && dadosConferidos.numeros) || [];
     const trevos = (dadosConferidos && dadosConferidos.trevos) || null;
     const mesSorteSorteado = (dadosConferidos && dadosConferidos.mesSorte) || null;
     const numeros2 = (dadosConferidos && dadosConferidos.numeros2) || null;  // só Dupla Sena
     if (numeros.length === 0) return '';
 
-    const cartoesDoConcurso = cartoes.filter(c => c.tipo === loteria && c.concurso === concurso);
+    const cartoesDoConcurso = cartoes.filter(c => c.tipo === loteria && c.concurso === concurso
+        && (bolaoFiltro === null || _nomeBolao(c.bolao) === bolaoFiltro));
     if (cartoesDoConcurso.length === 0) {
         return `<div style="font-size:12px; color:#64748b;">Nenhum cartão cadastrado pra este concurso ainda.</div>`;
     }
@@ -2276,7 +2307,7 @@ function melhorResultadoAdminHtml(loteria, concurso, dadosConferidos) {
             return `<div><strong style="color:${cor};">${rotulo}:</strong> ${partes.length ? partes.join(' · ') : 'nenhum prêmio'}</div>`;
         }).join('');
         resumoDuplaHtml = `<div style="font-size:12px; color:#334155; background:white; border:1px solid #e2e8f0; border-radius:8px; padding:8px 10px; margin-top:8px; line-height:1.6;">
-            <div style="font-weight:700; margin-bottom:2px;">🎯 Prêmios do bolão neste concurso</div>${linhas}
+            <div style="font-weight:700; margin-bottom:2px;">🎯 Prêmios ${bolaoFiltro === null ? 'de todos os bolões' : 'deste bolão'} neste concurso</div>${linhas}
             <div style="font-size:11px; color:#64748b; margin-top:4px;">Cartão de 8 dezenas = 28 apostas simples: 4 acertos valem 6 quadras.</div></div>`;
     }
 
@@ -2388,6 +2419,8 @@ async function conferirComoAdmin(loteria, concurso, btn) {
         }
 
         await db.collection('resultados_conferidos').doc(`${loteria}_${concurso}`).set(doc);
+        try { await gerencialSalvarRateio(loteria, concurso, dados.listaRateioPremio); }
+        catch (e) { console.warn('Rateio não gravado (a tela consolidada busca de novo):', e); }
         showToast(`✅ Concurso ${concurso} conferido — publique quando quiser liberar pro público.`, 'success');
         await atualizarPainelConferencia();
     } catch (error) {
@@ -6771,6 +6804,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (confBtnDiaDeSorte) confBtnDiaDeSorte.onclick = () => setLoteriaConferencia('diadesorte');
     const confBtnDuplaSena = document.getElementById('confBtnDuplaSena');
     if (confBtnDuplaSena) confBtnDuplaSena.onclick = () => setLoteriaConferencia('duplasena');
+    // v122: conferência consolidada
+    document.querySelectorAll('.conf-visao-btn').forEach(b => b.onclick = () => mostrarVisaoConferencia(b.dataset.visao));
+    const consSel = document.getElementById('consConcurso');
+    if (consSel) consSel.onchange = () => _consRenderizar();
+    const btnConsPend = document.getElementById('btnConsConferirPendentes');
+    if (btnConsPend) btnConsPend.onclick = () => _consConferirPendentes();
+    const btnConsAtual = document.getElementById('btnConsAtualizar');
+    if (btnConsAtual) btnConsAtual.onclick = () => abrirConsolidado(true);
     document.querySelectorAll('.subsecao-btn').forEach(btn => {
         btn.onclick = () => mostrarSubsecao(btn.dataset.grupo, btn.dataset.sub);
     });
@@ -8101,4 +8142,371 @@ function _inscAplicarPreSelecao() {
         _inscSelecionarReservaPorTelefone(_soDigitos(p.telefone));
     }
     _inscAtualizar();
+}
+
+// ============================================
+// CONFERÊNCIA CONSOLIDADA (v122) — pedido do usuário: com vários bolões
+// no mesmo concurso, conferir todos de uma vez e ver um resultado por
+// bolão (maior pontuação, prêmios por faixa) e a NOSSA PARTE em R$,
+// pela fração de cotas de cada bolão da Caixa. Cotas e valores são
+// GERENCIAIS: ficam em gerencial_cotas / gerencial_rateio, que só o admin
+// lê (firestore.rules) — nada disso aparece no site público.
+// ============================================
+
+// Nome de bolão sem espaço sobrando ("Aleatório" e "Aleatório " são o mesmo).
+function _nomeBolao(s) { return String(s || 'Sem Bolão').trim().replace(/\s+/g, ' ') || 'Sem Bolão'; }
+
+// Mesma chave da importação/duplicados: números + trevos + mês.
+function _chaveCartaoGerencial(c) {
+    const nums = [...(c.numeros || [])].sort((a, b) => a - b).join(',');
+    const trevos = c.trevos && c.trevos.length ? '|' + [...c.trevos].sort((a, b) => a - b).join(',') : '';
+    return nums + trevos + (c.mesSorte ? '|m' + c.mesSorte : '');
+}
+
+// Hash curto e estável (cyrb53) — só pra nomear o documento do grupo.
+function _hashTexto(str) {
+    let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+    for (let i = 0; i < str.length; i++) {
+        const ch = str.charCodeAt(i);
+        h1 = Math.imul(h1 ^ ch, 2654435761);
+        h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+
+function _idGrupoCotas(loteria, concurso, chaves, total) {
+    const ordenadas = [...new Set(chaves)].sort();
+    return `${loteria}_${concurso}_${_hashTexto(ordenadas.join(';') + '#' + total)}`;
+}
+
+// 1 grupo = 1 bolão da Caixa (mesmos jogos, mesmo total de cotas). Cada
+// recibo soma as suas cotas em `recibos` (chave = número da cota do
+// recibo), então importar o mesmo PDF 2x não conta 2x, e 2 recibos do
+// mesmo bolão somam 2/35.
+async function gerencialRegistrarGrupo(loteria, concurso, chaves, cotas, chaveRecibo = null) {
+    const ordenadas = [...new Set(chaves)].sort();
+    const id = _idGrupoCotas(loteria, concurso, ordenadas, cotas.total);
+    const recibo = chaveRecibo || (cotas.numero ? 'cota' + cotas.numero : 'r' + _hashTexto(ordenadas.join(';')));
+    await db.collection('gerencial_cotas').doc(id).set({
+        loteria, concurso: String(concurso), chaves: ordenadas, cotasTotal: cotas.total,
+        recibos: { [recibo]: cotas.nossas }, atualizadoEm: new Date().toISOString()
+    }, { merge: true });
+}
+
+async function gerencialSalvarRateio(loteria, concurso, listaRateio) {
+    if (!Array.isArray(listaRateio) || !listaRateio.length) return null;
+    const faixas = listaRateio.map(r => ({ faixa: Number(r.faixa), descricao: String(r.descricaoFaixa || ''), valor: Number(r.valorPremio) || 0 }));
+    await db.collection('gerencial_rateio').doc(`${loteria}_${concurso}`).set({
+        loteria, concurso: String(concurso), faixas, atualizadoEm: new Date().toISOString()
+    });
+    return faixas;
+}
+
+// Faixas oficiais (mesmo texto da API da Caixa) — usadas pra contar os
+// prêmios mesmo sem o rateio (valor) disponível.
+const FAIXAS_PADRAO_LOTERIA = {
+    mega: ['6 acertos', '5 acertos', '4 acertos'],
+    lotofacil: ['15 acertos', '14 acertos', '13 acertos', '12 acertos', '11 acertos'],
+    quina: ['5 acertos', '4 acertos', '3 acertos', '2 acertos'],
+    maismilionaria: ['6 acertos + 2 trevos', '6 acertos + 1 ou nenhum trevo', '5 acertos + 2 trevos', '5 acertos + 1 ou nenhum trevo',
+        '4 acertos + 2 trevos', '4 acertos + 1 ou nenhum trevo', '3 acertos + 2 trevos', '3 acertos + 1 trevo', '2 acertos + 2 trevos', '2 acertos + 1 trevo'],
+    diadesorte: ['7 acertos', '6 acertos', '5 acertos', '4 acertos', 'Mês da Sorte'],
+    duplasena: ['6 acertos', '5 acertos', '4 acertos', '3 acertos', '6 acertos', '5 acertos', '4 acertos', '3 acertos'],
+};
+const DEZENAS_SORTEADAS = { mega: 6, lotofacil: 15, quina: 5, maismilionaria: 6, diadesorte: 7, duplasena: 6 };
+const NOME_FAIXA_ACERTOS = { 6: 'Sena', 5: 'Quina', 4: 'Quadra', 3: 'Terno', 2: 'Duque' };
+
+function _comb(n, k) { return (k < 0 || n < 0 || k > n) ? 0 : combinacaoAdmin(n, k); }
+
+// Lista de faixas → { faixa, valor, acertos, trevos, mes, sorteio, rotulo }.
+function _faixasConsolidado(loteria, faixasRateio) {
+    const base = (faixasRateio && faixasRateio.length)
+        ? faixasRateio
+        : (FAIXAS_PADRAO_LOTERIA[loteria] || []).map((d, i) => ({ faixa: i + 1, descricao: d, valor: null }));
+    return base.map(f => {
+        const desc = String(f.descricao || '');
+        const mes = /m[eê]s/i.test(desc);
+        const acertos = mes ? null : parseInt((desc.match(/(\d+)\s*acerto/i) || [])[1], 10);
+        let trevos = null;
+        if (loteria === 'maismilionaria') {
+            if (/1\s+ou\s+nenhum/i.test(desc)) trevos = [0, 1];
+            else { const m = desc.match(/(\d)\s*trevo/i); trevos = m ? [parseInt(m[1], 10)] : [0, 1, 2]; }
+        }
+        const sorteio = loteria === 'duplasena' && Number(f.faixa) > 4 ? 2 : 1;
+        let rotulo;
+        if (mes) rotulo = 'Mês da Sorte';
+        else if (loteria === 'lotofacil' || loteria === 'diadesorte') rotulo = `${acertos} pontos`;
+        else if (loteria === 'maismilionaria') rotulo = `${acertos}${trevos.length === 1 ? ` + ${trevos[0]} trevo${trevos[0] === 1 ? '' : 's'}` : ' + 0/1 trevo'}`;
+        else rotulo = NOME_FAIXA_ACERTOS[acertos] || `${acertos} acertos`;
+        if (loteria === 'duplasena') rotulo += ` ${sorteio}º`;
+        return { faixa: Number(f.faixa), valor: f.valor === null || f.valor === undefined ? null : Number(f.valor), acertos, trevos, mes, sorteio, rotulo };
+    });
+}
+
+// Quantos prêmios (apostas simples) um cartão rende numa faixa.
+function _qtdFaixaCartao(loteria, c, res, f) {
+    const nums = c.numeros || [];
+    const n = nums.length, K = DEZENAS_SORTEADAS[loteria] || 6;
+    if (f.mes) return (res.mesSorte && c.mesSorte === res.mesSorte) ? _comb(n, K) : 0;
+    const sorteados = f.sorteio === 2 ? (res.numeros2 || []) : (res.numeros || []);
+    if (!sorteados.length || !(f.acertos >= 0)) return 0;
+    const a = nums.filter(x => sorteados.includes(x)).length;
+    let q = _comb(a, f.acertos) * _comb(n - a, K - f.acertos);
+    if (f.trevos) {
+        const t = (c.trevos || []).length;
+        const ta = (c.trevos || []).filter(x => (res.trevos || []).includes(x)).length;
+        q *= f.trevos.reduce((s, b) => s + _comb(ta, b) * _comb(t - ta, 2 - b), 0);
+    }
+    return q;
+}
+
+// Melhor pontuação de um cartão: { pontos, ordem, rotulo }.
+function _melhorPontuacaoCartao(loteria, c, res) {
+    const nums = c.numeros || [];
+    const h = s => nums.filter(x => (s || []).includes(x)).length;
+    if (loteria === 'duplasena') {
+        const a1 = h(res.numeros), a2 = h(res.numeros2);
+        const a = Math.max(a1, a2);
+        return { pontos: a, ordem: a, rotulo: `${a} acertos (${a2 > a1 ? '2º' : '1º'} sorteio)` };
+    }
+    const a = h(res.numeros);
+    if (loteria === 'maismilionaria') {
+        const t = (c.trevos || []).filter(x => (res.trevos || []).includes(x)).length;
+        return { pontos: a, ordem: a * 10 + t, rotulo: `${a} acertos + ${t} trevo${t === 1 ? '' : 's'}` };
+    }
+    if (loteria === 'diadesorte') {
+        const mes = !!(res.mesSorte && c.mesSorte === res.mesSorte);
+        return { pontos: a, ordem: a * 10 + (mes ? 1 : 0), rotulo: `${a} pontos${mes ? ' + mês' : ''}` };
+    }
+    if (loteria === 'lotofacil') return { pontos: a, ordem: a, rotulo: `${a} pontos` };
+    return { pontos: a, ordem: a, rotulo: `${a} acertos${NOME_FAIXA_ACERTOS[a] && a >= (loteria === 'quina' ? 2 : 4) ? ` (${NOME_FAIXA_ACERTOS[a].toUpperCase()})` : ''}` };
+}
+
+// Fração nossa de cada cartão: exclusivo = 1; cota = nossas/total do
+// grupo (gerencial_cotas); cota sem grupo = null (desconhecida — fica fora
+// da nossa parte em vez de mostrar valor errado).
+function _mapaFracaoCotas(grupos, loteria, concurso) {
+    const mapa = new Map();
+    for (const g of grupos || []) {
+        if (g.loteria !== loteria || String(g.concurso) !== String(concurso) || !(g.cotasTotal > 0)) continue;
+        const nossas = Object.values(g.recibos || {}).reduce((s, v) => s + (Number(v) || 0), 0);
+        for (const ch of g.chaves || []) mapa.set(ch, { nossas, total: g.cotasTotal, fracao: nossas / g.cotasTotal });
+    }
+    return mapa;
+}
+
+// Consolidação pura (testável): cartões do concurso + resultado + faixas
+// com valor + grupos de cotas → resumo por bolão e total.
+function consolidarConcurso(loteria, cartoesConcurso, res, faixasRateio, grupos, concurso) {
+    const faixas = _faixasConsolidado(loteria, faixasRateio);
+    const fracoes = _mapaFracaoCotas(grupos, loteria, concurso);
+    const porBolao = new Map();
+    const novoResumo = nome => ({ nome, cartoes: 0, melhor: null, faixas: {}, bruto: 0, nossa: 0, semCota: [], valorIndisponivel: false, melhorCartao: null });
+    const total = novoResumo('TOTAL');
+    for (const c of cartoesConcurso) {
+        const nome = _nomeBolao(c.bolao);
+        if (!porBolao.has(nome)) porBolao.set(nome, novoResumo(nome));
+        const b = porBolao.get(nome);
+        const melhor = _melhorPontuacaoCartao(loteria, c, res);
+        let bruto = 0;
+        const qtds = {};
+        for (const f of faixas) {
+            const q = _qtdFaixaCartao(loteria, c, res, f);
+            if (!q) continue;
+            qtds[f.faixa] = q;
+            if (f.valor === null || f.valor <= 0) { b.valorIndisponivel = true; total.valorIndisponivel = true; }
+            else bruto += q * f.valor;
+        }
+        const ehCota = c.tipoParticipacao === 'cota';
+        const fr = ehCota ? fracoes.get(_chaveCartaoGerencial(c)) : { fracao: 1 };
+        for (const r of [b, total]) {
+            r.cartoes++;
+            if (!r.melhor || melhor.ordem > r.melhor.ordem) { r.melhor = melhor; r.melhorCartao = c; }
+            for (const [fx, q] of Object.entries(qtds)) r.faixas[fx] = (r.faixas[fx] || 0) + q;
+            r.bruto += bruto;
+            if (fr) r.nossa += bruto * fr.fracao;
+            else r.semCota.push(c);
+        }
+    }
+    const arred = r => { r.bruto = Math.round(r.bruto * 100) / 100; r.nossa = Math.round(r.nossa * 100) / 100; return r; };
+    const boloes = [...porBolao.values()].map(arred)
+        .sort((x, y) => (y.melhor ? y.melhor.ordem : -1) - (x.melhor ? x.melhor.ordem : -1) || y.nossa - x.nossa || y.bruto - x.bruto || x.nome.localeCompare(y.nome, 'pt-BR'));
+    return { faixas, boloes, total: arred(total) };
+}
+
+// ---------------- Tela ----------------
+let _consVisivel = false;
+let _consCache = { loteria: null, resultados: {}, grupos: [] };
+
+function mostrarVisaoConferencia(visao) {
+    _consVisivel = visao === 'consolidado';
+    document.getElementById('painelConferencia').style.display = _consVisivel ? 'none' : 'flex';
+    document.getElementById('painelConsolidado').style.display = _consVisivel ? 'block' : 'none';
+    document.querySelectorAll('.conf-visao-btn').forEach(b => b.classList.toggle('ativo', b.dataset.visao === visao));
+    if (_consVisivel) abrirConsolidado(true);
+}
+
+async function abrirConsolidado(recarregar = false) {
+    const loteria = loteriaFiltroConferencia;
+    const cont = document.getElementById('consConteudo');
+    const sel = document.getElementById('consConcurso');
+    if (!cont || !sel) return;
+    if (recarregar || _consCache.loteria !== loteria) {
+        cont.innerHTML = '<div class="empty-state">Carregando...</div>';
+        const resultados = {}; let grupos = [];
+        try {
+            const [snapR, snapG] = await Promise.all([
+                db.collection('resultados_conferidos').where('loteria', '==', loteria).get(),
+                db.collection('gerencial_cotas').where('loteria', '==', loteria).get()
+            ]);
+            snapR.forEach(d => { const x = d.data(); if (x.conferido === true) resultados[x.concurso] = x; });
+            snapG.forEach(d => grupos.push(d.data()));
+        } catch (e) {
+            console.error('Erro ao carregar a conferência consolidada:', e);
+            showToast('❌ Não consegui carregar: ' + e.message, 'error');
+        }
+        _consCache = { loteria, resultados, grupos };
+    }
+    const concursos = [...new Set(cartoes.filter(c => c.tipo === loteria).map(c => c.concurso))].filter(Boolean)
+        .sort((x, y) => parseInt(y, 10) - parseInt(x, 10));
+    const atual = sel.value;
+    sel.innerHTML = concursos.length ? concursos.map(cc => {
+        const nb = new Set(cartoes.filter(c => c.tipo === loteria && c.concurso === cc).map(c => _nomeBolao(c.bolao))).size;
+        const st = _consCache.resultados[cc] ? (_consCache.resultados[cc].publicado ? '✅' : '🔒') : '⏳';
+        return `<option value="${escapeHtml(String(cc))}">${st} Concurso ${escapeHtml(String(cc))} · ${nb} ${nb === 1 ? 'bolão' : 'bolões'}</option>`;
+    }).join('') : '<option value="">Nenhum concurso</option>';
+    if (concursos.includes(atual)) sel.value = atual;
+    const pendentes = concursos.filter(cc => !_consCache.resultados[cc]);
+    const btnTodos = document.getElementById('btnConsConferirPendentes');
+    btnTodos.textContent = `✅ Conferir todos os pendentes (${pendentes.length})`;
+    btnTodos.disabled = !pendentes.length;
+    await _consRenderizar();
+}
+
+async function _consRenderizar() {
+    const loteria = loteriaFiltroConferencia;
+    const concurso = document.getElementById('consConcurso').value;
+    const cont = document.getElementById('consConteudo');
+    if (!concurso) { cont.innerHTML = '<div class="empty-state">Nenhum cartão cadastrado nesta loteria.</div>'; return; }
+    const doConcurso = cartoes.filter(c => c.tipo === loteria && c.concurso === concurso);
+    const res = _consCache.resultados[concurso];
+    const nBoloes = new Set(doConcurso.map(c => _nomeBolao(c.bolao))).size;
+    if (!res) {
+        cont.innerHTML = `<div class="insc-status alerta">⏳ Concurso ${escapeHtml(concurso)} ainda não conferido · ${nBoloes} ${nBoloes === 1 ? 'bolão' : 'bolões'} · ${doConcurso.length} cartões</div>
+            <button type="button" class="btn btn-warning btn-block" id="btnConsConferir">✅ CONFERIR ${nBoloes > 1 ? `OS ${nBoloes} BOLÕES` : 'AGORA'}</button>`;
+        document.getElementById('btnConsConferir').onclick = async (e) => {
+            await conferirComoAdmin(loteria, concurso, e.target);
+            await abrirConsolidado(true);
+        };
+        return;
+    }
+
+    // Rateio (gerencial): grava na hora de conferir; se faltar (concurso
+    // conferido antes da v122), busca na Caixa e guarda.
+    let faixasRateio = null;
+    try {
+        const doc = await db.collection('gerencial_rateio').doc(`${loteria}_${concurso}`).get();
+        if (doc.exists) faixasRateio = doc.data().faixas;
+        else {
+            const api = { mega: 'megasena' }[loteria] || loteria;
+            const resp = await fetch(`https://servicebus2.caixa.gov.br/portaldeloterias/api/${api}/${concurso}`);
+            if (resp.ok) faixasRateio = await gerencialSalvarRateio(loteria, concurso, (await resp.json()).listaRateioPremio);
+        }
+    } catch (e) { console.warn('Rateio indisponível:', e); }
+
+    const r = consolidarConcurso(loteria, doConcurso, res, faixasRateio, _consCache.grupos, concurso);
+    const brl = v => _brl(v);
+    const faixasComPremio = (resumo) => r.faixas.filter(f => resumo.faixas[f.faixa]).map(f => `<span class="cons-chip">${resumo.faixas[f.faixa]} × ${escapeHtml(f.rotulo)}</span>`).join('') || '<span class="cons-chip vazio">nenhum prêmio</span>';
+    const linhaValores = (x) => `<div class="cons-valores">
+            <span>Prêmio dos bolões da Caixa: <strong>${brl(x.bruto)}</strong></span>
+            <span class="cons-nossa">💰 Nossa parte: <strong>${brl(x.nossa)}</strong></span></div>
+        ${x.semCota.length ? `<div class="cons-aviso">⚠ ${x.semCota.length} cartão(ões) de cota sem as cotas informadas — fora da nossa parte</div>` : ''}
+        ${x.valorIndisponivel ? `<div class="cons-aviso">⚠ Alguma faixa premiada está sem valor no rateio da Caixa (prêmio acumulado ou ainda não divulgado)</div>` : ''}`;
+    const campeao = r.boloes[0];
+    const sorteadosTxt = `${(res.numeros || []).map(n => String(n).padStart(2, '0')).join(' ')}${res.numeros2 ? ` · 2º sorteio: ${res.numeros2.map(n => String(n).padStart(2, '0')).join(' ')}` : ''}${res.trevos ? ` · trevos ${res.trevos.join(' ')}` : ''}${res.mesSorte ? ` · mês ${nomeMesSorte(res.mesSorte)}` : ''}`;
+
+    cont.innerHTML = `
+        <div class="cons-topo">
+            <div class="cons-sorteados">🔢 ${res.numeros2 ? '1º sorteio: ' : ''}${escapeHtml(sorteadosTxt)}</div>
+            ${campeao && campeao.melhor ? `<div class="cons-campeao">🏆 Melhor do concurso: <strong>${escapeHtml(campeao.nome)}</strong> — ${escapeHtml(campeao.melhor.rotulo)}</div>` : ''}
+            <div class="cons-total">
+                <div class="cons-total-tit">TOTAL · ${r.boloes.length} ${r.boloes.length === 1 ? 'bolão' : 'bolões'} · ${r.total.cartoes} cartões</div>
+                <div class="cons-chips">${faixasComPremio(r.total)}</div>
+                ${linhaValores(r.total)}
+            </div>
+            <div class="cons-acoes">
+                ${res.publicado ? '<span class="insc-chip importando">✅ Publicado</span>' : '<button type="button" class="btn btn-sm" id="btnConsPublicar" style="background:#0071e3;color:#fff;">📢 Publicar pro público</button>'}
+                <button type="button" class="btn btn-success btn-sm" id="btnConsCopiar">📱 Copiar resumo</button>
+            </div>
+        </div>
+        ${r.boloes.map((b, i) => `
+            <div class="cons-bolao${i === 0 && b.melhor && b.melhor.pontos > 0 ? ' campeao' : ''}">
+                <div class="cons-bolao-cab">
+                    <span class="cons-pos">${i + 1}º</span>
+                    <strong class="cons-nome">${escapeHtml(b.nome)}</strong>
+                    <span class="cons-melhor">${escapeHtml(b.melhor ? b.melhor.rotulo : '—')}</span>
+                </div>
+                <div class="cons-sub">${b.cartoes} cartão(ões)</div>
+                <div class="cons-chips">${faixasComPremio(b)}</div>
+                ${linhaValores(b)}
+                <div class="cons-bolao-acoes">
+                    <button type="button" class="insc-link" data-cons-ver="${i}">🔎 Ver melhor cartão</button>
+                    ${b.semCota.length ? `<button type="button" class="insc-link" data-cons-cotas="${i}">🎟 Informar cotas</button>` : ''}
+                </div>
+                <div class="cons-detalhe" id="consDet${i}" style="display:none;"></div>
+            </div>`).join('')}`;
+
+    const btnPub = document.getElementById('btnConsPublicar');
+    if (btnPub) btnPub.onclick = async () => { await publicarResultado(loteria, concurso, btnPub); await abrirConsolidado(true); };
+    document.getElementById('btnConsCopiar').onclick = () => _consCopiar(loteria, concurso, res, r);
+    cont.querySelectorAll('[data-cons-ver]').forEach(btn => btn.onclick = () => {
+        const i = Number(btn.dataset.consVer), el = document.getElementById('consDet' + i);
+        const abrir = el.style.display === 'none';
+        if (abrir && !el.innerHTML) el.innerHTML = melhorResultadoAdminHtml(loteria, concurso, res, r.boloes[i].nome);
+        el.style.display = abrir ? 'block' : 'none';
+        btn.textContent = abrir ? '🙈 Ocultar' : '🔎 Ver melhor cartão';
+    });
+    cont.querySelectorAll('[data-cons-cotas]').forEach(btn => btn.onclick = () => _consInformarCotas(loteria, concurso, r.boloes[Number(btn.dataset.consCotas)]));
+}
+
+async function _consInformarCotas(loteria, concurso, bolao) {
+    const nossas = parseInt(prompt(`Bolão "${bolao.nome}": quantas cotas NÓS temos?\n(vale para os ${bolao.semCota.length} cartão(ões) de cota sem cotas informadas)`, '1'), 10);
+    if (!(nossas > 0)) return;
+    const total = parseInt(prompt(`Bolão "${bolao.nome}": total de cotas do bolão da Caixa?`, ''), 10);
+    if (!(total >= nossas)) { showToast('⚠️ Total de cotas inválido.', 'warning'); return; }
+    try {
+        await gerencialRegistrarGrupo(loteria, concurso, bolao.semCota.map(_chaveCartaoGerencial), { nossas, total }, 'manual');
+        showToast('✅ Cotas registradas!', 'success');
+        await abrirConsolidado(true);
+    } catch (e) {
+        showToast('❌ Não gravou: ' + e.message, 'error');
+    }
+}
+
+// Resumo pro WhatsApp: pontuação e prêmios por bolão, SEM valores em R$
+// (cotas e valores são gerenciais — decisão do usuário).
+function _consCopiar(loteria, concurso, res, r) {
+    let t = `📊 *Conferência — ${(ROTULO_LOTERIA[loteria] || loteria).toUpperCase()} ${concurso}*\n`;
+    t += `🔢 ${res.numeros2 ? '1º sorteio: ' : ''}${(res.numeros || []).map(n => String(n).padStart(2, '0')).join(' ')}\n`;
+    if (res.numeros2) t += `🔢 2º sorteio: ${res.numeros2.map(n => String(n).padStart(2, '0')).join(' ')}\n`;
+    if (r.boloes[0] && r.boloes[0].melhor) t += `🏆 Melhor: *${r.boloes[0].nome}* — ${r.boloes[0].melhor.rotulo}\n`;
+    t += '\n';
+    r.boloes.forEach((b, i) => {
+        const pr = r.faixas.filter(f => b.faixas[f.faixa]).map(f => `${b.faixas[f.faixa]} × ${f.rotulo}`).join(', ');
+        t += `${i + 1}. *${b.nome}* — ${b.melhor ? b.melhor.rotulo : '—'}${pr ? ` · ${pr}` : ''}\n`;
+    });
+    navigator.clipboard.writeText(t)
+        .then(() => showToast('✅ Resumo copiado (sem valores)!', 'success'))
+        .catch(() => prompt('Copie o resumo abaixo:', t));
+}
+
+async function _consConferirPendentes() {
+    const loteria = loteriaFiltroConferencia;
+    const pendentes = [...new Set(cartoes.filter(c => c.tipo === loteria).map(c => c.concurso))].filter(cc => cc && !_consCache.resultados[cc]);
+    if (!pendentes.length) return;
+    if (!confirm(`Conferir ${pendentes.length} concurso(s) pendente(s) de ${ROTULO_LOTERIA[loteria] || loteria} na Caixa?`)) return;
+    for (const cc of pendentes) await conferirComoAdmin(loteria, cc, null);
+    await abrirConsolidado(true);
 }

@@ -213,6 +213,16 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // v122: conferência consolidada — cotas nossas em cada bolão da Caixa e
+    // rateio oficial por faixa. GERENCIAL: só o admin lê e grava (decisão
+    // do usuário: nada de cotas/valores no site público).
+    match /gerencial_cotas/{id} {
+      allow read, write: if isAdmin();
+    }
+    match /gerencial_rateio/{id} {
+      allow read, write: if isAdmin();
+    }
+
     // v107: o desktop informa se está aberto e quando sincronizou; o
     // admin web mostra isso na tela de Inscrições.
     match /meta/desktop_status {
