@@ -3237,7 +3237,7 @@ def _fila_listar():
             return docs
 
 
-VERSAO_DESKTOP = "v8.6"
+VERSAO_DESKTOP = "v8.7"
 FIREBASE_DESKTOP_STATUS = (
     "https://firestore.googleapis.com/v1/projects/mega-sena-sistema"
     "/databases/(default)/documents/meta/desktop_status"
@@ -8968,10 +8968,17 @@ class BolaoApp:
         self.dep_tree.configure(selectmode="extended")
 
         # ── Saques Emergenciais — compacto, colapsável, no rodapé ──
+        # v8.7: achado real do usuário — ao expandir, o formulário ficava
+        # cortado fora da janela: a tabela acima (expand=True, 18 linhas)
+        # foi empacotada antes e o Tkinter corta o que vem por último.
+        # Agora a seção é empacotada no RODAPÉ e ANTES da tabela
+        # (before=st), então tem prioridade de espaço e a tabela encolhe.
         self._saq_expandido = tk.BooleanVar(value=False)
+        self._saq_wrap = tk.Frame(p, bg=CORES["bg_section"])
+        self._saq_wrap.pack(side="bottom", fill="x", padx=20, pady=(2,6), before=st)
 
-        saq_hdr = tk.Frame(p, bg="#2c3e50", pady=4)
-        saq_hdr.pack(fill="x", padx=20, pady=(2,0))
+        saq_hdr = tk.Frame(self._saq_wrap, bg="#2c3e50", pady=4)
+        saq_hdr.pack(fill="x")
 
         self._saq_toggle_btn = tk.Button(
             saq_hdr, text="▶  💸 SAQUES EMERGENCIAIS  (clique para expandir)",
@@ -8981,7 +8988,7 @@ class BolaoApp:
         self._saq_toggle_btn.pack(fill="x", padx=8)
 
         # Frame colapsável — começa oculto
-        self._saq_body = tk.Frame(p, bg=CORES["bg_section"])
+        self._saq_body = tk.Frame(self._saq_wrap, bg=CORES["bg_section"])
         # Não faz pack ainda — aparece só ao expandir
 
         # Formulário interno
@@ -9026,7 +9033,7 @@ class BolaoApp:
             self._saq_toggle_btn.configure(
                 text="▶  💸 SAQUES EMERGENCIAIS  (clique para expandir)")
         else:
-            self._saq_body.pack(fill="x", padx=20, pady=(0,8))
+            self._saq_body.pack(fill="x", pady=(0,4))
             self._saq_expandido.set(True)
             self._saq_toggle_btn.configure(
                 text="▼  💸 SAQUES EMERGENCIAIS  (clique para recolher)")
