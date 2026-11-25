@@ -1462,6 +1462,46 @@ async function mostrarCartoes(numerosSorteados = null, trevosSorteados = null) {
     }
 }
 
+// ========== CARTÕES NOVOS COM A PÁGINA JÁ ABERTA (v124) ==========
+// Achado real (Dupla Sena 3036): o index lia o índice de cartões só ao
+// abrir — com a página/app já aberto, cartões cadastrados depois no
+// admin não apareciam até recarregar. Agora, ao voltar pra página ou
+// trocar de loteria, relê o índice (1 leitura, no máx. a cada 30s) e,
+// se mudou, recarrega tudo.
+let _versaoIndiceSite = null;
+let _ultimaChecagemIndice = 0;
+let _recarregandoPorIndice = false;
+
+async function indiceDeCartoesMudou() {
+    if (!dadosCarregados || _recarregandoPorIndice) return false;
+    const agora = Date.now();
+    if (agora - _ultimaChecagemIndice < 30000) return false;
+    _ultimaChecagemIndice = agora;
+    try {
+        const doc = await db.collection('meta').doc('cartoes_indice').get();
+        return doc.exists && doc.data().versao !== _versaoIndiceSite;
+    } catch (e) {
+        console.warn('Não consegui conferir se há cartões novos:', e);
+        return false;
+    }
+}
+
+async function recarregarSeHouverCartoesNovos() {
+    if (!(await indiceDeCartoesMudou())) return false;
+    _recarregandoPorIndice = true;
+    try {
+        showToast('🔄 Cartões novos cadastrados — atualizando...', 'info');
+        await carregarDados();
+    } finally {
+        _recarregandoPorIndice = false;
+    }
+    return true;
+}
+
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') recarregarSeHouverCartoesNovos().catch(e => console.warn(e));
+});
+
 // ========== CARREGAMENTO PRINCIPAL ==========
 async function carregarDados() {
     console.log('🔄 Carregando dados otimizado...');
@@ -1476,6 +1516,8 @@ async function carregarDados() {
         try {
             const docIndice = await db.collection('meta').doc('cartoes_indice').get();
             if (docIndice.exists) indiceCartoes = docIndice.data();
+            _versaoIndiceSite = indiceCartoes ? indiceCartoes.versao : null;
+            _ultimaChecagemIndice = Date.now();
         } catch (e) {
             console.warn('Índice de cartões indisponível, lendo a coleção:', e);
         }
@@ -1751,7 +1793,10 @@ async function setLoteria(loteria) {
     }
     
     limparEstadoCompleto();
-    
+
+    // v124: cartões cadastrados depois que a página abriu
+    if (await recarregarSeHouverCartoesNovos()) return;
+
     atualizarSelectConcursos();
     
     const select = document.getElementById('concursoSelect');
