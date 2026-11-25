@@ -1451,6 +1451,23 @@
     .imp-lotericas { border-left: 4px solid #6366f1; font-size: 13px; color: #334155; }
     .imp-lotericas ul { margin: 0; padding-left: 4px; list-style: none; }
     .imp-lotericas li { margin: 2px 0; }
+    /* v125: busca na lista de cartões */
+    .busca-cartoes { display: flex; gap: 8px; margin-bottom: 4px; }
+    .busca-cartoes input { flex: 1; font-size: 16px !important; }  /* 16px: iPhone não dá zoom ao focar */
+    .busca-cartoes-info { font-size: 12px; color: #0071e3; font-weight: 600; min-height: 16px; margin-bottom: 8px; }
+    .numero-cartao-badge.numero-buscado { background: #fde047 !important; color: #713f12 !important; box-shadow: 0 0 0 2px #ca8a04; }
+    /* v125: carregamento no meio da tela */
+    #bootPainel { position: fixed; inset: 0; z-index: 9000; display: flex; align-items: center; justify-content: center;
+        background: rgba(15, 23, 42, 0.45); pointer-events: none; transition: opacity .5s ease; padding: 20px; }
+    #bootPainel.boot-fim { opacity: 0; }
+    #bootPainel .boot-card { pointer-events: auto; position: relative; background: #fff; border-radius: 20px; padding: 24px 28px;
+        width: min(340px, 100%); text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,.3); }
+    #bootPainel .boot-titulo { font-size: 15px; font-weight: 700; color: #334155; }
+    #bootPainel .boot-pct { font-size: 52px; font-weight: 800; color: #0071e3; line-height: 1.15; margin: 6px 0 10px; font-variant-numeric: tabular-nums; }
+    #bootPainel .boot-trilho { height: 10px; background: #e2e8f0; border-radius: 99px; overflow: hidden; }
+    #bootPainel .boot-barra { height: 100%; width: 0; background: linear-gradient(90deg, #0071e3, #22c55e); border-radius: 99px; transition: width .3s ease; }
+    #bootPainel .boot-falta { font-size: 13px; color: #64748b; margin-top: 10px; min-height: 18px; }
+    #bootPainel .boot-fechar { position: absolute; top: 8px; right: 10px; background: none; border: none; font-size: 18px; color: #94a3b8; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -1459,7 +1476,7 @@
     <!-- TOP BAR -->
     <!-- ============================================ -->
     <div class="top-bar">
-        <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">Administração · v124</span></div>
+        <div class="logo">🎲 BOLÕES ALEATÓRIOS<span class="version">Administração · v125</span></div>
         <div class="stats">
             <div class="stat" id="bootProgress" style="display:none;">⏳ Carregando… 0%</div>
             <div class="stat" id="totalCartoes">📊 0 cartões</div>
@@ -1990,6 +2007,12 @@
                             <option value="bolao">👥 Bolão (A-Z)</option>
                         </select>
                     </div>
+                    <div class="busca-cartoes">
+                        <input type="search" id="buscaCartoesLista" class="form-control" autocomplete="off" inputmode="search"
+                               placeholder="🔎 Buscar: números (05 12 33), código #a1b2c3, bolão ou concurso">
+                        <button type="button" id="btnLimparBuscaCartoes" class="btn btn-secondary btn-sm" title="Limpar busca">✕</button>
+                    </div>
+                    <div id="buscaCartoesInfo" class="busca-cartoes-info"></div>
                     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px;">
                         <button id="btnRecarregarLista" class="btn btn-primary btn-sm">🔄 RECARREGAR</button>
                         <button id="btnExportarExcel" class="btn btn-success btn-sm">📊 EXPORTAR</button>

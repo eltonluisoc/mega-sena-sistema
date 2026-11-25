@@ -367,16 +367,59 @@ function hideLoading() {
 // nenhuma espera extra: só visibilidade do que já estava acontecendo.
 const BOOT_TOTAL_CARREGAMENTOS = 9;
 let _bootConcluidos = 0;
+// v125: painel no MEIO da tela (pedido do usuário: o "Carregando… N%" do
+// topo era pequeno e ficava coberto no iPhone). Mostra o % grande e o que
+// ainda falta. Só aparece depois do login (não cobre a tela de senha).
+const ROTULOS_BOOT = {
+    carregarPixConfig: 'PIX', carregarDadosAdmin: 'Cartões', carregarBoloesParaGerenciar: 'Bolões',
+    carregarBoloesSelectParticipantes: 'Participantes', carregarParticipantesSelectFinanceiro: 'Financeiro',
+    carregarReservas: 'Reservas', carregarBoloesSelectPremiacoes: 'Premiações',
+    carregarPremiacoesPendentes: 'Prêmios pendentes', carregarEstatisticasDashboard: 'Painel'
+};
+const _bootPendentes = new Set(Object.values(ROTULOS_BOOT));
+let _bootLogado = false;
+let _bootPainelFechado = false;
 
 function _bootTrack(chamada) {
-    const resultado = chamada();
-    Promise.resolve(resultado).finally(_registrarBootConcluido);
+    const rotulo = ROTULOS_BOOT[chamada.name] || chamada.name;
+    let resultado;
+    try { resultado = chamada(); } catch (e) { resultado = Promise.reject(e); }
+    Promise.resolve(resultado).catch(() => {}).finally(() => { _bootPendentes.delete(rotulo); _registrarBootConcluido(); });
     return resultado;
 }
 
 function _registrarBootConcluido() {
     _bootConcluidos++;
     atualizarBootProgress();
+}
+
+function _bootPainel(pct) {
+    let el = document.getElementById('bootPainel');
+    if (!_bootLogado || _bootPainelFechado) { if (el) el.remove(); return; }
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'bootPainel';
+        el.innerHTML = `<div class="boot-card" role="status" aria-live="polite">
+            <button type="button" class="boot-fechar" aria-label="Esconder" onclick="_bootPainelFechado=true;_bootPainel(0)">✕</button>
+            <div class="boot-titulo">Carregando o admin</div>
+            <div class="boot-pct" id="bootPct">0%</div>
+            <div class="boot-trilho"><div class="boot-barra" id="bootBarraCentro"></div></div>
+            <div class="boot-falta" id="bootFalta"></div>
+        </div>`;
+        document.body.appendChild(el);
+    }
+    const pctEl = document.getElementById('bootPct');
+    const barra = document.getElementById('bootBarraCentro');
+    const falta = document.getElementById('bootFalta');
+    if (pctEl) pctEl.textContent = pct < 100 ? pct + '%' : '✅ 100%';
+    if (barra) barra.style.width = pct + '%';
+    if (falta) falta.textContent = pct < 100 && _bootPendentes.size
+        ? 'Falta: ' + [..._bootPendentes].join(', ')
+        : 'Tudo carregado!';
+    if (pct >= 100) {
+        el.classList.add('boot-fim');
+        setTimeout(() => { const e = document.getElementById('bootPainel'); if (e) e.remove(); }, 900);
+    }
 }
 
 function atualizarBootProgress() {
@@ -390,6 +433,7 @@ function atualizarBootProgress() {
         pill.textContent = pct < 100 ? `⏳ Carregando… ${pct}%` : '✅ Carregado';
     }
     if (barra) barra.style.width = pct + '%';
+    _bootPainel(pct);
 
     if (_bootConcluidos >= BOOT_TOTAL_CARREGAMENTOS) {
         setTimeout(() => {
@@ -428,6 +472,7 @@ function verificarAutenticacao() {
             // seriam recontados. _bootConcluidos nasce 0 (topo do arquivo)
             // e só sobe — no fluxo normal (sessão já salva) chega em
             // 7/7 do mesmo jeito.
+            _bootLogado = true;
             _bootTrack(carregarPixConfig);
             _bootTrack(carregarDadosAdmin);
             // Contador de lançamentos aguardando o desktop no menu (v107)
@@ -2495,6 +2540,15 @@ function exibirCartoesAdmin() {
         cartoesFiltrados = cartoesFiltrados.filter(c => (c.bolao || 'Sem Bolão') === filtroBolao);
     }
 
+    // v125: busca rápida (números, código do cartão, bolão ou concurso)
+    const textoBusca = document.getElementById('buscaCartoesLista')?.value || '';
+    const busca = filtrarCartoesPorBusca(cartoesFiltrados, textoBusca, loteriaAdmin);
+    cartoesFiltrados = busca.lista;
+    const infoBusca = document.getElementById('buscaCartoesInfo');
+    if (infoBusca) infoBusca.textContent = busca.ativa
+        ? `${cartoesFiltrados.length} ${cartoesFiltrados.length === 1 ? 'cartão encontrado' : 'cartões encontrados'}`
+        : '';
+
     const ordenarPor = document.getElementById('ordenarPorLista')?.value || 'data_desc';
     switch(ordenarPor) {
         case 'concurso_desc': cartoesFiltrados.sort((a,b) => (b.concurso||0) - (a.concurso||0)); break;
@@ -2509,7 +2563,9 @@ function exibirCartoesAdmin() {
     if (!container) return;
     
     if (cartoesFiltrados.length === 0) {
-        container.innerHTML = `<div class="empty-state">📭 Nenhum cartão da ${(ROTULO_LOTERIA[loteriaAdmin] || loteriaAdmin).toUpperCase()} cadastrado</div>`;
+        container.innerHTML = busca.ativa
+            ? `<div class="empty-state">🔎 Nenhum cartão encontrado para "${escapeHtml(textoBusca.trim())}"</div>`
+            : `<div class="empty-state">📭 Nenhum cartão da ${(ROTULO_LOTERIA[loteriaAdmin] || loteriaAdmin).toUpperCase()} cadastrado</div>`;
         return;
     }
     
@@ -2544,10 +2600,10 @@ function exibirCartoesAdmin() {
                             </div>
                         </div>
                         <div style="font-size:12px; color:#666; margin:5px 0;">
-                            Concurso ${cartao.concurso} | Bolão: ${cartao.bolao || 'Sem Bolão'} | 📅 ${dataFormatada}
+                            Concurso ${cartao.concurso} | Bolão: ${escapeHtml(cartao.bolao || 'Sem Bolão')} | 📅 ${dataFormatada}
                         </div>
                         <div class="numeros-cartao-lista">
-                            ${cartao.numeros.map(n => `<span class="numero-cartao-badge">${n.toString().padStart(2,'0')}</span>`).join('')}
+                            ${cartao.numeros.map(n => `<span class="numero-cartao-badge${busca.numeros.has(n) ? ' numero-buscado' : ''}">${n.toString().padStart(2,'0')}</span>`).join('')}
                         </div>
                         ${cartao.trevos ? `<div class="numeros-cartao-lista" style="margin-top:4px;">
                             ${cartao.trevos.map(t => `<span class="numero-cartao-badge" style="background:#dcfce7;color:#166534;border-radius:50%;">🍀${t.toString().padStart(2,'0')}</span>`).join('')}
@@ -3540,7 +3596,7 @@ async function editarCartao(id) {
 
                 <div style="margin-bottom: 15px;">
                     <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 5px; color: #1e293b;">👥 BOLÃO</label>
-                    <input type="text" id="editarBolao" value="${bolaoAtual}" style="width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #e2e8f0; font-size: 14px;" placeholder="Ex: Quina de São João 2026">
+                    <input type="text" id="editarBolao" value="${escapeHtml(bolaoAtual)}" style="width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #e2e8f0; font-size: 14px;" placeholder="Ex: Quina de São João 2026">
                 </div>
 
                 <div style="margin-bottom: 15px;">
@@ -3612,11 +3668,17 @@ async function editarCartao(id) {
                 return;
             }
 
-            const numeros = numerosTexto.match(/\d+/g).map(Number);
+            const numeros = (numerosTexto.match(/\d+/g) || []).map(Number);
             const regraAtual = regras[novaLoteria] || regras.mega;
 
             if (numeros.length < regraAtual.min) {
                 showToast(`❌ ${regraAtual.label}: mínimo ${regraAtual.min} números!`, 'error');
+                return;
+            }
+            // v125: faltava o MÁXIMO de dezenas (ex.: Mega aceitava 25)
+            const regraOficial = regrasLoteria(novaLoteria);
+            if (regraOficial && numeros.length > regraOficial.maxNumeros) {
+                showToast(`❌ ${regraAtual.label}: máximo ${regraOficial.maxNumeros} números!`, 'error');
                 return;
             }
 
@@ -3649,6 +3711,16 @@ async function editarCartao(id) {
             }
             if (novaLoteria === 'duplasena' && numeros.length > 15) { showToast('❌ DUPLA SENA: máximo 15 números!', 'error'); return; }
 
+            // v125: não deixar a edição criar um cartão igual a outro do
+            // mesmo concurso + bolão (a importação já barra isso).
+            const depois = { tipo: novaLoteria, concurso: novoConcurso, bolao: novoBolao, numeros, trevos, mesSorte };
+            const igual = cartaoIgualNaLista(cartoes, id, depois);
+            if (igual) {
+                showToast(`❌ Já existe um cartão igual neste concurso e bolão (#${String(igual.id).slice(-6)}).`, 'error');
+                return;
+            }
+            const antes = { tipo: cartao.tipo || 'mega', concurso: cartao.concurso, numeros: cartao.numeros || [], trevos: cartao.trevos || null, mesSorte: cartao.mesSorte || null };
+
             try {
                 const camposAtualizados = {
                     tipo: novaLoteria,
@@ -3665,9 +3737,23 @@ async function editarCartao(id) {
                 await db.collection('cartoes').doc(id).update(camposAtualizados);
                 const idxLocal = cartoes.findIndex(c => c.id === id);
                 if (idxLocal !== -1) cartoes[idxLocal] = { ...cartoes[idxLocal], ...camposAtualizados };
-                cartoesMudaram();
+                // índice público (concursos/bolões do index) + cache local
+                await cartoesMudaram();
 
-                showToast('✅ Cartão atualizado com sucesso!', 'success');
+                // v125: as cotas (gerencial_cotas) acham o cartão pelos
+                // números — sem isso, mudar 1 dezena tirava o cartão da
+                // "nossa parte" na conferência consolidada.
+                let avisoCotas = '';
+                try {
+                    const r = await gerencialAtualizarChaveCartao(antes, depois, cartoes);
+                    if (r.removidos) avisoCotas = ' · cartão mudou de concurso/loteria: informe as cotas de novo na conferência consolidada';
+                } catch (e) {
+                    console.warn('Cotas do cartão não atualizadas:', e);
+                    avisoCotas = ' · ⚠️ não consegui atualizar as cotas deste cartão';
+                }
+                _consCache = { loteria: null, resultados: {}, grupos: [] };
+
+                showToast('✅ Cartão atualizado — admin e site público' + avisoCotas, avisoCotas.includes('⚠️') ? 'warning' : 'success');
                 modal.remove();
                 atualizarUIComCartoesLocais();
 
@@ -6751,6 +6837,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const filtroConcurso = document.getElementById('filtroConcursoLista');
     const filtroBolao = document.getElementById('filtroBolaoLista');
     const ordenarPor = document.getElementById('ordenarPorLista');
+    const buscaCartoes = document.getElementById('buscaCartoesLista');
+    if (buscaCartoes) {
+        let tBusca = null;
+        buscaCartoes.addEventListener('input', () => { clearTimeout(tBusca); tBusca = setTimeout(exibirCartoesAdmin, 200); });
+    }
+    const btnLimparBusca = document.getElementById('btnLimparBuscaCartoes');
+    if (btnLimparBusca) btnLimparBusca.addEventListener('click', () => { if (buscaCartoes) { buscaCartoes.value = ''; buscaCartoes.focus(); } exibirCartoesAdmin(); });
     const btnAtualizarReservas = document.getElementById('btnAtualizarReservas');
     
     const adminBtnMega = document.getElementById('adminBtnMega');
@@ -8672,4 +8765,77 @@ async function salvarNomeLoterica(idx) {
         console.error('Nome da lotérica não gravado:', e);
         showToast('❌ Não consegui gravar o nome da lotérica.', 'error');
     }
+}
+
+// ============================================
+// v125: BUSCA NA LISTA DE CARTÕES + INTEGRIDADE NA EDIÇÃO
+// ============================================
+// Busca (puro, testável). Cada termo do texto restringe a lista:
+//  - número dentro do volante da loteria (ex.: "05 12 33"): o cartão
+//    precisa ter TODOS esses números;
+//  - número maior que o volante (ex.: "3036"): concurso;
+//  - "#abc123" ou texto com letras: código do cartão ou nome do bolão.
+function filtrarCartoesPorBusca(lista, texto, loteria) {
+    const termos = String(texto || '').toLowerCase().split(/[\s,;]+/).map(t => t.trim()).filter(Boolean);
+    const numeros = new Set();
+    if (!termos.length) return { lista, ativa: false, numeros };
+    const regra = regrasLoteria(loteria);
+    const maxValor = regra ? regra.maxValor : 60;
+    const dezenas = [], concursos = [], textos = [];
+    for (const t of termos) {
+        if (/^\d+$/.test(t)) {
+            const n = parseInt(t, 10);
+            if (n >= 1 && n <= maxValor && t.length <= 2) { dezenas.push(n); numeros.add(n); }
+            else concursos.push(String(n));
+        } else textos.push(t.replace(/^#/, ''));
+    }
+    const sem = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const filtrada = lista.filter(c => {
+        const nums = c.numeros || [];
+        if (!dezenas.every(n => nums.includes(n))) return false;
+        if (!concursos.every(k => String(c.concurso) === k)) return false;
+        const id = String(c.id || '').toLowerCase();
+        const bolao = sem(c.bolao || 'Sem Bolão');
+        return textos.every(t => (t && id.endsWith(t)) || id.includes(t) || bolao.includes(sem(t)));
+    });
+    return { lista: filtrada, ativa: true, numeros };
+}
+
+// Outro cartão (id diferente) com os mesmos números/trevos/mês no mesmo
+// concurso + bolão + loteria.
+function cartaoIgualNaLista(lista, id, novo) {
+    const chave = _chaveCartaoGerencial(novo);
+    const bolao = _nomeBolao(novo.bolao);
+    return (lista || []).find(c => c.id !== id && (c.tipo || 'mega') === novo.tipo
+        && String(c.concurso) === String(novo.concurso) && _nomeBolao(c.bolao) === bolao
+        && _chaveCartaoGerencial(c) === chave) || null;
+}
+
+// Novas chaves de um grupo de cotas depois da edição (puro, testável).
+// A chave antiga só sai se nenhum OUTRO cartão do concurso ainda a usa
+// (o mesmo jogo pode estar em 2 bolões).
+function _chavesGrupoAposEdicao(chaves, chAntes, chDepois, mesmoConcurso, antesAindaUsada) {
+    let novas = [...(chaves || [])];
+    if (!antesAindaUsada) novas = novas.filter(c => c !== chAntes);
+    if (mesmoConcurso) novas.push(chDepois);
+    return [...new Set(novas)].sort();
+}
+
+async function gerencialAtualizarChaveCartao(antes, depois, listaAtual) {
+    const chA = _chaveCartaoGerencial(antes), chD = _chaveCartaoGerencial(depois);
+    const mesmoConcurso = antes.tipo === depois.tipo && String(antes.concurso) === String(depois.concurso);
+    if (mesmoConcurso && chA === chD) return { atualizados: 0, removidos: 0 };
+    const antesAindaUsada = (listaAtual || []).some(c => (c.tipo || 'mega') === antes.tipo
+        && String(c.concurso) === String(antes.concurso) && _chaveCartaoGerencial(c) === chA);
+    const snap = await db.collection('gerencial_cotas')
+        .where('loteria', '==', antes.tipo).where('concurso', '==', String(antes.concurso)).get();
+    let atualizados = 0, removidos = 0;
+    for (const d of snap.docs) {
+        const g = d.data() || {};
+        if (!(g.chaves || []).includes(chA)) continue;
+        const chaves = _chavesGrupoAposEdicao(g.chaves, chA, chD, mesmoConcurso, antesAindaUsada);
+        await d.ref.update({ chaves, atualizadoEm: new Date().toISOString() });
+        if (mesmoConcurso) atualizados++; else removidos++;
+    }
+    return { atualizados, removidos };
 }
