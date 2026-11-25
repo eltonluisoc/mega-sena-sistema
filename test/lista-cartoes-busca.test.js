@@ -56,3 +56,33 @@ test('edição: cotas seguem o cartão quando muda dezena', () => {
   // mesmo jogo ainda existe em outro bolão: a chave antiga fica
   assert.deepEqual(plano(admin._chavesGrupoAposEdicao(ch, '1,2,3,4,5,6', '1,2,3,4,5,7', true, true)), ['1,2,3,4,5,6', '1,2,3,4,5,7', '7,8,9,10,11,12']);
 });
+
+// v127: relatório da correção — resultado real Dupla Sena 3034
+const res3034 = { numeros: [8, 11, 15, 22, 28, 37], numeros2: [19, 22, 23, 28, 30, 48], publicado: true };
+
+test('correção: dezena errada muda o resultado (antes → depois)', () => {
+  const antes = { tipo: 'duplasena', concurso: '3034', bolao: '10,00', numeros: [5, 15, 19, 22, 30, 31, 47, 49] };
+  const depois = { ...antes, numeros: [5, 15, 19, 22, 30, 31, 47, 48] };
+  const r = admin.compararCorrecaoCartao(antes, depois, res3034, res3034);
+  assert.equal(r.mudouResultado, true);
+  assert.ok(r.linhas.some(l => l.includes('1º sorteio: 2 · 2º sorteio: 3 → <strong>1º sorteio: 2 · 2º sorteio: 4</strong>')), r.linhas.join('\n'));
+});
+
+test('correção: mudar só o bolão não muda o resultado', () => {
+  const antes = { tipo: 'duplasena', concurso: '3034', bolao: '10,00', numeros: [4, 7, 8, 10, 15, 28, 32, 37] };
+  const r = admin.compararCorrecaoCartao(antes, { ...antes, bolao: 'Outro' }, res3034, res3034);
+  assert.equal(r.mudouResultado, false);
+  assert.ok(r.linhas.some(l => l.includes('(não mudou)')));
+});
+
+test('correção: concurso ainda não conferido', () => {
+  const c = { tipo: 'mega', concurso: '3091', bolao: 'X', numeros: [1, 2, 3, 4, 5, 6] };
+  const r = admin.compararCorrecaoCartao(c, { ...c, numeros: [1, 2, 3, 4, 5, 7] }, null, null);
+  assert.equal(r.mudouResultado, false);
+  assert.ok(r.linhas.some(l => l.includes('ainda não conferido')));
+});
+
+test('acertos por loteria: +Milionária com trevos e Dia de Sorte com mês', () => {
+  assert.equal(admin.acertosCartaoTexto('maismilionaria', { numeros: [1, 2, 3, 4, 5, 6], trevos: [1, 2] }, { numeros: [1, 2, 3, 10, 11, 12], trevos: [2, 5] }), '3 acertos + 1 trevo');
+  assert.equal(admin.acertosCartaoTexto('diadesorte', { numeros: [1, 2, 3, 4, 5, 6, 7], mesSorte: 3 }, { numeros: [1, 2, 3, 4, 9, 10, 11], mesSorte: 3 }), '4 pontos + mês');
+});

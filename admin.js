@@ -3719,7 +3719,7 @@ async function editarCartao(id) {
                 showToast(`❌ Já existe um cartão igual neste concurso e bolão (#${String(igual.id).slice(-6)}).`, 'error');
                 return;
             }
-            const antes = { tipo: cartao.tipo || 'mega', concurso: cartao.concurso, numeros: cartao.numeros || [], trevos: cartao.trevos || null, mesSorte: cartao.mesSorte || null };
+            const antes = { tipo: cartao.tipo || 'mega', concurso: cartao.concurso, bolao: cartao.bolao || 'Sem Bolão', numeros: cartao.numeros || [], trevos: cartao.trevos || null, mesSorte: cartao.mesSorte || null };
 
             try {
                 const camposAtualizados = {
@@ -3753,9 +3753,17 @@ async function editarCartao(id) {
                 }
                 _consCache = { loteria: null, resultados: {}, grupos: [] };
 
-                showToast('✅ Cartão atualizado — admin e site público' + avisoCotas, avisoCotas.includes('⚠️') ? 'warning' : 'success');
                 modal.remove();
                 atualizarUIComCartoesLocais();
+                // v127: mostra o que a correção mudou nos resultados (pedido
+                // do usuário: corrigir cartão = corrigir TODOS os resultados
+                // dele, igual no admin e no site público).
+                try {
+                    await mostrarRelatorioCorrecaoCartao(antes, depois, avisoCotas);
+                } catch (e) {
+                    console.warn('Relatório da correção não montado:', e);
+                    showToast('✅ Cartão atualizado — admin e site público' + avisoCotas, avisoCotas.includes('⚠️') ? 'warning' : 'success');
+                }
 
             } catch (error) {
                 console.error('Erro ao atualizar:', error);
@@ -8838,4 +8846,83 @@ async function gerencialAtualizarChaveCartao(antes, depois, listaAtual) {
         if (mesmoConcurso) atualizados++; else removidos++;
     }
     return { atualizados, removidos };
+}
+
+// ============================================
+// v127: RELATÓRIO DA CORREÇÃO DE UM CARTÃO
+// ============================================
+// Nada guardado no Firestore é calculado a partir do cartão: a conferência
+// (resultados_conferidos) guarda só as dezenas sorteadas, e os acertos são
+// calculados NA HORA, a partir do cartão, no admin (painel, conferência,
+// consolidado) e no site público (index, Meus Bolões). Corrigido o cartão,
+// tudo passa a mostrar o resultado novo. A única coisa que NÃO se corrige
+// sozinha é prêmio digitado à mão (Premiações / desktop) — por isso o aviso.
+
+function acertosCartaoTexto(loteria, c, res) {
+    if (!res || !res.numeros) return null;
+    const nums = c.numeros || [];
+    const h = s => nums.filter(x => (s || []).includes(x)).length;
+    if (loteria === 'duplasena') return `1º sorteio: ${h(res.numeros)} · 2º sorteio: ${h(res.numeros2)}`;
+    const a = h(res.numeros);
+    const unid = loteria === 'lotofacil' || loteria === 'diadesorte' ? 'pontos' : 'acertos';
+    let t = `${a} ${unid}`;
+    if (loteria === 'maismilionaria') {
+        const tr = (c.trevos || []).filter(x => (res.trevos || []).includes(x)).length;
+        t += ` + ${tr} trevo${tr === 1 ? '' : 's'}`;
+    }
+    if (loteria === 'diadesorte' && res.mesSorte) t += c.mesSorte === res.mesSorte ? ' + mês' : ' (mês não)';
+    return t;
+}
+
+// Puro (testável): linhas do relatório e se o resultado mudou.
+function compararCorrecaoCartao(antes, depois, resAntes, resDepois) {
+    const rot = c => `${ROTULO_LOTERIA[c.tipo] || c.tipo} ${c.concurso} · ${_nomeBolao(c.bolao)}`;
+    const aTxt = acertosCartaoTexto(antes.tipo, antes, resAntes);
+    const dTxt = acertosCartaoTexto(depois.tipo, depois, resDepois);
+    const mesmoConcurso = antes.tipo === depois.tipo && String(antes.concurso) === String(depois.concurso);
+    const linhas = [];
+    if (rot(antes) !== rot(depois)) linhas.push(`📌 ${rot(antes)} → ${rot(depois)}`);
+    const nA = (antes.numeros || []).join(' '), nD = (depois.numeros || []).join(' ');
+    if (nA !== nD) linhas.push(`🔢 Números: ${nA} → ${nD}`);
+    let mudouResultado = false;
+    if (aTxt || dTxt) {
+        mudouResultado = !mesmoConcurso || aTxt !== dTxt;
+        if (mesmoConcurso) linhas.push(`🎯 Resultado: ${aTxt || '—'}${mudouResultado ? ` → <strong>${dTxt || '—'}</strong>` : ' (não mudou)'}`);
+        else {
+            if (aTxt) linhas.push(`🎯 No concurso ${antes.concurso}: tinha ${aTxt} — saiu dele`);
+            if (dTxt) linhas.push(`🎯 No concurso ${depois.concurso}: <strong>${dTxt}</strong>`);
+        }
+    } else linhas.push('⏳ Concurso ainda não conferido — o cartão já vale com os números novos quando conferir.');
+    return { linhas, mudouResultado };
+}
+
+async function mostrarRelatorioCorrecaoCartao(antes, depois, avisoCotas) {
+    const ler = async c => {
+        const d = await db.collection('resultados_conferidos').doc(`${c.tipo}_${c.concurso}`).get();
+        return d.exists ? d.data() : null;
+    };
+    const resAntes = await ler(antes);
+    const mesmo = antes.tipo === depois.tipo && String(antes.concurso) === String(depois.concurso);
+    const resDepois = mesmo ? resAntes : await ler(depois);
+    const { linhas, mudouResultado } = compararCorrecaoCartao(antes, depois, resAntes, resDepois);
+    const publicado = [resAntes, resDepois].some(r => r && r.publicado);
+
+    let modal = document.getElementById('modalRelatorioCorrecao');
+    if (modal) modal.remove();
+    modal = document.createElement('div');
+    modal.id = 'modalRelatorioCorrecao';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10001;display:flex;align-items:center;justify-content:center;padding:20px;';
+    modal.innerHTML = `<div style="background:#fff;border-radius:18px;max-width:480px;width:100%;padding:22px;max-height:90vh;overflow:auto;">
+        <h3 style="margin:0 0 12px;font-size:18px;">✅ Cartão corrigido</h3>
+        ${linhas.map(l => `<div style="font-size:14px;color:#334155;margin:6px 0;">${l}</div>`).join('')}
+        <div style="font-size:13px;color:#166534;background:#dcfce7;border-radius:10px;padding:8px 10px;margin-top:12px;">
+            ✔ Admin atualizado (lista, painel, conferência e consolidado)<br>
+            ✔ Site público ${publicado ? 'já mostra o resultado corrigido' : 'atualizado (o resultado aparece quando você publicar a conferência)'}
+        </div>
+        ${mudouResultado && (resAntes || resDepois) ? `<div style="font-size:13px;color:#991b1b;background:#fee2e2;border-radius:10px;padding:8px 10px;margin-top:8px;font-weight:600;">
+            ⚠️ O resultado deste cartão mudou. Se você já registrou prêmio deste concurso/bolão (Premiações ou desktop), confira se o valor continua certo — prêmio digitado à mão não se corrige sozinho.</div>` : ''}
+        ${avisoCotas ? `<div style="font-size:12px;color:#854d0e;margin-top:8px;">${escapeHtml(avisoCotas.replace(/^ · /, ''))}</div>` : ''}
+        <button type="button" class="btn btn-primary" style="width:100%;margin-top:14px;" onclick="document.getElementById('modalRelatorioCorrecao').remove()">OK</button>
+    </div>`;
+    document.body.appendChild(modal);
 }
