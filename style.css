@@ -975,3 +975,22 @@ button:hover {
         overflow-x: auto;
     }
 }
+
+/* v128: card Composição do bolão (index) — ver gerarComposicaoBolao em script.js */
+.comp-card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:14px 16px;margin-bottom:16px;box-shadow:0 2px 10px rgba(15,23,42,.06)}
+.comp-tit{font-size:12px;font-weight:700;color:#334155;letter-spacing:.3px;margin-bottom:8px}
+.comp-linha{margin:10px 0}
+.comp-cab{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:4px}.comp-cab b{font-size:14px;color:#0f172a}
+.comp-sub{font-size:11px;color:#64748b;margin-top:3px}
+.comp-trilho{height:12px;background:#e2e8f0;border-radius:99px;overflow:hidden}
+.comp-barra{height:100%;background:linear-gradient(90deg,#7c3aed,#3b82f6);border-radius:99px}
+.comp-val{font-weight:700;font-size:13px;color:#0f172a;white-space:nowrap}.comp-val small{font-weight:500;font-size:11px;color:#64748b}
+.comp-total{border-top:1px solid #e2e8f0;margin-top:10px;padding-top:8px;font-size:13px;color:#334155;text-align:center}
+.comp-nota{font-size:11px;color:#64748b;margin-top:6px;text-align:center;line-height:1.4}
+.comp-grade{display:grid;gap:3px}
+.comp-n{font-size:11px;font-weight:700;text-align:center;border-radius:6px;padding:4px 0}
+.comp-n.vazio{background:#f8fafc;color:#cbd5e1;border:1px dashed #e2e8f0}
+.comp-leg{display:flex;align-items:center;gap:6px;font-size:10px;color:#64748b;margin-top:6px}
+.comp-grad{flex:1;height:6px;border-radius:9px;background:linear-gradient(90deg,hsl(215,80%,90%),hsl(215,80%,42%))}
+
+.comp-card *{box-sizing:border-box}

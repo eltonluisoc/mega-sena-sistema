@@ -627,6 +627,80 @@ function calcularChancesBolao(cartoesBolao, loteria) {
     `;
 }
 
+// v128: card "Composição do bolão", logo abaixo do Potencial do Bolão.
+// Pedido do usuário: valorizar o bolão mostrando quantos cartões de cada
+// tamanho (8, 9, 10 dezenas...) e quanto cada grupo pesa em apostas
+// simples, mais o mapa de cobertura dos números (quantos cartões têm cada
+// número). Sem R$ nem cotas -- isso é só do admin. Usa os cartões que a
+// página já carregou (zero leitura extra no Firestore) e segue o filtro de
+// bolão do index. Números fora do bolão aparecem apagados: o card roxo já
+// mostra "64/80 NÚMEROS", então o mapa só detalha o mesmo dado.
+function gerarComposicaoBolao(cartoesBolao, loteria) {
+    if (!cartoesBolao || cartoesBolao.length === 0) return '';
+    const k = LOTERIA_K[loteria] || 5;
+    const universo = { mega: 60, lotofacil: 25, maismilionaria: 50, diadesorte: 31, duplasena: 50, quina: 80 }[loteria] || 60;
+    const trevoCfg = LOTERIA_TREVOS[loteria];
+    const fmt = n => Number(n).toLocaleString('pt-BR');
+    const grupos = {};
+    const freq = new Array(universo + 1).fill(0);
+    let totalApostas = 0;
+    for (const c of cartoesBolao) {
+        const n = (c.numeros || []).length;
+        const t = trevoCfg && c.trevos ? c.trevos.length : 0;
+        let apostas = combinacao(n, k);
+        if (trevoCfg && t > 0) apostas *= combinacao(t, trevoCfg.k);
+        const chave = t ? `${n}|${t}` : `${n}`;
+        if (!grupos[chave]) grupos[chave] = { n, t, qtd: 0, apostasCada: apostas };
+        grupos[chave].qtd++;
+        totalApostas += apostas;
+        for (const x of c.numeros || []) if (x >= 1 && x <= universo) freq[x]++;
+    }
+    const lista = Object.values(grupos).sort((a, b) => b.n - a.n || b.t - a.t);
+    const unidade = loteria === 'lotofacil' || loteria === 'diadesorte' ? 'números' : 'dezenas';
+    const linhas = lista.map(g => {
+        const tot = g.qtd * g.apostasCada;
+        const pct = totalApostas ? tot / totalApostas * 100 : 0;
+        const rot = g.t ? `${g.n} ${unidade} + ${g.t} trevos` : `${g.n} ${unidade}`;
+        const plural = (q, sing, plur) => `${fmt(q)} ${q === 1 ? sing : plur}`;
+        return `<div class="comp-linha">
+            <div class="comp-cab"><b>${rot}</b><span class="comp-val">${fmt(tot)} apostas <small>(${Math.round(pct)}%)</small></span></div>
+            <div class="comp-trilho"><div class="comp-barra" style="width:${Math.max(pct, 2).toFixed(1)}%"></div></div>
+            <div class="comp-sub">${plural(g.qtd, 'cartão', 'cartões')} × ${plural(g.apostasCada, 'aposta', 'apostas')} cada</div>
+        </div>`;
+    }).join('');
+    // "Cada dezena a mais multiplica": do mínimo da loteria até 1 acima do maior cartão
+    const maior = Math.max(...lista.map(g => g.n));
+    const escala = [];
+    for (let n = k; n <= Math.max(maior + 1, k + 3) && escala.length < 5; n++) escala.push(`<b>${n}</b>→${fmt(combinacao(n, k))}`);
+    // Mapa de cobertura
+    const usados = freq.slice(1).filter(f => f > 0);
+    const fMax = Math.max(1, ...usados), fMin = usados.length ? Math.min(...usados) : 0;
+    let grade = '';
+    for (let x = 1; x <= universo; x++) {
+        const f = freq[x];
+        if (!f) { grade += `<span class="comp-n vazio">${String(x).padStart(2, '0')}</span>`; continue; }
+        const r = fMax === fMin ? 1 : (f - fMin) / (fMax - fMin);
+        const luz = Math.round(90 - r * 48);
+        grade += `<span class="comp-n" style="background:hsl(215,80%,${luz}%);color:${luz < 62 ? '#fff' : '#1e3a8a'}" title="${f} cartões">${String(x).padStart(2, '0')}</span>`;
+    }
+    const cols = loteria === 'lotofacil' ? 5 : (loteria === 'diadesorte' ? 8 : 10);
+    const cobertos = usados.length;
+    const frase = cobertos === universo
+        ? `Todos os <b>${universo} números</b> estão no bolão`
+        : `<b>${cobertos} de ${universo} números</b> estão no bolão`;
+    const faixa = fMin === fMax ? `cada um em <b>${fMin} ${fMin > 1 ? 'cartões' : 'cartão'}</b>` : `cada um aparece em <b>${fMin} a ${fMax} cartões</b>`;
+    return `<div class="comp-card">
+        <div class="comp-tit">🧩 COMPOSIÇÃO DO BOLÃO</div>
+        ${linhas}
+        <div class="comp-total">Total: <b>${fmt(cartoesBolao.length)} cartões = ${fmt(totalApostas)} apostas simples</b></div>
+        <div class="comp-nota">💡 Cada ${unidade === 'dezenas' ? 'dezena' : 'número'} a mais multiplica as apostas (dezenas→apostas): ${escala.join(' · ')}</div>
+        <div class="comp-tit" style="margin-top:14px">🗺️ COBERTURA DOS NÚMEROS</div>
+        <div class="comp-grade" style="grid-template-columns:repeat(${cols},1fr)">${grade}</div>
+        <div class="comp-leg"><span>menos cartões</span><span class="comp-grad"></span><span>mais cartões</span></div>
+        <div class="comp-nota">${frase} · ${faixa}</div>
+    </div>`;
+}
+
 // trevosSorteados é opcional — só a +Milionária usa (desempate por
 // acertos de trevo quando dois cartões empatam em números).
 function ordenarCartoesPorAcertos(cartoesLista, numerosSorteados, trevosSorteados = null, numerosSorteados2 = null) {
@@ -969,7 +1043,7 @@ async function exibirResultadoSalvo(loteria, concurso, numerosSorteados) {
         }
 
         const cartoesOrdenados = ordenarCartoesPorAcertos(cartoesFiltrados, numerosSorteados, trevosSorteados, numerosSorteados2);
-        const chancesHtml = calcularChancesBolao(cartoesFiltrados, loteria);
+        const chancesHtml = calcularChancesBolao(cartoesFiltrados, loteria) + gerarComposicaoBolao(cartoesFiltrados, loteria);
 
         const premios = calcularPremios(cartoesOrdenados, numerosSorteados, loteria, trevosSorteados, mesSorteSorteado, numerosSorteados2);
 
@@ -1382,7 +1456,7 @@ async function mostrarCartoes(numerosSorteados = null, trevosSorteados = null) {
         // do usuário pra o botão Conferir (entre os dois na página) aparecer
         // logo depois da probabilidade, sem precisar rolar a lista inteira
         // de cartões primeiro.
-        const chancesHtml = calcularChancesBolao(filtrados, loteriaAtual);
+        const chancesHtml = calcularChancesBolao(filtrados, loteriaAtual) + gerarComposicaoBolao(filtrados, loteriaAtual);
         if (potencialArea) potencialArea.innerHTML = chancesHtml;
 
         // --- ORDENAR POR BOLÃO ---
