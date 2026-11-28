@@ -426,7 +426,6 @@ function calcularChancesBolao(cartoesBolao, loteria) {
             : (loteria === 'diadesorte' ? '5 PONTOS' : 'QUADRA')));
 
     let totalCombinacoesCobertas = 0;
-    let totalCombinacoesChance = 0;
     let numerosUtilizados = new Set();
     const trevoCfg = LOTERIA_TREVOS[loteria];
 
@@ -442,9 +441,6 @@ function calcularChancesBolao(cartoesBolao, loteria) {
             combinacoesDoCartao *= combinacao(cartao.trevos.length, trevoCfg.k);
         }
         totalCombinacoesCobertas += combinacoesDoCartao;
-
-        totalCombinacoesChance += combinacao(qtdNumeros, acertosAlvoChance) *
-            combinacao(numerosPossiveis - qtdNumeros, dezenasSorteadas - acertosAlvoChance);
 
         cartao.numeros.forEach(n => numerosUtilizados.add(n));
     }
@@ -502,11 +498,19 @@ function calcularChancesBolao(cartoesBolao, loteria) {
         duplasena: { excelente: 6000, otimo: 3000, bom: 600, regular: 60 },
     };
 
-    // "Chance real" = chance de pelo menos um cartão bater a faixa de
-    // prêmio mais alcançável (ver acertosAlvoChance acima).
-    const probabilidadeUmSorteio = totalCombinacoesPossiveis > 0
-        ? totalCombinacoesChance / totalCombinacoesPossiveis
-        : 0;
+    // "Chance real" = chance de PELO MENOS UM cartão do bolão fazer a faixa
+    // de prêmio mais alcançável (ver acertosAlvoChance) OU MAIS.
+    // v129 -- CORREÇÃO (achado 28/11, Quina 7173: site mostrava 72,3%, a
+    // chance verdadeira é 53,49%): antes somava a chance de cada cartão
+    // separadamente. Essa soma é o NÚMERO MÉDIO de cartões premiados, não a
+    // probabilidade -- quando 2 cartões fazem terno no MESMO sorteio, a soma
+    // conta 2x, e o erro cresce com o tamanho do bolão. Agora é a conta
+    // EXATA (todos os sorteios possíveis contados, ver
+    // chanceExataUmSorteio), conferida contra enumeração força-bruta.
+    // Bolões grandes levam ~1-3 s: roda em segundo plano (Web Worker) e o
+    // card é preenchido quando termina; resultado fica em cache.
+    const chaveChance = chaveChanceBolao(cartoesBolao, loteria, numerosPossiveis, dezenasSorteadas, acertosAlvoChance);
+    const probabilidadeUmSorteio = chanceBolaoEmCache(chaveChance);
     // Dupla Sena: 2 sorteios por concurso, o mesmo cartão vale pros dois --
     // CORREÇÃO (achado real, 13 comprovantes do usuário, concurso 3034):
     // o código antigo fazia `totalCombinacoesChance *= 2`, literalmente
@@ -517,9 +521,8 @@ function calcularChancesBolao(cartoesBolao, loteria) {
     // combinar 2 chances independentes é 1-(1-p)², aplicada só UMA vez,
     // por cima da probabilidade já agregada de 1 sorteio -- nunca somando
     // ou multiplicando a probabilidade bruta.
-    const probabilidade = loteria === 'duplasena'
-        ? 1 - (1 - probabilidadeUmSorteio) ** 2
-        : probabilidadeUmSorteio;
+    const probabilidade = probabilidadeUmSorteio === null ? null
+        : combinarSorteiosChance(probabilidadeUmSorteio, loteria);
 
     let estrelas = 0;
     let estrelasHtml = '';
@@ -527,21 +530,10 @@ function calcularChancesBolao(cartoesBolao, loteria) {
 
     if (loteria === 'quina') {
         // Faixas de % de chance de terno (não usa "bilhetes cobertos").
-        // Sem faixa REGULAR/2★ — decisão explícita do usuário.
-        const pctChance = probabilidade * 100;
-        if (pctChance >= 80) {
-            estrelas = 5;
-            classificacao = 'EXCELENTE';
-        } else if (pctChance >= 50) {
-            estrelas = 4;
-            classificacao = 'ÓTIMO';
-        } else if (pctChance >= 15) {
-            estrelas = 3;
-            classificacao = 'BOM';
-        } else {
-            estrelas = 1;
-            classificacao = 'SIMPLES';
-        }
+        // Enquanto a chance exata é calculada, fica "CALCULANDO".
+        const cq = classeQuinaPorChance(probabilidade);
+        estrelas = cq.estrelas;
+        classificacao = cq.classificacao;
     } else {
         const faixas = FAIXAS_ESTRELAS[loteria] || FAIXAS_ESTRELAS.mega;
         if (totalCombinacoesCobertas >= faixas.excelente) {
@@ -562,37 +554,22 @@ function calcularChancesBolao(cartoesBolao, loteria) {
         }
     }
 
-    for (let i = 1; i <= 5; i++) {
-        if (i <= estrelas) {
-            estrelasHtml += '★';
-        } else {
-            estrelasHtml += '☆';
-        }
-    }
-    
-    let corGradient = '';
-    if (estrelas === 5) {
-        corGradient = 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)';
-    } else if (estrelas === 4) {
-        corGradient = 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)';
-    } else if (estrelas === 3) {
-        corGradient = 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)';
-    } else if (estrelas === 2) {
-        corGradient = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
-    } else {
-        corGradient = 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
-    }
-    
+    estrelasHtml = estrelasTexto(estrelas);
+    const corGradient = gradientePorEstrelas(estrelas);
+    const pendente = probabilidade === null;
+    const token = pendente ? 'pb' + (++_chanceTokenSeq) : '';
+    if (pendente) agendarChanceExata(token, chaveChance, cartoesBolao, loteria, numerosPossiveis, dezenasSorteadas, acertosAlvoChance);
+
     return `
-        <div style="background: ${corGradient}; border-radius: 16px; padding: 14px 16px; margin-bottom: 16px; color: white;">
+        <div class="pb-card"${token ? ` data-chance-token="${token}"` : ''} style="background: ${corGradient}; border-radius: 16px; padding: 14px 16px; margin-bottom: 16px; color: white;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                 <div style="display: flex; align-items: center; gap: 6px;">
                     <span style="font-size: 18px;">🎲</span>
                     <span style="font-size: 12px; font-weight: 600;">POTENCIAL DO BOLÃO</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 4px;">
-                    <span style="font-size: 13px; font-weight: bold; color: #fbbf24;">${estrelasHtml}</span>
-                    <span style="font-size: 9px; opacity: 0.9;">(${classificacao})</span>
+                    <span class="pb-estrelas" style="font-size: 13px; font-weight: bold; color: #fbbf24;">${estrelasHtml}</span>
+                    <span class="pb-classe" style="font-size: 9px; opacity: 0.9;">(${classificacao})</span>
                 </div>
             </div>
             
@@ -615,8 +592,8 @@ function calcularChancesBolao(cartoesBolao, loteria) {
                     <div style="font-size: 8px; opacity: 0.8;">DO UNIVERSO</div>
                 </div>
                 <div>
-                    <div style="font-size: 16px; font-weight: bold;">${formatarProbabilidade(probabilidade)}</div>
-                    <div style="font-size: 8px; opacity: 0.8;">CHANCE (${rotuloChance})</div>
+                    <div class="pb-chance" style="font-size: 16px; font-weight: bold;">${pendente ? '<span style="font-size:11px;opacity:.85">calculando…</span>' : formatarProbabilidade(probabilidade)}</div>
+                    <div style="font-size: 8px; opacity: 0.8;">CHANCE (${rotuloChance} OU +)</div>
                 </div>
                 <div>
                     <div style="font-size: 16px; font-weight: bold;">${totalCartoes}</div>
@@ -625,6 +602,215 @@ function calcularChancesBolao(cartoesBolao, loteria) {
             </div>
         </div>
     `;
+}
+
+// ===================== v129: chance EXATA do bolão =====================
+// Probabilidade de PELO MENOS UM cartão ter >= alvo acertos num sorteio
+// de k dezenas entre 1..N. Conta exata dos C(N,k) sorteios possíveis:
+// percorre as dezenas sorteadas em ordem crescente; assim que algum cartão
+// chega no alvo, todos os complementos daquele ramo contam de uma vez
+// (C(resto)); na última dezena, conta direto quantas dezenas restantes
+// completam um cartão que está "a 1 do alvo" (máscara de bits). Conferida
+// contra enumeração força-bruta (test/chance-exata.test.js).
+function _pc32(x) { x = x - ((x >>> 1) & 0x55555555); x = (x & 0x33333333) + ((x >>> 2) & 0x33333333); return (((x + (x >>> 4)) & 0x0F0F0F0F) * 0x01010101) >>> 24; }
+
+function chanceExataUmSorteio(cartoes, N, k, alvo) {
+    // cartões repetidos não mudam "algum cartão acertou": entram 1 vez
+    const vistos = new Set(), uteis = [];
+    for (const c of cartoes) {
+        const ns = [...new Set(c)].filter(n => n >= 1 && n <= N).sort((a, b) => a - b);
+        const ch = ns.join(',');
+        if (ns.length >= alvo && !vistos.has(ch)) { vistos.add(ch); uteis.push(ns); }
+    }
+    if (!uteis.length || alvo > k || alvo < 1) return 0;
+    // renumera: dezena mais frequente primeiro (acertos aparecem antes = menos ramos)
+    const freq = new Array(N + 1).fill(0);
+    uteis.forEach(c => c.forEach(n => freq[n]++));
+    const ordem = [];
+    for (let n = 1; n <= N; n++) ordem.push(n);
+    ordem.sort((a, b) => freq[b] - freq[a] || a - b);
+    const novo = new Array(N + 1);
+    ordem.forEach((n, i) => { novo[n] = i + 1; });
+    const nums = uteis.map(c => Int32Array.from(c.map(n => novo[n])));
+    const Q = nums.length, W = Math.ceil((N + 1) / 32);
+    const porNum = Array.from({ length: N + 1 }, () => []);
+    nums.forEach((c, i) => c.forEach(n => porNum[n].push(i)));
+    const pn = porNum.map(l => Int32Array.from(l));
+    const faixa = [];
+    for (let n = 0; n <= N + 1; n++) {
+        const f = new Uint32Array(W);
+        for (let x = Math.max(n, 1); x <= N; x++) f[x >>> 5] |= (1 << (x & 31)) >>> 0;
+        faixa.push(f);
+    }
+    const C = [];
+    for (let a = 0; a <= N; a++) {
+        C[a] = new Float64Array(k + 1);
+        C[a][0] = 1;
+        for (let b = 1; b <= k; b++) C[a][b] = a === 0 ? 0 : C[a - 1][b - 1] + C[a - 1][b];
+    }
+    const cont = new Int32Array(Q);
+    // comp[x] = quantos cartões "a 1 do alvo" têm a dezena x; U = bits de comp > 0
+    const comp = new Int32Array(N + 1), U = new Uint32Array(W);
+    const marca = (i, d) => {
+        const ns = nums[i];
+        for (let j = 0; j < ns.length; j++) {
+            const x = ns[j], antes = comp[x];
+            comp[x] += d;
+            if (antes === 0 && comp[x] > 0) U[x >>> 5] |= (1 << (x & 31)) >>> 0;
+            else if (antes > 0 && comp[x] === 0) U[x >>> 5] &= ~(1 << (x & 31)) >>> 0;
+        }
+    };
+    if (alvo === 1) for (let i = 0; i < Q; i++) marca(i, 1);
+    let fav = 0;
+    function rec(inicio, faltam) {
+        if (faltam === 1) {
+            const f = faixa[inicio];
+            for (let w = 0; w < W; w++) fav += _pc32(U[w] & f[w]);
+            return;
+        }
+        for (let n = inicio; n <= N - faltam + 1; n++) {
+            const l = pn[n];
+            let bateu = false;
+            for (let j = 0; j < l.length; j++) {
+                const i = l[j], v = ++cont[i];
+                if (v >= alvo) bateu = true;
+                if (v === alvo - 1) marca(i, 1); else if (v === alvo) marca(i, -1);
+            }
+            if (bateu) fav += C[N - n][faltam - 1]; else rec(n + 1, faltam - 1);
+            for (let j = 0; j < l.length; j++) {
+                const i = l[j], v = cont[i]--;
+                if (v === alvo - 1) marca(i, -1); else if (v === alvo) marca(i, 1);
+            }
+        }
+    }
+    rec(1, k);
+    return fav / C[N][k];
+}
+
+// Dupla Sena: 2 sorteios independentes no mesmo concurso -> 1-(1-p)².
+function combinarSorteiosChance(p, loteria) {
+    return loteria === 'duplasena' ? 1 - (1 - p) ** 2 : p;
+}
+
+// Quina: classificação vem do % de chance de terno ou mais.
+// Sem faixa REGULAR/2★ — decisão explícita do usuário.
+function classeQuinaPorChance(probabilidade) {
+    if (probabilidade === null || probabilidade === undefined) return { estrelas: 0, classificacao: 'CALCULANDO' };
+    const pct = probabilidade * 100;
+    if (pct >= 80) return { estrelas: 5, classificacao: 'EXCELENTE' };
+    if (pct >= 50) return { estrelas: 4, classificacao: 'ÓTIMO' };
+    if (pct >= 15) return { estrelas: 3, classificacao: 'BOM' };
+    return { estrelas: 1, classificacao: 'SIMPLES' };
+}
+
+function estrelasTexto(estrelas) {
+    let t = '';
+    for (let i = 1; i <= 5; i++) t += i <= estrelas ? '★' : '☆';
+    return t;
+}
+
+function gradientePorEstrelas(estrelas) {
+    if (estrelas === 5) return 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)';
+    if (estrelas === 4) return 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)';
+    if (estrelas === 3) return 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)';
+    if (estrelas === 2) return 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+    return 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
+}
+
+// Cache: memória + localStorage (a conta de um bolão grande leva segundos;
+// quem volta ao mesmo bolão vê na hora). A chave muda se QUALQUER cartão
+// mudar (edição/correção), então nunca mostra chance de cartões antigos.
+const _chanceCache = new Map();
+let _chanceTokenSeq = 0;
+const _CHANCE_LS = 'chanceExata:v1:';
+
+function chaveChanceBolao(cartoes, loteria, N, k, alvo) {
+    const jogos = [...new Set(cartoes.map(c => [...(c.numeros || [])].sort((a, b) => a - b).join(',')))].sort();
+    const txt = `${loteria}|${N}|${k}|${alvo}|${jogos.join(';')}`;
+    let h1 = 2166136261, h2 = 5381;
+    for (let i = 0; i < txt.length; i++) {
+        const c = txt.charCodeAt(i);
+        h1 = Math.imul(h1 ^ c, 16777619);
+        h2 = (Math.imul(h2, 33) + c) | 0;
+    }
+    return `${loteria}|${alvo}|${jogos.length}|${(h1 >>> 0).toString(36)}${(h2 >>> 0).toString(36)}|${txt.length}`;
+}
+
+function chanceBolaoEmCache(chave) {
+    if (_chanceCache.has(chave)) return _chanceCache.get(chave);
+    try {
+        const v = typeof localStorage !== 'undefined' ? localStorage.getItem(_CHANCE_LS + chave) : null;
+        if (v !== null && v !== undefined && v !== '' && isFinite(+v)) {
+            _chanceCache.set(chave, +v);
+            return +v;
+        }
+    } catch (e) { /* modo privado etc. */ }
+    return null;
+}
+
+function _guardarChance(chave, p) {
+    _chanceCache.set(chave, p);
+    try { localStorage.setItem(_CHANCE_LS + chave, String(p)); } catch (e) { /* cheio/privado: fica só em memória */ }
+}
+
+// Preenche o card (chance; na Quina também estrelas/classe/cor) quando a conta termina.
+function _aplicarChanceNoCard(token, p1, loteria) {
+    if (typeof document === 'undefined' || !document.querySelector) return;
+    const el = document.querySelector(`[data-chance-token="${token}"]`);
+    if (!el) return; // usuário já trocou de concurso/bolão
+    const p = combinarSorteiosChance(p1, loteria);
+    const ch = el.querySelector('.pb-chance');
+    if (ch) ch.textContent = formatarProbabilidade(p);
+    if (loteria === 'quina') {
+        const cq = classeQuinaPorChance(p);
+        const es = el.querySelector('.pb-estrelas'), cl = el.querySelector('.pb-classe');
+        if (es) es.textContent = estrelasTexto(cq.estrelas);
+        if (cl) cl.textContent = `(${cq.classificacao})`;
+        el.style.background = gradientePorEstrelas(cq.estrelas);
+    }
+}
+
+// chave -> { alvos: [{token, loteria}], args: [jogos, N, k, alvo] }
+const _chancePendentes = new Map();
+let _chanceWorker = null;
+
+function _concluirChance(chave, p1) {
+    const pend = _chancePendentes.get(chave);
+    _chancePendentes.delete(chave);
+    _guardarChance(chave, p1);
+    if (pend) pend.alvos.forEach(a => _aplicarChanceNoCard(a.token, p1, a.loteria));
+}
+
+function _chanceNaThreadPrincipal(chave) {
+    setTimeout(() => {
+        const pend = _chancePendentes.get(chave);
+        if (pend) _concluirChance(chave, chanceExataUmSorteio(...pend.args));
+    }, 30);
+}
+
+function agendarChanceExata(token, chave, cartoes, loteria, N, k, alvo) {
+    if (typeof setTimeout === 'undefined') return; // testes (vm) não rodam a conta assíncrona
+    const pend = _chancePendentes.get(chave);
+    if (pend) { pend.alvos.push({ token, loteria }); return; }
+    const args = [cartoes.map(c => [...(c.numeros || [])]), N, k, alvo];
+    _chancePendentes.set(chave, { alvos: [{ token, loteria }], args });
+    try {
+        if (typeof Worker === 'undefined' || typeof Blob === 'undefined' || typeof URL === 'undefined') throw new Error('sem worker');
+        if (!_chanceWorker) {
+            const src = `${_pc32.toString()}\n${chanceExataUmSorteio.toString()}\n` +
+                'onmessage = function (e) { var d = e.data; postMessage({ chave: d.chave, p: chanceExataUmSorteio(d.jogos, d.N, d.k, d.alvo) }); };';
+            _chanceWorker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+            _chanceWorker.onmessage = (e) => _concluirChance(e.data.chave, e.data.p);
+            _chanceWorker.onerror = () => {
+                // worker falhou: refaz o que estava pendente na thread principal
+                _chanceWorker = null;
+                for (const ch of _chancePendentes.keys()) _chanceNaThreadPrincipal(ch);
+            };
+        }
+        _chanceWorker.postMessage({ chave, jogos: args[0], N, k, alvo });
+    } catch (e) {
+        _chanceNaThreadPrincipal(chave);
+    }
 }
 
 // v128: card "Composição do bolão", logo abaixo do Potencial do Bolão.

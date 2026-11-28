@@ -89,6 +89,17 @@ test('calcularChancesBolao - cobertura de números e total de cartões da mega',
   assert.match(html, />2<\/div>/);
 });
 
+// v129: a CHANCE agora é a conta exata (roda em segundo plano no site).
+// Nos testes, calcula e põe no cache antes de montar o card.
+const ALVO_TESTE = { mega: [60, 6, 4], lotofacil: [25, 15, 13], quina: [80, 5, 3] };
+function chancesProntas(cartoes, loteria) {
+  const [N, k, alvo] = ALVO_TESTE[loteria];
+  sandbox._guardarChance(sandbox.chaveChanceBolao(cartoes, loteria, N, k, alvo),
+    sandbox.chanceExataUmSorteio(cartoes.map(c => c.numeros), N, k, alvo));
+  return sandbox.calcularChancesBolao(cartoes, loteria);
+}
+
+
 // Histórico: a classificação por estrelas usava um número absoluto de
 // "bilhetes equivalentes" (>=10000 = EXCELENTE etc.) igual pras 3
 // loterias, mas esse número cresce em ritmos bem diferentes conforme a
@@ -103,7 +114,7 @@ test('calcularChancesBolao - Quina classifica pelo % de chance de terno, não po
   const cartoes = Array.from({ length: 60 }, (_, i) => ({
     numeros: [1 + i % 76, 2 + i % 76, 3 + i % 76, 4 + i % 76, 5 + i % 76],
   }));
-  const html = sandbox.calcularChancesBolao(cartoes, 'quina');
+  const html = chancesProntas(cartoes, 'quina');
 
   assert.match(html, /\(SIMPLES\)/);
 });
@@ -146,20 +157,20 @@ test('formatarProbabilidade - ajusta casas decimais conforme a grandeza', () => 
 // (P(exatamente j acertos) = C(n,j)·C(N-n,k-j)/C(N,k)), não mais
 // combinação(n,k)/total (que é a chance do prêmio MÁXIMO, não da quadra).
 test('calcularChancesBolao - Mega mostra a chance de QUADRA, não de sena', () => {
-  // 1 cartão do mínimo (6 números) — P(exatamente 4 de 6) =
-  // C(6,4)·C(54,2)/C(60,6) = 15·1431/50.063.860 ≈ 0,0429%.
+  // 1 cartão do mínimo (6 números) — v129: quadra OU MAIS =
+  // (C(6,4)·C(54,2) + C(6,5)·54 + 1)/C(60,6) = 21.790/50.063.860 ≈ 0,0435%.
   const cartoes = [{ numeros: [1, 2, 3, 4, 5, 6] }];
-  const html = sandbox.calcularChancesBolao(cartoes, 'mega');
+  const html = chancesProntas(cartoes, 'mega');
 
-  assert.match(html, /CHANCE \(QUADRA\)/);
+  assert.match(html, /CHANCE \(QUADRA OU \+\)/);
   assert.match(html, />0\.04%</);
 });
 
 test('calcularChancesBolao - Lotofácil mostra a chance de 13 pontos', () => {
   const cartoes = [{ numeros: Array.from({ length: 15 }, (_, i) => i + 1) }];
-  const html = sandbox.calcularChancesBolao(cartoes, 'lotofacil');
+  const html = chancesProntas(cartoes, 'lotofacil');
 
-  assert.match(html, /CHANCE \(13 PTS\)/);
+  assert.match(html, /CHANCE \(13 PTS OU \+\)/);
 });
 
 // Rodada 70: trocado de QUADRA pra TERNO na Quina (0,63% de quadra
@@ -167,9 +178,9 @@ test('calcularChancesBolao - Lotofácil mostra a chance de 13 pontos', () => {
 // grandes — terno rende um % que já diz algo por si só).
 test('calcularChancesBolao - Quina mostra a chance de TERNO, não de quina/quadra', () => {
   const cartoes = [{ numeros: [1, 2, 3, 4, 5] }];
-  const html = sandbox.calcularChancesBolao(cartoes, 'quina');
+  const html = chancesProntas(cartoes, 'quina');
 
-  assert.match(html, /CHANCE \(TERNO\)/);
+  assert.match(html, /CHANCE \(TERNO OU \+\)/);
 });
 
 // Pedido do usuário: um cartão de 8 números na Mega com 4 acertos não é
